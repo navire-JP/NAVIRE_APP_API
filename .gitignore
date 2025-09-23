@@ -1,0 +1,28 @@
+# Python / venv
+.venv/
+venv/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+*.egg-info/
+.eggs/
+dist/
+
+# API
+.env
+storage/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# (si  client mobile ici un jour)
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
