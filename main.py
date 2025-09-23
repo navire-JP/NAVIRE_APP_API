@@ -3,18 +3,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import files, qcm
 from core.config import ALLOWED_ORIGINS
 
-app = FastAPI(title="NAVIRE Light API", version="0.1.0")
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="NAVIRE_APP_API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"],  # en prod, resserrer
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
-app.include_router(files.router, prefix="/files", tags=["Files"])
-app.include_router(qcm.router, prefix="/qcm", tags=["QCM"])
+app.include_router(files.router)
+app.include_router(qcm.router)
 
 @app.get("/health")
 def health():
