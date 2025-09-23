@@ -1,26 +1,23 @@
-from typing import Optional, List
+# utils/pdf_tools.py
+from io import BytesIO
+from typing import List, Optional
 from pypdf import PdfReader
 from fastapi import HTTPException
 
-def extract_text_from_pdf(path: str, pages_str: Optional[str] = None) -> str:
+def extract_pages_text_from_bytes(file_bytes: bytes) -> List[str]:
     try:
-        with open(path, "rb") as f:
-            reader = PdfReader(f)
-            if pages_str:
-                wanted = _parse_pages_str(pages_str, len(reader.pages))
-                indices = [i - 1 for i in wanted] if wanted else range(len(reader.pages))
-            else:
-                indices = range(len(reader.pages))
-            chunks = []
-            for i in indices:
-                txt = reader.pages[i].extract_text() or ""
-                if txt.strip():
-                    chunks.append(txt)
-            return "\n".join(chunks)
+        reader = PdfReader(BytesIO(file_bytes))
+        pages = []
+        for p in reader.pages:
+            txt = p.extract_text() or ""
+            pages.append(txt)
+        return pages
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Extraction PDF échouée: {e}")
 
-def _parse_pages_str(pages_str: str, total_pages: int) -> List[int]:
+def parse_pages_str(pages_str: Optional[str], total_pages: int) -> List[int]:
+    if not pages_str:
+        return list(range(1, total_pages + 1))
     pages = set()
     for part in pages_str.split(","):
         part = part.strip()
@@ -43,4 +40,5 @@ def _parse_pages_str(pages_str: str, total_pages: int) -> List[int]:
                     pages.add(p)
             except:
                 continue
-    return sorted(pages)
+    out = sorted(pages)
+    return out if out else list(range(1, total_pages + 1))

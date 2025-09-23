@@ -1,11 +1,11 @@
+# routers/qcm.py
 import uuid, json, random
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-
 from core.config import client
 from core.db import DATABASE
-from utils.pdf_tools import extract_text_from_pdf
+from utils.pdf_tools import parse_pages_str
 
 POINTS = {
     "facile":        {"good": 2, "bad": -1},
@@ -45,23 +45,25 @@ def _mk_prompt(source_text: str, topic: Optional[str], difficulty: str, n: int) 
     qcm_type = random.choice(QCM_TYPES)
     type_prompt = f"Type de question à respecter STRICTEMENT: {qcm_type}."
     diff_prompt = {
-        "facile": "🟢 FACILE: formulation simple, notions de base.",
-        "intermediaire": "🟡 INTERMÉDIAIRE: niveau CRFPA classique.",
-        "difficile": "🔴 DIFFICILE: notion piégeuse, distinction fine.",
+        "facile": "🟢 FACILE: formulation simple, notions de base, pas de pièges.",
+        "intermediaire": "🟡 INTERMÉDIAIRE: niveau CRFPA classique, précision juridique attendue.",
+        "difficile": "🔴 DIFFICILE: notion piégeuse, distinction fine, exception jurisprudentielle.",
     }.get(difficulty, "🟡 INTERMÉDIAIRE")
 
     system = (
         "Tu es un assistant de droit qui génère des QCM fiables et non ambigus. "
-        "Exige 4 choix, UNE seule bonne réponse (index 'correctIndex'), et une explication. "
-        "Réponds en JSON avec {\"questions\":[{title,choices[4],correctIndex,explanation}]}."
+        "Exige 4 choix, UNE seule bonne réponse (index 'correctIndex'), et une explication qui justifie "
+        "la bonne et invalide les 3 autres. Réponds en JSON avec {\"questions\":[{title,choices[4],correctIndex,explanation}]}."
     )
+
     user = (
-        f"{type_prompt}\nNiveau: {diff_prompt}\n"
-        f"Contexte (PDF){' sur le thème: '+topic if topic else ''}:\n{source_text}\n\n"
+        f"{type_prompt}\n"
+        f"Niveau: {diff_prompt}\n"
+        f"Contexte/Source (extraits du PDF){' sur le thème: '+topic if topic else ''}:\n{source_text}\n\n"
         f"Génère {n} questions."
     )
 
-    return [{"role":"system","content":system}, {"role":"user","content":user}]
+    return [{"role":"system","content":system},{"role":"user","content":user}]
 
 @router.post("/generate", response_model=GenerateResponse)
 def generate_qcm(req: GenerateRequest):
@@ -69,17 +71,25 @@ def generate_qcm(req: GenerateRequest):
     if not meta:
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
 
-    text = extract_text_from_pdf(meta["path"], req.pages)
-    if not text.strip():
-        raise HTTPException(status_code=400, detail="Le PDF est vide ou inexploitable.")
+    pages_text: List[str] = meta.get("pages_text") or []
+    if not pages_text:
+        raise HTTPException(status_code=400, detail="PDF inexploitable (aucun texte).")
 
-    messages = _mk_prompt(text[:20000], req.topic, (req.difficulty or "intermediaire").lower(), req.num_questions)
+    indices_1based = parse_pages_str(req.pages, len(pages_text))
+    # concatène le texte des pages sélectionnées
+    joined = "\n".join(pages_text[i-1] for i in indices_1based if 1 <= i <= len(pages_text))
+    if not joined.strip():
+        raise HTTPException(status_code=400, detail="Pages sélectionnées vides.")
+
+    messages = _mk_prompt(joined[:20000], req.topic, (req.difficulty or "intermediaire").lower(), req.num_questions)
+
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.2,
         response_format={"type":"json_object"},
         messages=messages,
     )
+
     try:
         data = json.loads(completion.choices[0].message.content or "")
         raw_qs = data["questions"]
