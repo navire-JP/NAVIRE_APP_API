@@ -13,3 +13,4 @@ if not OPENAI_API_KEY:
 ALLOWED_ORIGINS = (os.getenv("ALLOWED_ORIGINS") or "*").split(",")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
