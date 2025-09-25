@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import os
 import uuid
+import json
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+from core.db import DATABASE
+from utils.pdf_tools import extract_pages_text_from_bytes
 
 # =========================
 #        CONFIG
@@ -19,7 +23,7 @@ router = APIRouter(prefix="/files", tags=["files"])
 # Mode mock (utile en dev / Render free)
 USE_FAKE = os.getenv("USE_FAKE_FILES", "0") == "1"
 
-# Dossier de stockage (non persistant sur Render free sans Persistent Disk)
+# Dossier de stockage (persiste si Render Disk monté)
 STORAGE_DIR = Path(os.getenv("STORAGE_DIR", "storage")).resolve()
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -58,6 +62,27 @@ def _safe_count_pdf_pages(file_path: Path) -> Optional[int]:
 
     # 3) inconnu
     return None
+
+
+# ---- JSON persistant (index pages_text) ----
+
+def _json_dir_for(file_id: str) -> Path:
+    d = STORAGE_DIR / file_id
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+def save_pages_text_locally(file_id: str, pages_text: list[str]) -> None:
+    p = _json_dir_for(file_id) / "pages.json"
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump({"pages": pages_text}, f, ensure_ascii=False)
+
+def load_pages_text_locally(file_id: str) -> list[str] | None:
+    p = STORAGE_DIR / file_id / "pages.json"
+    if not p.exists():
+        return None
+    with open(p, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data.get("pages") or []
 
 
 # =========================
@@ -180,8 +205,9 @@ async def list_files() -> List[FileListItem]:
 async def upload_file(file: UploadFile = File(...)) -> FileListItem:
     """
     - En mode MOCK, on simule l'ajout dans la liste.
-    - En mode réel, on écrit le fichier dans STORAGE_DIR
-      sous un nom '<uuid>_<filename>' pour conserver l'original utilisateur.
+    - En mode réel, on écrit le fichier dans STORAGE_DIR sous '<uuid>_<filename>'.
+      Si PDF, on indexe (extraction texte) + on persiste l'index en JSON sur disk
+      + on met en cache RAM (DATABASE['files']).
     """
     # Sécuriser le nom (très basique)
     original_name = os.path.basename(file.filename or "upload.bin")
@@ -206,8 +232,25 @@ async def upload_file(file: UploadFile = File(...)) -> FileListItem:
         raise HTTPException(status_code=500, detail=f"Write failed: {e}")
 
     page_count: Optional[int] = None
-    if original_name.lower().endswith(".pdf"):
-        page_count = _safe_count_pdf_pages(target)
+    try:
+        if original_name.lower().endswith(".pdf"):
+            with open(target, "rb") as f:
+                data = f.read()
+            pages_text = extract_pages_text_from_bytes(data)  # -> List[str]
+            page_count = len(pages_text)
+
+            # 1) persist JSON sur disk
+            save_pages_text_locally(file_id, pages_text)
+
+            # 2) cache RAM pour usage immédiat (QCM)
+            DATABASE["files"][file_id] = {
+                "name": original_name,
+                "pages_text": pages_text,
+                "page_count": page_count,
+            }
+    except Exception as e:
+        # on ne fait pas échouer l'upload si l’index échoue; juste log + page_count None
+        print("indexation_failed:", e)
 
     FILES_DB[file_id] = {
         "file_id": file_id,
@@ -283,6 +326,20 @@ async def delete_file(file_id: str) -> Dict[str, str]:
             # on ignore l'erreur disque pour ne pas bloquer
             pass
 
+    # supprimer l'index JSON persistant si présent
+    idx_dir = STORAGE_DIR / file_id
+    try:
+        idx_file = idx_dir / "pages.json"
+        if idx_file.exists():
+            idx_file.unlink(missing_ok=True)
+        # tente de supprimer le dossier (s'il est vide)
+        if idx_dir.exists():
+            idx_dir.rmdir()
+    except Exception:
+        pass
+
     # supprimer en mémoire
     FILES_DB.pop(file_id, None)
+    DATABASE["files"].pop(file_id, None)
+
     return {"status": "deleted"}

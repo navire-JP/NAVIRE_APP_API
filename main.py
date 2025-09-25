@@ -1,8 +1,8 @@
-# main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from core.config import ALLOWED_ORIGINS
+
 from routers import files, qcm
+from core.config import ALLOWED_ORIGINS  # .env: ALLOWED_ORIGINS="*"
 
 app = FastAPI(title="NAVIRE_APP_API")
 
@@ -18,5 +18,6 @@ app.add_middleware(
 def health():
     return {"ok": True}
 
+# Routers
 app.include_router(files.router)
 app.include_router(qcm.router)
