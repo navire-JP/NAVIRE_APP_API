@@ -1,14 +1,14 @@
 from pathlib import Path
-from fastapi import APIRouter, Depends, UploadFile, File
-from fastapi import HTTPException
-from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from starlette.status import HTTP_201_CREATED
+from pydantic import BaseModel
 
 from app.core.deps import get_storage_service, get_settings_dep
 from app.core.security import get_api_key
 from app.models.files import FileListResponse, UploadResponse, DeleteResponse, FileInfo
 from app.services.storage import StorageService
 
-router = APIRouter(prefix="/v1/files", tags=["files"])
+router = APIRouter(prefix="/files", tags=["files"])
 
 
 @router.get("", response_model=FileListResponse)
@@ -32,21 +32,33 @@ def upload_file(
         pdf_path = Path(settings.STORAGE_PATH) / f"{info.id}.pdf"
         if pdf_path.exists():
             pages = len(PdfReader(str(pdf_path)).pages)
-            return UploadResponse(id=info.id, name=info.name, size=info.size, pages=pages)
+            return UploadResponse(
+                id=info.id,
+                name=info.name,
+                size=info.size,
+                pages=pages
+            )
     except Exception:
         pass
 
     return UploadResponse(id=info.id, name=info.name, size=info.size, pages=0)
 
 
-@router.delete("/{file_id}", response_model=DeleteResponse, status_code=HTTP_204_NO_CONTENT)
+# Option B : Delete avec body JSON et status 200
+class DeleteResponse(BaseModel):
+    ok: bool
+    id: str | None = None
+    message: str | None = None
+
+
+@router.delete("/{file_id}", response_model=DeleteResponse, status_code=status.HTTP_200_OK)
 def delete_file(
     file_id: str,
     storage: StorageService = Depends(get_storage_service),
-    _: str = Depends(get_api_key),  # protège la suppression par API key
 ):
-    ok = storage.delete_file(file_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Suppression impossible")
-    # 204: pas de body requis, mais on renvoie tout de même un modèle si client le lit
-    return DeleteResponse(ok=True, id=file_id)
+    deleted = storage.delete(file_id)
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return DeleteResponse(ok=True, id=file_id, message="Deleted")
