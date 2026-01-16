@@ -1,20 +1,21 @@
-from fastapi import Depends, HTTPException, Security
-from fastapi.security.api_key import APIKeyHeader
-from starlette.status import HTTP_401_UNAUTHORIZED
+from datetime import datetime, timedelta, timezone
+from passlib.context import CryptContext
+import jwt
+from app.core.config import JWT_SECRET, JWT_ALGO, ACCESS_TOKEN_EXPIRE_MINUTES
 
-from app.core.config import get_settings
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-settings = get_settings()
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
-api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
+def verify_password(password: str, password_hash: str) -> bool:
+    return pwd_context.verify(password, password_hash)
 
-def get_api_key(api_key: str = Security(api_key_header)) -> str:
-    """
-    Vérifie que la clé API envoyée dans l'en-tête est correcte.
-    """
-    if api_key == settings.API_KEY:
-        return api_key
-    raise HTTPException(
-        status_code=HTTP_401_UNAUTHORIZED,
-        detail="API Key invalide",
-    )
+def create_access_token(subject: str) -> str:
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": subject, "iat": int(now.timestamp()), "exp": int(exp.timestamp())}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+def decode_token(token: str) -> dict:
+    return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
