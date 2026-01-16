@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS
 from app.db.database import Base, engine
+from app.db import models   # ✅ AJOUTE CETTE LIGNE (important)
 from app.routers.auth import router as auth_router
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
