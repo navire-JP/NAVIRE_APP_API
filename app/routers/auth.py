@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from sqlalchemy import select, or_
+from sqlalchemy import select
 from datetime import datetime, timezone
 
 from app.db.database import get_db
@@ -12,35 +12,34 @@ from app.core.security import hash_password, verify_password, create_access_toke
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
 
-@router.post("/register", response_model=AuthOut)
+
+@router.post("/register", response_model=UserOut)
 def register(payload: RegisterIn, db: Session = Depends(get_db)):
-    try:
-        validate_password(payload.password)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    # 0) validation password (si ton validate_password lève une HTTPException ou ValueError)
+    validate_password(payload.password)
 
-    exists = db.execute(
-        select(User).where(or_(User.email == payload.email, User.username == payload.username))
-    ).scalar_one_or_none()
-    if exists:
-        raise HTTPException(status_code=409, detail="Email ou username déjà utilisé.")
+    # 1) vérifier email unique
+    existing = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
+    # 2) hash password
+    pwd_hash = hash_password(payload.password)
+
+    # 3) create user (+ defaults temporaires)
     user = User(
         email=payload.email,
-        username=payload.username,
-        password_hash=hash_password(payload.password),
-        newsletter_opt_in=payload.newsletter_opt_in,
-        university=payload.university,
-        study_level=payload.study_level,
-        score=0,
-        grade="Cadet",
+        username=payload.username,   # <- affichage header
+        password_hash=pwd_hash,
+        score=100,                   # ✅ temporaire
+        grade="Primo",               # ✅ temporaire
     )
+
     db.add(user)
     db.commit()
     db.refresh(user)
+    return user
 
-    token = create_access_token(str(user.id))
-    return AuthOut(access_token=token, user=user)
 
 @router.post("/login", response_model=AuthOut)
 def login(payload: LoginIn, db: Session = Depends(get_db)):
@@ -54,6 +53,7 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 
     token = create_access_token(str(user.id))
     return AuthOut(access_token=token, user=user)
+
 
 @router.get("/me", response_model=UserOut)
 def me(creds: HTTPAuthorizationCredentials | None = Depends(bearer), db: Session = Depends(get_db)):
