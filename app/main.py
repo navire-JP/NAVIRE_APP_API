@@ -8,6 +8,7 @@ from app.db.database import Base, engine
 from app.db import models
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
+from app.routers.meta import router as meta_router
 
 # ============================================================
 # Lifespan (startup / shutdown)
@@ -47,7 +48,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(admin_router)
-
+app.include_router(meta_router)
 
 # ============================================================
 # Healthcheck
