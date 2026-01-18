@@ -55,11 +55,14 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     # 3) create user (+ defaults temporaires)
     user = User(
         email=payload.email,
-        username=payload.username,   # <- affichage header
+        username=payload.username,
         password_hash=pwd_hash,
-        score=100,                   # ✅ temporaire
-        grade="Primo",               # ✅ temporaire
+        score=100,
+        grade="Primo",
+        university=payload.university,
+        study_level=payload.study_level,
     )
+
 
     db.add(user)
     db.commit()
