@@ -12,6 +12,29 @@ from app.core.security import hash_password, verify_password, create_access_toke
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
 
+def get_current_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> User:
+    if not creds:
+        raise HTTPException(status_code=401, detail="Token manquant.")
+
+    try:
+        payload = decode_token(creds.credentials)
+        user_id = int(payload["sub"])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token invalide.")
+
+    user = db.execute(
+        select(User).where(User.id == user_id)
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Utilisateur introuvable.")
+
+    return user
+
+
 
 @router.post("/register", response_model=AuthOut)
 def register(payload: RegisterIn, db: Session = Depends(get_db)):
