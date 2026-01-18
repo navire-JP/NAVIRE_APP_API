@@ -59,6 +59,7 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         password_hash=pwd_hash,
         score=100,
         grade="Primo",
+        newsletter_opt_in=payload.newsletter_opt_in,
         university=payload.university,
         study_level=payload.study_level,
     )
