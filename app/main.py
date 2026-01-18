@@ -3,13 +3,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS
+from app.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, ensure_storage_dirs
 from app.db.database import Base, engine
-from app.db import models
+from app.db import models  # noqa: F401
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
 from app.routers.meta import router as meta_router
 from app.routers.users import router as users_router
+from app.routers.files import router as files_router  # 👈 NEW
 
 # ============================================================
 # Lifespan (startup / shutdown)
@@ -17,11 +18,12 @@ from app.routers.users import router as users_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    print("🚀 Startup: ensuring storage dirs...")
+    ensure_storage_dirs()
+
     print("🚀 Startup: creating database tables if needed...")
     Base.metadata.create_all(bind=engine)
     yield
-    # Shutdown (si tu veux plus tard)
     print("🛑 Shutdown")
 
 
@@ -51,6 +53,7 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(meta_router)
 app.include_router(users_router)
+app.include_router(files_router)  # 👈 NEW
 
 # ============================================================
 # Healthcheck
