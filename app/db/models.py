@@ -16,8 +16,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
     newsletter_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
-    university: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    study_level: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    university: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    study_level: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     # DEFAULTS TEMPORAIRES
     score: Mapped[int] = mapped_column(Integer, default=100, nullable=False)

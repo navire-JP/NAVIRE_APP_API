@@ -26,6 +26,10 @@ class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=72)
 
+class ProfileUpdateIn(BaseModel):
+    university: str = Field(min_length=1, max_length=120)
+    study_level: str = Field(min_length=1, max_length=120)
+
 
 # =========================
 # OUTPUT SCHEMAS
