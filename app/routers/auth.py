@@ -125,36 +125,26 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 
 
 @router.get("/me")
-def me(
-    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
-    db: Session = Depends(get_db),
-):
-    if not creds:
-        raise HTTPException(status_code=401, detail="Token manquant.")
+def me(current_user: User = Depends(get_current_user)):
+    entitlements = compute_file_entitlements(current_user)
 
-    try:
-        payload = decode_token(creds.credentials)
-        user_id = int(payload["sub"])
-    except Exception:
-        raise HTTPException(status_code=401, detail="Token invalide.")
-
-    user = db.execute(
-        select(User).where(User.id == user_id)
-    ).scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="Utilisateur introuvable.")
-
-    entitlements = compute_file_entitlements(user)
-
-    # ⚠️ On retourne explicitement ce que le front doit consommer
     return {
-        "id": user.id,
-        "email": user.email,
-        "username": user.username,
-        "plan": user.plan,
-        "is_admin": user.is_admin,
+        "id": current_user.id,
+        "email": current_user.email,
+        "username": current_user.username,
+
+        "newsletter_opt_in": current_user.newsletter_opt_in,
+        "university": current_user.university,
+        "study_level": current_user.study_level,
+
+        "score": current_user.score,
+        "grade": current_user.grade,
+
+        "plan": current_user.plan,
+        "is_admin": current_user.is_admin,
+
         "files_limit": entitlements["files_limit"],
         "files_ttl_hours": entitlements["files_ttl_hours"],
     }
+
 
