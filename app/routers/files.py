@@ -186,6 +186,7 @@ async def upload_file(
 
 
 @router.get("")
+@router.get("/")
 def list_files(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
