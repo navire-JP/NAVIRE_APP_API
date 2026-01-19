@@ -34,6 +34,34 @@ def get_current_user(
 
     return user
 
+# ============================================================
+# Entitlements (source de vérité des droits)
+# ============================================================
+
+def compute_file_entitlements(user: User) -> dict:
+    """
+    Retourne les droits fichiers selon le plan utilisateur.
+    """
+
+    # Admin ou AI+
+    if user.is_admin or user.plan == "navire_ai_plus":
+        return {
+            "files_limit": 10,
+            "files_ttl_hours": None,
+        }
+
+    # Abonné standard
+    if user.plan == "navire_ai":
+        return {
+            "files_limit": 3,
+            "files_ttl_hours": None,
+        }
+
+    # Free
+    return {
+        "files_limit": 1,
+        "files_ttl_hours": 24,
+    }
 
 
 @router.post("/register", response_model=AuthOut)
@@ -96,7 +124,7 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
     return AuthOut(access_token=token, user=user)
 
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me")
 def me(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
@@ -117,4 +145,16 @@ def me(
     if not user:
         raise HTTPException(status_code=401, detail="Utilisateur introuvable.")
 
-    return user
+    entitlements = compute_file_entitlements(user)
+
+    # ⚠️ On retourne explicitement ce que le front doit consommer
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "plan": user.plan,
+        "is_admin": user.is_admin,
+        "files_limit": entitlements["files_limit"],
+        "files_ttl_hours": entitlements["files_ttl_hours"],
+    }
+

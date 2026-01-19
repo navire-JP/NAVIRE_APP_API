@@ -21,19 +21,21 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
-
-    # username non-null
     username: Mapped[str] = mapped_column(String(64), nullable=False)
-
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
     newsletter_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
     university: Mapped[str | None] = mapped_column(String(120), nullable=True)
     study_level: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
-    # DEFAULTS TEMPORAIRES
     score: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     grade: Mapped[str] = mapped_column(String(64), default="Primo", nullable=False)
+
+    # ✅ Plans: free | navire_ai | navire_ai_plus
+    plan: Mapped[str] = mapped_column(String(32), default="free", nullable=False)
+
+    # ✅ Admin: 10 fichiers persistants
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -54,7 +56,6 @@ class File(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
-    # IMPORTANT: ondelete="CASCADE" permet de supprimer les fichiers DB si l'user est supprimé
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
@@ -70,6 +71,9 @@ class File(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+    # ✅ NEW: TTL (free = now + 24h). Abonnés: NULL
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # ============================================================
     # Relations
