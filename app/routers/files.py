@@ -13,6 +13,8 @@ from app.db.database import get_db
 from app.db.models import User, File as FileModel
 from app.routers.auth import get_current_user
 from app.core.config import USER_FILES_DIR, MAX_UPLOAD_BYTES
+from app.routers.auth import compute_file_entitlements as compute_entitlements_dict
+
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -31,18 +33,10 @@ def _is_pdf(upload: UploadFile) -> bool:
     )
 
 
+
 def compute_file_entitlements(user: User) -> tuple[int, int | None]:
-    """
-    Retourne (files_limit, ttl_hours)
-    """
-    if user.is_admin or user.plan == "navire_ai_plus":
-        return 10, None
-
-    if user.plan == "navire_ai":
-        return 3, None
-
-    # free
-    return 1, 24
+    e = compute_entitlements_dict(user)
+    return e["files_limit"], e["files_ttl_hours"]
 
 
 def purge_expired_files(db: Session, user: User) -> int:
