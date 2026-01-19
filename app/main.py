@@ -11,6 +11,7 @@ from app.routers.admin import router as admin_router
 from app.routers.meta import router as meta_router
 from app.routers.users import router as users_router
 from app.routers.files import router as files_router  # 👈 NEW
+from app.routers.qcm import router as qcm_router
 
 # ============================================================
 # Lifespan (startup / shutdown)
@@ -53,7 +54,9 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(meta_router)
 app.include_router(users_router)
-app.include_router(files_router)  # 👈 NEW
+app.include_router(files_router)  
+app.include_router(qcm_router)
+
 
 # ============================================================
 # Healthcheck
