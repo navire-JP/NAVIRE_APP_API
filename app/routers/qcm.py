@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime, timezone, timedelta
 import os, random
-import fitz  # PyMuPDF
 
 from app.db.database import get_db
 from app.db.database import SessionLocal
@@ -57,6 +56,7 @@ def parse_pages_str(pages_str: str, total_pages: int) -> list[int]:
     return sorted(pages)
 
 def extract_text_pdf(path: str, pages_str: str) -> str:
+    import fitz 
     text = ""
     with fitz.open(path) as doc:
         targets = parse_pages_str(pages_str, doc.page_count)
@@ -204,7 +204,7 @@ def start_qcm(
     if not file or file.user_id != user.id:
         raise HTTPException(403, detail="Fichier non autorisé")
 
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=SESSION_TTL_MIN)
+    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=SESSION_TTL_MIN)
 
     session = QcmSession(
         user_id=user.id,
@@ -231,9 +231,20 @@ def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
         raise HTTPException(404, detail="Session introuvable")
     if s.user_id != user_id:
         raise HTTPException(403, detail="Session non autorisée")
-    if datetime.now(timezone.utc) > s.expires_at:
+
+    # SQLite renvoie souvent des datetimes naïfs -> comparer en UTC naïf
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    exp = s.expires_at
+    # exp peut être naïf ou aware : on force en naïf
+    if getattr(exp, "tzinfo", None) is not None:
+        exp = exp.replace(tzinfo=None)
+
+    if now > exp:
         raise HTTPException(410, detail="Session expirée")
+
     return s
+
 
 @router.get("/{session_id}/current")
 def current(
