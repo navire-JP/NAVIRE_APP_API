@@ -4,6 +4,7 @@ from sqlalchemy import select
 from datetime import datetime, timezone, timedelta
 import os, random, time
 from pathlib import Path
+from typing import Dict, Tuple
 
 from app.db.database import get_db
 from app.db.database import SessionLocal
@@ -29,9 +30,44 @@ MIN_EXPLANATION_LEN = 20
 DUPLICATE_SIMILARITY_GUARD = True
 
 # -------------------------
+# ✅ Anti-freeze watchdog
+# -------------------------
+# Si une question reste "generating" trop longtemps => erreur serveur claire
+SERVER_GENERATION_WATCHDOG_SEC = int(os.getenv("QCM_WATCHDOG_SEC", "90"))
+
+# -------------------------
+# ✅ In-process generation locks
+# (évite doublons si /current est hit en boucle + refresh)
+# key = (session_id, target_index)
+# value = started_at_monotonic
+# -------------------------
+GEN_LOCKS: Dict[Tuple[str, int], float] = {}
+GEN_LOCK_TTL_SEC = 120.0
+
+def _lock_key(session_id: str, target_index: int) -> Tuple[str, int]:
+    return (session_id, target_index)
+
+def acquire_gen_lock(session_id: str, target_index: int) -> bool:
+    now = time.monotonic()
+    k = _lock_key(session_id, target_index)
+
+    # purge locks expirés
+    expired = [kk for kk, ts in GEN_LOCKS.items() if (now - ts) > GEN_LOCK_TTL_SEC]
+    for kk in expired:
+        GEN_LOCKS.pop(kk, None)
+
+    if k in GEN_LOCKS:
+        return False
+    GEN_LOCKS[k] = now
+    return True
+
+def release_gen_lock(session_id: str, target_index: int) -> None:
+    GEN_LOCKS.pop(_lock_key(session_id, target_index), None)
+
+
+# -------------------------
 # Cache PDF extracted text
 # -------------------------
-# (sur Render: /tmp est OK ; si tu veux persister, mets sur disque persistant)
 CACHE_DIR = Path(os.getenv("NAVIRE_QCM_CACHE_DIR", "/tmp/navire_qcm_cache"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -175,15 +211,10 @@ def cache_path_for_session(session_id: str) -> Path:
 
 
 def get_or_build_source_words(db: Session, session: QcmSession) -> list[str]:
-    """
-    Extrait le texte PDF UNE FOIS par session et le met en cache (fichier).
-    Retourne les words[].
-    """
     p = cache_path_for_session(session.id)
     if p.exists():
         txt = p.read_text(encoding="utf-8", errors="ignore").strip()
-        words = txt.split()
-        return words
+        return txt.split()
 
     file = db.execute(select(File).where(File.id == session.file_id)).scalar_one_or_none()
     if not file:
@@ -206,34 +237,30 @@ def pick_chunk(words: list[str], chunk_size: int) -> str:
 
 def get_seen_questions_for_session(db: Session, session_id: str) -> set[str]:
     qs = db.execute(select(QcmQuestion).where(QcmQuestion.session_id == session_id)).scalars().all()
-    seen = set()
-    for q in qs:
-        seen.add(_norm(q.question))
-    return seen
+    return {_norm(q.question) for q in qs if q.question}
 
 
 def ensure_question_generated(session_id: str, target_index: int) -> None:
     """
-    Génère ET ENREGISTRE une question (target_index) si elle n'existe pas.
-    - Retry sur format/qualité/doublon jusqu'à réussite
-    - Ne crée JAMAIS une question invalide
-    - Met session.status="ready" si la question courante existe
-    - Met session.status="error" si échec définitif
+    ✅ PATCHED:
+    - lock anti-concurrent
+    - ne laisse jamais la session bloquée en generating sans issue
     """
+    if not acquire_gen_lock(session_id, target_index):
+        # une génération est déjà en cours
+        return
+
     db = SessionLocal()
     try:
         session = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one()
 
-        # si l'utilisateur a clos
         if session.status == "done":
             return
 
-        # déjà générée ?
         existing = db.execute(
             select(QcmQuestion).where(QcmQuestion.session_id == session.id, QcmQuestion.index == target_index)
         ).scalar_one_or_none()
         if existing:
-            # si on a la question courante, on peut passer ready
             if session.status != "done":
                 session.status = "ready"
                 session.error_message = None
@@ -243,11 +270,11 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
         # status generating pendant la fabrication
         session.status = "generating"
         session.error_message = None
+        # ✅ store a lightweight heartbeat in error_message? (non) -> on commit juste status
         db.commit()
 
         words = get_or_build_source_words(db, session)
         chunk_size = max(200, min(450, max(200, len(words) // 5 if len(words) else 200)))
-
         seen_questions = get_seen_questions_for_session(db, session.id)
 
         total_tries = 0
@@ -269,10 +296,11 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
             prompt = build_prompt(chunk, session.difficulty)
 
             try:
+                # NOTE: selon version SDK, `timeout` peut être ignoré.
+                # Le front a déjà des timeouts; ici on retry et on finit en error.
                 rep = client.chat.completions.create(
                     model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
                     messages=[{"role": "user", "content": prompt}],
-                    timeout=45,
                 )
                 txt = rep.choices[0].message.content or ""
                 data = parse_qcm_answer(txt)
@@ -303,7 +331,7 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
                 return
 
             except Exception:
-                time.sleep(0.15)
+                time.sleep(0.20)
                 continue
 
         raise ValueError(
@@ -320,6 +348,7 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
         except:
             pass
     finally:
+        release_gen_lock(session_id, target_index)
         db.close()
 
 
@@ -342,6 +371,7 @@ def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
 @router.post("/start")
 def start_qcm(
     payload: dict,
+    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -371,11 +401,9 @@ def start_qcm(
     db.commit()
     db.refresh(session)
 
-    # ✅ Génère DIRECTEMENT la 1ère question (index 0) pour "QCM instant"
-    ensure_question_generated(session.id, 0)
-
-    # on re-check status en base (peut être ready/error)
-    db.refresh(session)
+    # ✅ IMPORTANT: ne bloque pas la requête start si OpenAI est lent
+    # -> on lance en background. Le front poll et récupère ready.
+    bg.add_task(ensure_question_generated, session.id, 0)
 
     return {
         "session_id": session.id,
@@ -387,6 +415,7 @@ def start_qcm(
 @router.get("/{session_id}/current")
 def current(
     session_id: str,
+    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -398,28 +427,54 @@ def current(
     if s.status == "done":
         return {"status": "done"}
 
-    # ✅ si la question courante n'existe pas encore -> generating
+    # ✅ on récupère la question courante
     q = db.execute(
         select(QcmQuestion).where(QcmQuestion.session_id == s.id, QcmQuestion.index == s.current_index)
     ).scalar_one_or_none()
 
     # progression (combien de questions déjà générées)
-    generated_count = db.execute(
-        select(QcmQuestion).where(QcmQuestion.session_id == s.id)
-    ).scalars().all()
-    gen_n = len(generated_count)
+    gen_n = db.execute(select(QcmQuestion).where(QcmQuestion.session_id == s.id)).scalars().all()
+    gen_count = len(gen_n)
 
-    if not q:
-        return {"status": "generating", "generated_count": gen_n, "total": QCM_COUNT}
+    if q:
+        # si une question existe, on force ready (anti-stale generating)
+        if s.status != "done":
+            s.status = "ready"
+            s.error_message = None
+            db.commit()
 
-    return {
-        "status": "ready",
-        "index": s.current_index + 1,
-        "total": QCM_COUNT,
-        "generated_count": gen_n,
-        "question": q.question,
-        "choices": [q.choice_a, q.choice_b, q.choice_c, q.choice_d],
-    }
+        return {
+            "status": "ready",
+            "index": s.current_index + 1,
+            "total": QCM_COUNT,
+            "generated_count": gen_count,
+            "question": q.question,
+            "choices": [q.choice_a, q.choice_b, q.choice_c, q.choice_d],
+        }
+
+    # ✅ AUTO-HEAL: si pas de question, on relance la génération (idempotent + lock)
+    bg.add_task(ensure_question_generated, s.id, s.current_index)
+
+    # ✅ WATCHDOG: si generating trop longtemps -> erreur claire
+    # (sans created_at en DB, on utilise un proxy simple: on compare l'heure actuelle à expires_at)
+    # Si la session existe depuis "trop longtemps", on stoppe.
+    # Ici: si la session a moins de (TTL - watchdog) restant -> on considère bloqué.
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    remaining = (s.expires_at - now).total_seconds()
+    # quand remaining devient faible, c'est qu'on traîne depuis longtemps.
+    if remaining < max(0, SESSION_TTL_MIN * 60 - SERVER_GENERATION_WATCHDOG_SEC):
+        s.status = "error"
+        s.error_message = "Génération bloquée (timeout serveur). Relance le QCM."
+        db.commit()
+        return {"status": "error", "detail": s.error_message}
+
+    # sinon on reste en generating
+    if s.status != "generating":
+        s.status = "generating"
+        s.error_message = None
+        db.commit()
+
+    return {"status": "generating", "generated_count": gen_count, "total": QCM_COUNT}
 
 
 @router.post("/{session_id}/answer")
@@ -484,21 +539,19 @@ def next_q(
     s.current_index += 1
     db.commit()
 
-    # ✅ si la question suivante n'existe pas, on la génère en background
     q = db.execute(
         select(QcmQuestion).where(QcmQuestion.session_id == s.id, QcmQuestion.index == s.current_index)
     ).scalar_one_or_none()
 
     if not q:
-        # on passe en generating et on lance la génération
         s.status = "generating"
         s.error_message = None
         db.commit()
         bg.add_task(ensure_question_generated, s.id, s.current_index)
         return {"status": "generating", "index": s.current_index + 1}
 
-    # sinon prêt direct
     s.status = "ready"
+    s.error_message = None
     db.commit()
     return {"status": "ok", "index": s.current_index + 1}
 
