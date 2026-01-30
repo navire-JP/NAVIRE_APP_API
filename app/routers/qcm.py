@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime, timezone, timedelta
 import os, random, time
-from pathlib import Path
 from typing import Dict, Tuple
 
 from app.db.database import get_db
@@ -12,273 +11,284 @@ from app.db.models import User, File, QcmSession, QcmQuestion
 from app.routers.auth import get_current_user  # réutilise ton helper
 from openai import OpenAI
 
+
 router = APIRouter(prefix="/qcm", tags=["qcm"])
 client = OpenAI()
 
 QCM_COUNT = 5
 SESSION_TTL_MIN = 30
 
-# -------------------------
-# Retry / Validation policy
-# -------------------------
-MAX_TRIES_PER_QUESTION = 10         # essais max pour une question (format/qualité)
-MAX_TOTAL_TRIES = QCM_COUNT * 20    # budget global
-MIN_TEXT_LEN = 200
-MIN_QUESTION_LEN = 12
-MIN_CHOICE_LEN = 1
-MIN_EXPLANATION_LEN = 20
-DUPLICATE_SIMILARITY_GUARD = True
 
 # -------------------------
 # ✅ Anti-freeze watchdog
 # -------------------------
-# Si une question reste "generating" trop longtemps => erreur serveur claire
 SERVER_GENERATION_WATCHDOG_SEC = int(os.getenv("QCM_WATCHDOG_SEC", "90"))
 
 # -------------------------
-# ✅ In-process generation locks
-# (évite doublons si /current est hit en boucle + refresh)
-# key = (session_id, target_index)
-# value = started_at_monotonic
+# ✅ In-process generation locks (anti-concurrent)
+# key = (session_id, target_index) -> started_at_monotonic
 # -------------------------
 GEN_LOCKS: Dict[Tuple[str, int], float] = {}
-GEN_LOCK_TTL_SEC = 120.0
+GEN_LOCK_TTL_SEC = 180.0
+
 
 def _lock_key(session_id: str, target_index: int) -> Tuple[str, int]:
     return (session_id, target_index)
 
+
 def acquire_gen_lock(session_id: str, target_index: int) -> bool:
     now = time.monotonic()
-    k = _lock_key(session_id, target_index)
-
-    # purge locks expirés
-    expired = [kk for kk, ts in GEN_LOCKS.items() if (now - ts) > GEN_LOCK_TTL_SEC]
-    for kk in expired:
-        GEN_LOCKS.pop(kk, None)
-
-    if k in GEN_LOCKS:
+    expired = [k for k, ts in GEN_LOCKS.items() if (now - ts) > GEN_LOCK_TTL_SEC]
+    for k in expired:
+        GEN_LOCKS.pop(k, None)
+    key = _lock_key(session_id, target_index)
+    if key in GEN_LOCKS:
         return False
-    GEN_LOCKS[k] = now
+    GEN_LOCKS[key] = now
     return True
+
 
 def release_gen_lock(session_id: str, target_index: int) -> None:
     GEN_LOCKS.pop(_lock_key(session_id, target_index), None)
 
 
+def lock_age_seconds(session_id: str, target_index: int) -> float | None:
+    ts = GEN_LOCKS.get(_lock_key(session_id, target_index))
+    if ts is None:
+        return None
+    return time.monotonic() - ts
+
+
 # -------------------------
-# Cache PDF extracted text
+# QCM generation policy
 # -------------------------
-CACHE_DIR = Path(os.getenv("NAVIRE_QCM_CACHE_DIR", "/tmp/navire_qcm_cache"))
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-QCM_TYPES = [
-    "K1 - Définition stricte",
-    "K2 - Fondement juridique",
-    "C1 - Portée d'une règle",
-    "R1 - Mini cas pratique",
-    "D2 - Exception à une règle",
-    "T1 - Vocabulaire juridique",
-]
-
-
-def parse_pages_str(pages_str: str, total_pages: int) -> list[int]:
-    if not pages_str:
-        return []
-    pages = set()
-    for part in pages_str.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        if "-" in part:
-            a, b = part.split("-", 1)
-            try:
-                start, end = int(a), int(b)
-                if start <= end:
-                    for p in range(start, end + 1):
-                        if 1 <= p <= total_pages:
-                            pages.add(p)
-            except:
-                continue
-        else:
-            try:
-                p = int(part)
-                if 1 <= p <= total_pages:
-                    pages.add(p)
-            except:
-                continue
-    return sorted(pages)
-
-
-def extract_text_pdf(path: str, pages_str: str) -> str:
-    import fitz
-    text = ""
-    with fitz.open(path) as doc:
-        targets = parse_pages_str(pages_str, doc.page_count)
-        indices = [p - 1 for p in targets] if targets else list(range(doc.page_count))
-        for i in indices:
-            text += doc[i].get_text("text") + "\n"
-    return text.strip()
-
-
-def difficulty_block(difficulty: str) -> str:
-    if difficulty == "easy":
-        return "Niveau: FACILE (notions fondamentales, formulations directes)."
-    if difficulty == "hard":
-        return "Niveau: DIFFICILE (distinctions fines, exceptions, pièges)."
-    return "Niveau: INTERMÉDIAIRE (CRFPA standard)."
-
-
-def build_prompt(source_text: str, difficulty: str) -> str:
-    qcm_type = random.choice(QCM_TYPES)
-    return f"""
-Tu es un examinateur CRFPA. Génère UN QCM à réponse unique à partir de l'extrait.
-
-TYPE: {qcm_type}
-{difficulty_block(difficulty)}
-
-Contraintes:
-- 1 seule réponse correcte (A/B/C/D)
-- Les 3 autres sont crédibles mais fausses
-- Explication: justifie la bonne et pourquoi les autres sont fausses
-- Pas d'ambiguïté
-- Ne renvoie rien d'autre que le format demandé.
-
-Format STRICT:
-Question: ...
-Réponse A: ...
-Réponse B: ...
-Réponse C: ...
-Réponse D: ...
-Bonne Réponse: A|B|C|D
-Explication: ...
-
-EXTRAIT:
-{source_text}
-""".strip()
-
-
-def parse_qcm_answer(txt: str) -> dict:
-    lines = [l.strip() for l in txt.split("\n") if l.strip()]
-
-    def pick(prefix):
-        for l in lines:
-            if l.lower().startswith(prefix.lower()):
-                return l.split(":", 1)[1].strip()
-        return ""
-
-    q = pick("Question")
-    a = pick("Réponse A")
-    b = pick("Réponse B")
-    c = pick("Réponse C")
-    d = pick("Réponse D")
-    good = pick("Bonne Réponse").upper()[:1]
-    exp = pick("Explication")
-    if not (q and a and b and c and d and good in ["A", "B", "C", "D"] and exp):
-        raise ValueError("Format OpenAI invalide")
-    return {"question": q, "a": a, "b": b, "c": c, "d": d, "good": good, "exp": exp}
+MIN_TEXT_LEN = 700
+MAX_TRIES_PER_QUESTION = 6
+MAX_TOTAL_TRIES = 30
 
 
 def _norm(s: str) -> str:
-    return " ".join((s or "").strip().lower().split())
-
-
-def validate_qcm_data(data: dict, seen_questions: set[str]) -> None:
-    q = (data.get("question") or "").strip()
-    a = (data.get("a") or "").strip()
-    b = (data.get("b") or "").strip()
-    c = (data.get("c") or "").strip()
-    d = (data.get("d") or "").strip()
-    good = (data.get("good") or "").strip().upper()[:1]
-    exp = (data.get("exp") or "").strip()
-
-    if len(q) < MIN_QUESTION_LEN:
-        raise ValueError("Question trop courte")
-    if len(a) < MIN_CHOICE_LEN or len(b) < MIN_CHOICE_LEN or len(c) < MIN_CHOICE_LEN or len(d) < MIN_CHOICE_LEN:
-        raise ValueError("Réponses incomplètes")
-    if good not in ["A", "B", "C", "D"]:
-        raise ValueError("Bonne réponse invalide")
-    if len(exp) < MIN_EXPLANATION_LEN:
-        raise ValueError("Explication trop courte")
-
-    if DUPLICATE_SIMILARITY_GUARD:
-        nq = _norm(q)
-        if nq in seen_questions:
-            raise ValueError("Question dupliquée")
-
-
-def cache_path_for_session(session_id: str) -> Path:
-    return CACHE_DIR / f"{session_id}.txt"
-
-
-def get_or_build_source_words(db: Session, session: QcmSession) -> list[str]:
-    p = cache_path_for_session(session.id)
-    if p.exists():
-        txt = p.read_text(encoding="utf-8", errors="ignore").strip()
-        return txt.split()
-
-    file = db.execute(select(File).where(File.id == session.file_id)).scalar_one_or_none()
-    if not file:
-        raise ValueError("Fichier introuvable")
-
-    txt = extract_text_pdf(file.path, session.pages)
-    if len(txt) < MIN_TEXT_LEN:
-        raise ValueError("PDF trop vide ou texte insuffisant")
-
-    p.write_text(txt, encoding="utf-8")
-    return txt.split()
+    return " ".join((s or "").lower().strip().split())
 
 
 def pick_chunk(words: list[str], chunk_size: int) -> str:
     if not words:
         return ""
+    if len(words) <= chunk_size:
+        return " ".join(words)
     start = random.randint(0, max(0, len(words) - chunk_size))
     return " ".join(words[start : start + chunk_size])
 
 
-def get_seen_questions_for_session(db: Session, session_id: str) -> set[str]:
+def build_prompt(chunk: str, difficulty: str) -> str:
+    return f"""
+Tu es un générateur de QCM pour étudiants en droit.
+
+Contraintes STRICTES :
+- 1 question de QCM en français.
+- 4 choix (A,B,C,D), 1 seule bonne réponse.
+- Explication courte (2-5 lignes).
+- Le contenu DOIT être fondé sur le texte fourni.
+- Pas de "je ne sais pas". Pas de placeholders.
+- La question DOIT être claire, les réponses distinctes.
+
+Format de sortie STRICT (JSON sur une seule ligne) :
+{{
+  "question": "...",
+  "a": "...",
+  "b": "...",
+  "c": "...",
+  "d": "...",
+  "good": "A|B|C|D",
+  "exp": "..."
+}}
+
+Difficulté: {difficulty}
+
+Texte source:
+\"\"\"{chunk}\"\"\"
+""".strip()
+
+
+def parse_qcm_answer(raw: str) -> dict:
+    # parsing simple: on s'attend à du JSON
+    import json
+
+    raw = (raw or "").strip()
+    # fallback: essayer de couper si modèle entoure avec ```json
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        raw = raw.replace("json", "").strip()
+    return json.loads(raw)
+
+
+def validate_qcm_data(data: dict, seen_questions: set[str]) -> None:
+    # validations minimales
+    required = ["question", "a", "b", "c", "d", "good", "exp"]
+    for k in required:
+        if k not in data:
+            raise ValueError(f"Champ manquant: {k}")
+
+    q = _norm(str(data["question"]))
+    if len(q) < 10:
+        raise ValueError("Question trop courte")
+    if q in seen_questions:
+        raise ValueError("Question dupliquée")
+
+    good = str(data["good"]).strip().upper()
+    if good not in ["A", "B", "C", "D"]:
+        raise ValueError("good invalide")
+
+    # réponses non vides et distinctes
+    answers = [str(data["a"]).strip(), str(data["b"]).strip(), str(data["c"]).strip(), str(data["d"]).strip()]
+    if any(len(_norm(x)) < 2 for x in answers):
+        raise ValueError("Réponse vide")
+    if len({_norm(x) for x in answers}) < 4:
+        raise ValueError("Réponses non distinctes")
+
+    exp = _norm(str(data["exp"]))
+    if len(exp) < 10:
+        raise ValueError("Explication trop courte")
+
+
+def extract_text_pdf(pdf_path: str, pages: str) -> str:
+    # ⚠️ Garde ta logique existante ici si tu as déjà pdfplumber / pypdf etc.
+    # Ici placeholder minimal: à remplacer par ton implémentation actuelle.
+    import pdfplumber
+
+    text_parts: list[str] = []
+    page_nums: list[int] = []
+    if pages:
+        # pages = "1,2,3" ou "1-5" etc. (selon ton implémentation actuelle)
+        # On fait simple: si "1-5"
+        if "-" in pages:
+            a, b = pages.split("-", 1)
+            a = int(a.strip())
+            b = int(b.strip())
+            page_nums = list(range(a, b + 1))
+        else:
+            page_nums = [int(x.strip()) for x in pages.split(",") if x.strip().isdigit()]
+
+    with pdfplumber.open(pdf_path) as pdf:
+        if not page_nums:
+            # par défaut : premières pages
+            page_nums = list(range(1, min(len(pdf.pages), 6) + 1))
+
+        for pn in page_nums:
+            idx = pn - 1
+            if 0 <= idx < len(pdf.pages):
+                page = pdf.pages[idx]
+                text_parts.append(page.extract_text() or "")
+
+    return "\n".join(text_parts).strip()
+
+
+@router.post("/start")
+def start_qcm(
+    payload: dict,
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # payload: {file_id, difficulty, pages}
+    file_id = int(payload.get("file_id", 0))
+    difficulty = (payload.get("difficulty") or "medium").strip()
+    pages = (payload.get("pages") or "").strip()
+
+    if difficulty not in ["easy", "medium", "hard"]:
+        raise HTTPException(400, detail="difficulty invalide")
+
+    # vérifier ownership du fichier
+    file = db.execute(select(File).where(File.id == file_id)).scalar_one_or_none()
+    if not file or file.user_id != user.id:
+        raise HTTPException(403, detail="Fichier non autorisé")
+
+    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=SESSION_TTL_MIN)
+
+    session = QcmSession(
+        user_id=user.id,
+        file_id=file_id,
+        difficulty=difficulty,
+        pages=pages,
+        status="generating",
+        current_index=0,
+        expires_at=expires_at,
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+
+    # ✅ génération par question : on prépare la question 0 seulement
+    bg.add_task(generate_one_question, session.id, 0)
+
+    return {
+        "session_id": session.id,
+        "status": session.status,
+        "expires_at": session.expires_at.isoformat(),
+    }
+
+
+def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
+    s = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
+    if not s:
+        raise HTTPException(404, detail="Session introuvable")
+    if s.user_id != user_id:
+        raise HTTPException(403, detail="Session non autorisée")
+    return s
+
+
+def get_seen_questions(db: Session, session_id: str) -> set[str]:
     qs = db.execute(select(QcmQuestion).where(QcmQuestion.session_id == session_id)).scalars().all()
     return {_norm(q.question) for q in qs if q.question}
 
 
-def ensure_question_generated(session_id: str, target_index: int) -> None:
-    """
-    ✅ PATCHED:
-    - lock anti-concurrent
-    - ne laisse jamais la session bloquée en generating sans issue
-    """
+def generate_one_question(session_id: str, target_index: int) -> None:
+    """Génère UNE question (index target_index) avec retry/validation (idempotent + lock)."""
     if not acquire_gen_lock(session_id, target_index):
-        # une génération est déjà en cours
         return
 
     db = SessionLocal()
     try:
-        session = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one()
-
-        if session.status == "done":
+        session = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
+        if not session:
+            return
+        if session.status in ["done", "error"]:
             return
 
         existing = db.execute(
             select(QcmQuestion).where(QcmQuestion.session_id == session.id, QcmQuestion.index == target_index)
         ).scalar_one_or_none()
         if existing:
-            if session.status != "done":
-                session.status = "ready"
-                session.error_message = None
-                db.commit()
+            session.status = "ready"
+            session.error_message = None
+            db.commit()
             return
 
-        # status generating pendant la fabrication
+        file = db.execute(select(File).where(File.id == session.file_id)).scalar_one_or_none()
+        if not file:
+            session.status = "error"
+            session.error_message = "Fichier introuvable"
+            db.commit()
+            return
+
+        text = extract_text_pdf(file.path, session.pages)
+        if len(text) < MIN_TEXT_LEN:
+            session.status = "error"
+            session.error_message = "PDF trop vide ou texte insuffisant"
+            db.commit()
+            return
+
+        words = text.split()
+        chunk_size = max(200, min(450, len(words) // max(1, QCM_COUNT) if len(words) else 200))
+        seen_questions = get_seen_questions(db, session.id)
+
         session.status = "generating"
         session.error_message = None
-        # ✅ store a lightweight heartbeat in error_message? (non) -> on commit juste status
         db.commit()
 
-        words = get_or_build_source_words(db, session)
-        chunk_size = max(200, min(450, max(200, len(words) // 5 if len(words) else 200)))
-        seen_questions = get_seen_questions_for_session(db, session.id)
-
-        total_tries = 0
         local_try = 0
+        total_tries = 0
+
         while local_try < MAX_TRIES_PER_QUESTION:
             local_try += 1
             total_tries += 1
@@ -296,18 +306,14 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
             prompt = build_prompt(chunk, session.difficulty)
 
             try:
-                # NOTE: selon version SDK, `timeout` peut être ignoré.
-                # Le front a déjà des timeouts; ici on retry et on finit en error.
                 rep = client.chat.completions.create(
                     model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
                     messages=[{"role": "user", "content": prompt}],
                 )
-                txt = rep.choices[0].message.content or ""
-                data = parse_qcm_answer(txt)
+                raw = rep.choices[0].message.content or ""
+                data = parse_qcm_answer(raw)
                 validate_qcm_data(data, seen_questions)
-
-                nq = _norm(data["question"])
-                seen_questions.add(nq)
+                seen_questions.add(_norm(data["question"]))
 
                 q = QcmQuestion(
                     session_id=session.id,
@@ -331,12 +337,10 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
                 return
 
             except Exception:
-                time.sleep(0.20)
+                time.sleep(0.25)
                 continue
 
-        raise ValueError(
-            f"Échec génération question index={target_index} après {MAX_TRIES_PER_QUESTION} tentatives."
-        )
+        raise ValueError(f"Échec génération question index={target_index} après {MAX_TRIES_PER_QUESTION} tentatives.")
 
     except Exception as e:
         try:
@@ -352,64 +356,23 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
         db.close()
 
 
-def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
-    s = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
-    if not s:
-        raise HTTPException(404, detail="Session introuvable")
-    if s.user_id != user_id:
-        raise HTTPException(403, detail="Session non autorisée")
-
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    exp = s.expires_at
-    if getattr(exp, "tzinfo", None) is not None:
-        exp = exp.replace(tzinfo=None)
-    if now > exp:
-        raise HTTPException(410, detail="Session expirée")
-    return s
-
-
-@router.post("/start")
-def start_qcm(
-    payload: dict,
-    bg: BackgroundTasks,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    file_id = int(payload.get("file_id", 0))
-    difficulty = (payload.get("difficulty") or "medium").strip()
-    pages = (payload.get("pages") or "").strip()
-
-    if difficulty not in ["easy", "medium", "hard"]:
-        raise HTTPException(400, detail="difficulty invalide")
-
-    file = db.execute(select(File).where(File.id == file_id)).scalar_one_or_none()
-    if not file or file.user_id != user.id:
-        raise HTTPException(403, detail="Fichier non autorisé")
-
-    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=SESSION_TTL_MIN)
-
-    session = QcmSession(
-        user_id=user.id,
-        file_id=file_id,
-        difficulty=difficulty,
-        pages=pages,
-        status="generating",
-        current_index=0,
-        expires_at=expires_at,
-    )
-    db.add(session)
-    db.commit()
-    db.refresh(session)
-
-    # ✅ IMPORTANT: ne bloque pas la requête start si OpenAI est lent
-    # -> on lance en background. Le front poll et récupère ready.
-    bg.add_task(ensure_question_generated, session.id, 0)
-
-    return {
-        "session_id": session.id,
-        "status": session.status,
-        "expires_at": session.expires_at.isoformat(),
-    }
+# (on garde ta fonction historique si tu veux, mais elle n'est plus utilisée par défaut)
+def generate_session_questions(session_id: str):
+    """
+    Ancienne génération full-session (background).
+    Non utilisée désormais (on génère question par question).
+    """
+    db = SessionLocal()
+    try:
+        session = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
+        if not session:
+            return
+        if session.status in ["done", "error"]:
+            return
+        # optionnel: tu peux décider de pré-générer en batch ici si tu veux plus tard.
+        return
+    finally:
+        db.close()
 
 
 @router.get("/{session_id}/current")
@@ -427,18 +390,12 @@ def current(
     if s.status == "done":
         return {"status": "done"}
 
-    # ✅ on récupère la question courante
     q = db.execute(
         select(QcmQuestion).where(QcmQuestion.session_id == s.id, QcmQuestion.index == s.current_index)
     ).scalar_one_or_none()
 
-    # progression (combien de questions déjà générées)
-    gen_n = db.execute(select(QcmQuestion).where(QcmQuestion.session_id == s.id)).scalars().all()
-    gen_count = len(gen_n)
-
     if q:
-        # si une question existe, on force ready (anti-stale generating)
-        if s.status != "done":
+        if s.status != "ready":
             s.status = "ready"
             s.error_message = None
             db.commit()
@@ -447,34 +404,55 @@ def current(
             "status": "ready",
             "index": s.current_index + 1,
             "total": QCM_COUNT,
-            "generated_count": gen_count,
             "question": q.question,
             "choices": [q.choice_a, q.choice_b, q.choice_c, q.choice_d],
         }
 
-    # ✅ AUTO-HEAL: si pas de question, on relance la génération (idempotent + lock)
-    bg.add_task(ensure_question_generated, s.id, s.current_index)
+    # ✅ Pas de question -> auto-heal + watchdog lock-based
+    age = lock_age_seconds(s.id, s.current_index)
 
-    # ✅ WATCHDOG: si generating trop longtemps -> erreur claire
-    # (sans created_at en DB, on utilise un proxy simple: on compare l'heure actuelle à expires_at)
-    # Si la session existe depuis "trop longtemps", on stoppe.
-    # Ici: si la session a moins de (TTL - watchdog) restant -> on considère bloqué.
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    remaining = (s.expires_at - now).total_seconds()
-    # quand remaining devient faible, c'est qu'on traîne depuis longtemps.
-    if remaining < max(0, SESSION_TTL_MIN * 60 - SERVER_GENERATION_WATCHDOG_SEC):
-        s.status = "error"
-        s.error_message = "Génération bloquée (timeout serveur). Relance le QCM."
+    if age is not None:
+        if age > SERVER_GENERATION_WATCHDOG_SEC:
+            s.status = "error"
+            s.error_message = "Génération bloquée (timeout serveur). Relance le QCM."
+            db.commit()
+            return {"status": "error", "detail": s.error_message}
+
+        if s.status != "generating":
+            s.status = "generating"
+            s.error_message = None
+            db.commit()
+        return {"status": "generating"}
+
+    # ✅ Inline (fiable sur Render) + fallback background
+    try:
+        generate_one_question(s.id, s.current_index)
+    except Exception:
+        pass
+
+    q2 = db.execute(
+        select(QcmQuestion).where(QcmQuestion.session_id == s.id, QcmQuestion.index == s.current_index)
+    ).scalar_one_or_none()
+
+    if q2:
+        s.status = "ready"
+        s.error_message = None
         db.commit()
-        return {"status": "error", "detail": s.error_message}
+        return {
+            "status": "ready",
+            "index": s.current_index + 1,
+            "total": QCM_COUNT,
+            "question": q2.question,
+            "choices": [q2.choice_a, q2.choice_b, q2.choice_c, q2.choice_d],
+        }
 
-    # sinon on reste en generating
     if s.status != "generating":
         s.status = "generating"
         s.error_message = None
         db.commit()
 
-    return {"status": "generating", "generated_count": gen_count, "total": QCM_COUNT}
+    bg.add_task(generate_one_question, s.id, s.current_index)
+    return {"status": "generating"}
 
 
 @router.post("/{session_id}/answer")
@@ -485,10 +463,8 @@ def answer(
     user: User = Depends(get_current_user),
 ):
     s = get_owned_session(db, user.id, session_id)
-    if s.status == "error":
-        raise HTTPException(400, detail=s.error_message or "Erreur génération")
-    if s.status == "done":
-        raise HTTPException(400, detail="Session terminée")
+    if s.status in ["error", "done"]:
+        raise HTTPException(400, detail="Session terminée ou en erreur")
 
     choice_index = int(payload.get("choice_index", -1))
     if choice_index not in [0, 1, 2, 3]:
@@ -499,11 +475,16 @@ def answer(
     ).scalar_one_or_none()
 
     if not q:
-        raise HTTPException(409, detail="Question en cours de génération")
+        raise HTTPException(400, detail="Question introuvable (encore en génération)")
 
     letter = ["A", "B", "C", "D"][choice_index]
     q.answered = True
     q.user_letter = letter
+
+    # quand l'utilisateur répond, la session est ready/answered côté front
+    if s.status != "ready":
+        s.status = "ready"
+
     db.commit()
 
     correct_index = ["A", "B", "C", "D"].index(q.correct_letter)
@@ -525,35 +506,39 @@ def next_q(
     user: User = Depends(get_current_user),
 ):
     s = get_owned_session(db, user.id, session_id)
+
     if s.status == "error":
         return {"status": "error", "detail": s.error_message}
     if s.status == "done":
         return {"status": "done"}
+
+    qcur = db.execute(
+        select(QcmQuestion).where(QcmQuestion.session_id == s.id, QcmQuestion.index == s.current_index)
+    ).scalar_one_or_none()
+    if not qcur or not getattr(qcur, "answered", False):
+        raise HTTPException(400, detail="Réponds d'abord à la question")
 
     if s.current_index >= QCM_COUNT - 1:
         s.status = "done"
         db.commit()
         return {"status": "done"}
 
-    # avance l'index
     s.current_index += 1
+    s.status = "generating"
+    s.error_message = None
     db.commit()
 
-    q = db.execute(
+    qnext = db.execute(
         select(QcmQuestion).where(QcmQuestion.session_id == s.id, QcmQuestion.index == s.current_index)
     ).scalar_one_or_none()
 
-    if not q:
-        s.status = "generating"
-        s.error_message = None
+    if qnext:
+        s.status = "ready"
         db.commit()
-        bg.add_task(ensure_question_generated, s.id, s.current_index)
-        return {"status": "generating", "index": s.current_index + 1}
+        return {"status": "ready", "index": s.current_index + 1}
 
-    s.status = "ready"
-    s.error_message = None
-    db.commit()
-    return {"status": "ok", "index": s.current_index + 1}
+    bg.add_task(generate_one_question, s.id, s.current_index)
+    return {"status": "generating", "index": s.current_index + 1}
 
 
 @router.post("/{session_id}/close")
@@ -563,17 +548,6 @@ def close_session(
     user: User = Depends(get_current_user),
 ):
     s = get_owned_session(db, user.id, session_id)
-
     s.status = "done"
-    s.expires_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
-
-    # cache cleanup (best effort)
-    try:
-        p = cache_path_for_session(s.id)
-        if p.exists():
-            p.unlink()
-    except:
-        pass
-
-    return {"status": "done"}
+    return {"status": "ok"}
