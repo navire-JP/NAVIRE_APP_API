@@ -10,7 +10,7 @@ passlib[bcrypt]==1.7.4
 PyJWT==2.9.0
 python-multipart==0.0.9
 
-# PDF (PyMuPDF only)
+# PDF (on garde PyMuPDF, on supprime pdfplumber/pdfminer)
 PyMuPDF==1.24.10
 
 # OpenAI + deps explicites
