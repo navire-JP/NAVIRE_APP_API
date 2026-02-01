@@ -3,11 +3,12 @@ from __future__ import annotations
 import os
 import random
 import time
+import threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/qcm", tags=["qcm"])
 # -------------------------
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_TIMEOUT_SEC = float(os.getenv("OPENAI_TIMEOUT_SEC", "25"))
+OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "600"))
 # OpenAI python v1.x utilise httpx en interne. timeout=... évite les hangs réseaux.
 client = OpenAI(timeout=OPENAI_TIMEOUT_SEC)
 
@@ -50,7 +52,7 @@ MAX_TOTAL_TRIES = int(os.getenv("QCM_MAX_TOTAL_TRIES", "30"))
 
 # -------------------------
 # Watchdog (server-side)
-# - au lieu de passer en "error" définitif, on relance
+# - on ne tue pas la session : message soft + retry
 # -------------------------
 SERVER_GENERATION_WATCHDOG_SEC = int(os.getenv("QCM_WATCHDOG_SEC", "240"))
 
@@ -109,6 +111,22 @@ QCM_TYPES = [
     "D2 - Exception à une règle",
     "T1 - Vocabulaire juridique",
 ]
+
+
+# -------------------------
+# Threaded generation (CRITICAL PATCH)
+# -------------------------
+def spawn_generation(session_id: str, target_index: int) -> None:
+    """
+    IMPORTANT: on ne doit PAS générer via BackgroundTasks (ça bloque le worker).
+    On lance un thread daemon pour que les endpoints /current restent réactifs.
+    """
+    t = threading.Thread(
+        target=ensure_question_generated,
+        args=(session_id, target_index),
+        daemon=True,
+    )
+    t.start()
 
 
 def parse_pages_str(pages_str: str, total_pages: int) -> list[int]:
@@ -280,7 +298,7 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
     Génère UNE question (target_index) si elle n'existe pas.
     Idempotent + lock anti-concurrent.
 
-    IMPORTANT PATCH:
+    IMPORTANT:
     - Ne met PAS la session en "error" définitif pour un échec temporaire
     - Laisse la session en "generating" avec error_message (soft)
     - /current relancera plus tard
@@ -344,6 +362,7 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
                 rep = client.chat.completions.create(
                     model=OPENAI_MODEL,
                     messages=[{"role": "user", "content": prompt}],
+                    max_tokens=OPENAI_MAX_TOKENS,
                 )
                 txt = rep.choices[0].message.content or ""
                 data = parse_qcm_answer(txt)
@@ -377,16 +396,12 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
                 time.sleep(0.35)
                 continue
 
-        # ⛔ Ici avant: status="error" définitif
-        # ✅ Patch: on reste en generating + message soft, /current relancera
-        try:
-            session = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
-            if session and session.status != "done":
-                session.status = "generating"
-                session.error_message = f"Retrying: {last_err}" if last_err else "Retrying generation..."
-                db.commit()
-        except Exception:
-            pass
+        # Soft failure: on reste en generating + message soft
+        session = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
+        if session and session.status != "done":
+            session.status = "generating"
+            session.error_message = f"Retrying: {last_err}" if last_err else "Retrying generation..."
+            db.commit()
 
     finally:
         release_gen_lock(session_id, target_index)
@@ -409,7 +424,6 @@ def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
 @router.post("/start")
 def start_qcm(
     payload: dict,
-    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -440,8 +454,8 @@ def start_qcm(
     db.commit()
     db.refresh(session)
 
-    # Génération question 0 en background
-    bg.add_task(ensure_question_generated, session.id, 0)
+    # ✅ CRITICAL: génération via thread (ne bloque pas le worker HTTP)
+    spawn_generation(session.id, 0)
 
     return {
         "session_id": session.id,
@@ -453,7 +467,6 @@ def start_qcm(
 @router.get("/{session_id}/current")
 def current(
     session_id: str,
-    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -493,13 +506,11 @@ def current(
             "session_age_sec": session_age_sec,
         }
 
-    # Si pas de question : relance génération (idempotent + lock)
-    bg.add_task(ensure_question_generated, s.id, s.current_index)
+    # ✅ si pas de question : on (re)spawn la génération (idempotent + lock)
+    spawn_generation(s.id, s.current_index)
 
-    # ✅ watchdog: si lock trop vieux, on le laisse expirer (TTL) et on continue à renvoyer generating
-    # (pas d'error fatal)
+    # watchdog soft
     if session_age_sec > SERVER_GENERATION_WATCHDOG_SEC and generated_count == 0:
-        # on met un message soft pour debug, mais on ne tue pas la session
         if s.status != "generating":
             s.status = "generating"
         s.error_message = "Génération lente… (retry automatique)"
@@ -542,7 +553,6 @@ def answer(
     ).scalar_one_or_none()
 
     if not q:
-        # ✅ au lieu de 409 dur, on renvoie un message clair
         raise HTTPException(409, detail="Question en cours de génération, réessaie.")
 
     letter = ["A", "B", "C", "D"][choice_index]
@@ -564,7 +574,6 @@ def answer(
 @router.post("/{session_id}/next")
 def next_q(
     session_id: str,
-    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -583,8 +592,8 @@ def next_q(
     s.error_message = ""
     db.commit()
 
-    # génération de la prochaine question en background
-    bg.add_task(ensure_question_generated, s.id, s.current_index)
+    # ✅ CRITICAL: génération via thread
+    spawn_generation(s.id, s.current_index)
 
     return {"status": "generating"}
 
