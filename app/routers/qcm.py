@@ -3,12 +3,11 @@ from __future__ import annotations
 import os
 import random
 import time
-import threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -21,8 +20,13 @@ from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/qcm", tags=["qcm"])
 
-# OpenAI client (sync)
-client = OpenAI()
+# -------------------------
+# OpenAI client (IMPORTANT: timeouts)
+# -------------------------
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_TIMEOUT_SEC = float(os.getenv("OPENAI_TIMEOUT_SEC", "25"))
+# OpenAI python v1.x utilise httpx en interne. timeout=... évite les hangs réseaux.
+client = OpenAI(timeout=OPENAI_TIMEOUT_SEC)
 
 # -------------------------
 # Session policy
@@ -46,13 +50,12 @@ MAX_TOTAL_TRIES = int(os.getenv("QCM_MAX_TOTAL_TRIES", "30"))
 
 # -------------------------
 # Watchdog (server-side)
-# IMPORTANT: on ne passe plus en "error" juste parce que c'est long.
-# On relance si un lock est trop vieux (worker mort / exception silencieuse).
+# - au lieu de passer en "error" définitif, on relance
 # -------------------------
 SERVER_GENERATION_WATCHDOG_SEC = int(os.getenv("QCM_WATCHDOG_SEC", "240"))
 
 # -------------------------
-# In-process generation locks (anti-concurrent)
+# In-process generation locks
 # key = (session_id, target_index) -> started_at_monotonic
 # -------------------------
 GEN_LOCKS: Dict[Tuple[str, int], float] = {}
@@ -80,25 +83,12 @@ def release_gen_lock(session_id: str, target_index: int) -> None:
     GEN_LOCKS.pop(_lock_key(session_id, target_index), None)
 
 
-def lock_age_sec(session_id: str, target_index: int) -> Optional[float]:
-    ts = GEN_LOCKS.get(_lock_key(session_id, target_index))
+def lock_age_sec(session_id: str, target_index: int) -> float | None:
+    key = _lock_key(session_id, target_index)
+    ts = GEN_LOCKS.get(key)
     if ts is None:
         return None
-    return time.monotonic() - ts
-
-
-def force_release_lock_if_stale(session_id: str, target_index: int) -> bool:
-    """
-    Si un lock traîne trop longtemps (thread mort, crash, etc.),
-    on le libère pour permettre une relance.
-    """
-    age = lock_age_sec(session_id, target_index)
-    if age is None:
-        return False
-    if age > SERVER_GENERATION_WATCHDOG_SEC:
-        release_gen_lock(session_id, target_index)
-        return True
-    return False
+    return max(0.0, time.monotonic() - ts)
 
 
 def _norm(s: str) -> str:
@@ -285,25 +275,20 @@ def get_seen_questions_for_session(db: Session, session_id: str) -> set[str]:
     return {_norm(q.question) for q in qs if q.question}
 
 
-def _openai_timeout_sec() -> float:
-    # timeout “dur” par call OpenAI (évite thread bloqué indéfiniment)
-    return float(os.getenv("OPENAI_TIMEOUT_SEC", "25"))
-
-
 def ensure_question_generated(session_id: str, target_index: int) -> None:
     """
     Génère UNE question (target_index) si elle n'existe pas.
     Idempotent + lock anti-concurrent.
 
-    IMPORTANT:
-    - Ne met PAS la session en "error" pour des erreurs transitoires OpenAI.
-    - Ne met en "error" que si on a réellement épuisé les tentatives.
+    IMPORTANT PATCH:
+    - Ne met PAS la session en "error" définitif pour un échec temporaire
+    - Laisse la session en "generating" avec error_message (soft)
+    - /current relancera plus tard
     """
     if not acquire_gen_lock(session_id, target_index):
         return
 
     db = SessionLocal()
-    last_err: str = ""
     try:
         session = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
         if not session:
@@ -325,7 +310,7 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
                 db.commit()
             return
 
-        # On marque generating le temps de produire
+        # Mark generating (soft)
         session.status = "generating"
         session.error_message = ""
         db.commit()
@@ -335,7 +320,9 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
         seen_questions = get_seen_questions_for_session(db, session.id)
 
         total_tries = 0
-        for local_try in range(MAX_TRIES_PER_QUESTION):
+        last_err = ""
+
+        for _ in range(MAX_TRIES_PER_QUESTION):
             total_tries += 1
             if total_tries > MAX_TOTAL_TRIES:
                 last_err = f"Échec génération: trop de tentatives ({MAX_TOTAL_TRIES})."
@@ -348,21 +335,16 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
             chunk = pick_chunk(words, chunk_size)
             if not chunk:
                 last_err = "Texte source vide après découpage"
-                time.sleep(0.35)
+                time.sleep(0.25)
                 continue
 
             prompt = build_prompt(chunk, session.difficulty)
 
             try:
                 rep = client.chat.completions.create(
-                    model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                    model=OPENAI_MODEL,
                     messages=[{"role": "user", "content": prompt}],
-                    # un peu de stabilité
-                    temperature=float(os.getenv("QCM_TEMPERATURE", "0.2")),
-                    # timeout dur
-                    timeout=_openai_timeout_sec(),
                 )
-
                 txt = rep.choices[0].message.content or ""
                 data = parse_qcm_answer(txt)
                 validate_qcm_data(data, seen_questions)
@@ -391,45 +373,24 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
                 return
 
             except Exception as e:
-                # erreurs transitoires => on réessaie
-                last_err = str(e)[:300] if str(e) else "Erreur OpenAI/parse/validation"
-                time.sleep(0.45)
+                last_err = str(e)[:250]
+                time.sleep(0.35)
                 continue
 
-        # Si on arrive ici => échec définitif pour cette question
-        if session.status != "done":
-            session.status = "error"
-            session.error_message = (
-                f"Impossible de générer une question valide (index={target_index}). "
-                f"Dernière erreur: {last_err or 'inconnue'}"
-            )
-            db.commit()
-
-    except Exception as e:
+        # ⛔ Ici avant: status="error" définitif
+        # ✅ Patch: on reste en generating + message soft, /current relancera
         try:
             session = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
             if session and session.status != "done":
-                session.status = "error"
-                session.error_message = str(e)[:300] if str(e) else "Erreur interne"
+                session.status = "generating"
+                session.error_message = f"Retrying: {last_err}" if last_err else "Retrying generation..."
                 db.commit()
         except Exception:
             pass
+
     finally:
         release_gen_lock(session_id, target_index)
         db.close()
-
-
-def spawn_generation(session_id: str, target_index: int) -> None:
-    """
-    Lance la génération dans un thread daemon (non bloquant),
-    et ne dépend plus de BackgroundTasks (évite freeze / fetch pending).
-    """
-    t = threading.Thread(
-        target=ensure_question_generated,
-        args=(session_id, target_index),
-        daemon=True,
-    )
-    t.start()
 
 
 def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
@@ -448,6 +409,7 @@ def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
 @router.post("/start")
 def start_qcm(
     payload: dict,
+    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -478,8 +440,8 @@ def start_qcm(
     db.commit()
     db.refresh(session)
 
-    # ✅ génération question 0 => thread daemon
-    spawn_generation(session.id, 0)
+    # Génération question 0 en background
+    bg.add_task(ensure_question_generated, session.id, 0)
 
     return {
         "session_id": session.id,
@@ -491,16 +453,11 @@ def start_qcm(
 @router.get("/{session_id}/current")
 def current(
     session_id: str,
+    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     s = get_owned_session(db, user.id, session_id)
-
-    if s.status == "error":
-        return {"status": "error", "detail": s.error_message}
-
-    if s.status == "done":
-        return {"status": "done"}
 
     # question courante
     q = db.execute(
@@ -510,10 +467,14 @@ def current(
         )
     ).scalar_one_or_none()
 
-    generated_count = db.execute(
-        select(QcmQuestion).where(QcmQuestion.session_id == s.id)
-    ).scalars().all()
-    generated_count = len(generated_count)
+    generated = db.execute(select(QcmQuestion).where(QcmQuestion.session_id == s.id)).scalars().all()
+    generated_count = len(generated)
+
+    session_age_sec = (datetime.now(timezone.utc) - s.created_at).total_seconds()
+    lk_age = lock_age_sec(s.id, s.current_index)
+
+    if s.status == "done":
+        return {"status": "done"}
 
     if q:
         if s.status != "done":
@@ -528,27 +489,33 @@ def current(
             "generated_count": generated_count,
             "question": q.question,
             "choices": [q.choice_a, q.choice_b, q.choice_c, q.choice_d],
+            "lock_age_sec": lk_age,
+            "session_age_sec": session_age_sec,
         }
 
-    # pas de question => génération on-demand
-    # ✅ Si lock vieux => on le libère et on relance (évite "bloquée")
-    force_release_lock_if_stale(s.id, s.current_index)
-    spawn_generation(s.id, s.current_index)
+    # Si pas de question : relance génération (idempotent + lock)
+    bg.add_task(ensure_question_generated, s.id, s.current_index)
 
-    # on ne force plus "error" juste parce que c'est long :
-    # on renvoie generating + info lock age pour debug
-    age = lock_age_sec(s.id, s.current_index)
+    # ✅ watchdog: si lock trop vieux, on le laisse expirer (TTL) et on continue à renvoyer generating
+    # (pas d'error fatal)
+    if session_age_sec > SERVER_GENERATION_WATCHDOG_SEC and generated_count == 0:
+        # on met un message soft pour debug, mais on ne tue pas la session
+        if s.status != "generating":
+            s.status = "generating"
+        s.error_message = "Génération lente… (retry automatique)"
+        db.commit()
 
     if s.status != "generating":
         s.status = "generating"
-        s.error_message = ""
         db.commit()
 
     return {
         "status": "generating",
         "generated_count": generated_count,
         "total": QCM_COUNT,
-        "lock_age_sec": age,
+        "detail": s.error_message or "",
+        "lock_age_sec": lk_age,
+        "session_age_sec": session_age_sec,
     }
 
 
@@ -560,8 +527,6 @@ def answer(
     user: User = Depends(get_current_user),
 ):
     s = get_owned_session(db, user.id, session_id)
-    if s.status == "error":
-        raise HTTPException(400, detail=s.error_message or "Erreur génération")
     if s.status == "done":
         raise HTTPException(400, detail="Session terminée")
 
@@ -577,8 +542,8 @@ def answer(
     ).scalar_one_or_none()
 
     if not q:
-        # pas encore prête -> client doit repoll /current
-        raise HTTPException(409, detail="Question en cours de génération")
+        # ✅ au lieu de 409 dur, on renvoie un message clair
+        raise HTTPException(409, detail="Question en cours de génération, réessaie.")
 
     letter = ["A", "B", "C", "D"][choice_index]
     q.answered = True
@@ -599,13 +564,12 @@ def answer(
 @router.post("/{session_id}/next")
 def next_q(
     session_id: str,
+    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     s = get_owned_session(db, user.id, session_id)
 
-    if s.status == "error":
-        return {"status": "error", "detail": s.error_message}
     if s.status == "done":
         return {"status": "done"}
 
@@ -614,14 +578,13 @@ def next_q(
         db.commit()
         return {"status": "done"}
 
-    # avance l'index
     s.current_index += 1
     s.status = "generating"
     s.error_message = ""
     db.commit()
 
-    # ✅ génération de la prochaine question => thread daemon
-    spawn_generation(s.id, s.current_index)
+    # génération de la prochaine question en background
+    bg.add_task(ensure_question_generated, s.id, s.current_index)
 
     return {"status": "generating"}
 
