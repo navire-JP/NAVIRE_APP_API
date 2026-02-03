@@ -470,7 +470,15 @@ def current(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    s = get_owned_session(db, user.id, session_id)
+    try:
+        s = get_owned_session(db, user.id, session_id)
+    except HTTPException as e:
+        # ✅ réponse propre, jamais 500
+        return {
+            "status": "error",
+            "detail": e.detail,
+            "code": e.status_code,
+        }
 
     # question courante
     q = db.execute(
