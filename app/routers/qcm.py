@@ -416,7 +416,14 @@ def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
         raise HTTPException(403, detail="Session non autorisée")
 
     now = datetime.now(timezone.utc)
-    if now > s.expires_at:
+    
+    # ✅ FIX: Forcer la timezone sur expires_at si elle est naive
+    expires_at = s.expires_at
+    if expires_at.tzinfo is None:
+        # Si la datetime est naive, on la considère comme UTC
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if now > expires_at:
         raise HTTPException(410, detail="Session expirée")
     return s
 
