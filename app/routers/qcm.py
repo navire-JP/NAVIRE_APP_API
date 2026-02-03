@@ -64,6 +64,23 @@ GEN_LOCKS: Dict[Tuple[str, int], float] = {}
 GEN_LOCK_TTL_SEC = float(os.getenv("QCM_GEN_LOCK_TTL_SEC", "180.0"))
 
 
+# -------------------------
+# Time helpers (timezone-safe)
+# -------------------------
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def ensure_aware_utc(dt: datetime | None) -> datetime | None:
+    """
+    SQLite/SQLAlchemy renvoie souvent des datetime "naive".
+    On les considère comme UTC (cohérent avec notre usage côté API).
+    """
+    if dt is None:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
 def _lock_key(session_id: str, target_index: int) -> Tuple[str, int]:
     return (session_id, target_index)
 
@@ -415,14 +432,14 @@ def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
     if s.user_id != user_id:
         raise HTTPException(403, detail="Session non autorisée")
 
-    now = datetime.now(timezone.utc)
-    
+    now = utcnow()
+
     # ✅ FIX: Forcer la timezone sur expires_at si elle est naive
-    expires_at = s.expires_at
-    if expires_at.tzinfo is None:
-        # Si la datetime est naive, on la considère comme UTC
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    
+    expires_at = ensure_aware_utc(s.expires_at)
+    if expires_at is None:
+        # cas improbable, mais on évite tout crash
+        raise HTTPException(500, detail="Session invalide (expires_at manquant)")
+
     if now > expires_at:
         raise HTTPException(410, detail="Session expirée")
     return s
@@ -445,7 +462,7 @@ def start_qcm(
     if not file or file.user_id != user.id:
         raise HTTPException(403, detail="Fichier non autorisé")
 
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=SESSION_TTL_MIN)
+    expires_at = utcnow() + timedelta(minutes=SESSION_TTL_MIN)
 
     session = QcmSession(
         user_id=user.id,
@@ -467,7 +484,7 @@ def start_qcm(
     return {
         "session_id": session.id,
         "status": session.status,
-        "expires_at": session.expires_at.isoformat(),
+        "expires_at": ensure_aware_utc(session.expires_at).isoformat() if session.expires_at else None,
     }
 
 
@@ -498,7 +515,10 @@ def current(
     generated = db.execute(select(QcmQuestion).where(QcmQuestion.session_id == s.id)).scalars().all()
     generated_count = len(generated)
 
-    session_age_sec = (datetime.now(timezone.utc) - s.created_at).total_seconds()
+    # ✅ FIX timezone: created_at peut être naive (SQLite) -> on force UTC aware
+    created_at = ensure_aware_utc(s.created_at)
+    session_age_sec = (utcnow() - created_at).total_seconds() if created_at else 0.0
+
     lk_age = lock_age_sec(s.id, s.current_index)
 
     if s.status == "done":
