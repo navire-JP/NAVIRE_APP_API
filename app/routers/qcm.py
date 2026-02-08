@@ -27,7 +27,6 @@ router = APIRouter(prefix="/qcm", tags=["qcm"])
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_TIMEOUT_SEC = float(os.getenv("OPENAI_TIMEOUT_SEC", "25"))
 OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "600"))
-# OpenAI python v1.x utilise httpx en interne. timeout=... évite les hangs réseaux.
 client = OpenAI(timeout=OPENAI_TIMEOUT_SEC)
 
 # -------------------------
@@ -63,6 +62,30 @@ SERVER_GENERATION_WATCHDOG_SEC = int(os.getenv("QCM_WATCHDOG_SEC", "240"))
 GEN_LOCKS: Dict[Tuple[str, int], float] = {}
 GEN_LOCK_TTL_SEC = float(os.getenv("QCM_GEN_LOCK_TTL_SEC", "180.0"))
 GEN_LOCKS_MUTEX = threading.Lock()
+
+# -------------------------
+# Anti-AFK / NoAnswer streak (server-side guard)
+# - Source de vérité minimaliste : mémoire du process
+# - Objectif : empêcher les doubles sessions + expirer si 3 skips
+# -------------------------
+MAX_NOANSWER_STREAK = int(os.getenv("QCM_MAX_NOANSWER_STREAK", "3"))
+NOANSWER_STREAKS: Dict[str, int] = {}  # session_id -> streak
+NOANSWER_MUTEX = threading.Lock()
+
+
+def _get_noanswer(session_id: str) -> int:
+    with NOANSWER_MUTEX:
+        return int(NOANSWER_STREAKS.get(session_id, 0))
+
+
+def _set_noanswer(session_id: str, n: int) -> None:
+    with NOANSWER_MUTEX:
+        NOANSWER_STREAKS[session_id] = max(0, int(n))
+
+
+def _reset_noanswer(session_id: str) -> None:
+    with NOANSWER_MUTEX:
+        NOANSWER_STREAKS.pop(session_id, None)
 
 
 # -------------------------
@@ -100,11 +123,9 @@ def acquire_gen_lock(session_id: str, target_index: int) -> bool:
         return True
 
 
-
 def release_gen_lock(session_id: str, target_index: int) -> None:
     with GEN_LOCKS_MUTEX:
         GEN_LOCKS.pop(_lock_key(session_id, target_index), None)
-
 
 
 def lock_age_sec(session_id: str, target_index: int) -> float | None:
@@ -337,7 +358,6 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
         if session.status == "done":
             return
 
-        # Déjà générée ?
         existing = db.execute(
             select(QcmQuestion).where(
                 QcmQuestion.session_id == session.id,
@@ -347,15 +367,12 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
 
         if existing:
             db.refresh(session)
-            # ✅ seulement si on génère la question courante
             if session.status != "done" and target_index == session.current_index:
                 session.status = "ready"
                 session.error_message = ""
                 db.commit()
             return
 
-        # Mark generating (soft) — attention: on évite de casser le flow si prefetch
-        # On garde "generating" seulement si on génère la question courante
         if target_index == session.current_index:
             session.status = "generating"
             session.error_message = ""
@@ -414,7 +431,6 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
                 db.add(q)
                 db.commit()
 
-                # ✅ si c'est la question courante, on peut passer ready
                 db.refresh(session)
                 if session.status != "done" and target_index == session.current_index:
                     session.status = "ready"
@@ -427,12 +443,10 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
                 time.sleep(0.35)
                 continue
 
-        # Soft failure
         session = db.execute(
             select(QcmSession).where(QcmSession.id == session_id)
         ).scalar_one_or_none()
         if session and session.status != "done":
-            # ✅ on n'affiche le message soft que si c'est la question courante
             if target_index == session.current_index:
                 session.status = "generating"
                 session.error_message = (
@@ -445,7 +459,6 @@ def ensure_question_generated(session_id: str, target_index: int) -> None:
         db.close()
 
 
-
 def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
     s = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
     if not s:
@@ -454,16 +467,35 @@ def get_owned_session(db: Session, user_id: int, session_id: str) -> QcmSession:
         raise HTTPException(403, detail="Session non autorisée")
 
     now = utcnow()
-
-    # ✅ FIX: Forcer la timezone sur expires_at si elle est naive
     expires_at = ensure_aware_utc(s.expires_at)
     if expires_at is None:
-        # cas improbable, mais on évite tout crash
         raise HTTPException(500, detail="Session invalide (expires_at manquant)")
-
     if now > expires_at:
         raise HTTPException(410, detail="Session expirée")
     return s
+
+
+def get_active_session_for_user(db: Session, user_id: int) -> QcmSession | None:
+    """
+    Empêche 2 sessions simultanées :
+    - status != done
+    - non expirée
+    On renvoie la plus récente.
+    """
+    now = utcnow()
+    sessions = db.execute(
+        select(QcmSession)
+        .where(QcmSession.user_id == user_id)
+        .order_by(QcmSession.created_at.desc())
+    ).scalars().all()
+
+    for s in sessions:
+        if s.status == "done":
+            continue
+        expires_at = ensure_aware_utc(s.expires_at)
+        if expires_at and now <= expires_at:
+            return s
+    return None
 
 
 @router.post("/start")
@@ -483,6 +515,21 @@ def start_qcm(
     if not file or file.user_id != user.id:
         raise HTTPException(403, detail="Fichier non autorisé")
 
+    # ✅ Anti-double session
+    active = get_active_session_for_user(db, user.id)
+    if active is not None:
+        # On ne crée pas une 2e session.
+        # Le front peut décider de "reprendre" cette session.
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Une session QCM est déjà en cours.",
+                "session_id": active.id,
+                "status": active.status,
+                "expires_at": ensure_aware_utc(active.expires_at).isoformat() if active.expires_at else None,
+            },
+        )
+
     expires_at = utcnow() + timedelta(minutes=SESSION_TTL_MIN)
 
     session = QcmSession(
@@ -499,7 +546,9 @@ def start_qcm(
     db.commit()
     db.refresh(session)
 
-    # ✅ CRITICAL: génération via thread (ne bloque pas le worker HTTP)
+    # streak reset server-side
+    _reset_noanswer(session.id)
+
     spawn_generation(session.id, 0)
 
     return {
@@ -518,14 +567,12 @@ def current(
     try:
         s = get_owned_session(db, user.id, session_id)
     except HTTPException as e:
-        # ✅ réponse propre, jamais 500
         return {
             "status": "error",
             "detail": e.detail,
             "code": e.status_code,
         }
 
-    # question courante
     q = db.execute(
         select(QcmQuestion).where(
             QcmQuestion.session_id == s.id,
@@ -536,10 +583,8 @@ def current(
     generated = db.execute(select(QcmQuestion).where(QcmQuestion.session_id == s.id)).scalars().all()
     generated_count = len(generated)
 
-    # ✅ FIX timezone: created_at peut être naive (SQLite) -> on force UTC aware
     created_at = ensure_aware_utc(s.created_at)
     session_age_sec = (utcnow() - created_at).total_seconds() if created_at else 0.0
-
     lk_age = lock_age_sec(s.id, s.current_index)
 
     if s.status == "done":
@@ -560,12 +605,11 @@ def current(
             "choices": [q.choice_a, q.choice_b, q.choice_c, q.choice_d],
             "lock_age_sec": lk_age,
             "session_age_sec": session_age_sec,
+            "noanswer_streak": _get_noanswer(s.id),
         }
 
-    # ✅ si pas de question : on (re)spawn la génération (idempotent + lock)
     spawn_generation(s.id, s.current_index)
 
-    # watchdog soft
     if session_age_sec > SERVER_GENERATION_WATCHDOG_SEC and generated_count == 0:
         if s.status != "generating":
             s.status = "generating"
@@ -583,6 +627,7 @@ def current(
         "detail": s.error_message or "",
         "lock_age_sec": lk_age,
         "session_age_sec": session_age_sec,
+        "noanswer_streak": _get_noanswer(s.id),
     }
 
 
@@ -594,13 +639,11 @@ def next_status(
 ):
     s = get_owned_session(db, user.id, session_id)
 
-    # Si la session est finie ou si on est déjà à la dernière question
     if s.status == "done" or s.current_index >= QCM_COUNT - 1:
         return {"status": "done"}
 
     next_index = s.current_index + 1
 
-    # La question suivante existe-t-elle déjà ?
     qnext = db.execute(
         select(QcmQuestion).where(
             QcmQuestion.session_id == s.id,
@@ -608,7 +651,6 @@ def next_status(
         )
     ).scalar_one_or_none()
 
-    # (optionnel) compter combien de questions existent déjà en DB
     generated_count = db.execute(
         select(QcmQuestion).where(QcmQuestion.session_id == s.id)
     ).scalars().all()
@@ -617,17 +659,16 @@ def next_status(
     if qnext:
         return {
             "status": "ready",
-            "next_index": next_index + 1,  # 1-based (pour l’UI)
+            "next_index": next_index + 1,
             "total": QCM_COUNT,
             "generated_count": generated_count,
         }
 
-    # Sinon : pas prête => on (re)déclenche la génération (idempotent si lock)
     spawn_generation(s.id, next_index)
 
     return {
         "status": "generating",
-        "next_index": next_index + 1,  # 1-based
+        "next_index": next_index + 1,
         "total": QCM_COUNT,
         "generated_count": generated_count,
     }
@@ -663,14 +704,14 @@ def answer(
     q.user_letter = letter
     db.commit()
 
+    # ✅ reset streak si l'utilisateur répond
+    _reset_noanswer(s.id)
+
     correct_index = ["A", "B", "C", "D"].index(q.correct_letter)
     is_correct = (letter == q.correct_letter)
 
-    # ✅ done calculé une seule fois
     done = (s.current_index >= QCM_COUNT - 1)
 
-    # ✅ PREFETCH : lancer la génération de la question suivante pendant l'explication
-    # (idempotent si ton spawn_generation est bien locké)
     if not done:
         spawn_generation(s.id, s.current_index + 1)
 
@@ -680,7 +721,6 @@ def answer(
         "explanation": q.explanation,
         "done": done,
     }
-
 
 
 @router.post("/{session_id}/next")
@@ -698,12 +738,34 @@ def next_q(
     if s.current_index >= QCM_COUNT - 1:
         s.status = "done"
         db.commit()
+        _reset_noanswer(s.id)
         return {"status": "done"}
+
+    # ✅ Si l'utilisateur n'a PAS répondu à la question courante => c'est un "skip"
+    qcur = db.execute(
+        select(QcmQuestion).where(
+            QcmQuestion.session_id == s.id,
+            QcmQuestion.index == s.current_index,
+        )
+    ).scalar_one_or_none()
+
+    if qcur and not bool(getattr(qcur, "answered", False)):
+        streak = _get_noanswer(s.id) + 1
+        _set_noanswer(s.id, streak)
+
+        # ✅ 3 skips d'affilé => expire session
+        if streak >= MAX_NOANSWER_STREAK:
+            s.status = "done"
+            db.commit()
+            _reset_noanswer(s.id)
+            return {
+                "status": "done",
+                "detail": f"Session expirée ({MAX_NOANSWER_STREAK} questions sans réponse).",
+            }
 
     # ✅ avancer vers la question suivante
     s.current_index += 1
 
-    # ✅ si la question est déjà en DB (prefetch), on renvoie directement "ready"
     q = db.execute(
         select(QcmQuestion).where(
             QcmQuestion.session_id == s.id,
@@ -716,20 +778,19 @@ def next_q(
         db.commit()
         return {
             "status": "ready",
-            "index": s.current_index + 1,  # 1-based
+            "index": s.current_index + 1,
             "total": QCM_COUNT,
             "question": q.question,
             "choices": [q.choice_a, q.choice_b, q.choice_c, q.choice_d],
+            "noanswer_streak": _get_noanswer(s.id),
         }
 
-    # ✅ sinon : pas encore prête => generating + spawn
     s.status = "generating"
     db.commit()
 
     spawn_generation(s.id, s.current_index)
 
-    return {"status": "generating"}
-
+    return {"status": "generating", "noanswer_streak": _get_noanswer(s.id)}
 
 
 @router.post("/{session_id}/close")
@@ -741,4 +802,5 @@ def close_qcm(
     s = get_owned_session(db, user.id, session_id)
     s.status = "done"
     db.commit()
+    _reset_noanswer(s.id)
     return {"status": "done"}
