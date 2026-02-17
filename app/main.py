@@ -12,6 +12,7 @@ from app.routers.meta import router as meta_router
 from app.routers.users import router as users_router
 from app.routers.files import router as files_router  # 👈 NEW
 from app.routers.qcm import router as qcm_router
+from app.routers.flash import router as flash_router
 
 # ============================================================
 # Lifespan (startup / shutdown)
@@ -56,6 +57,7 @@ app.include_router(meta_router)
 app.include_router(users_router)
 app.include_router(files_router)  
 app.include_router(qcm_router)
+app.include_router(flash_router)
 
 
 # ============================================================
