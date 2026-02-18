@@ -26,11 +26,13 @@ router = APIRouter(prefix="/flash", tags=["flash"])
 def utcnow():
     return datetime.now(timezone.utc)
 
+
 def require_subscription(user: User):
     if user.is_admin:
         return
     if (user.plan or "free") == "free":
         raise HTTPException(403, detail="Réservé aux abonnés.")
+
 
 def deck_owned(db: Session, user: User, deck_id: int) -> FlashDeck:
     d = db.execute(select(FlashDeck).where(FlashDeck.id == deck_id)).scalar_one_or_none()
@@ -40,6 +42,7 @@ def deck_owned(db: Session, user: User, deck_id: int) -> FlashDeck:
         raise HTTPException(403, detail="Forbidden")
     return d
 
+
 def card_owned(db: Session, user: User, card_id: int) -> FlashCard:
     c = db.execute(select(FlashCard).where(FlashCard.id == card_id)).scalar_one_or_none()
     if not c:
@@ -48,6 +51,19 @@ def card_owned(db: Session, user: User, card_id: int) -> FlashCard:
     if not d or d.user_id != user.id:
         raise HTTPException(403, detail="Forbidden")
     return c
+
+
+def card_out(c: FlashCard) -> CardOut:
+    return CardOut(
+        id=c.id,
+        deck_id=c.deck_id,
+        front=c.front,
+        back=c.back,
+        tags=c.tags,
+        source_type=c.source_type,
+        source_file_id=c.source_file_id,
+        source_pages=c.source_pages,
+    )
 
 
 # =========================================================
@@ -63,7 +79,6 @@ def create_deck(
     db.add(d)
     db.commit()
     db.refresh(d)
-
     return DeckOut(id=d.id, title=d.title, description=d.description, cards_count=0)
 
 
@@ -76,7 +91,6 @@ def list_decks(
         select(FlashDeck).where(FlashDeck.user_id == user.id).order_by(FlashDeck.created_at.desc())
     ).scalars().all()
 
-    # count cards per deck
     deck_ids = [d.id for d in decks]
     counts = {}
     if deck_ids:
@@ -162,11 +176,7 @@ def create_card(
     db.add(c)
     db.commit()
     db.refresh(c)
-
-    return CardOut(
-        id=c.id, deck_id=c.deck_id, front=c.front, back=c.back, tags=c.tags,
-        source_type=c.source_type, source_file_id=c.source_file_id, source_pages=c.source_pages
-    )
+    return card_out(c)
 
 
 @router.get("/decks/{deck_id}/cards")
@@ -202,7 +212,58 @@ def list_cards(
     }
 
 
-@router.patch("/cards/{card_id}")
+# ---------------------------------------------------------
+# ✅ NEW: routes attendues par ton TSX:
+#   PATCH /flash/decks/{deck_id}/cards/{card_id}
+#   DELETE /flash/decks/{deck_id}/cards/{card_id}
+# ---------------------------------------------------------
+@router.patch("/decks/{deck_id}/cards/{card_id}", response_model=CardOut)
+def update_card_in_deck(
+    deck_id: int,
+    card_id: int,
+    payload: CardUpdateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # vérifie ownership deck + cohérence carte->deck
+    d = deck_owned(db, user, deck_id)
+    c = card_owned(db, user, card_id)
+    if c.deck_id != d.id:
+        raise HTTPException(404, detail="Carte introuvable dans ce deck.")
+
+    if payload.front is not None:
+        c.front = payload.front
+    if payload.back is not None:
+        c.back = payload.back
+    if payload.tags is not None:
+        c.tags = payload.tags
+
+    db.commit()
+    db.refresh(c)
+    return card_out(c)
+
+
+@router.delete("/decks/{deck_id}/cards/{card_id}")
+def delete_card_in_deck(
+    deck_id: int,
+    card_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    d = deck_owned(db, user, deck_id)
+    c = card_owned(db, user, card_id)
+    if c.deck_id != d.id:
+        raise HTTPException(404, detail="Carte introuvable dans ce deck.")
+
+    db.delete(c)
+    db.commit()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------
+# ✅ BACKWARD COMPAT: routes existantes (elles restent)
+# ---------------------------------------------------------
+@router.patch("/cards/{card_id}", response_model=CardOut)
 def update_card(
     card_id: int,
     payload: CardUpdateIn,
@@ -217,7 +278,8 @@ def update_card(
     if payload.tags is not None:
         c.tags = payload.tags
     db.commit()
-    return {"ok": True}
+    db.refresh(c)
+    return card_out(c)
 
 
 @router.delete("/cards/{card_id}")
@@ -270,10 +332,7 @@ def study_start(
         session_id=sess.id,
         total=sess.total,
         index=1,
-        card=CardOut(
-            id=first.id, deck_id=first.deck_id, front=first.front, back=first.back, tags=first.tags,
-            source_type=first.source_type, source_file_id=first.source_file_id, source_pages=first.source_pages
-        )
+        card=card_out(first),
     )
 
 
@@ -292,7 +351,6 @@ def study_grade_next(
     if sess.ended_at is not None:
         return StudyNextOut(status="done", total=sess.total, index=sess.total, card=None, stats=sess.stats_json)
 
-    # stats
     stats = dict(sess.stats_json or {})
     if payload.is_correct:
         stats["correct"] = int(stats.get("correct", 0)) + 1
@@ -300,7 +358,6 @@ def study_grade_next(
         stats["wrong"] = int(stats.get("wrong", 0)) + 1
     sess.stats_json = stats
 
-    # next
     ids = (sess.order_json or {}).get("card_ids") or []
     nxt = int(sess.current_index or 0) + 1
 
@@ -318,17 +375,13 @@ def study_grade_next(
         status="ready",
         total=sess.total,
         index=nxt + 1,
-        card=CardOut(
-            id=c.id, deck_id=c.deck_id, front=c.front, back=c.back, tags=c.tags,
-            source_type=c.source_type, source_file_id=c.source_file_id, source_pages=c.source_pages
-        ),
+        card=card_out(c),
         stats=stats,
     )
 
 
 # =========================================================
 # Generate from PDF (endpoint V1 stub)
-# - on branchera IA + polling juste après (étape suivante)
 # =========================================================
 @router.post("/decks/{deck_id}/generate-from-pdf")
 def generate_from_pdf(
@@ -346,13 +399,20 @@ def generate_from_pdf(
         raise HTTPException(404, detail="Fichier introuvable.")
     if f.user_id != user.id:
         raise HTTPException(403, detail="Forbidden")
-    if f.expires_at is not None:
-        # si free: le fichier peut expirer, on empêche si expiré (files.py purge déjà mais safe)
-        if f.expires_at < datetime.utcnow():
-            raise HTTPException(410, detail="Fichier expiré.")
 
-    # V1: stub -> on renvoie "ok" et on branchera la génération (étape 4)
-    # but: tu peux déjà brancher Framer + boutons + droits.
+    # robust expiry compare (timezone-aware)
+    if f.expires_at is not None:
+        try:
+            exp = f.expires_at
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if exp < utcnow():
+                raise HTTPException(410, detail="Fichier expiré.")
+        except TypeError:
+            # fallback if legacy naive dt
+            if f.expires_at < datetime.utcnow():
+                raise HTTPException(410, detail="Fichier expiré.")
+
     return {
         "status": "queued",
         "detail": "Job en file (stub). Prochaine étape: génération IA + polling.",
