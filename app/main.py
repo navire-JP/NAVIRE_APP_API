@@ -14,6 +14,7 @@ from app.routers.files import router as files_router  # 👈 NEW
 from app.routers.qcm import router as qcm_router
 from app.routers.flash import router as flash_router
 from app.routers.elo import router as elo_router
+from app.routers.admin_console import router as admin_console_router
 
 # ============================================================
 # Lifespan (startup / shutdown)
@@ -60,6 +61,7 @@ app.include_router(files_router)
 app.include_router(qcm_router)
 app.include_router(flash_router)
 app.include_router(elo_router)
+app.include_router(admin_console_router)
 
 
 # ============================================================
