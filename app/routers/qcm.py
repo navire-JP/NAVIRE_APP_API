@@ -19,6 +19,8 @@ from app.db.database import get_db, SessionLocal
 from app.db.models import User, File, QcmSession, QcmQuestion
 from app.routers.auth import get_current_user
 
+from app.services.elo import compute_qcm_delta, apply_elo_delta
+
 router = APIRouter(prefix="/qcm", tags=["qcm"])
 
 # =========================================================
@@ -619,6 +621,30 @@ def answer(
         spawn_generation(session.id)
         raise HTTPException(409, detail="Question pas prête (generating)")
 
+    # -----------------------------
+    # Anti double-credit :
+    # si la question est déjà answered, on renvoie l’état sans modifier ELO
+    # -----------------------------
+    if q.answered:
+        correct_letter = (q.correct_letter or "").strip().upper()
+        correct_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(correct_letter, -1)
+
+        prev_letter = (q.user_letter or "").strip().upper()
+        prev_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(prev_letter, -1)
+        is_correct = (prev_index == correct_index)
+
+        u = db.execute(select(User).where(User.id == user.id)).scalar_one()
+        return {
+            "status": "already_answered",
+            "index": idx0 + 1,
+            "total": total,
+            "correct_index": correct_index,
+            "is_correct": is_correct,
+            "explanation": q.explanation or "",
+            "elo_delta": 0,
+            "new_elo": int(u.elo or 0),
+        }
+
     correct_letter = (q.correct_letter or "").strip().upper()
     correct_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(correct_letter, -1)
     is_correct = (choice_index == correct_index)
@@ -627,6 +653,24 @@ def answer(
     q.answered = True
     q.user_letter = ["A", "B", "C", "D"][choice_index]
     db.commit()
+
+    # -----------------------------
+    # Elo (selon difficulté)
+    # easy   : +1 / -1
+    # medium : +3 / -1
+    # hard   : +5 / -2
+    # -----------------------------
+    delta = compute_qcm_delta(session.difficulty or "medium", is_correct)
+
+    new_elo = apply_elo_delta(
+        db,
+        user_id=user.id,
+        delta=delta,
+        source="qcm",
+        session_id=session.id,
+        question_index=idx0,
+        meta={"difficulty": session.difficulty, "is_correct": is_correct},
+    )
 
     # prefetch generation continues in background; keep session ready until next() advances
     spawn_generation(session.id)
@@ -638,6 +682,8 @@ def answer(
         "correct_index": correct_index,
         "is_correct": is_correct,
         "explanation": q.explanation or "",
+        "elo_delta": delta,
+        "new_elo": new_elo,
     }
 
 

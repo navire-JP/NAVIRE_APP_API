@@ -88,6 +88,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # elos:
+    elo: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
+
     # dans class User(...) ajoute la relation :
     flash_decks: Mapped[list["FlashDeck"]] = relationship(
         "FlashDeck",
@@ -215,3 +218,24 @@ class FlashStudySession(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+# ============================================================
+# SCORING ELOS
+# ============================================================
+
+class EloEvent(Base):
+    __tablename__ = "elo_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+
+    source: Mapped[str] = mapped_column(String(32), nullable=False)      # "qcm" | "flashcards" | ...
+    delta: Mapped[int] = mapped_column(Integer, nullable=False)          # +1 / -2 / ...
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+    # idempotence / traçabilité
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    question_index: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+    meta: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
