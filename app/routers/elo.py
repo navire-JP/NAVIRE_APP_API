@@ -7,22 +7,24 @@ from sqlalchemy import select, desc, func
 from app.db.database import get_db
 from app.db.models import User
 from app.routers.auth import get_current_user
+from app.services.elo import tier_from_elo
 
 router = APIRouter(prefix="/elo", tags=["elo"])
 
 @router.get("/me")
-def me(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
+def me(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     u = db.execute(select(User).where(User.id == user.id)).scalar_one()
-    # rank: nb d'utilisateurs avec elo strictement supérieur + 1
     rank = db.execute(select(func.count()).select_from(User).where(User.elo > u.elo)).scalar_one()
+
+    elo_value = int(u.elo or 0)
+    tier_info = tier_from_elo(elo_value)
+
     return {
         "user_id": u.id,
         "username": u.username,
-        "elo": int(u.elo or 0),
+        "elo": elo_value,
         "rank": int(rank or 0) + 1,
+        **tier_info,
     }
 
 @router.get("/leaderboard")

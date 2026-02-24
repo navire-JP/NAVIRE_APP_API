@@ -19,6 +19,54 @@ def compute_qcm_delta(difficulty: str, is_correct: bool) -> int:
     key = "correct" if is_correct else "wrong"
     return int(QCM_DELTA[diff][key])
 
+
+
+def tier_from_elo(elo: int) -> dict:
+    elo = int(elo or 0)
+
+    tiers = [
+        (0, 19,   "starter"),
+        (20, 49,  "junior bronze"),
+        (50, 79,  "junior argent"),
+        (80, 119, "junior or"),
+        (120, 179,"auditor bronze"),
+        (180, 259,"auditor argent"),
+        (260, 349,"auditor or"),
+        (350, 449,"consultant bronze"),
+        (450, 559,"consultant argent"),
+        (560, 679,"consultant or"),
+        (680, 700,"senior"),
+        (701, 899,"senior+"),
+        (900, 1199,"partner"),
+        (1200, 10**9, "polaris"),
+    ]
+
+    for lo, hi, name in tiers:
+        if lo <= elo <= hi:
+            next_lo = None
+            next_name = None
+            for lo2, hi2, name2 in tiers:
+                if lo2 > lo:
+                    next_lo = lo2
+                    next_name = name2
+                    break
+
+            # progress intra-tier (0..1) utile pour une barre
+            span = max(1, hi - lo + 1)
+            progress = (elo - lo) / span
+
+            return {
+                "tier": name,
+                "tier_min": lo,
+                "tier_max": hi if hi < 10**9 else None,
+                "next_tier_min": next_lo,
+                "next_tier": next_name,
+                "progress": float(max(0.0, min(1.0, progress))),
+            }
+
+    # fallback (ne devrait jamais arriver)
+    return {"tier": "starter", "tier_min": 0, "tier_max": 19, "next_tier_min": 20, "next_tier": "junior bronze", "progress": 0.0}
+
 def apply_elo_delta(
     db: Session,
     *,
