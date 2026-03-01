@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 import stripe
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from app.routers.ffd_resa import (
@@ -35,6 +35,14 @@ from app.routers.ffd_resa import (
 )
 
 router = APIRouter(prefix="/bar", tags=["bar_payments"])
+
+
+# ── CORS preflight pour TOUTES les routes /bar/* ──────────────────────────────
+# Sans ce handler, le navigateur bloque les POST/GET cross-origin avant
+# qu'ils atteignent Stripe ou la logique métier.
+@router.options("/{path:path}")
+def bar_cors_preflight(path: str, request: Request):
+    return _with_cors(request, Response(status_code=204))
 
 # ── config ────────────────────────────────────────────────────────────────────
 STRIPE_SECRET_KEY     = os.getenv("STRIPE_SECRET_KEY",     "").strip()
