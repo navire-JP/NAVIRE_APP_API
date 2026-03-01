@@ -17,6 +17,7 @@ from app.routers.elo import router as elo_router
 from app.routers.admin_console import router as admin_console_router
 
 from app.routers.ffd_resa import router as ffd_resa_router
+from app.routers.bar_payments import router as bar_router
 
 # ============================================================
 # Lifespan (startup / shutdown)
@@ -66,6 +67,7 @@ app.include_router(elo_router)
 app.include_router(admin_console_router)
 
 app.include_router(ffd_resa_router)
+app.include_router(bar_router)
 
 
 # ============================================================
