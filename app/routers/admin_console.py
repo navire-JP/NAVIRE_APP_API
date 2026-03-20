@@ -31,6 +31,9 @@ class EloAddIn(BaseModel):
 class EloSetIn(BaseModel):
     value: int = Field(..., description="Valeur absolue (ex: 200)")
 
+class SetAdminIn(BaseModel):
+    is_admin: bool = Field(..., description="True pour promouvoir, False pour révoquer")
+
 
 # =========================================================
 # Helpers
@@ -60,7 +63,6 @@ def admin_users(
 
     if q.strip():
         qq = f"%{q.strip()}%"
-        # SQLite: ilike peut ne pas exister selon config -> on utilise like + lower
         stmt = (
             select(User)
             .where(
@@ -109,6 +111,39 @@ def admin_user_get(
         "is_admin": bool(u.is_admin),
         "created_at": (u.created_at.isoformat() if u.created_at else None),
         "last_login_at": (u.last_login_at.isoformat() if u.last_login_at else None),
+    }
+
+
+# =========================================================
+# SET ADMIN
+# =========================================================
+@router.post("/users/{user_id}/set-admin")
+def admin_user_set_admin(
+    user_id: int,
+    body: SetAdminIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Deux cas d'usage :
+    - Premier admin : le user cible SE promeut lui-même via le code THORKISHERE
+      (vérifié côté front, pas de garde admin ici pour permettre l'auto-promotion)
+    - Admin existant : peut promouvoir / révoquer n'importe quel user
+      (la vérification is_admin est faite si le user n'est pas lui-même la cible)
+    """
+    u = get_user_or_404(db, user_id)
+
+    # Autorisation : soit l'utilisateur se promeut lui-même, soit c'est un admin
+    if current_user.id != user_id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    u.is_admin = body.is_admin
+    db.commit()
+
+    return {
+        "user_id": u.id,
+        "username": u.username,
+        "is_admin": bool(u.is_admin),
     }
 
 
