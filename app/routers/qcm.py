@@ -68,7 +68,6 @@ QCM_TYPES = [
 
 # =========================================================
 # In-process generation locks
-# - lock per session (generate up to QCM_COUNT sequentially)
 # =========================================================
 _GEN_LOCKS: Dict[str, threading.Lock] = {}
 _GEN_LOCKS_MUTEX = threading.Lock()
@@ -108,12 +107,6 @@ def _norm(s: str) -> str:
 
 
 def parse_pages_str(pages_str: str, total_pages: int) -> list[int]:
-    """
-    ""            -> all
-    "1"           -> [1]
-    "1-3"         -> [1,2,3]
-    "1,3,5-7"     -> [1,3,5,6,7]
-    """
     pages_str = (pages_str or "").strip()
     if not pages_str:
         return []
@@ -249,6 +242,38 @@ def parse_qcm_answer(txt: str) -> dict:
     return {"question": q, "a": a, "b": b, "c": c, "d": d, "good": good, "exp": exp}
 
 
+# =========================================================
+# Shuffle choices — FIX bonne réponse toujours en A
+# =========================================================
+def _shuffle_choices(data: dict) -> dict:
+    """
+    GPT place quasi-systématiquement la bonne réponse en position A.
+    Cette fonction mélange les 4 choix aléatoirement APRÈS parsing
+    et met à jour correct_letter en conséquence.
+
+    Entrée  : {"a": "...", "b": "...", "c": "...", "d": "...", "good": "A", ...}
+    Sortie  : même dict, choix mélangés, "good" mis à jour vers la nouvelle position.
+    """
+    letters = ["A", "B", "C", "D"]
+    choices = [data["a"], data["b"], data["c"], data["d"]]
+
+    # Texte de la bonne réponse — référence stable après shuffle
+    correct_text = choices[letters.index(data["good"])]
+
+    random.shuffle(choices)
+
+    new_good_letter = letters[choices.index(correct_text)]
+
+    return {
+        **data,
+        "a": choices[0],
+        "b": choices[1],
+        "c": choices[2],
+        "d": choices[3],
+        "good": new_good_letter,
+    }
+
+
 def validate_qcm_data(data: dict, seen_questions: set[str]) -> None:
     q = (data.get("question") or "").strip()
     a = (data.get("a") or "").strip()
@@ -341,15 +366,12 @@ def get_question_by_index0(db: Session, session_id: str, index0: int) -> Optiona
 
 # =========================================================
 # Generation core (thread)
-# - generate sequentially until QCM_COUNT
 # =========================================================
 def _set_session_error(db: Session, session: QcmSession, msg: str, hard: bool = False) -> None:
-    # hard -> status = error (front stop)
     session.error_message = (msg or "")[:800]
     if hard:
         session.status = "error"
     else:
-        # soft: keep generating but with message
         if session.status != "done":
             session.status = "generating"
     db.commit()
@@ -366,7 +388,6 @@ def generate_all_questions_for_session(session_id: str) -> None:
         if not session:
             return
 
-        # stop if expired/done/error
         try:
             ensure_not_expired(session)
         except HTTPException:
@@ -381,7 +402,6 @@ def generate_all_questions_for_session(session_id: str) -> None:
         session.error_message = ""
         db.commit()
 
-        # build words once
         try:
             words = get_or_build_source_words(db, session)
         except Exception as e:
@@ -389,18 +409,15 @@ def generate_all_questions_for_session(session_id: str) -> None:
             return
 
         seen = get_seen_questions_for_session(db, session.id)
-
         tries_total = 0
 
         while True:
-            # refresh
             session = db.execute(select(QcmSession).where(QcmSession.id == session_id)).scalar_one_or_none()
             if not session:
                 return
             if session.status in ("done", "error", "closed"):
                 return
 
-            # count / next index
             gen = generated_count(db, session.id)
             if gen >= QCM_COUNT:
                 session.status = "ready"
@@ -408,8 +425,7 @@ def generate_all_questions_for_session(session_id: str) -> None:
                 db.commit()
                 return
 
-            target_index0 = gen  # sequential 0..QCM_COUNT-1
-            # already exists? (shouldn't, but safe)
+            target_index0 = gen
             if get_question_by_index0(db, session.id, target_index0):
                 time.sleep(0.05)
                 continue
@@ -447,6 +463,9 @@ def generate_all_questions_for_session(session_id: str) -> None:
                     data = parse_qcm_answer(content)
                     validate_qcm_data(data, seen)
 
+                    # ── Shuffle aléatoire des choix avant écriture en base ──
+                    data = _shuffle_choices(data)
+
                     q = QcmQuestion(
                         session_id=session.id,
                         index=target_index0,
@@ -464,8 +483,6 @@ def generate_all_questions_for_session(session_id: str) -> None:
                     db.commit()
 
                     seen.add(_norm(data["question"]))
-
-                    # if first question just generated, allow /current to become ready
                     ok = True
                     break
 
@@ -476,7 +493,6 @@ def generate_all_questions_for_session(session_id: str) -> None:
                     time.sleep(0.35)
 
             if not ok:
-                # soft message; continue loop (until MAX_TOTAL_TRIES)
                 session.error_message = f"Retrying: {last_err}" if last_err else "Retrying…"
                 db.commit()
                 time.sleep(0.35)
@@ -505,10 +521,6 @@ def spawn_generation(session_id: str) -> None:
 # =========================================================
 
 def _get_or_create_history(db: Session, session: QcmSession, file: File) -> QcmSessionHistory:
-    """
-    Récupère l'entrée QcmSessionHistory existante pour cette session,
-    ou en crée une nouvelle si elle n'existe pas encore.
-    """
     existing = db.execute(
         select(QcmSessionHistory).where(QcmSessionHistory.session_id == session.id)
     ).scalar_one_or_none()
@@ -538,10 +550,6 @@ def _get_or_create_history(db: Session, session: QcmSession, file: File) -> QcmS
 
 
 def _compute_history_stats(db: Session, session: QcmSession) -> tuple[int, int, float, bool]:
-    """
-    Recompute correct/wrong/rate/is_complete depuis les QcmQuestion de la session.
-    Retourne (correct, wrong, rate, is_complete).
-    """
     questions = db.execute(
         select(QcmQuestion).where(QcmQuestion.session_id == session.id)
     ).scalars().all()
@@ -560,15 +568,11 @@ def _compute_history_stats(db: Session, session: QcmSession) -> tuple[int, int, 
 
 
 def _update_history_on_close(db: Session, session: QcmSession) -> None:
-    """
-    Appelé au /close : finalise l'entrée QcmSessionHistory avec les stats complètes.
-    """
     history = db.execute(
         select(QcmSessionHistory).where(QcmSessionHistory.session_id == session.id)
     ).scalar_one_or_none()
 
     if not history:
-        # Session fermée sans avoir démarré (edge case) — on ignore
         return
 
     correct, wrong, rate, is_complete = _compute_history_stats(db, session)
@@ -653,7 +657,6 @@ def current(
     if session.status == "error":
         return {"status": "error", "detail": session.error_message or "Erreur génération", "total": total}
 
-    # If at least current question exists -> ready
     idx0 = int(session.current_index or 0)
     q = get_question_by_index0(db, session.id, idx0)
 
@@ -663,14 +666,13 @@ def current(
         db.commit()
         return {
             "status": "ready",
-            "index": idx0 + 1,  # API/UI 1-based
+            "index": idx0 + 1,
             "total": total,
             "question": q.question,
             "choices": [q.choice_a, q.choice_b, q.choice_c, q.choice_d],
             "generated_count": gen,
         }
 
-    # Not ready -> ensure generator is running
     spawn_generation(session.id)
 
     return {
@@ -705,10 +707,6 @@ def answer(
         spawn_generation(session.id)
         raise HTTPException(409, detail="Question pas prête (generating)")
 
-    # -----------------------------
-    # Anti double-credit :
-    # si la question est déjà answered, on renvoie l'état sans modifier ELO
-    # -----------------------------
     if q.answered:
         correct_letter = (q.correct_letter or "").strip().upper()
         correct_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(correct_letter, -1)
@@ -733,17 +731,10 @@ def answer(
     correct_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(correct_letter, -1)
     is_correct = (choice_index == correct_index)
 
-    # mark answered
     q.answered = True
     q.user_letter = ["A", "B", "C", "D"][choice_index]
     db.commit()
 
-    # -----------------------------
-    # Elo (selon difficulté)
-    # easy   : +1 / -1
-    # medium : +3 / -1
-    # hard   : +5 / -2
-    # -----------------------------
     delta = compute_qcm_delta(session.difficulty or "medium", is_correct)
 
     new_elo = apply_elo_delta(
@@ -756,7 +747,6 @@ def answer(
         meta={"difficulty": session.difficulty, "is_correct": is_correct},
     )
 
-    # prefetch generation continues in background; keep session ready until next() advances
     spawn_generation(session.id)
 
     return {
@@ -824,7 +814,6 @@ def next_question(
         db.commit()
         return {"status": "done", "detail": "Terminé.", "total": total}
 
-    # advance
     session.current_index = nxt
     session.status = "generating"
     db.commit()
