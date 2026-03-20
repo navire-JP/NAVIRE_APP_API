@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from openai import OpenAI
 
 from app.db.database import get_db, SessionLocal
-from app.db.models import User, File, QcmSession, QcmQuestion
+from app.db.models import User, File, QcmSession, QcmQuestion, QcmSessionHistory
 from app.routers.auth import get_current_user
 
 from app.services.elo import compute_qcm_delta, apply_elo_delta
@@ -501,6 +501,89 @@ def spawn_generation(session_id: str) -> None:
 
 
 # =========================================================
+# History helpers
+# =========================================================
+
+def _get_or_create_history(db: Session, session: QcmSession, file: File) -> QcmSessionHistory:
+    """
+    Récupère l'entrée QcmSessionHistory existante pour cette session,
+    ou en crée une nouvelle si elle n'existe pas encore.
+    """
+    existing = db.execute(
+        select(QcmSessionHistory).where(QcmSessionHistory.session_id == session.id)
+    ).scalar_one_or_none()
+
+    if existing:
+        return existing
+
+    history = QcmSessionHistory(
+        user_id=session.user_id,
+        session_id=session.id,
+        file_id=file.id,
+        file_name=file.filename_original,
+        total_questions=QCM_COUNT,
+        correct_answers=0,
+        wrong_answers=0,
+        success_rate=0.0,
+        is_complete=False,
+        difficulty=session.difficulty or "medium",
+        started_at=utcnow(),
+        completed_at=None,
+        last_activity_at=utcnow(),
+    )
+    db.add(history)
+    db.commit()
+    db.refresh(history)
+    return history
+
+
+def _compute_history_stats(db: Session, session: QcmSession) -> tuple[int, int, float, bool]:
+    """
+    Recompute correct/wrong/rate/is_complete depuis les QcmQuestion de la session.
+    Retourne (correct, wrong, rate, is_complete).
+    """
+    questions = db.execute(
+        select(QcmQuestion).where(QcmQuestion.session_id == session.id)
+    ).scalars().all()
+
+    answered = [q for q in questions if q.answered]
+    correct = sum(
+        1 for q in answered
+        if (q.user_letter or "").strip().upper() == (q.correct_letter or "").strip().upper()
+    )
+    wrong = len(answered) - correct
+    total_answered = len(answered)
+    rate = round(correct / total_answered, 4) if total_answered > 0 else 0.0
+    is_complete = total_answered >= QCM_COUNT
+
+    return correct, wrong, rate, is_complete
+
+
+def _update_history_on_close(db: Session, session: QcmSession) -> None:
+    """
+    Appelé au /close : finalise l'entrée QcmSessionHistory avec les stats complètes.
+    """
+    history = db.execute(
+        select(QcmSessionHistory).where(QcmSessionHistory.session_id == session.id)
+    ).scalar_one_or_none()
+
+    if not history:
+        # Session fermée sans avoir démarré (edge case) — on ignore
+        return
+
+    correct, wrong, rate, is_complete = _compute_history_stats(db, session)
+
+    history.correct_answers = correct
+    history.wrong_answers = wrong
+    history.success_rate = rate
+    history.is_complete = is_complete
+    history.completed_at = utcnow()
+    history.last_activity_at = utcnow()
+
+    db.commit()
+
+
+# =========================================================
 # ROUTES
 # =========================================================
 @router.post("/start")
@@ -522,7 +605,6 @@ def start_qcm(
     file = db.execute(select(File).where(File.id == file_id)).scalar_one_or_none()
     if not file:
         raise HTTPException(404, detail="Fichier introuvable")
-    # File.owner check (ton model File a user_id)
     if file.user_id != user.id:
         raise HTTPException(403, detail="Forbidden")
 
@@ -532,7 +614,6 @@ def start_qcm(
 
     expires_at = utcnow() + timedelta(minutes=SESSION_TTL_MIN)
 
-    # IMPORTANT: ne pas passer de champs inexistants (detail/total/created_at...)
     session = QcmSession(
         user_id=user.id,
         file_id=file_id,
@@ -546,6 +627,9 @@ def start_qcm(
     db.add(session)
     db.commit()
     db.refresh(session)
+
+    # ── Créer l'entrée historique dès le démarrage ──
+    _get_or_create_history(db, session, file)
 
     spawn_generation(session.id)
 
@@ -623,7 +707,7 @@ def answer(
 
     # -----------------------------
     # Anti double-credit :
-    # si la question est déjà answered, on renvoie l’état sans modifier ELO
+    # si la question est déjà answered, on renvoie l'état sans modifier ELO
     # -----------------------------
     if q.answered:
         correct_letter = (q.correct_letter or "").strip().upper()
@@ -779,7 +863,11 @@ def close_session(
         raise HTTPException(404, detail="Session introuvable")
     ensure_session_owner(session, user)
 
+    # ── Finaliser l'historique avant de fermer ──
+    _update_history_on_close(db, session)
+
     session.status = "closed"
     session.error_message = "Fermée."
     db.commit()
+
     return {"status": "closed", "detail": "Fermée."}
