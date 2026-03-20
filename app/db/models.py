@@ -19,8 +19,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.database import Base
 
 
-
-
 class QcmSession(Base):
     __tablename__ = "qcm_sessions"
 
@@ -149,19 +147,22 @@ class User(Base):
     score: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     grade: Mapped[str] = mapped_column(String(64), default="Primo", nullable=False)
 
-    # ✅ Plans: free | navire_ai | navire_ai_plus
+    # Plan d'abonnement : free | membre | membre+
+    # Source de vérité = table subscriptions.
+    # Ce champ est un cache dénormalisé pour éviter une jointure à chaque requête.
+    # Il est mis à jour automatiquement par les helpers dans subscriptions.py.
     plan: Mapped[str] = mapped_column(String(32), default="free", nullable=False)
 
-    # ✅ Admin: 10 fichiers persistants
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    # elos:
     elo: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
 
-    # dans class User(...) ajoute la relation :
+    # ============================================================
+    # Relations
+    # ============================================================
     flash_decks: Mapped[list["FlashDeck"]] = relationship(
         "FlashDeck",
         back_populates="user",
@@ -169,9 +170,6 @@ class User(Base):
         passive_deletes=True,
     )
 
-    # ============================================================
-    # Relations
-    # ============================================================
     files: Mapped[list["File"]] = relationship(
         "File",
         back_populates="user",
@@ -182,6 +180,14 @@ class User(Base):
     qcm_history: Mapped[list["QcmSessionHistory"]] = relationship(
         "QcmSessionHistory",
         back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    subscription: Mapped["Subscription | None"] = relationship(
+        "Subscription",
+        back_populates="user",
+        uselist=False,          # relation 1-1
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
@@ -208,7 +214,7 @@ class File(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
-    # ✅ NEW: TTL (free = now + 24h). Abonnés: NULL
+    # TTL : free = now + 24h | membre/membre+ = NULL (pas d'expiration)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # ============================================================
@@ -216,10 +222,10 @@ class File(Base):
     # ============================================================
     user: Mapped["User"] = relationship("User", back_populates="files")
 
+
 # ============================================================
 # FLASHCARDS
 # ============================================================
-
 
 class FlashDeck(Base):
     __tablename__ = "flash_decks"
@@ -237,8 +243,8 @@ class FlashDeck(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
-    
-    # relations
+
+    # Relations
     user: Mapped["User"] = relationship("User", back_populates="flash_decks")
     cards: Mapped[list["FlashCard"]] = relationship(
         "FlashCard",
@@ -265,7 +271,6 @@ class FlashCard(Base):
     # tags simple (string "tag1,tag2") pour V1 (on normalisera plus tard si besoin)
     tags: Mapped[str] = mapped_column(String(255), default="", nullable=False)
 
-    # source tracking (V1)
     # source_type: manual | pdf
     source_type: Mapped[str] = mapped_column(String(16), default="manual", nullable=False)
     source_file_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -287,11 +292,10 @@ class FlashStudySession(Base):
     # mode: classic | random | exam (V1: classic)
     mode: Mapped[str] = mapped_column(String(32), default="classic", nullable=False)
 
-    # state minimal
     total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     current_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    order_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)  # {"card_ids":[...]}
-    stats_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)  # {"correct":0,"wrong":0,...}
+    order_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)   # {"card_ids":[...]}
+    stats_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)   # {"correct":0,"wrong":0,...}
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -316,3 +320,153 @@ class EloEvent(Base):
     question_index: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
 
     meta: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
+# ============================================================
+# ABONNEMENTS
+# ============================================================
+
+class Subscription(Base):
+    """
+    Table centrale des abonnements. Une ligne par utilisateur (UNIQUE sur user_id).
+    On fait toujours un UPSERT (INSERT or UPDATE), jamais plusieurs lignes par user.
+
+    Cycle de vie d'un plan :
+      inscription  → plan="free",    status="active", stripe_*=NULL
+      paiement OK  → plan="membre",  status="active", stripe_* remplis
+      échec pmt    → status="past_due"  (grace period côté Stripe)
+      résil/expiry → plan="free",    status="cancelled" ou "expired"
+    """
+    __tablename__ = "subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,        # 1 seule ligne par user
+        nullable=False,
+        index=True,
+    )
+
+    # Grade actuel — doit toujours être en sync avec User.plan
+    plan: Mapped[str] = mapped_column(String(20), default="free", nullable=False)
+    # free | membre | membre+
+
+    billing_cycle: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # monthly | annual | NULL si free
+
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    # active | cancelled | past_due | expired
+
+    # ── Stripe (NULL jusqu'à la Phase 2) ──────────────────────
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
+
+    # Période en cours (fournie par Stripe, NULL si free)
+    current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Rempli lors d'une résiliation volontaire
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relation
+    user: Mapped["User"] = relationship("User", back_populates="subscription")
+
+
+class PromoCode(Base):
+    """
+    Codes promo créés et gérés par les admins.
+
+    discount_type="percent" → discount_value = pourcentage (ex: 20.0 = 20 %)
+    discount_type="fixed"   → discount_value = montant en € (ex: 5.0 = 5 €)
+
+    applies_to détermine sur quels cycles le code est valable :
+      "monthly" | "annual" | "both" | NULL (= tous)
+
+    Un code est épuisé quand uses_count >= max_uses (si max_uses non NULL).
+    Un code expiré (expires_at < now) ne peut plus être utilisé.
+    """
+    __tablename__ = "promo_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+
+    discount_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    # percent | fixed
+
+    discount_value: Mapped[float] = mapped_column(Float, nullable=False)
+
+    applies_to: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # monthly | annual | both | NULL
+
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)    # NULL = illimité
+    uses_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # NULL = pas d'expiration
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Admin qui a créé le code (NULL si supprimé)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Coupon Stripe correspondant (rempli en Phase 2)
+    stripe_coupon_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relations
+    redemptions: Mapped[list["PromoRedemption"]] = relationship(
+        "PromoRedemption",
+        back_populates="promo_code",
+        cascade="all, delete-orphan",
+    )
+
+
+class PromoRedemption(Base):
+    """
+    Trace chaque utilisation d'un code promo par un utilisateur.
+    Contrainte UNIQUE (user_id, promo_code_id) : un user ne peut pas
+    utiliser le même code deux fois.
+    """
+    __tablename__ = "promo_redemptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    promo_code_id: Mapped[int] = mapped_column(
+        ForeignKey("promo_codes.id"),
+        nullable=False,
+    )
+
+    redeemed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relation
+    promo_code: Mapped["PromoCode"] = relationship("PromoCode", back_populates="redemptions")

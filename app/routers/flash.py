@@ -10,6 +10,7 @@ from sqlalchemy import select, func
 from app.db.database import get_db
 from app.db.models import User, File, FlashDeck, FlashCard, FlashStudySession
 from app.routers.auth import get_current_user
+from app.core.limits import check_flashcard_limit
 from app.schemas.flash import (
     DeckCreateIn, DeckUpdateIn, DeckOut,
     CardCreateIn, CardUpdateIn, CardOut,
@@ -27,7 +28,8 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
-def require_subscription(user: User):
+def require_membre(user: User):
+    """Réservé aux membres (membre ou membre+). Les admins passent toujours."""
     if user.is_admin:
         return
     if (user.plan or "free") == "free":
@@ -164,6 +166,10 @@ def create_card(
     user: User = Depends(get_current_user),
 ):
     d = deck_owned(db, user, deck_id)
+
+    # 🔒 Quota total de flashcards — délègue à limits.py (lève 403 si dépassé)
+    check_flashcard_limit(user, db)
+
     c = FlashCard(
         deck_id=d.id,
         front=payload.front,
@@ -213,7 +219,7 @@ def list_cards(
 
 
 # ---------------------------------------------------------
-# ✅ NEW: routes attendues par ton TSX:
+# routes attendues par le TSX :
 #   PATCH /flash/decks/{deck_id}/cards/{card_id}
 #   DELETE /flash/decks/{deck_id}/cards/{card_id}
 # ---------------------------------------------------------
@@ -225,7 +231,6 @@ def update_card_in_deck(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # vérifie ownership deck + cohérence carte->deck
     d = deck_owned(db, user, deck_id)
     c = card_owned(db, user, card_id)
     if c.deck_id != d.id:
@@ -261,7 +266,7 @@ def delete_card_in_deck(
 
 
 # ---------------------------------------------------------
-# ✅ BACKWARD COMPAT: routes existantes (elles restent)
+# BACKWARD COMPAT : routes existantes conservées
 # ---------------------------------------------------------
 @router.patch("/cards/{card_id}", response_model=CardOut)
 def update_card(
@@ -381,7 +386,7 @@ def study_grade_next(
 
 
 # =========================================================
-# Generate from PDF (endpoint V1 stub)
+# Generate from PDF — réservé membre/membre+
 # =========================================================
 @router.post("/decks/{deck_id}/generate-from-pdf")
 def generate_from_pdf(
@@ -390,7 +395,8 @@ def generate_from_pdf(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    require_subscription(user)  # ✅ premium only
+    # 🔒 Génération IA réservée aux abonnés
+    require_membre(user)
 
     d = deck_owned(db, user, deck_id)
 
@@ -400,7 +406,7 @@ def generate_from_pdf(
     if f.user_id != user.id:
         raise HTTPException(403, detail="Forbidden")
 
-    # robust expiry compare (timezone-aware)
+    # Vérification expiration timezone-aware
     if f.expires_at is not None:
         try:
             exp = f.expires_at
@@ -409,7 +415,6 @@ def generate_from_pdf(
             if exp < utcnow():
                 raise HTTPException(410, detail="Fichier expiré.")
         except TypeError:
-            # fallback if legacy naive dt
             if f.expires_at < datetime.utcnow():
                 raise HTTPException(410, detail="Fichier expiré.")
 

@@ -8,6 +8,7 @@ from app.db.database import get_db
 from app.db.models import User
 from app.schemas.auth import RegisterIn, LoginIn, AuthOut, UserOut, validate_password
 from app.core.security import hash_password, verify_password, create_access_token, decode_token
+from app.core.limits import get_limits
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
@@ -34,34 +35,7 @@ def get_current_user(
 
     return user
 
-# ============================================================
-# Entitlements (source de vérité des droits)
-# ============================================================
-
-def compute_file_entitlements(user: User) -> dict:
-    """
-    Retourne les droits fichiers selon le plan utilisateur.
-    """
-
-    # Admin ou AI+
-    if user.is_admin or user.plan == "navire_ai_plus":
-        return {
-            "files_limit": 10,
-            "files_ttl_hours": None,
-        }
-
-    # Abonné standard
-    if user.plan == "navire_ai":
-        return {
-            "files_limit": 3,
-            "files_ttl_hours": None,
-        }
-
-    # Free
-    return {
-        "files_limit": 1,
-        "files_ttl_hours": 24,
-    }
+# compute_file_entitlements supprimé — remplacé par app.core.limits
 
 
 @router.post("/register", response_model=AuthOut)
@@ -126,7 +100,7 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 
 @router.get("/me")
 def me(current_user: User = Depends(get_current_user)):
-    entitlements = compute_file_entitlements(current_user)
+    limits = get_limits(current_user.plan)
 
     return {
         "id": current_user.id,
@@ -143,8 +117,9 @@ def me(current_user: User = Depends(get_current_user)):
         "plan": current_user.plan,
         "is_admin": current_user.is_admin,
 
-        "files_limit": entitlements["files_limit"],
-        "files_ttl_hours": entitlements["files_ttl_hours"],
+        # Limites du plan courant (source : limits.py)
+        "files_limit": limits["files_total"],
+        "files_ttl_hours": limits["file_ttl_hours"],
+        "flashcards_limit": limits["flashcards_total"],
+        "qcm_per_day": limits["qcm_per_day"],
     }
-
-

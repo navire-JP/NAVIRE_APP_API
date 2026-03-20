@@ -3,18 +3,17 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from uuid import uuid4
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc, delete
+from sqlalchemy import select, desc
 
 from app.db.database import get_db
 from app.db.models import User, File as FileModel
 from app.routers.auth import get_current_user
 from app.core.config import USER_FILES_DIR, MAX_UPLOAD_BYTES
-from app.routers.auth import compute_file_entitlements as compute_entitlements_dict
-
+from app.core.limits import check_file_limit, get_file_ttl, get_limit
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -33,18 +32,12 @@ def _is_pdf(upload: UploadFile) -> bool:
     )
 
 
-
-def compute_file_entitlements(user: User) -> tuple[int, int | None]:
-    e = compute_entitlements_dict(user)
-    return e["files_limit"], e["files_ttl_hours"]
-
-
 def purge_expired_files(db: Session, user: User) -> int:
     """
     Supprime les fichiers expirés (DB + disque).
     Retourne le nombre supprimé.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     rows = db.execute(
         select(FileModel).where(
@@ -55,16 +48,13 @@ def purge_expired_files(db: Session, user: User) -> int:
     ).scalars().all()
 
     deleted = 0
-
     for row in rows:
-        # Suppression disque
         try:
             p = Path(row.path)
             if p.exists():
                 p.unlink()
         except Exception:
             pass
-
         db.delete(row)
         deleted += 1
 
@@ -75,22 +65,15 @@ def purge_expired_files(db: Session, user: User) -> int:
 
 
 def count_active_files(db: Session, user: User) -> int:
-    """
-    Compte les fichiers non expirés.
-    """
-    now = datetime.utcnow()
+    """Compte les fichiers non expirés de l'utilisateur."""
+    now = datetime.now(timezone.utc)
 
-    rows = db.execute(
+    return db.execute(
         select(FileModel).where(
             FileModel.user_id == user.id,
-            (
-                (FileModel.expires_at.is_(None)) |
-                (FileModel.expires_at > now)
-            ),
+            (FileModel.expires_at.is_(None)) | (FileModel.expires_at > now),
         )
-    ).scalars().all()
-
-    return len(rows)
+    ).scalars().all().__len__()
 
 
 # ============================================================
@@ -109,33 +92,29 @@ async def upload_file(
     if not _is_pdf(file):
         raise HTTPException(status_code=400, detail="Seuls les fichiers PDF sont acceptés.")
 
-    # 🔥 Purge automatique des expirés
+    # 🔥 Purge automatique des expirés avant de compter
     purge_expired_files(db, current_user)
 
-    # 🔒 Quota
-    files_limit, ttl_hours = compute_file_entitlements(current_user)
-    used = count_active_files(db, current_user)
+    # 🔒 Quota — délègue à limits.py (lève 403 si dépassé)
+    check_file_limit(current_user, db)
 
-    if used >= files_limit:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Quota atteint ({used}/{files_limit} fichiers autorisés).",
-        )
+    # Compte actuel pour la réponse quota
+    used = count_active_files(db, current_user)
+    files_limit = get_limit(current_user.plan, "files_total")
 
     # Dossier user : storage/UserFiles/<user_id>/
     user_dir = Path(USER_FILES_DIR) / str(current_user.id)
     user_dir.mkdir(parents=True, exist_ok=True)
 
-    # Nom stocké unique
     stored_name = f"{uuid4().hex}.pdf"
     stored_path = user_dir / stored_name
 
-    # Ecriture + contrôle taille max (stream)
+    # Écriture + contrôle taille max (stream)
     total = 0
     try:
         with open(stored_path, "wb") as out:
             while True:
-                chunk = await file.read(1024 * 1024)  # 1MB
+                chunk = await file.read(1024 * 1024)  # 1 MB
                 if not chunk:
                     break
                 total += len(chunk)
@@ -154,10 +133,11 @@ async def upload_file(
     finally:
         await file.close()
 
-    # ⏳ Expiration
+    # ⏳ Expiration selon le plan
+    ttl_hours = get_file_ttl(current_user.plan)
     expires_at = None
     if ttl_hours is not None:
-        expires_at = datetime.utcnow() + timedelta(hours=ttl_hours)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
 
     # Enregistrement DB
     row = FileModel(
@@ -200,7 +180,7 @@ def list_files(
         .order_by(desc(FileModel.created_at))
     ).scalars().all()
 
-    files_limit, _ = compute_file_entitlements(current_user)
+    files_limit = get_limit(current_user.plan, "files_total")
 
     return {
         "items": [
@@ -244,7 +224,6 @@ def delete_file(
     except Exception:
         pass
 
-    # Suppression DB
     db.delete(row)
     db.commit()
 

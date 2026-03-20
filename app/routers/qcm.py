@@ -20,6 +20,7 @@ from app.db.models import User, File, QcmSession, QcmQuestion, QcmSessionHistory
 from app.routers.auth import get_current_user
 
 from app.services.elo import compute_qcm_delta, apply_elo_delta
+from app.core.limits import check_qcm_daily_limit
 
 router = APIRouter(prefix="/qcm", tags=["qcm"])
 
@@ -611,6 +612,9 @@ def start_qcm(
         raise HTTPException(404, detail="Fichier introuvable")
     if file.user_id != user.id:
         raise HTTPException(403, detail="Forbidden")
+
+    # 🔒 Limite de sessions QCM par jour selon le plan (lève 403 si dépassé)
+    check_qcm_daily_limit(user, db)
 
     active = get_active_session_for_user(db, user.id)
     if active is not None:
