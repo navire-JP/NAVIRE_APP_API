@@ -1,24 +1,25 @@
 """
 app/routers/subscriptions.py
 =============================
-Router abonnements — Phase 1 (logique grades, sans Stripe).
+Router abonnements — Phase 2 (Stripe).
 
 Endpoints utilisateur :
-  GET  /subscriptions/me              → plan actuel + limites
-  POST /subscriptions/upgrade         → souscrire à un plan
-  POST /subscriptions/cancel          → résilier → retour free
-  GET  /subscriptions/promo/{code}    → valider un code promo
+  GET  /subscriptions/me               → plan actuel + limites
+  POST /subscriptions/checkout         → crée une Stripe Checkout Session
+  POST /subscriptions/cancel           → résilie via Stripe
+  POST /subscriptions/portal           → ouvre le Stripe Customer Portal
+  GET  /subscriptions/promo/{code}     → valide un code promo
+
+Endpoints Stripe :
+  POST /subscriptions/webhook          → reçoit les events Stripe
 
 Endpoints admin :
-  GET    /subscriptions/admin/list                   → tous les abonnements actifs
-  POST   /subscriptions/admin/set-plan/{user_id}     → forcer un plan sur un user
-  GET    /subscriptions/admin/promo                  → lister les codes promo
-  POST   /subscriptions/admin/promo                  → créer un code promo
-  PATCH  /subscriptions/admin/promo/{promo_id}       → modifier un code promo
-  DELETE /subscriptions/admin/promo/{promo_id}       → supprimer un code promo
-
-Phase 2 (Stripe) : les champs stripe_* des modèles sont déjà prêts.
-Les webhooks Stripe viendront mettre à jour subscription.status et user.plan.
+  GET    /subscriptions/admin/list
+  POST   /subscriptions/admin/set-plan/{user_id}
+  GET    /subscriptions/admin/promo
+  POST   /subscriptions/admin/promo
+  PATCH  /subscriptions/admin/promo/{promo_id}
+  DELETE /subscriptions/admin/promo/{promo_id}
 """
 
 from __future__ import annotations
@@ -26,7 +27,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+import stripe
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
@@ -34,7 +36,16 @@ from sqlalchemy import select, desc
 from app.db.database import get_db
 from app.db.models import User, Subscription, PromoCode, PromoRedemption
 from app.routers.auth import get_current_user
-from app.core.limits import get_limits, PLAN_LIMITS
+from app.core.limits import get_limits
+from app.core.config import (
+    STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET,
+    STRIPE_PRICES,
+    STRIPE_SUCCESS_URL,
+    STRIPE_CANCEL_URL,
+)
+
+stripe.api_key = STRIPE_SECRET_KEY
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
@@ -54,10 +65,7 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
 
 
 def get_or_create_subscription(db: Session, user: User) -> Subscription:
-    """
-    Retourne la subscription de l'user, ou en crée une free si elle n'existe pas.
-    Utilisé pour garantir que chaque user a toujours une ligne en base.
-    """
+    """Retourne la subscription de l'user, ou en crée une free si absente."""
     sub = db.execute(
         select(Subscription).where(Subscription.user_id == user.id)
     ).scalar_one_or_none()
@@ -77,48 +85,61 @@ def get_or_create_subscription(db: Session, user: User) -> Subscription:
 
 
 def _sync_user_plan(db: Session, user: User, plan: str) -> None:
-    """
-    Met à jour le cache User.plan pour qu'il soit en sync
-    avec Subscription.plan. Toujours appeler après un changement de plan.
-    """
+    """Cache User.plan — toujours appeler après un changement de plan."""
     user.plan = plan
     db.commit()
 
 
-def _validate_promo(
-    db: Session,
-    user: User,
-    code: str,
-    billing_cycle: str,
-) -> PromoCode:
+def _get_or_create_stripe_customer(user: User, sub: Subscription, db: Session) -> str:
     """
-    Vérifie qu'un code promo est utilisable par cet user pour ce cycle.
-    Lève une HTTPException 400 descriptive sinon.
-    Retourne le PromoCode si valide.
+    Retourne le stripe_customer_id existant ou en crée un nouveau.
+    Stocke l'id en base pour les prochains appels.
     """
+    if sub.stripe_customer_id:
+        return sub.stripe_customer_id
+
+    customer = stripe.Customer.create(
+        email=user.email,
+        name=user.username,
+        metadata={"user_id": str(user.id)},
+    )
+    sub.stripe_customer_id = customer.id
+    db.commit()
+    return customer.id
+
+
+def _downgrade_to_free(db: Session, user: User, sub: Subscription, status: str = "cancelled") -> None:
+    """Repasse l'user en free. Utilisé par le webhook et le endpoint cancel."""
+    sub.plan = "free"
+    sub.billing_cycle = None
+    sub.status = status
+    sub.cancelled_at = utcnow()
+    sub.current_period_end = None
+    sub.stripe_subscription_id = None
+    db.commit()
+    _sync_user_plan(db, user, "free")
+
+
+def _validate_promo(db: Session, user: User, code: str, billing_cycle: str) -> PromoCode:
+    """Vérifie qu'un code promo est utilisable. Lève 400 sinon."""
     promo = db.execute(
         select(PromoCode).where(PromoCode.code == code.upper())
     ).scalar_one_or_none()
 
     if not promo:
         raise HTTPException(400, detail={"code": "PROMO_NOT_FOUND", "message": "Code promo introuvable."})
-
     if not promo.is_active:
         raise HTTPException(400, detail={"code": "PROMO_INACTIVE", "message": "Code promo inactif."})
-
     if promo.expires_at and promo.expires_at < utcnow():
         raise HTTPException(400, detail={"code": "PROMO_EXPIRED", "message": "Code promo expiré."})
-
     if promo.max_uses is not None and promo.uses_count >= promo.max_uses:
         raise HTTPException(400, detail={"code": "PROMO_EXHAUSTED", "message": "Code promo épuisé."})
-
     if promo.applies_to and promo.applies_to != "both" and promo.applies_to != billing_cycle:
         raise HTTPException(400, detail={
             "code": "PROMO_WRONG_CYCLE",
             "message": f"Ce code est valable uniquement pour l'abonnement '{promo.applies_to}'.",
         })
 
-    # Vérifier que l'user ne l'a pas déjà utilisé
     already_used = db.execute(
         select(PromoRedemption).where(
             PromoRedemption.user_id == user.id,
@@ -134,11 +155,7 @@ def _validate_promo(
 
 def _apply_promo(db: Session, user: User, promo: PromoCode) -> None:
     """Enregistre l'utilisation du code et incrémente uses_count."""
-    redemption = PromoRedemption(
-        user_id=user.id,
-        promo_code_id=promo.id,
-    )
-    db.add(redemption)
+    db.add(PromoRedemption(user_id=user.id, promo_code_id=promo.id))
     promo.uses_count += 1
     db.commit()
 
@@ -147,16 +164,16 @@ def _apply_promo(db: Session, user: User, promo: PromoCode) -> None:
 # Schemas
 # ============================================================
 
-class UpgradeIn(BaseModel):
-    plan: Literal["membre", "membre+"] = Field(..., description="Plan cible")
-    billing_cycle: Literal["monthly", "annual"] = Field(..., description="Cycle de facturation")
-    promo_code: str | None = Field(None, description="Code promo optionnel")
+class CheckoutIn(BaseModel):
+    plan: Literal["membre", "membre+"]
+    billing_cycle: Literal["monthly", "annual"]
+    promo_code: str | None = None
 
 
 class SetPlanIn(BaseModel):
     plan: Literal["free", "membre", "membre+"]
     billing_cycle: Literal["monthly", "annual"] | None = None
-    note: str | None = Field(None, description="Raison admin (non exposée à l'user)")
+    note: str | None = None
 
 
 class PromoCreateIn(BaseModel):
@@ -184,10 +201,7 @@ def get_my_subscription(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """
-    Retourne le plan actuel de l'utilisateur, son statut d'abonnement
-    et toutes ses limites (QCM, flashcards, fichiers).
-    """
+    """Plan actuel + statut + limites complètes."""
     sub = get_or_create_subscription(db, user)
     limits = get_limits(user.plan)
 
@@ -206,87 +220,87 @@ def get_my_subscription(
     }
 
 
-@router.post("/upgrade")
-def upgrade_plan(
-    payload: UpgradeIn,
+@router.post("/checkout")
+def create_checkout_session(
+    payload: CheckoutIn,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """
-    Souscrit à un plan payant.
-
-    Phase 1 : logique manuelle (pas de Stripe).
-    Phase 2 : ce endpoint créera une Stripe Checkout Session et retournera
-              une checkout_url pour rediriger l'user.
-
-    Règles :
-    - Impossible de payer si on a déjà un plan actif payant (évite les doublons).
-    - Le code promo est validé et enregistré si fourni.
-    - User.plan et Subscription sont mis à jour immédiatement.
+    Crée une Stripe Checkout Session et retourne la checkout_url.
+    Le front redirige l'user vers cette URL pour le paiement.
+    Après paiement, Stripe envoie checkout.session.completed au webhook.
     """
     sub = get_or_create_subscription(db, user)
 
-    # Bloquer si déjà abonné (même plan ou plan supérieur)
+    # Bloquer si déjà abonné
     if sub.status == "active" and user.plan != "free":
         raise HTTPException(400, detail={
             "code": "ALREADY_SUBSCRIBED",
-            "message": f"Vous avez déjà un abonnement actif ({user.plan}). Résiliez-le avant d'en souscrire un nouveau.",
+            "message": f"Abonnement actif ({user.plan}). Résiliez d'abord.",
         })
 
-    # Validation et application du code promo si fourni
+    # Récupérer le price_id depuis config
+    price_id = STRIPE_PRICES.get(payload.plan, {}).get(payload.billing_cycle)
+    if not price_id:
+        raise HTTPException(500, detail="Configuration Stripe manquante pour ce plan.")
+
+    # Créer ou récupérer le customer Stripe
+    customer_id = _get_or_create_stripe_customer(user, sub, db)
+
+    # Validation code promo
     promo = None
+    stripe_coupon_id = None
     if payload.promo_code:
         promo = _validate_promo(db, user, payload.promo_code, payload.billing_cycle)
+        if promo.stripe_coupon_id:
+            stripe_coupon_id = promo.stripe_coupon_id
 
-    # ── Phase 1 : mise à jour directe (sans paiement réel) ──
-    # Phase 2 : ici on appellera stripe.checkout.sessions.create(...)
-    sub.plan = payload.plan
-    sub.billing_cycle = payload.billing_cycle
-    sub.status = "active"
-    sub.cancelled_at = None
+    checkout_params: dict = {
+        "customer": customer_id,
+        "mode": "subscription",
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "success_url": STRIPE_SUCCESS_URL,
+        "cancel_url": STRIPE_CANCEL_URL,
+        # metadata transmise au webhook pour identifier l'user et le plan
+        "metadata": {
+            "user_id": str(user.id),
+            "plan": payload.plan,
+            "billing_cycle": payload.billing_cycle,
+            "promo_code": payload.promo_code or "",
+        },
+        "subscription_data": {
+            "metadata": {
+                "user_id": str(user.id),
+                "plan": payload.plan,
+                "billing_cycle": payload.billing_cycle,
+            }
+        },
+    }
 
-    # Phase 2 remplira ces champs via webhook Stripe
-    # sub.stripe_subscription_id = ...
-    # sub.current_period_start = ...
-    # sub.current_period_end = ...
+    if stripe_coupon_id:
+        checkout_params["discounts"] = [{"coupon": stripe_coupon_id}]
 
-    db.commit()
-
-    # Sync cache User.plan
-    _sync_user_plan(db, user, payload.plan)
-
-    # Enregistrer le promo si valide
-    if promo:
-        _apply_promo(db, user, promo)
-
-    limits = get_limits(payload.plan)
+    try:
+        session = stripe.checkout.sessions.create(**checkout_params)
+    except stripe.StripeError as e:
+        raise HTTPException(502, detail=f"Erreur Stripe : {str(e)}")
 
     return {
-        "ok": True,
-        "plan": payload.plan,
-        "billing_cycle": payload.billing_cycle,
-        "promo_applied": promo.code if promo else None,
-        "limits": {
-            "qcm_per_day": limits["qcm_per_day"],
-            "flashcards_total": limits["flashcards_total"],
-            "files_total": limits["files_total"],
-            "file_ttl_hours": limits["file_ttl_hours"],
-        },
-        # Phase 2 : "checkout_url": "https://checkout.stripe.com/..."
+        "checkout_url": session.url,
+        "session_id": session.id,
     }
 
 
 @router.post("/cancel")
-def cancel_plan(
+def cancel_subscription(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """
-    Résilie l'abonnement de l'utilisateur et le repasse en free.
-
-    Phase 1 : downgrade immédiat.
-    Phase 2 : appellera stripe.subscriptions.cancel(...) et le downgrade
-              se fera via webhook customer.subscription.deleted.
+    Résilie en fin de période (cancel_at_period_end=True).
+    L'user garde son accès jusqu'à current_period_end.
+    Le downgrade effectif arrive via webhook customer.subscription.deleted.
     """
     sub = get_or_create_subscription(db, user)
 
@@ -296,20 +310,55 @@ def cancel_plan(
             "message": "Vous êtes déjà sur le plan gratuit.",
         })
 
-    sub.plan = "free"
-    sub.billing_cycle = None
+    if not sub.stripe_subscription_id:
+        # Plan forcé par admin → downgrade immédiat sans Stripe
+        _downgrade_to_free(db, user, sub)
+        return {"ok": True, "plan": "free", "message": "Abonnement résilié."}
+
+    try:
+        stripe.Subscription.modify(
+            sub.stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+    except stripe.StripeError as e:
+        raise HTTPException(502, detail=f"Erreur Stripe : {str(e)}")
+
     sub.status = "cancelled"
     sub.cancelled_at = utcnow()
-    sub.current_period_end = None
     db.commit()
-
-    _sync_user_plan(db, user, "free")
 
     return {
         "ok": True,
-        "plan": "free",
-        "message": "Abonnement résilié. Vous repassez sur le plan gratuit.",
+        "message": "Résiliation programmée. Votre accès reste actif jusqu'à la fin de la période.",
+        "current_period_end": sub.current_period_end,
     }
+
+
+@router.post("/portal")
+def create_portal_session(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Stripe Customer Portal : l'user gère lui-même sa CB, ses factures, son abonnement.
+    """
+    sub = get_or_create_subscription(db, user)
+
+    if not sub.stripe_customer_id:
+        raise HTTPException(400, detail={
+            "code": "NO_STRIPE_CUSTOMER",
+            "message": "Aucun compte de facturation trouvé.",
+        })
+
+    try:
+        session = stripe.billing_portal.Session.create(
+            customer=sub.stripe_customer_id,
+            return_url=STRIPE_SUCCESS_URL,
+        )
+    except stripe.StripeError as e:
+        raise HTTPException(502, detail=f"Erreur Stripe : {str(e)}")
+
+    return {"portal_url": session.url}
 
 
 @router.get("/promo/{code}")
@@ -319,12 +368,8 @@ def validate_promo_code(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """
-    Valide un code promo sans l'appliquer.
-    Utilisé pour afficher la remise en temps réel dans le formulaire Framer.
-    """
+    """Valide un code promo sans l'appliquer (affichage temps réel Framer)."""
     promo = _validate_promo(db, user, code, billing_cycle)
-
     return {
         "valid": True,
         "code": promo.code,
@@ -333,6 +378,163 @@ def validate_promo_code(
         "applies_to": promo.applies_to,
         "expires_at": promo.expires_at,
     }
+
+
+# ============================================================
+# Webhook Stripe
+# ============================================================
+
+@router.post("/webhook")
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    """
+    Reçoit et traite les events Stripe.
+
+    Events gérés :
+      checkout.session.completed      → activer le plan après paiement
+      invoice.payment_succeeded       → renouvellement → prolonger la période
+      invoice.payment_failed          → passer en past_due
+      customer.subscription.deleted   → résiliation effective → downgrade free
+      customer.subscription.updated   → mise à jour dates/statut
+    """
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except stripe.errors.SignatureVerificationError:
+        raise HTTPException(400, detail="Signature Stripe invalide.")
+    except Exception:
+        raise HTTPException(400, detail="Payload webhook invalide.")
+
+    event_type = event["type"]
+    data = event["data"]["object"]
+
+    # ── checkout.session.completed ─────────────────────────
+    if event_type == "checkout.session.completed":
+        meta = data.get("metadata") or {}
+        user_id = int(meta.get("user_id", 0))
+        plan = meta.get("plan", "")
+        billing_cycle = meta.get("billing_cycle", "")
+        promo_code_str = meta.get("promo_code", "")
+        stripe_sub_id = data.get("subscription")
+
+        if not user_id or not plan:
+            return {"ok": True}
+
+        user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+        if not user:
+            return {"ok": True}
+
+        sub = get_or_create_subscription(db, user)
+
+        period_start = period_end = None
+        if stripe_sub_id:
+            try:
+                stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
+                period_start = datetime.fromtimestamp(stripe_sub["current_period_start"], tz=timezone.utc)
+                period_end = datetime.fromtimestamp(stripe_sub["current_period_end"], tz=timezone.utc)
+            except Exception:
+                pass
+
+        sub.plan = plan
+        sub.billing_cycle = billing_cycle
+        sub.status = "active"
+        sub.stripe_subscription_id = stripe_sub_id
+        sub.stripe_customer_id = data.get("customer") or sub.stripe_customer_id
+        sub.current_period_start = period_start
+        sub.current_period_end = period_end
+        sub.cancelled_at = None
+        db.commit()
+        _sync_user_plan(db, user, plan)
+
+        # Appliquer le code promo
+        if promo_code_str:
+            try:
+                promo = db.execute(
+                    select(PromoCode).where(PromoCode.code == promo_code_str.upper())
+                ).scalar_one_or_none()
+                if promo:
+                    already = db.execute(
+                        select(PromoRedemption).where(
+                            PromoRedemption.user_id == user_id,
+                            PromoRedemption.promo_code_id == promo.id,
+                        )
+                    ).scalar_one_or_none()
+                    if not already:
+                        _apply_promo(db, user, promo)
+            except Exception:
+                pass
+
+    # ── invoice.payment_succeeded ──────────────────────────
+    elif event_type == "invoice.payment_succeeded":
+        stripe_sub_id = data.get("subscription")
+        if stripe_sub_id:
+            sub = db.execute(
+                select(Subscription).where(Subscription.stripe_subscription_id == stripe_sub_id)
+            ).scalar_one_or_none()
+
+            if sub:
+                try:
+                    stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
+                    sub.current_period_start = datetime.fromtimestamp(stripe_sub["current_period_start"], tz=timezone.utc)
+                    sub.current_period_end = datetime.fromtimestamp(stripe_sub["current_period_end"], tz=timezone.utc)
+                    sub.status = "active"
+                    db.commit()
+                    user = db.execute(select(User).where(User.id == sub.user_id)).scalar_one_or_none()
+                    if user:
+                        _sync_user_plan(db, user, sub.plan)
+                except Exception:
+                    pass
+
+    # ── invoice.payment_failed ─────────────────────────────
+    elif event_type == "invoice.payment_failed":
+        stripe_sub_id = data.get("subscription")
+        if stripe_sub_id:
+            sub = db.execute(
+                select(Subscription).where(Subscription.stripe_subscription_id == stripe_sub_id)
+            ).scalar_one_or_none()
+            if sub:
+                sub.status = "past_due"
+                db.commit()
+                # Pas de downgrade immédiat — Stripe retentera.
+                # customer.subscription.deleted arrivera si tous les essais échouent.
+
+    # ── customer.subscription.deleted ─────────────────────
+    elif event_type == "customer.subscription.deleted":
+        stripe_sub_id = data.get("id")
+        sub = db.execute(
+            select(Subscription).where(Subscription.stripe_subscription_id == stripe_sub_id)
+        ).scalar_one_or_none()
+
+        if sub:
+            user = db.execute(select(User).where(User.id == sub.user_id)).scalar_one_or_none()
+            if user:
+                _downgrade_to_free(db, user, sub, status="expired")
+
+    # ── customer.subscription.updated ─────────────────────
+    elif event_type == "customer.subscription.updated":
+        stripe_sub_id = data.get("id")
+        stripe_status = data.get("status")
+
+        sub = db.execute(
+            select(Subscription).where(Subscription.stripe_subscription_id == stripe_sub_id)
+        ).scalar_one_or_none()
+
+        if sub:
+            try:
+                sub.current_period_start = datetime.fromtimestamp(data["current_period_start"], tz=timezone.utc)
+                sub.current_period_end = datetime.fromtimestamp(data["current_period_end"], tz=timezone.utc)
+            except Exception:
+                pass
+
+            if stripe_status == "active":
+                sub.status = "active"
+            elif stripe_status in ("past_due", "unpaid"):
+                sub.status = "past_due"
+
+            db.commit()
+
+    return {"ok": True}
 
 
 # ============================================================
@@ -348,7 +550,6 @@ def admin_list_subscriptions(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """Liste tous les abonnements avec filtres optionnels."""
     limit = max(1, min(200, int(limit)))
     offset = max(0, int(offset))
 
@@ -359,7 +560,6 @@ def admin_list_subscriptions(
         .limit(limit)
         .offset(offset)
     )
-
     if plan:
         stmt = stmt.where(Subscription.plan == plan)
     if status:
@@ -378,6 +578,7 @@ def admin_list_subscriptions(
                 "status": sub.status,
                 "current_period_end": sub.current_period_end,
                 "cancelled_at": sub.cancelled_at,
+                "stripe_subscription_id": sub.stripe_subscription_id,
                 "created_at": sub.created_at,
             }
             for sub, email, username in rows
@@ -394,22 +595,17 @@ def admin_set_plan(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """
-    Forcer un plan sur n'importe quel utilisateur.
-    Utile pour : comptes de test, offres commerciales, corrections manuelles.
-    """
+    """Forcer un plan sur un user (tests, offres commerciales, corrections)."""
     target = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
     if not target:
         raise HTTPException(404, detail="Utilisateur introuvable.")
 
     sub = get_or_create_subscription(db, target)
-
     sub.plan = payload.plan
     sub.billing_cycle = payload.billing_cycle
-    sub.status = "active" if payload.plan != "free" else "active"
+    sub.status = "active"
     sub.cancelled_at = None if payload.plan != "free" else sub.cancelled_at
     db.commit()
-
     _sync_user_plan(db, target, payload.plan)
 
     return {
@@ -431,13 +627,11 @@ def admin_list_promos(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """Liste tous les codes promo."""
     stmt = select(PromoCode).order_by(desc(PromoCode.created_at))
     if active_only:
         stmt = stmt.where(PromoCode.is_active == True)
 
     promos = db.execute(stmt).scalars().all()
-
     return {
         "items": [
             {
@@ -450,6 +644,7 @@ def admin_list_promos(
                 "uses_count": p.uses_count,
                 "expires_at": p.expires_at,
                 "is_active": p.is_active,
+                "stripe_coupon_id": p.stripe_coupon_id,
                 "created_at": p.created_at,
             }
             for p in promos
@@ -463,8 +658,6 @@ def admin_create_promo(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """Crée un nouveau code promo."""
-    # Vérifier unicité du code
     existing = db.execute(
         select(PromoCode).where(PromoCode.code == payload.code.upper())
     ).scalar_one_or_none()
@@ -475,6 +668,30 @@ def admin_create_promo(
             "message": f"Le code '{payload.code.upper()}' existe déjà.",
         })
 
+    # Créer le coupon Stripe en même temps
+    stripe_coupon_id = None
+    if STRIPE_SECRET_KEY:
+        try:
+            coupon_params: dict = {
+                "id": payload.code.upper(),
+                "currency": "eur",
+                "duration": "once",
+            }
+            if payload.discount_type == "percent":
+                coupon_params["percent_off"] = payload.discount_value
+            else:
+                coupon_params["amount_off"] = int(payload.discount_value * 100)  # centimes
+
+            if payload.max_uses:
+                coupon_params["max_redemptions"] = payload.max_uses
+            if payload.expires_at:
+                coupon_params["redeem_by"] = int(payload.expires_at.timestamp())
+
+            coupon = stripe.Coupon.create(**coupon_params)
+            stripe_coupon_id = coupon.id
+        except stripe.StripeError:
+            pass  # le coupon Stripe est optionnel, on continue
+
     promo = PromoCode(
         code=payload.code.upper(),
         discount_type=payload.discount_type,
@@ -484,6 +701,7 @@ def admin_create_promo(
         expires_at=payload.expires_at,
         is_active=True,
         created_by=admin.id,
+        stripe_coupon_id=stripe_coupon_id,
     )
     db.add(promo)
     db.commit()
@@ -498,6 +716,7 @@ def admin_create_promo(
         "applies_to": promo.applies_to,
         "max_uses": promo.max_uses,
         "expires_at": promo.expires_at,
+        "stripe_coupon_id": stripe_coupon_id,
     }
 
 
@@ -508,11 +727,9 @@ def admin_update_promo(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """Modifie un code promo existant (activer/désactiver, changer les uses, etc.)."""
     promo = db.execute(
         select(PromoCode).where(PromoCode.id == promo_id)
     ).scalar_one_or_none()
-
     if not promo:
         raise HTTPException(404, detail="Code promo introuvable.")
 
@@ -526,7 +743,6 @@ def admin_update_promo(
         promo.discount_value = payload.discount_value
 
     db.commit()
-
     return {"ok": True, "id": promo.id, "code": promo.code}
 
 
@@ -536,15 +752,19 @@ def admin_delete_promo(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """Supprime un code promo (et ses redemptions en cascade)."""
     promo = db.execute(
         select(PromoCode).where(PromoCode.id == promo_id)
     ).scalar_one_or_none()
-
     if not promo:
         raise HTTPException(404, detail="Code promo introuvable.")
 
+    # Archiver le coupon Stripe si existant
+    if promo.stripe_coupon_id and STRIPE_SECRET_KEY:
+        try:
+            stripe.Coupon.delete(promo.stripe_coupon_id)
+        except stripe.StripeError:
+            pass
+
     db.delete(promo)
     db.commit()
-
     return {"ok": True, "deleted_code": promo.code}

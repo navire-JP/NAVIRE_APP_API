@@ -39,6 +39,29 @@ USER_FILES_DIR = Path(STORAGE_PATH) / "UserFiles"
 # Taille max upload (en bytes) - par défaut 20MB
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
 
+# ============================================================
+# Stripe
+# ============================================================
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+# Price IDs — un par combinaison plan × cycle
+STRIPE_PRICES: dict[str, dict[str, str]] = {
+    "membre": {
+        "monthly": os.getenv("STRIPE_PRICE_MEMBRE_MONTHLY", ""),
+        "annual":  os.getenv("STRIPE_PRICE_MEMBRE_ANNUAL", ""),
+    },
+    "membre+": {
+        "monthly": os.getenv("STRIPE_PRICE_MEMBRE_PLUS_MONTHLY", ""),
+        "annual":  os.getenv("STRIPE_PRICE_MEMBRE_PLUS_ANNUAL", ""),
+    },
+}
+
+# URL de redirection après checkout Stripe (à setter sur Render)
+STRIPE_SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://ton-app.fr/subscribe?success=true")
+STRIPE_CANCEL_URL  = os.getenv("STRIPE_CANCEL_URL",  "https://ton-app.fr/subscribe?cancelled=true")
+
+
 def ensure_storage_dirs() -> None:
     """
     Crée les dossiers de stockage si absents.
