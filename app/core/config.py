@@ -62,6 +62,17 @@ STRIPE_SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://ton-app.fr/subscri
 STRIPE_CANCEL_URL  = os.getenv("STRIPE_CANCEL_URL",  "https://ton-app.fr/subscribe?cancelled=true")
 
 
+# ============================================================
+# Brevo (emails transactionnels)
+# ============================================================
+BREVO_API_KEY     = os.getenv("BREVO_API_KEY", "")
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "no-reply@navire.fr")
+BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "NAVIRE")
+
+# URL du front — utilisée dans les liens des emails (ex: lien d'inscription)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire.framer.website")
+
+
 def ensure_storage_dirs() -> None:
     """
     Crée les dossiers de stockage si absents.

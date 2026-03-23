@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 
 from app.db.database import get_db
-from app.db.models import User, Subscription, PromoCode, PromoRedemption
+from app.db.models import User, Subscription, PromoCode, PromoRedemption, PendingSubscription
 from app.routers.auth import get_current_user
 from app.core.limits import get_limits
 from app.core.config import (
@@ -43,7 +43,9 @@ from app.core.config import (
     STRIPE_PRICES,
     STRIPE_SUCCESS_URL,
     STRIPE_CANCEL_URL,
+    FRONTEND_URL,
 )
+from app.services.email import send_mail, mail_pending_subscription
 
 stripe.api_key = STRIPE_SECRET_KEY
 
@@ -417,16 +419,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         billing_cycle = meta.get("billing_cycle", "")
         promo_code_str = meta.get("promo_code", "")
         stripe_sub_id = data.get("subscription")
+        customer_email = data.get("customer_details", {}).get("email") or data.get("customer_email", "")
 
-        if not user_id or not plan:
+        if not plan:
             return {"ok": True}
 
-        user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
-        if not user:
-            return {"ok": True}
-
-        sub = get_or_create_subscription(db, user)
-
+        # Récupérer les dates de période depuis Stripe
         period_start = period_end = None
         if stripe_sub_id:
             try:
@@ -435,6 +433,52 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 period_end = datetime.fromtimestamp(stripe_sub["current_period_end"], tz=timezone.utc)
             except Exception:
                 pass
+
+        user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none() if user_id else None
+
+        # ── Cas : email inconnu (pas de compte NAVIRE) ──────
+        if not user and customer_email:
+            # Upsert dans PendingSubscription
+            pending = db.execute(
+                select(PendingSubscription).where(PendingSubscription.email == customer_email.lower())
+            ).scalar_one_or_none()
+
+            if pending:
+                # Mise à jour si second paiement pour le même email
+                pending.plan = plan
+                pending.billing_cycle = billing_cycle
+                pending.stripe_subscription_id = stripe_sub_id
+                pending.stripe_customer_id = data.get("customer") or pending.stripe_customer_id
+                pending.current_period_start = period_start
+                pending.current_period_end = period_end
+            else:
+                pending = PendingSubscription(
+                    email=customer_email.lower(),
+                    plan=plan,
+                    billing_cycle=billing_cycle,
+                    stripe_subscription_id=stripe_sub_id,
+                    stripe_customer_id=data.get("customer"),
+                    current_period_start=period_start,
+                    current_period_end=period_end,
+                )
+                db.add(pending)
+
+            db.flush()
+
+            # Envoyer le mail d'invitation à créer un compte
+            subject, html = mail_pending_subscription(customer_email, plan, FRONTEND_URL)
+            mail_ok = send_mail(customer_email, subject, html)
+            pending.mail_sent = mail_ok
+            db.commit()
+
+            return {"ok": True}
+
+        if not user:
+            return {"ok": True}
+
+        sub = get_or_create_subscription(db, user)
+
+        # period_start / period_end déjà récupérés plus haut
 
         sub.plan = plan
         sub.billing_cycle = billing_cycle
@@ -744,6 +788,129 @@ def admin_update_promo(
 
     db.commit()
     return {"ok": True, "id": promo.id, "code": promo.code}
+
+
+# ============================================================
+# Job APScheduler — vérification périodique des abonnements
+# ============================================================
+
+def check_expired_subscriptions(db_factory) -> None:
+    """
+    Job horaire : repasse en free les abonnements dont current_period_end
+    est dépassé et dont le statut Stripe est expiré/annulé.
+
+    À enregistrer dans main.py :
+        from app.routers.subscriptions import check_expired_subscriptions
+        scheduler.add_job(
+            check_expired_subscriptions,
+            "interval", hours=1,
+            args=[SessionLocal],
+            id="check_expired_subscriptions",
+            replace_existing=True,
+        )
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    db: Session = db_factory()
+    try:
+        now = datetime.now(timezone.utc)
+
+        # Abonnements actifs ou past_due dont la période est dépassée
+        expired_subs = db.execute(
+            select(Subscription).where(
+                Subscription.plan != "free",
+                Subscription.current_period_end < now,
+            )
+        ).scalars().all()
+
+        for sub in expired_subs:
+            # Vérifier l'état réel côté Stripe avant de downgrader
+            if sub.stripe_subscription_id:
+                try:
+                    stripe_sub = stripe.Subscription.retrieve(sub.stripe_subscription_id)
+                    stripe_status = stripe_sub.get("status", "")
+
+                    if stripe_status == "active":
+                        # Stripe dit active → mettre à jour la période et continuer
+                        new_end = datetime.fromtimestamp(
+                            stripe_sub["current_period_end"], tz=timezone.utc
+                        )
+                        sub.current_period_end = new_end
+                        sub.status = "active"
+                        db.commit()
+                        continue
+
+                    if stripe_status in ("canceled", "unpaid", "incomplete_expired"):
+                        user = db.execute(
+                            select(User).where(User.id == sub.user_id)
+                        ).scalar_one_or_none()
+                        if user:
+                            _downgrade_to_free(db, user, sub, status="expired")
+                            logger.info("Downgraded user %s to free (stripe: %s)", user.id, stripe_status)
+
+                except stripe.StripeError as e:
+                    logger.warning("Stripe retrieve failed for sub %s: %s", sub.stripe_subscription_id, e)
+
+            else:
+                # Pas de subscription Stripe (plan forcé admin) → downgrade direct
+                user = db.execute(
+                    select(User).where(User.id == sub.user_id)
+                ).scalar_one_or_none()
+                if user:
+                    _downgrade_to_free(db, user, sub, status="expired")
+
+        # Purge des PendingSubscription > 30 jours
+        from datetime import timedelta
+        cutoff = now - timedelta(days=30)
+        db.execute(
+            select(PendingSubscription).where(PendingSubscription.created_at < cutoff)
+        )
+        old_pending = db.execute(
+            select(PendingSubscription).where(PendingSubscription.created_at < cutoff)
+        ).scalars().all()
+        for p in old_pending:
+            db.delete(p)
+        if old_pending:
+            db.commit()
+            logger.info("Purged %d expired PendingSubscriptions", len(old_pending))
+
+    except Exception as exc:
+        logger.error("check_expired_subscriptions error: %s", exc)
+        db.rollback()
+    finally:
+        db.close()
+
+
+def activate_pending_subscription(db: Session, user: User) -> bool:
+    """
+    Appelé depuis auth.py à l'inscription d'un nouvel utilisateur.
+    Vérifie si son email est dans PendingSubscription et attribue le plan.
+    Retourne True si un plan a été activé.
+    """
+    pending = db.execute(
+        select(PendingSubscription).where(PendingSubscription.email == user.email.lower())
+    ).scalar_one_or_none()
+
+    if not pending:
+        return False
+
+    sub = get_or_create_subscription(db, user)
+    sub.plan = pending.plan
+    sub.billing_cycle = pending.billing_cycle
+    sub.status = "active"
+    sub.stripe_subscription_id = pending.stripe_subscription_id
+    sub.stripe_customer_id = pending.stripe_customer_id
+    sub.current_period_start = pending.current_period_start
+    sub.current_period_end = pending.current_period_end
+    sub.cancelled_at = None
+    db.commit()
+    _sync_user_plan(db, user, pending.plan)
+
+    db.delete(pending)
+    db.commit()
+
+    return True
 
 
 @router.delete("/admin/promo/{promo_id}")

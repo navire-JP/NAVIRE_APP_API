@@ -20,7 +20,7 @@ from app.routers.flash import router as flash_router
 from app.routers.elo import router as elo_router
 from app.routers.admin_console import router as admin_console_router
 from app.routers.stats import router as stats_router
-from app.routers.subscriptions import router as subscriptions_router
+from app.routers.subscriptions import router as subscriptions_router, check_expired_subscriptions
 
 
 # ============================================================
@@ -51,6 +51,14 @@ def _purge_old_history() -> None:
 
 scheduler = BackgroundScheduler(timezone="UTC")
 scheduler.add_job(_purge_old_history, trigger="cron", hour=3, minute=0)
+scheduler.add_job(
+    check_expired_subscriptions,
+    trigger="interval",
+    hours=1,
+    args=[SessionLocal],
+    id="check_expired_subscriptions",
+    replace_existing=True,
+)
 
 
 # ============================================================

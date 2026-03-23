@@ -470,3 +470,44 @@ class PromoRedemption(Base):
 
     # Relation
     promo_code: Mapped["PromoCode"] = relationship("PromoCode", back_populates="redemptions")
+
+
+# ============================================================
+# ABONNEMENTS EN ATTENTE (email inconnu au moment du paiement)
+# ============================================================
+
+class PendingSubscription(Base):
+    """
+    Enregistre un paiement Stripe dont l'email ne correspond à aucun
+    compte NAVIRE existant au moment du webhook.
+
+    Cycle de vie :
+      1. checkout.session.completed → email inconnu → INSERT ici + mail Brevo
+      2. L'user s'inscrit avec le même email → auth.py détecte → applique le plan → DELETE
+      3. Job APScheduler → purge les lignes > 30 jours (paiement sans inscription)
+    """
+    __tablename__ = "pending_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+
+    plan: Mapped[str] = mapped_column(String(20), nullable=False)
+    # "membre" | "membre+"
+
+    billing_cycle: Mapped[str] = mapped_column(String(10), nullable=False)
+    # "monthly" | "annual"
+
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    mail_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
