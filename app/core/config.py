@@ -70,7 +70,7 @@ BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "no-reply@navire.fr")
 BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "NAVIRE")
 
 # URL du front — utilisée dans les liens des emails (ex: lien d'inscription)
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire.framer.website")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire-ai.com")
 
 
 def ensure_storage_dirs() -> None:
