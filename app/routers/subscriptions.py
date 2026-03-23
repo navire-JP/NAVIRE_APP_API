@@ -284,7 +284,7 @@ def create_checkout_session(
         checkout_params["discounts"] = [{"coupon": stripe_coupon_id}]
 
     try:
-        session = stripe.checkout.sessions.create(**checkout_params)
+        session = stripe.checkout.Session.create(**checkout_params)
     except stripe.StripeError as e:
         raise HTTPException(502, detail=f"Erreur Stripe : {str(e)}")
 
