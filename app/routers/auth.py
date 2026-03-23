@@ -5,11 +5,10 @@ from sqlalchemy import select
 from datetime import datetime, timezone
 
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import User, Subscription, PendingSubscription
 from app.schemas.auth import RegisterIn, LoginIn, AuthOut, UserOut, validate_password
 from app.core.security import hash_password, verify_password, create_access_token, decode_token
 from app.core.limits import get_limits
-from app.routers.subscriptions import activate_pending_subscription
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
@@ -37,6 +36,48 @@ def get_current_user(
     return user
 
 # compute_file_entitlements supprimé — remplacé par app.core.limits
+
+
+def activate_pending_subscription(db: Session, user: User) -> bool:
+    """
+    Appelé à l'inscription. Si l'email de l'user correspond à un paiement
+    Stripe en attente (PendingSubscription), applique le plan immédiatement
+    et supprime la ligne pending.
+    Retourne True si un plan a été activé.
+    """
+    from sqlalchemy import select as _select
+    pending = db.execute(
+        _select(PendingSubscription).where(PendingSubscription.email == user.email.lower())
+    ).scalar_one_or_none()
+
+    if not pending:
+        return False
+
+    # Récupérer ou créer la subscription
+    sub = db.execute(
+        _select(Subscription).where(Subscription.user_id == user.id)
+    ).scalar_one_or_none()
+    if not sub:
+        sub = Subscription(user_id=user.id)
+        db.add(sub)
+
+    sub.plan = pending.plan
+    sub.billing_cycle = pending.billing_cycle
+    sub.status = "active"
+    sub.stripe_subscription_id = pending.stripe_subscription_id
+    sub.stripe_customer_id = pending.stripe_customer_id
+    sub.current_period_start = pending.current_period_start
+    sub.current_period_end = pending.current_period_end
+    sub.cancelled_at = None
+    db.commit()
+
+    user.plan = pending.plan
+    db.commit()
+
+    db.delete(pending)
+    db.commit()
+
+    return True
 
 
 @router.post("/register", response_model=AuthOut)

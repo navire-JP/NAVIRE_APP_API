@@ -882,37 +882,6 @@ def check_expired_subscriptions(db_factory) -> None:
         db.close()
 
 
-def activate_pending_subscription(db: Session, user: User) -> bool:
-    """
-    Appelé depuis auth.py à l'inscription d'un nouvel utilisateur.
-    Vérifie si son email est dans PendingSubscription et attribue le plan.
-    Retourne True si un plan a été activé.
-    """
-    pending = db.execute(
-        select(PendingSubscription).where(PendingSubscription.email == user.email.lower())
-    ).scalar_one_or_none()
-
-    if not pending:
-        return False
-
-    sub = get_or_create_subscription(db, user)
-    sub.plan = pending.plan
-    sub.billing_cycle = pending.billing_cycle
-    sub.status = "active"
-    sub.stripe_subscription_id = pending.stripe_subscription_id
-    sub.stripe_customer_id = pending.stripe_customer_id
-    sub.current_period_start = pending.current_period_start
-    sub.current_period_end = pending.current_period_end
-    sub.cancelled_at = None
-    db.commit()
-    _sync_user_plan(db, user, pending.plan)
-
-    db.delete(pending)
-    db.commit()
-
-    return True
-
-
 @router.delete("/admin/promo/{promo_id}")
 def admin_delete_promo(
     promo_id: int,

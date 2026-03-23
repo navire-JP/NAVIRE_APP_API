@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone, timedelta
+from typing import Literal
+
+import stripe
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import User, Subscription
 from app.routers.auth import get_current_user
 from app.services.elo import apply_elo_delta
 
@@ -33,6 +37,9 @@ class EloSetIn(BaseModel):
 
 class SetAdminIn(BaseModel):
     is_admin: bool = Field(..., description="True pour promouvoir, False pour révoquer")
+
+class PlanAddIn(BaseModel):
+    plan: Literal["free", "membre", "membre+"]
 
 
 # =========================================================
@@ -215,3 +222,154 @@ def admin_user_elo_reset(
         meta={"by_admin_id": admin.id, "cmd": "elo_reset"},
     )
     return {"user_id": user_id, "new_elo": int(new_elo)}
+
+
+# =========================================================
+# PLAN COMMANDS
+# =========================================================
+
+def _get_or_create_sub(db: Session, user: User) -> Subscription:
+    sub = db.execute(
+        select(Subscription).where(Subscription.user_id == user.id)
+    ).scalar_one_or_none()
+    if not sub:
+        sub = Subscription(user_id=user.id, plan="free", status="active")
+        db.add(sub)
+        db.commit()
+        db.refresh(sub)
+    return sub
+
+
+@router.get("/users/{user_id}/plan")
+def admin_user_plan_get(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Affiche le plan actuel de l'user + détails Stripe si disponibles.
+    Commande console : /plan <id>
+    """
+    u = get_user_or_404(db, user_id)
+    sub = _get_or_create_sub(db, u)
+
+    stripe_info = None
+    if sub.stripe_subscription_id:
+        try:
+            from app.core.config import STRIPE_SECRET_KEY
+            stripe.api_key = STRIPE_SECRET_KEY
+            s = stripe.Subscription.retrieve(sub.stripe_subscription_id)
+            stripe_info = {
+                "status": s.get("status"),
+                "current_period_end": datetime.fromtimestamp(
+                    s["current_period_end"], tz=timezone.utc
+                ).isoformat() if s.get("current_period_end") else None,
+                "cancel_at_period_end": s.get("cancel_at_period_end"),
+            }
+        except Exception as e:
+            stripe_info = {"error": str(e)}
+
+    return {
+        "user_id": u.id,
+        "username": u.username,
+        "email": u.email,
+        "plan": u.plan,
+        "billing_cycle": sub.billing_cycle,
+        "status": sub.status,
+        "is_manual": sub.stripe_subscription_id is None and u.plan != "free",
+        "current_period_end": sub.current_period_end.isoformat() if sub.current_period_end else None,
+        "stripe_subscription_id": sub.stripe_subscription_id,
+        "stripe_customer_id": sub.stripe_customer_id,
+        "stripe": stripe_info,
+    }
+
+
+@router.post("/users/{user_id}/plan/add")
+def admin_user_plan_add(
+    user_id: int,
+    body: PlanAddIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Attribue un plan manuel pour 1 mois (sans Stripe).
+    Règles :
+    - Impossible si l'user a déjà un abonnement Stripe actif
+    - Impossible si l'user a déjà un plan manuel actif (utiliser /plan clear d'abord)
+    Commande console : /plan <id> add <free|M|M+>
+    """
+    u = get_user_or_404(db, user_id)
+    sub = _get_or_create_sub(db, u)
+
+    # Bloquer si abonnement Stripe actif
+    if sub.stripe_subscription_id and sub.status == "active":
+        raise HTTPException(400, detail={
+            "code": "STRIPE_ACTIVE",
+            "message": f"Cet user a un abonnement Stripe actif ({sub.plan}). Impossible d'attribuer un plan manuel.",
+        })
+
+    # Bloquer si plan manuel encore actif
+    if sub.stripe_subscription_id is None and u.plan != "free" and sub.current_period_end:
+        now = datetime.now(timezone.utc)
+        if sub.current_period_end > now:
+            raise HTTPException(400, detail={
+                "code": "MANUAL_PLAN_ACTIVE",
+                "message": f"Plan manuel {u.plan} actif jusqu'au {sub.current_period_end.strftime('%d/%m/%Y')}. Fais /plan {user_id} clear d'abord.",
+            })
+
+    plan = body.plan
+    now = datetime.now(timezone.utc)
+
+    sub.plan = plan
+    sub.billing_cycle = "monthly"
+    sub.status = "active"
+    sub.stripe_subscription_id = None  # pas géré par Stripe
+    sub.current_period_start = now
+    sub.current_period_end = now + timedelta(days=30)
+    sub.cancelled_at = None
+    db.commit()
+
+    u.plan = plan
+    db.commit()
+
+    return {
+        "ok": True,
+        "user_id": u.id,
+        "plan": plan,
+        "valid_until": sub.current_period_end.isoformat(),
+        "managed_by": "admin_manual",
+    }
+
+
+@router.post("/users/{user_id}/plan/clear")
+def admin_user_plan_clear(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Retire un plan manuel et repasse l'user en free.
+    Ne touche pas aux abonnements Stripe.
+    Commande console : /plan <id> clear
+    """
+    u = get_user_or_404(db, user_id)
+    sub = _get_or_create_sub(db, u)
+
+    if sub.stripe_subscription_id:
+        raise HTTPException(400, detail={
+            "code": "STRIPE_MANAGED",
+            "message": "Cet abonnement est géré par Stripe. Utilise le portail Stripe ou /subscriptions/cancel.",
+        })
+
+    sub.plan = "free"
+    sub.billing_cycle = None
+    sub.status = "cancelled"
+    sub.current_period_start = None
+    sub.current_period_end = None
+    sub.cancelled_at = datetime.now(timezone.utc)
+    db.commit()
+
+    u.plan = "free"
+    db.commit()
+
+    return {"ok": True, "user_id": u.id, "plan": "free"}
