@@ -9,6 +9,7 @@ from app.db.models import User
 from app.schemas.auth import RegisterIn, LoginIn, AuthOut, UserOut, validate_password
 from app.core.security import hash_password, verify_password, create_access_token, decode_token
 from app.core.limits import get_limits
+from app.routers.subscriptions import activate_pending_subscription
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
@@ -70,6 +71,9 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Activer un abonnement en attente si l'email correspond à un paiement Stripe
+    activate_pending_subscription(db, user)
 
     # 4) création du token (même logique que login)
     token = create_access_token(str(user.id))
