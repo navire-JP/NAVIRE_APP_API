@@ -29,7 +29,7 @@ router = APIRouter(prefix="/qcm", tags=["qcm"])
 # =========================================================
 OPENAI_MODEL = os.getenv("OPENAI_MODEL_QCM", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
 OPENAI_TIMEOUT_SEC = float(os.getenv("OPENAI_TIMEOUT_SEC", "25"))
-OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "700"))
+OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "750"))
 QCM_TEMPERATURE = float(os.getenv("QCM_TEMPERATURE", "0.5"))
 
 client = OpenAI(timeout=OPENAI_TIMEOUT_SEC)
@@ -46,7 +46,7 @@ SESSION_TTL_MIN = int(os.getenv("QCM_SESSION_TTL_MIN", "30"))
 MIN_TEXT_LEN = int(os.getenv("QCM_MIN_TEXT_LEN", "700"))
 MIN_QUESTION_LEN = int(os.getenv("QCM_MIN_QUESTION_LEN", "25"))
 MIN_CHOICE_LEN = int(os.getenv("QCM_MIN_CHOICE_LEN", "8"))
-MIN_EXPLANATION_LEN = int(os.getenv("QCM_MIN_EXPLANATION_LEN", "25"))
+MIN_EXPLANATION_LEN = int(os.getenv("QCM_MIN_EXPLANATION_LEN", "120"))
 
 DUPLICATE_SIMILARITY_GUARD = os.getenv("QCM_DUP_GUARD", "1") == "1"
 CHUNK_WORDS = int(os.getenv("QCM_CHUNK_WORDS", "380"))
@@ -192,18 +192,29 @@ def difficulty_block(difficulty: str) -> str:
     return "Niveau: INTERMÉDIAIRE (CRFPA standard)."
 
 
-def build_prompt(source_text: str, difficulty: str) -> str:
+def build_prompt(source_text: str, difficulty: str, seen_questions: set[str] | None = None) -> str:
     qcm_type = random.choice(QCM_TYPES)
+
+    # FIX 1B : injecter les questions déjà posées dans le prompt pour forcer GPT
+    # à couvrir un angle différent du document
+    seen_block = ""
+    if seen_questions:
+        listed = "\n".join(f"- {q}" for q in list(seen_questions)[:10])
+        seen_block = f"""
+Questions déjà posées (NE PAS répéter ni paraphraser) :
+{listed}
+"""
+
     return f"""
 Tu es un examinateur CRFPA. Génère UN QCM à réponse unique à partir de l'extrait.
 
 TYPE: {qcm_type}
 {difficulty_block(difficulty)}
-
+{seen_block}
 Contraintes:
 - 1 seule réponse correcte (A/B/C/D)
 - Les 3 autres sont crédibles mais fausses
-- Explication: justifie la bonne et pourquoi les autres sont fausses
+- Explication OBLIGATOIRE : au moins 2 phrases. Justifie pourquoi la bonne réponse est correcte ET pourquoi chaque mauvaise réponse est fausse. Une explication vide ou d'une seule phrase est INTERDITE.
 - Pas d'ambiguïté
 - Ne renvoie rien d'autre que le format demandé.
 
@@ -258,19 +269,23 @@ def _shuffle_choices(data: dict) -> dict:
     letters = ["A", "B", "C", "D"]
     choices = [data["a"], data["b"], data["c"], data["d"]]
 
-    # Texte de la bonne réponse — référence stable après shuffle
-    correct_text = choices[letters.index(data["good"])]
+    # FIX 2C : on track l'index (0-3) au lieu du texte pour éviter
+    # toute collision si deux choix ont un libellé identique.
+    correct_idx = letters.index(data["good"])
 
-    random.shuffle(choices)
+    order = list(range(4))
+    random.shuffle(order)
 
-    new_good_letter = letters[choices.index(correct_text)]
+    shuffled = [choices[i] for i in order]
+    new_good_idx = order.index(correct_idx)
+    new_good_letter = letters[new_good_idx]
 
     return {
         **data,
-        "a": choices[0],
-        "b": choices[1],
-        "c": choices[2],
-        "d": choices[3],
+        "a": shuffled[0],
+        "b": shuffled[1],
+        "c": shuffled[2],
+        "d": shuffled[3],
         "good": new_good_letter,
     }
 
@@ -445,7 +460,7 @@ def generate_all_questions_for_session(session_id: str) -> None:
                 _set_session_error(db, session, "Texte source vide après extraction", hard=True)
                 return
 
-            prompt = build_prompt(chunk, session.difficulty or "medium")
+            prompt = build_prompt(chunk, session.difficulty or "medium", seen)
 
             ok = False
             last_err = ""
