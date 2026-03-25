@@ -186,10 +186,15 @@ def pick_chunk(words: list[str], chunk_size: int) -> str:
 
 def difficulty_block(difficulty: str) -> str:
     if difficulty == "easy":
-        return "Niveau: FACILE (notions fondamentales, formulations directes)."
+        return "Niveau: FACILE (notions fondamentales, définitions claires, formulations directes, aucun piège)."
     if difficulty == "hard":
-        return "Niveau: DIFFICILE (distinctions fines, exceptions, pièges)."
-    return "Niveau: INTERMÉDIAIRE (CRFPA standard)."
+        return (
+            "Niveau: DIFFICILE — niveau CRFPA écrit national. "
+            "La question doit porter sur une subtilité technique, une exception à une règle, une distinction jurisprudentielle fine ou un conflit de normes. "
+            "Les 3 mauvaises réponses doivent être très crédibles : reprendre des formulations exactes du cours, des règles réelles mais mal appliquées, ou des confusions classiques en doctrine. "
+            "Un étudiant qui n'a pas approfondi le sujet doit hésiter. Aucune réponse ne doit être évidente."
+        )
+    return "Niveau: INTERMÉDIAIRE — CRFPA standard. Questions de compréhension et d'application, quelques pièges légers."
 
 
 def build_prompt(source_text: str, difficulty: str, seen_questions: set[str] | None = None) -> str:
