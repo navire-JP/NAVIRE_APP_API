@@ -373,3 +373,133 @@ def admin_user_plan_clear(
     db.commit()
 
     return {"ok": True, "user_id": u.id, "plan": "free"}
+
+# =========================================================
+# ACTUS (VEILLE) COMMANDS
+# =========================================================
+
+class ActusCreateIn(BaseModel):
+    title: str = Field(..., description="Titre de l'actu")
+    essentiel: str = Field(..., description="L'essentiel (2-3 phrases)")
+    impact: str = Field(..., description="Pourquoi c'est important (1-2 phrases)")
+    category: Literal["civil", "penal", "public", "affaires", "general"] = Field(default="general")
+    source_url: str = Field(..., description="URL de la source")
+    source_name: str = Field(default="", description="Nom de la source (ex: Dalloz)")
+
+
+@router.get("/actus")
+def admin_actus_list(
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Liste les dernières actus.
+    Commande console : /actus
+    """
+    from app.db.models import VeilleItem
+
+    stmt = select(VeilleItem).order_by(desc(VeilleItem.created_at)).limit(limit)
+    items = db.execute(stmt).scalars().all()
+
+    return {
+        "count": len(items),
+        "items": [
+            {
+                "id": it.id,
+                "title": it.title[:60] + ("..." if len(it.title) > 60 else ""),
+                "category": it.category,
+                "source_name": it.source_name,
+                "created_at": it.created_at.isoformat() if it.created_at else None,
+            }
+            for it in items
+        ],
+    }
+
+
+@router.get("/actus/{item_id}")
+def admin_actus_get(
+    item_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Détail d'une actu.
+    Commande console : /actus <id>
+    """
+    from app.db.models import VeilleItem
+
+    item = db.execute(select(VeilleItem).where(VeilleItem.id == item_id)).scalar_one_or_none()
+    if not item:
+        raise HTTPException(404, detail="Actu introuvable")
+
+    return {
+        "id": item.id,
+        "title": item.title,
+        "essentiel": item.essentiel,
+        "impact": item.impact,
+        "category": item.category,
+        "source_url": item.source_url,
+        "source_name": item.source_name,
+        "published_at": item.published_at.isoformat() if item.published_at else None,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+    }
+
+
+@router.post("/actus/add")
+def admin_actus_add(
+    body: ActusCreateIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Crée une nouvelle actu.
+    Commande console : /actus add
+    """
+    from app.db.models import VeilleItem
+
+    # Génère un external_id unique
+    external_id = f"manual:{datetime.now(timezone.utc).timestamp()}:{body.source_url[:50]}"
+
+    item = VeilleItem(
+        external_id=external_id,
+        title=body.title,
+        essentiel=body.essentiel,
+        impact=body.impact,
+        category=body.category,
+        source_url=body.source_url,
+        source_name=body.source_name,
+        published_at=datetime.now(timezone.utc),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+
+    return {
+        "ok": True,
+        "id": item.id,
+        "title": item.title,
+        "category": item.category,
+    }
+
+
+@router.delete("/actus/{item_id}")
+def admin_actus_delete(
+    item_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Supprime une actu.
+    Commande console : /actus <id> delete
+    """
+    from app.db.models import VeilleItem
+
+    item = db.execute(select(VeilleItem).where(VeilleItem.id == item_id)).scalar_one_or_none()
+    if not item:
+        raise HTTPException(404, detail="Actu introuvable")
+
+    db.delete(item)
+    db.commit()
+
+    return {"ok": True, "deleted_id": item_id}
