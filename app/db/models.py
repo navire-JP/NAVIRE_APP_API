@@ -187,10 +187,19 @@ class User(Base):
     subscription: Mapped["Subscription | None"] = relationship(
         "Subscription",
         back_populates="user",
-        uselist=False,          # relation 1-1
+        uselist=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+    veille_profile: Mapped["VeilleUserProfile | None"] = relationship(
+        "VeilleUserProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    
 
 
 class File(Base):
@@ -509,5 +518,201 @@ class PendingSubscription(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # ============================================================
+# VEILLE JURIDIQUE (NavireActus)
+# ============================================================
+
+class VeilleSource(Base):
+    """
+    Whitelist des sources RSS fiables pour l'ingestion automatique.
+    Gérée par les admins.
+    """
+    __tablename__ = "veille_sources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    # Ex: "Dalloz Actualité", "Légifrance", "Cour de cassation"
+
+    url: Mapped[str] = mapped_column(String(500), nullable=False, unique=True)
+    # URL du flux RSS
+
+    category: Mapped[str] = mapped_column(String(50), default="general", nullable=False)
+    # civil | penal | public | affaires | general
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    last_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class VeilleItem(Base):
+    """
+    Une carte d'actualité juridique générée à partir d'une source RSS.
+    Contient le résumé IA (essentiel + impact).
+    """
+    __tablename__ = "veille_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("veille_sources.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # Identifiant unique de l'article source (GUID RSS ou URL)
+    external_id: Mapped[str] = mapped_column(String(500), unique=True, nullable=False, index=True)
+
+    # Contenu affiché
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    essentiel: Mapped[str] = mapped_column(Text, nullable=False)
+    # 2-3 phrases max, le cœur de l'actu
+
+    impact: Mapped[str] = mapped_column(Text, nullable=False)
+    # "Pourquoi c'est important" — 1-2 phrases
+
+    category: Mapped[str] = mapped_column(String(50), default="general", nullable=False)
+    # civil | penal | public | affaires | general
+
+    source_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    # Lien vers l'article original
+
+    source_name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    # Snapshot du nom de la source au moment de l'ingestion
+
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Date de publication originale (depuis le RSS)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+
+    # Relation
+    source: Mapped["VeilleSource | None"] = relationship("VeilleSource")
+
+
+class VeilleUserProfile(Base):
+    """
+    Profil de lecture d'un utilisateur pour la veille.
+    Stocke le streak, les préférences de catégories, etc.
+    """
+    __tablename__ = "veille_user_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    # Streak actuel (jours consécutifs avec objectif atteint)
+    streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Dernier jour où l'objectif a été atteint (pour calcul streak)
+    last_goal_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Nombre total d'actus lues (all time)
+    total_read: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Préférences de catégories (JSON: {"civil": 1.2, "penal": 0.8, ...})
+    category_weights: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relation
+    user: Mapped["User"] = relationship("User", back_populates="veille_profile")
+
+
+class VeilleEvent(Base):
+    """
+    Enregistre chaque interaction utilisateur avec une carte.
+    Sert au ranking personnalisé et aux analytics.
+    """
+    __tablename__ = "veille_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("veille_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    event_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    # impression | read | skip | open (clic source)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+
+
+class VeilleDailyState(Base):
+    """
+    Progression journalière d'un utilisateur.
+    Reset chaque jour à minuit (ou créée à la demande).
+    """
+    __tablename__ = "veille_daily_states"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # Date du jour (sans heure) — stockée comme datetime à 00:00 UTC
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+
+    # Nombre d'actus lues ce jour
+    read_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Objectif du jour (par défaut 5)
+    goal: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+
+    # Objectif atteint ?
+    goal_reached: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )

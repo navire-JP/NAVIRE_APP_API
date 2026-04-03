@@ -21,6 +21,7 @@ from app.routers.elo import router as elo_router
 from app.routers.admin_console import router as admin_console_router
 from app.routers.stats import router as stats_router
 from app.routers.subscriptions import router as subscriptions_router, check_expired_subscriptions
+from app.routers.veille import router as veille_router
 
 
 # ============================================================
@@ -116,6 +117,7 @@ app.include_router(elo_router)
 app.include_router(admin_console_router)
 app.include_router(stats_router)
 app.include_router(subscriptions_router)
+app.include_router(veille_router)
 
 
 # ============================================================
