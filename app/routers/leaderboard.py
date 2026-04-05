@@ -144,7 +144,7 @@ def get_universities_leaderboard(
     current_user_uni_in_top = False
 
     for idx, uni in enumerate(all_unis[:limit], start=1):
-        is_current_uni = user_university and uni["university"] == user_university
+        is_current_uni = bool(user_university and uni["university"] == user_university)
         if is_current_uni:
             current_user_uni_in_top = True
         top_list.append(
