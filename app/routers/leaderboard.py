@@ -113,15 +113,18 @@ def get_universities_leaderboard(
     Retourne le top N + la position de la fac du joueur connecté.
     """
     # Agrégation : somme des ELO par université
+    total_elo_col = func.sum(User.elo).label("total_elo")
+    member_count_col = func.count(User.id).label("member_count")
+    
     uni_stats = (
         db.query(
             User.university,
-            func.sum(User.elo).label("total_elo"),
-            func.count(User.id).label("member_count"),
+            total_elo_col,
+            member_count_col,
         )
         .filter(User.university.isnot(None), User.university != "")
         .group_by(User.university)
-        .order_by(desc("total_elo"))
+        .order_by(desc(total_elo_col))
         .all()
     )
 
