@@ -346,44 +346,4 @@ def get_history(
         ]
     }
 
-    @router.get("/history")
-def get_history(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    limit: int = Query(default=50, le=100),
-):
-    """
-    Retourne les actus déjà lues par l'utilisateur (14 derniers jours).
-    """
-    cutoff = utcnow() - timedelta(days=VEILLE_RETENTION_DAYS)
-
-    # IDs des items lus
-    read_ids_q = db.execute(
-        select(VeilleEvent.item_id).where(
-            and_(
-                VeilleEvent.user_id == user.id,
-                VeilleEvent.event_type == "read",
-                VeilleEvent.created_at >= cutoff,
-            )
-        )
-    ).scalars().all()
-    read_ids = list(set(read_ids_q))
-
-    if not read_ids:
-        return {"items": []}
-
-    # Fetch ces items
-    stmt = (
-        select(VeilleItem)
-        .where(VeilleItem.id.in_(read_ids))
-        .order_by(VeilleItem.published_at.desc().nullslast(), VeilleItem.created_at.desc())
-        .limit(limit)
-    )
-    items = db.execute(stmt).scalars().all()
-
-    return {
-        "items": [
-            VeilleItemOut.model_validate(it).model_dump()
-            for it in items
-        ]
-    }
+    
