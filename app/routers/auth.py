@@ -35,6 +35,28 @@ def get_current_user(
 
     return user
 
+
+def get_current_user_optional(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Comme get_current_user mais retourne None si pas de token (pour les endpoints publics)."""
+    if not creds:
+        return None
+
+    try:
+        payload = decode_token(creds.credentials)
+        user_id = int(payload["sub"])
+    except Exception:
+        return None
+
+    user = db.execute(
+        select(User).where(User.id == user_id)
+    ).scalar_one_or_none()
+
+    return user
+
+
 # compute_file_entitlements supprimé — remplacé par app.core.limits
 
 
