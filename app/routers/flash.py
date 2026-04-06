@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 from datetime import datetime, timezone
@@ -16,13 +17,15 @@ from app.db.database import get_db
 from app.db.models import User, File, FlashDeck, FlashCard, FlashStudySession
 from app.routers.auth import get_current_user
 from app.core.limits import check_flashcard_limit
-from app.core.config import OPENAI_API_KEY
 from app.schemas.flash import (
     DeckCreateIn, DeckUpdateIn, DeckOut,
     CardCreateIn, CardUpdateIn, CardOut,
     StudyStartOut, StudyGradeIn, StudyNextOut,
     GenerateFromPdfIn
 )
+
+# Clé OpenAI depuis les variables d'environnement
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 router = APIRouter(prefix="/flash", tags=["flash"])
 
