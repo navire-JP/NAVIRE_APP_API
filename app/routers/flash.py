@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import json
 import random
+import re
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
+import openai
+import pdfplumber
 
 from app.db.database import get_db
 from app.db.models import User, File, FlashDeck, FlashCard, FlashStudySession
 from app.routers.auth import get_current_user
 from app.core.limits import check_flashcard_limit
+from app.core.config import OPENAI_API_KEY
 from app.schemas.flash import (
     DeckCreateIn, DeckUpdateIn, DeckOut,
     CardCreateIn, CardUpdateIn, CardOut,
@@ -388,6 +394,139 @@ def study_grade_next(
 # =========================================================
 # Generate from PDF — réservé membre/membre+
 # =========================================================
+
+def parse_page_range(pages_str: str, max_page: int) -> list[int]:
+    """
+    Parse une chaîne de pages comme "1-5" ou "1,3,5-7" en liste d'indices (0-based).
+    Si vide, retourne toutes les pages.
+    """
+    if not pages_str or not pages_str.strip():
+        return list(range(max_page))
+    
+    result = set()
+    parts = pages_str.replace(" ", "").split(",")
+    
+    for part in parts:
+        if "-" in part:
+            try:
+                start, end = part.split("-", 1)
+                start = int(start) - 1  # 0-based
+                end = int(end) - 1
+                for i in range(max(0, start), min(end + 1, max_page)):
+                    result.add(i)
+            except ValueError:
+                continue
+        else:
+            try:
+                p = int(part) - 1  # 0-based
+                if 0 <= p < max_page:
+                    result.add(p)
+            except ValueError:
+                continue
+    
+    return sorted(result) if result else list(range(max_page))
+
+
+def extract_pdf_text(file_path: str, pages: list[int], max_chars: int = 30000) -> str:
+    """Extrait le texte des pages spécifiées d'un PDF."""
+    text_parts = []
+    total_chars = 0
+    
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            for page_idx in pages:
+                if page_idx >= len(pdf.pages):
+                    continue
+                page = pdf.pages[page_idx]
+                page_text = page.extract_text() or ""
+                
+                if total_chars + len(page_text) > max_chars:
+                    remaining = max_chars - total_chars
+                    if remaining > 0:
+                        text_parts.append(page_text[:remaining])
+                    break
+                
+                text_parts.append(page_text)
+                total_chars += len(page_text)
+    except Exception as e:
+        raise HTTPException(500, detail=f"Erreur lecture PDF: {str(e)}")
+    
+    return "\n\n".join(text_parts)
+
+
+def generate_flashcards_with_ai(text: str, count: int, deck_title: str) -> list[dict]:
+    """Appelle GPT pour générer des flashcards à partir du texte."""
+    
+    if not OPENAI_API_KEY:
+        raise HTTPException(500, detail="Clé OpenAI non configurée.")
+    
+    client = openai.OpenAI(api_key=OPENAI_API_KEY)
+    
+    prompt = f"""Tu es un assistant pédagogique spécialisé en droit français. 
+À partir du texte juridique suivant, génère exactement {count} flashcards de révision.
+
+Contexte du deck : {deck_title}
+
+Règles :
+- Chaque carte doit avoir une question (front) claire et précise
+- Chaque réponse (back) doit être complète mais concise (2-4 phrases max)
+- Privilégie les définitions, articles de loi, principes juridiques, exceptions importantes
+- Varie les types de questions : définitions, conditions, effets, exceptions, jurisprudence
+- Ajoute 1-3 tags pertinents par carte (mots-clés séparés par des virgules)
+
+Format de réponse STRICTEMENT en JSON (rien d'autre) :
+[
+  {{"front": "Question 1 ?", "back": "Réponse 1", "tags": "tag1, tag2"}},
+  {{"front": "Question 2 ?", "back": "Réponse 2", "tags": "tag1, tag3"}}
+]
+
+TEXTE SOURCE :
+{text[:25000]}
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Tu génères des flashcards juridiques en JSON. Réponds UNIQUEMENT avec le JSON, sans commentaire ni markdown."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=3000,
+            temperature=0.7,
+        )
+        
+        content = response.choices[0].message.content.strip()
+        
+        # Nettoyer le JSON (enlever ```json si présent)
+        content = re.sub(r'^```json\s*', '', content)
+        content = re.sub(r'\s*```$', '', content)
+        content = content.strip()
+        
+        cards = json.loads(content)
+        
+        if not isinstance(cards, list):
+            raise ValueError("La réponse n'est pas une liste")
+        
+        # Valider et nettoyer chaque carte
+        valid_cards = []
+        for card in cards:
+            if isinstance(card, dict) and "front" in card and "back" in card:
+                valid_cards.append({
+                    "front": str(card.get("front", "")).strip(),
+                    "back": str(card.get("back", "")).strip(),
+                    "tags": str(card.get("tags", "")).strip(),
+                })
+        
+        return valid_cards[:count]  # Limiter au nombre demandé
+        
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, detail=f"Erreur parsing réponse IA: {str(e)}")
+    except openai.APIError as e:
+        raise HTTPException(500, detail=f"Erreur API OpenAI: {str(e)}")
+    except Exception as e:
+        raise HTTPException(500, detail=f"Erreur génération: {str(e)}")
+
+
 @router.post("/decks/{deck_id}/generate-from-pdf")
 def generate_from_pdf(
     deck_id: int,
@@ -418,11 +557,73 @@ def generate_from_pdf(
             if f.expires_at < datetime.utcnow():
                 raise HTTPException(410, detail="Fichier expiré.")
 
+    # Vérifier que le fichier existe sur le disque
+    file_path = Path(f.path)
+    if not file_path.exists():
+        raise HTTPException(404, detail="Fichier non trouvé sur le serveur.")
+
+    # Extraire le texte du PDF
+    with pdfplumber.open(str(file_path)) as pdf:
+        total_pages = len(pdf.pages)
+    
+    page_indices = parse_page_range(payload.pages or "", total_pages)
+    
+    if not page_indices:
+        raise HTTPException(400, detail="Aucune page valide sélectionnée.")
+    
+    text = extract_pdf_text(str(file_path), page_indices)
+    
+    if len(text.strip()) < 100:
+        raise HTTPException(400, detail="Pas assez de texte extrait du PDF.")
+
+    # Générer les flashcards avec l'IA
+    count = min(payload.count or 10, 30)  # Max 30 cartes par génération
+    generated = generate_flashcards_with_ai(text, count, d.title)
+    
+    if not generated:
+        raise HTTPException(500, detail="Aucune carte générée par l'IA.")
+
+    # Insérer les cartes en DB
+    created_cards = []
+    for card_data in generated:
+        # Vérifier quota avant chaque insertion
+        try:
+            check_flashcard_limit(user, db)
+        except HTTPException:
+            # Quota atteint, on arrête d'insérer
+            break
+        
+        c = FlashCard(
+            deck_id=d.id,
+            front=card_data["front"],
+            back=card_data["back"],
+            tags=card_data["tags"],
+            source_type="pdf",
+            source_file_id=f.id,
+            source_pages=payload.pages or "all",
+        )
+        db.add(c)
+        created_cards.append(c)
+    
+    db.commit()
+    
+    # Refresh pour avoir les IDs
+    for c in created_cards:
+        db.refresh(c)
+
     return {
-        "status": "queued",
-        "detail": "Job en file (stub). Prochaine étape: génération IA + polling.",
+        "status": "completed",
         "deck_id": d.id,
         "file_id": f.id,
-        "pages": payload.pages,
-        "count": payload.count,
+        "pages_processed": len(page_indices),
+        "cards_created": len(created_cards),
+        "cards": [
+            {
+                "id": c.id,
+                "front": c.front,
+                "back": c.back,
+                "tags": c.tags,
+            }
+            for c in created_cards
+        ],
     }
