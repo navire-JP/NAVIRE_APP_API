@@ -199,7 +199,23 @@ class User(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    
+
+    # ============================================================
+    # NavireCab
+    # ============================================================
+    cab_sessions: Mapped[list["CabSession"]] = relationship(
+        "CabSession",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    cab_results: Mapped[list["CabResult"]] = relationship(
+        "CabResult",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class File(Base):
@@ -521,7 +537,8 @@ class PendingSubscription(Base):
         nullable=False,
     )
 
-    # ============================================================
+
+# ============================================================
 # VEILLE JURIDIQUE (NavireActus)
 # ============================================================
 
@@ -716,3 +733,176 @@ class VeilleDailyState(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+# ============================================================
+# NAVIRECAB — Simulation cabinet d'avocat
+# ============================================================
+
+class CabSession(Base):
+    """
+    Session de simulation NavireCab en cours.
+    Le dossier complet est stocké en JSON une fois généré.
+    """
+    __tablename__ = "cab_sessions"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    # Configuration de la session
+    difficulty: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    # easy | medium | hard
+
+    support_type: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
+    # 1 = IA (génération complète), 2 = Template DB
+
+    # Dossier généré (stocké en JSON complet)
+    # Structure: {mail: {}, attachment: "", phases: [], meta: {}}
+    dossier_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # État de la session
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    # pending | ready | running | finished | abandoned
+
+    current_phase: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # 0 = pas encore commencé, 1-5 = phase en cours
+
+    # Réponses utilisateur (JSON array)
+    # [{phase: 0, choice: 2, ref_given: "Art. 1103", points: 3, correct: true}, ...]
+    answers_json: Mapped[list | None] = mapped_column(JSON, nullable=True, default=list)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    # Quand l'user clique "Ouvrir le mail"
+
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # Relations
+    user: Mapped["User"] = relationship("User", back_populates="cab_sessions")
+
+
+class CabDossierTemplate(Base):
+    """
+    Templates de dossiers pour Support 2 (sans IA).
+    Gérés par les admins, peuvent être désactivés.
+    """
+    __tablename__ = "cab_dossier_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # Identifiant unique du template
+    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    # Ex: "contrat_vente_01", "rc_magasin_01"
+
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    # Titre affiché (ex: "Retard de livraison - SAS TechDistrib")
+
+    # Métadonnées
+    theme: Mapped[str] = mapped_column(String(100), nullable=False)
+    # contrats | responsabilité | sociétés | travail | etc.
+
+    difficulty: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    # easy | medium | hard
+
+    branch: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    # droit civil | droit des affaires | droit pénal | etc.
+
+    # Contenu complet du dossier (JSON)
+    # {mail: {subject, from, body}, attachment: "...", phases: [...]}
+    content_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    # Stats d'utilisation
+    times_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    avg_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Activation
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class CabResult(Base):
+    """
+    Historique des sessions terminées.
+    Permet de suivre la progression long terme de l'utilisateur.
+    """
+    __tablename__ = "cab_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    # Référence session (non FK car session peut être purgée)
+    session_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+
+    # Config de la session (snapshot)
+    difficulty: Mapped[str] = mapped_column(String(20), nullable=False)
+    support_type: Mapped[int] = mapped_column(Integer, nullable=False)
+    theme: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    template_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Résultats
+    score_raw: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Points bruts (0-25 pour 5 phases avec bonus)
+
+    score_20: Mapped[float] = mapped_column(Float, nullable=False)
+    # Note normalisée /20
+
+    mention: Mapped[str] = mapped_column(String(50), default="", nullable=False)
+    # insuffisant | fragile | passable | assez bien | bien | très bien | excellent
+
+    correct_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Nombre de bonnes réponses (0-5)
+
+    ref_bonus_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Nombre de bonus références obtenus
+
+    # Détail des réponses (copie de answers_json)
+    answers_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # Durée de la session
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+
+    # Relations
+    user: Mapped["User"] = relationship("User", back_populates="cab_results")

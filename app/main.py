@@ -23,6 +23,7 @@ from app.routers.stats import router as stats_router
 from app.routers.subscriptions import router as subscriptions_router, check_expired_subscriptions
 from app.routers.veille import router as veille_router
 from app.routers.leaderboard import router as leaderboard_router
+from app.routers.cab import router as cab_router
 
 
 # ============================================================
@@ -73,6 +74,8 @@ async def lifespan(app: FastAPI):
     ensure_storage_dirs()
 
     print("🚀 Startup: creating database tables if needed...")
+    # create_all() crée les nouvelles tables sans toucher aux existantes
+    # Les tables cab_sessions, cab_dossier_templates, cab_results seront créées automatiquement
     Base.metadata.create_all(bind=engine)
 
     print("🚀 Startup: starting scheduler...")
@@ -120,6 +123,7 @@ app.include_router(stats_router)
 app.include_router(subscriptions_router)
 app.include_router(veille_router)
 app.include_router(leaderboard_router)
+app.include_router(cab_router)
 
 
 # ============================================================
