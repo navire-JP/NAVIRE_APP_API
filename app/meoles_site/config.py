@@ -1,11 +1,10 @@
 from pydantic_settings import BaseSettings
 
 class MeolesSettings(BaseSettings):
-    STRIPE_SECRET_KEY: str
+    STRIPE_SECRET_KEY_MEOLES: str
     STRIPE_WEBHOOK_SECRET_MEOLES: str
     BREVO_API_KEY_MEOLES: str
 
-    # Price IDs Stripe
     PRICE_MEOLES_CUSTOM: str = "price_1TEZ9ULbFEfgkQPquMlHQqrv"
     PRICE_BAGUE_FLUID: str = "price_1TKKRWLbFEfgkQPqVnkZBBUE"
     PRICE_COLLIER_POLARIS: str = "price_1SGc0kLbFEfgkQPqZqV6sbwe"
