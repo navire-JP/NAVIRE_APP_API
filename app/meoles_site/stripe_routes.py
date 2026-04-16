@@ -39,11 +39,12 @@ async def create_checkout_session(
             cancel_url=f"{meoles_settings.MEOLES_FRONTEND_URL}?commande=cancel",
             metadata={"meoles_session_id": meoles_session},
             billing_address_collection="required",
-            shipping_address_collection={"allowed_countries": ["FR", "BE", "CH", "LU"]},
             locale="fr",
         )
         if shipping_rate:
             session_params["shipping_options"] = [{"shipping_rate": shipping_rate}]
+        else:
+            session_params["shipping_address_collection"] = {"allowed_countries": ["FR", "BE", "CH", "LU"]}
 
         session = stripe.checkout.Session.create(**session_params)
         return {"checkout_url": session.url}
