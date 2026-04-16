@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from typing import Optional
 from pydantic import BaseModel
 
-from cart import create_session, get_cart, add_to_cart, remove_from_cart, update_quantity
+from app.meoles_site.cart import create_session, get_cart, add_to_cart, remove_from_cart, update_quantity
 
 router = APIRouter(prefix="/meoles/cart", tags=["meoles-cart"])
 

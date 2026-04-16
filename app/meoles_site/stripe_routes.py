@@ -3,9 +3,9 @@ from fastapi import APIRouter, Request, HTTPException, Cookie
 from fastapi.responses import JSONResponse
 from typing import Optional
 
-from config import meoles_settings
-from cart import get_line_items, get_cart, clear_cart
-from email_utils import send_order_confirmation
+from app.meoles_site.config import meoles_settings
+from app.meoles_site.cart import get_line_items, get_cart, clear_cart
+from app.meoles_site.email_utils import send_order_confirmation
 
 stripe.api_key = meoles_settings.STRIPE_SECRET_KEY
 

@@ -1,5 +1,5 @@
 import requests
-from config import meoles_settings
+from app.meoles_site.config import meoles_settings
 
 
 def send_order_confirmation(to_email: str, customer_name: str, items: list, total: int):
