@@ -503,3 +503,24 @@ def admin_actus_delete(
     db.commit()
 
     return {"ok": True, "deleted_id": item_id}
+
+@router.delete("/users/{user_id}")
+def admin_user_delete(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Supprime un utilisateur et ses données associées.
+    Commande console : /user <id> delete
+    """
+    u = get_user_or_404(db, user_id)
+    
+    # Empêcher la suppression de soi-même
+    if u.id == admin.id:
+        raise HTTPException(400, detail="Impossible de supprimer ton propre compte depuis la console.")
+    
+    db.delete(u)
+    db.commit()
+    
+    return {"ok": True, "deleted_id": user_id}
