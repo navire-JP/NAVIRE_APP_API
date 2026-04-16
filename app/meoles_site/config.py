@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 class MeolesSettings(BaseSettings):
     STRIPE_SECRET_KEY: str
-    SSTRIPE_WEBHOOK_SECRET_MEOLES: str
+    STRIPE_WEBHOOK_SECRET_MEOLES: str
     BREVO_API_KEY_MEOLES: str
 
     # Price IDs Stripe
