@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 class MeolesSettings(BaseSettings):
     STRIPE_SECRET_KEY: str
     STRIPE_WEBHOOK_SECRET: str
-    BREVO_API_KEY: str
+    BREVO_API_KEY_MEOLES: str
 
     # Price IDs Stripe
     PRICE_MEOLES_CUSTOM: str = "price_1TEZ9ULbFEfgkQPquMlHQqrv"
@@ -19,6 +19,6 @@ class MeolesSettings(BaseSettings):
 
     class Config:
         env_file = ".env"
-        extra = "ignore"  # ignore les variables NAVIRE présentes dans .env
+        extra = "ignore"
 
 meoles_settings = MeolesSettings()
