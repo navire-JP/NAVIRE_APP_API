@@ -25,6 +25,12 @@ from app.routers.veille import router as veille_router
 from app.routers.leaderboard import router as leaderboard_router
 from app.routers.cab import router as cab_router
 
+# ============================================================
+# MEOLES — import isolé
+# ============================================================
+from app.meoles_site.cart_routes import router as meoles_cart_router
+from app.meoles_site.stripe_routes import router as meoles_stripe_router
+
 
 # ============================================================
 # APScheduler — purge QcmSessionHistory > 6 mois d'inactivité
@@ -125,6 +131,11 @@ app.include_router(veille_router)
 app.include_router(leaderboard_router)
 app.include_router(cab_router)
 
+# ============================================================
+# MEOLES — Routers
+# ============================================================
+app.include_router(meoles_cart_router)
+app.include_router(meoles_stripe_router)
 
 # ============================================================
 # Healthcheck

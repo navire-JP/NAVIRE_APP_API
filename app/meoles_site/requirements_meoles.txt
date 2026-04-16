@@ -1,0 +1,7 @@
+# requirements MEOLES — à merger avec requirements.txt NAVIRE si pas déjà présents
+fastapi
+uvicorn
+pydantic-settings
+stripe
+requests
+python-multipart
