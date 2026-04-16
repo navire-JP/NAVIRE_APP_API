@@ -1,13 +1,12 @@
 import stripe
 from fastapi import APIRouter, Request, HTTPException, Cookie
-from fastapi.responses import JSONResponse
 from typing import Optional
 
 from app.meoles_site.config import meoles_settings
 from app.meoles_site.cart import get_line_items, get_cart, clear_cart
 from app.meoles_site.email_utils import send_order_confirmation
 
-stripe.api_key = meoles_settings.STRIPE_WEBHOOK_SECRET_MEOLES
+stripe.api_key = meoles_settings.STRIPE_SECRET_KEY
 
 router = APIRouter(prefix="/meoles/checkout", tags=["meoles-checkout"])
 
@@ -24,8 +23,15 @@ async def create_checkout_session(
     if not line_items:
         raise HTTPException(400, "Panier vide")
 
+    shipping_rate = None
     try:
-        session = stripe.checkout.Session.create(
+        body = await request.json()
+        shipping_rate = body.get("shipping_rate")
+    except Exception:
+        pass
+
+    try:
+        session_params = dict(
             payment_method_types=["card"],
             line_items=line_items,
             mode="payment",
@@ -36,6 +42,10 @@ async def create_checkout_session(
             shipping_address_collection={"allowed_countries": ["FR", "BE", "CH", "LU"]},
             locale="fr",
         )
+        if shipping_rate:
+            session_params["shipping_options"] = [{"shipping_rate": shipping_rate}]
+
+        session = stripe.checkout.Session.create(**session_params)
         return {"checkout_url": session.url}
     except stripe.error.StripeError as e:
         raise HTTPException(400, str(e))
@@ -48,7 +58,7 @@ async def stripe_webhook(request: Request):
 
     try:
         event = stripe.Webhook.construct_event(
-            payload, sig_header, meoles_settings.STRIPE_WEBHOOK_SECRET
+            payload, sig_header, meoles_settings.STRIPE_WEBHOOK_SECRET_MEOLES
         )
     except Exception:
         raise HTTPException(400, "Signature invalide")
