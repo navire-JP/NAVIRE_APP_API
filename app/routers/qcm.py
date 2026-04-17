@@ -588,7 +588,14 @@ def _compute_history_stats(db: Session, session: QcmSession) -> tuple[int, int, 
     return correct, wrong, rate, is_complete
 
 
-def _update_history_on_close(db: Session, session: QcmSession) -> None:
+def _update_history_on_answer(db: Session, session: QcmSession) -> None:
+    """
+    Appelé après chaque réponse soumise.
+    Met à jour les compteurs en temps réel et, si la session est complète
+    (toutes les questions répondues), set is_complete=True et completed_at.
+    C'est ce qui permet au streak de fonctionner même quand l'user
+    ne passe pas par /close après sa dernière question.
+    """
     history = db.execute(
         select(QcmSessionHistory).where(QcmSessionHistory.session_id == session.id)
     ).scalar_one_or_none()
@@ -601,9 +608,42 @@ def _update_history_on_close(db: Session, session: QcmSession) -> None:
     history.correct_answers = correct
     history.wrong_answers = wrong
     history.success_rate = rate
-    history.is_complete = is_complete
-    history.completed_at = utcnow()
     history.last_activity_at = utcnow()
+
+    # On ne set completed_at qu'une seule fois (quand on atteint la complétion)
+    if is_complete and not history.is_complete:
+        history.is_complete = True
+        history.completed_at = utcnow()
+
+    db.commit()
+
+
+def _update_history_on_close(db: Session, session: QcmSession) -> None:
+    """
+    Appelé sur /close (abandon ou fin explicite).
+    Filet de sécurité : met à jour les stats et completed_at si pas encore fait.
+    """
+    history = db.execute(
+        select(QcmSessionHistory).where(QcmSessionHistory.session_id == session.id)
+    ).scalar_one_or_none()
+
+    if not history:
+        return
+
+    correct, wrong, rate, is_complete = _compute_history_stats(db, session)
+
+    history.correct_answers = correct
+    history.wrong_answers = wrong
+    history.success_rate = rate
+    history.last_activity_at = utcnow()
+
+    # Marquer comme complet si applicable et pas encore fait
+    if is_complete and not history.is_complete:
+        history.is_complete = True
+
+    # Toujours setter completed_at sur close (même si abandon partiel)
+    if not history.completed_at:
+        history.completed_at = utcnow()
 
     db.commit()
 
@@ -770,6 +810,9 @@ def answer(
         question_index=idx0,
         meta={"difficulty": session.difficulty, "is_correct": is_correct},
     )
+
+    # ── Mise à jour historique après chaque réponse ──
+    _update_history_on_answer(db, session)
 
     spawn_generation(session.id)
 
