@@ -30,7 +30,7 @@ from app.routers.cab import router as cab_router
 # ============================================================
 from app.meoles_site.cart_routes import router as meoles_cart_router
 from app.meoles_site.stripe_routes import router as meoles_stripe_router
-
+from app.meoles_site.custom_routes import router as meoles_custom_router
 
 # ============================================================
 # APScheduler — purge QcmSessionHistory > 6 mois d'inactivité
@@ -136,6 +136,7 @@ app.include_router(cab_router)
 # ============================================================
 app.include_router(meoles_cart_router)
 app.include_router(meoles_stripe_router)
+app.include_router(meoles_custom_router)
 
 # ============================================================
 # Healthcheck

@@ -13,11 +13,9 @@ stripe.api_key = meoles_settings.STRIPE_SECRET_KEY_MEOLES
 
 router = APIRouter(prefix="/meoles/checkout", tags=["meoles-checkout"])
 
-# ─── Config Brevo ─────────────────────────────────────────────────────────────
-
 BREVO_URL = "https://api.brevo.com/v3/smtp/email"
 ADMIN_EMAIL = "contact.meoles@gmail.com"
-TEMPLATE_CLIENT_ID = 2  # MEOLES - Confirmation commande
+TEMPLATE_CLIENT_ID = 2
 
 PRODUCT_IMAGES = {
     "bague_silence":   "https://i.imgur.com/6uVMxQ1.jpeg",
@@ -38,7 +36,7 @@ def _brevo_headers() -> dict:
     return {
         "accept": "application/json",
         "content-type": "application/json",
-        "api-key": meoles_settings.BREVO_API_KEY,
+        "api-key": meoles_settings.BREVO_API_KEY_MEOLES,
     }
 
 
@@ -52,17 +50,26 @@ def _get_address(addr: dict) -> dict:
     }
 
 
+def _item_key(item: dict) -> str:
+    return item.get("product_key") or item.get("key", "")
+
+
+def _item_price(item: dict) -> float:
+    price = item.get("price", 0)
+    return price / 100 if price > 100 else price
+
+
 def _build_item_params(items: list) -> dict:
     params = {}
     for i in range(3):
         idx = i + 1
         if i < len(items):
             item = items[i]
-            key = item.get("product_key", "")
+            key = _item_key(item)
             params[f"item{idx}_name"]  = PRODUCT_LABELS.get(key, item.get("name", ""))
             params[f"item{idx}_image"] = PRODUCT_IMAGES.get(key, "")
             params[f"item{idx}_qty"]   = str(item.get("quantity", 1))
-            params[f"item{idx}_price"] = f"{item.get('price', 0) * item.get('quantity', 1):.2f}"
+            params[f"item{idx}_price"] = f"{_item_price(item) * item.get('quantity', 1):.2f}"
         else:
             params[f"item{idx}_name"]  = ""
             params[f"item{idx}_image"] = ""
@@ -71,17 +78,14 @@ def _build_item_params(items: list) -> dict:
     return params
 
 
-# ─── Mail admin (HTML inline) ─────────────────────────────────────────────────
-
 def _admin_html(session: dict, items: list, total: float) -> str:
     customer = session.get("customer_details", {})
     name = customer.get("name", "—")
     email = customer.get("email", "—")
     session_id = session.get("id", "—")
     order_date = datetime.now().strftime("%d/%m/%Y à %H:%M")
-
     shipping = (session.get("shipping_details") or {}).get("address", {})
-    billing = (customer.get("address") or {})
+    billing = customer.get("address") or {}
 
     def addr_block(a: dict) -> str:
         return "<br>".join(filter(None, [
@@ -92,15 +96,14 @@ def _admin_html(session: dict, items: list, total: float) -> str:
 
     rows = ""
     for item in items:
-        key = item.get("product_key", "")
-        label = PRODUCT_LABELS.get(key, item.get("name", "Article"))
+        label = PRODUCT_LABELS.get(_item_key(item), item.get("name", "Article"))
         qty = item.get("quantity", 1)
-        price = item.get("price", 0) * qty
+        price = _item_price(item)
         rows += (
             f"<tr>"
             f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:13px;'>{label}</td>"
             f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:13px;'>{qty}</td>"
-            f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px;'>{price:.2f} €</td>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px;'>{price * qty:.2f} €</td>"
             f"</tr>"
         )
 
@@ -152,9 +155,7 @@ def _admin_html(session: dict, items: list, total: float) -> str:
 
 
 async def _mail_admin(session: dict, items: list, total: float):
-    customer = session.get("customer_details", {})
-    name = customer.get("name", "—")
-
+    name = session.get("customer_details", {}).get("name", "—")
     async with httpx.AsyncClient() as client:
         r = await client.post(BREVO_URL, headers=_brevo_headers(), json={
             "sender": {"name": "MEOLES", "email": ADMIN_EMAIL},
@@ -165,37 +166,14 @@ async def _mail_admin(session: dict, items: list, total: float):
         r.raise_for_status()
 
 
-# ─── Mail client (template Brevo #2) ─────────────────────────────────────────
-
 async def _mail_client(session: dict, items: list, total: float, customer_name: str, customer_email: str):
     customer = session.get("customer_details", {})
     first_name = customer_name.split()[0] if customer_name else "cher client"
     order_date = datetime.now().strftime("%d %B %Y")
     session_id = session.get("id", "")
     order_id = session_id[-8:].upper() if session_id else "—"
-
     shipping = _get_address((session.get("shipping_details") or {}).get("address", {}))
     billing  = _get_address(customer.get("address") or {})
-
-    params = {
-        "first_name":           first_name,
-        "total":                f"{total:.2f}",
-        "order_id":             order_id,
-        "order_date":           order_date,
-        "shipping_name":        customer_name,
-        "shipping_line1":       shipping["line1"],
-        "shipping_line2":       shipping["line2"],
-        "shipping_postal_code": shipping["postal_code"],
-        "shipping_city":        shipping["city"],
-        "shipping_country":     shipping["country"],
-        "billing_name":         customer_name,
-        "billing_line1":        billing["line1"],
-        "billing_line2":        billing["line2"],
-        "billing_postal_code":  billing["postal_code"],
-        "billing_city":         billing["city"],
-        "billing_country":      billing["country"],
-        **_build_item_params(items),
-    }
 
     async with httpx.AsyncClient() as client:
         r = await client.post(BREVO_URL, headers=_brevo_headers(), json={
@@ -203,7 +181,25 @@ async def _mail_client(session: dict, items: list, total: float, customer_name: 
             "to":         [{"email": customer_email, "name": customer_name}],
             "replyTo":    {"email": ADMIN_EMAIL, "name": "Jvlien — MEOLES"},
             "templateId": TEMPLATE_CLIENT_ID,
-            "params":     params,
+            "params": {
+                "first_name":           first_name,
+                "total":                f"{total:.2f}",
+                "order_id":             order_id,
+                "order_date":           order_date,
+                "shipping_name":        customer_name,
+                "shipping_line1":       shipping["line1"],
+                "shipping_line2":       shipping["line2"],
+                "shipping_postal_code": shipping["postal_code"],
+                "shipping_city":        shipping["city"],
+                "shipping_country":     shipping["country"],
+                "billing_name":         customer_name,
+                "billing_line1":        billing["line1"],
+                "billing_line2":        billing["line2"],
+                "billing_postal_code":  billing["postal_code"],
+                "billing_city":         billing["city"],
+                "billing_country":      billing["country"],
+                **_build_item_params(items),
+            },
         }, timeout=10)
         r.raise_for_status()
 
@@ -273,6 +269,8 @@ async def stripe_webhook(request: Request):
             cart = get_cart(meoles_session_id)
             items = cart.get("items", [])
             total = cart.get("total", 0)
+            if total > 100:
+                total = total / 100
 
             tasks = [_mail_admin(session, items, total)]
             if customer_email and items:
