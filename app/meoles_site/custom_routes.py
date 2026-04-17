@@ -158,11 +158,13 @@ async def custom_submit(
     _custom_store[custom_id] = data
 
     # Envoyer les deux mails en parallèle (sans bloquer la réponse)
-    asyncio.create_task(asyncio.gather(
-        _mail_admin_custom(data, custom_id),
-        _mail_client_custom(data),
-        return_exceptions=True,
-    ))
+    async def _send_mails():
+        await asyncio.gather(
+            _mail_admin_custom(data, custom_id),
+            _mail_client_custom(data),
+            return_exceptions=True,
+        )
+    asyncio.create_task(_send_mails())
 
     # Créer/récupérer la session panier et ajouter le produit
     if not meoles_session:
