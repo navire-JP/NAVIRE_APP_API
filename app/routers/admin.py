@@ -59,7 +59,6 @@ def get_all_users(
 
     result = []
     for u in users:
-        # Récupérer l'abonnement s'il existe
         sub = (
             db.execute(
                 select(models.Subscription).where(models.Subscription.user_id == u.id)
@@ -67,14 +66,12 @@ def get_all_users(
             .scalar_one_or_none()
         )
 
-        # Détecter si manuel : pas de stripe_subscription_id mais plan payant
         plan = u.plan or "free"
         is_manual = False
         sub_status = None
 
         if sub:
             sub_status = sub.status
-            # Manuel = plan payant sans ID Stripe
             if plan != "free" and not sub.stripe_subscription_id:
                 is_manual = True
 
@@ -94,6 +91,124 @@ def get_all_users(
         "users": result,
         "total": len(result),
     }
+
+
+@router.get("/users/{user_id}/stats")
+def get_user_stats(
+    user_id: int,
+    tz_offset: int = 0,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_code),
+):
+    """
+    Stats complètes d'un utilisateur pour la console admin.
+    Inclut streaks, performance, sessions, fichiers.
+    """
+    user = db.execute(
+        select(models.User).where(models.User.id == user_id)
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    # Import local pour éviter les imports circulaires
+    from app.routers.stats import (
+        _get_user_history,
+        _compute_streaks,
+        _compute_success_rate,
+        _compute_session_counts,
+        _compute_file_stats,
+    )
+
+    history = _get_user_history(db, user_id)
+
+    # Fichiers actifs
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    files_rows = db.execute(
+        select(models.File).where(
+            models.File.user_id == user_id,
+            (models.File.expires_at.is_(None)) | (models.File.expires_at > now),
+        ).order_by(desc(models.File.created_at))
+    ).scalars().all()
+
+    files_list = [
+        {
+            "id": f.id,
+            "filename_original": f.filename_original,
+            "size_bytes": f.size_bytes,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+            "expires_at": f.expires_at.isoformat() if f.expires_at else None,
+        }
+        for f in files_rows
+    ]
+
+    return {
+        **_compute_streaks(history, tz_offset),
+        **_compute_success_rate(history),
+        **_compute_session_counts(history),
+        "qcm_files": _compute_file_stats(history),
+        "files": files_list,
+        "files_count": len(files_list),
+    }
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_code),
+):
+    user = db.execute(
+        select(models.User).where(models.User.id == user_id)
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    db.delete(user)
+    db.commit()
+    return {"ok": True, "deleted_id": user_id}
+
+
+@router.post("/users/{user_id}/elo/add")
+def elo_add(
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_code),
+):
+    user = db.execute(
+        select(models.User).where(models.User.id == user_id)
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    delta = payload.get("delta", 0)
+    user.elo = (user.elo or 0) + delta
+    db.commit()
+    return {"ok": True, "new_elo": user.elo}
+
+
+@router.post("/users/{user_id}/elo/set")
+def elo_set(
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_code),
+):
+    user = db.execute(
+        select(models.User).where(models.User.id == user_id)
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    value = payload.get("value", 0)
+    user.elo = value
+    db.commit()
+    return {"ok": True, "new_elo": user.elo}
 
 
 @router.post("/set-subscription")
@@ -120,13 +235,11 @@ def set_manual_subscription(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Chercher ou créer l'abonnement
     sub = db.execute(
         select(models.Subscription).where(models.Subscription.user_id == user.id)
     ).scalar_one_or_none()
 
     if plan == "free":
-        # Supprimer l'abonnement ou le passer en free
         if sub:
             sub.plan = "free"
             sub.status = "cancelled"
@@ -136,19 +249,17 @@ def set_manual_subscription(
         db.commit()
         return {"ok": True, "email": email, "plan": "free", "is_manual": False}
 
-    # Plan payant manuel
     if sub:
         sub.plan = plan
         sub.status = "active"
-        sub.billing_cycle = None  # Manuel = pas de cycle
-        # On ne touche PAS à stripe_subscription_id (reste None = manuel)
+        sub.billing_cycle = None
     else:
         sub = models.Subscription(
             user_id=user.id,
             plan=plan,
             status="active",
             billing_cycle=None,
-            stripe_subscription_id=None,  # Manuel
+            stripe_subscription_id=None,
         )
         db.add(sub)
 
