@@ -47,7 +47,8 @@ from app.core.config import (
 )
 from app.services.email import send_mail, mail_pending_subscription
 
-stripe.api_key = STRIPE_SECRET_KEY
+# NE PAS setter stripe.api_key globalement ici — MEOLES l'écrase au démarrage.
+# La clé est forcée dans chaque fonction qui appelle Stripe.
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
@@ -58,6 +59,11 @@ router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _stripe() -> None:
+    """Force la clé NAVIRE avant tout appel Stripe."""
+    stripe.api_key = STRIPE_SECRET_KEY
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
@@ -100,6 +106,7 @@ def _get_or_create_stripe_customer(user: User, sub: Subscription, db: Session) -
     if sub.stripe_customer_id:
         return sub.stripe_customer_id
 
+    _stripe()
     customer = stripe.Customer.create(
         email=user.email,
         name=user.username,
@@ -233,6 +240,8 @@ def create_checkout_session(
     Le front redirige l'user vers cette URL pour le paiement.
     Après paiement, Stripe envoie checkout.session.completed au webhook.
     """
+    _stripe()  # force la clé NAVIRE
+
     sub = get_or_create_subscription(db, user)
 
     # Bloquer si déjà abonné
@@ -264,7 +273,6 @@ def create_checkout_session(
         "line_items": [{"price": price_id, "quantity": 1}],
         "success_url": STRIPE_SUCCESS_URL,
         "cancel_url": STRIPE_CANCEL_URL,
-        # metadata transmise au webhook pour identifier l'user et le plan
         "metadata": {
             "user_id": str(user.id),
             "plan": payload.plan,
@@ -304,6 +312,8 @@ def cancel_subscription(
     L'user garde son accès jusqu'à current_period_end.
     Le downgrade effectif arrive via webhook customer.subscription.deleted.
     """
+    _stripe()  # force la clé NAVIRE
+
     sub = get_or_create_subscription(db, user)
 
     if user.plan == "free":
@@ -344,6 +354,8 @@ def create_portal_session(
     """
     Stripe Customer Portal : l'user gère lui-même sa CB, ses factures, son abonnement.
     """
+    _stripe()  # force la clé NAVIRE
+
     sub = get_or_create_subscription(db, user)
 
     if not sub.stripe_customer_id:
@@ -398,6 +410,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
       customer.subscription.deleted   → résiliation effective → downgrade free
       customer.subscription.updated   → mise à jour dates/statut
     """
+    _stripe()  # force la clé NAVIRE
+
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
@@ -438,13 +452,11 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
         # ── Cas : email inconnu (pas de compte NAVIRE) ──────
         if not user and customer_email:
-            # Upsert dans PendingSubscription
             pending = db.execute(
                 select(PendingSubscription).where(PendingSubscription.email == customer_email.lower())
             ).scalar_one_or_none()
 
             if pending:
-                # Mise à jour si second paiement pour le même email
                 pending.plan = plan
                 pending.billing_cycle = billing_cycle
                 pending.stripe_subscription_id = stripe_sub_id
@@ -465,7 +477,6 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
             db.flush()
 
-            # Envoyer le mail d'invitation à créer un compte
             subject, html = mail_pending_subscription(customer_email, plan, FRONTEND_URL)
             mail_ok = send_mail(customer_email, subject, html)
             pending.mail_sent = mail_ok
@@ -478,8 +489,6 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
         sub = get_or_create_subscription(db, user)
 
-        # period_start / period_end déjà récupérés plus haut
-
         sub.plan = plan
         sub.billing_cycle = billing_cycle
         sub.status = "active"
@@ -491,7 +500,6 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         db.commit()
         _sync_user_plan(db, user, plan)
 
-        # Appliquer le code promo
         if promo_code_str:
             try:
                 promo = db.execute(
@@ -540,8 +548,6 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             if sub:
                 sub.status = "past_due"
                 db.commit()
-                # Pas de downgrade immédiat — Stripe retentera.
-                # customer.subscription.deleted arrivera si tous les essais échouent.
 
     # ── customer.subscription.deleted ─────────────────────
     elif event_type == "customer.subscription.deleted":
@@ -702,6 +708,8 @@ def admin_create_promo(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
+    _stripe()  # force la clé NAVIRE
+
     existing = db.execute(
         select(PromoCode).where(PromoCode.code == payload.code.upper())
     ).scalar_one_or_none()
@@ -712,7 +720,6 @@ def admin_create_promo(
             "message": f"Le code '{payload.code.upper()}' existe déjà.",
         })
 
-    # Créer le coupon Stripe en même temps
     stripe_coupon_id = None
     if STRIPE_SECRET_KEY:
         try:
@@ -724,7 +731,7 @@ def admin_create_promo(
             if payload.discount_type == "percent":
                 coupon_params["percent_off"] = payload.discount_value
             else:
-                coupon_params["amount_off"] = int(payload.discount_value * 100)  # centimes
+                coupon_params["amount_off"] = int(payload.discount_value * 100)
 
             if payload.max_uses:
                 coupon_params["max_redemptions"] = payload.max_uses
@@ -734,7 +741,7 @@ def admin_create_promo(
             coupon = stripe.Coupon.create(**coupon_params)
             stripe_coupon_id = coupon.id
         except stripe.StripeError:
-            pass  # le coupon Stripe est optionnel, on continue
+            pass
 
     promo = PromoCode(
         code=payload.code.upper(),
@@ -798,25 +805,16 @@ def check_expired_subscriptions(db_factory) -> None:
     """
     Job horaire : repasse en free les abonnements dont current_period_end
     est dépassé et dont le statut Stripe est expiré/annulé.
-
-    À enregistrer dans main.py :
-        from app.routers.subscriptions import check_expired_subscriptions
-        scheduler.add_job(
-            check_expired_subscriptions,
-            "interval", hours=1,
-            args=[SessionLocal],
-            id="check_expired_subscriptions",
-            replace_existing=True,
-        )
     """
     import logging
     logger = logging.getLogger(__name__)
+
+    _stripe()  # force la clé NAVIRE
 
     db: Session = db_factory()
     try:
         now = datetime.now(timezone.utc)
 
-        # Abonnements actifs ou past_due dont la période est dépassée
         expired_subs = db.execute(
             select(Subscription).where(
                 Subscription.plan != "free",
@@ -825,14 +823,12 @@ def check_expired_subscriptions(db_factory) -> None:
         ).scalars().all()
 
         for sub in expired_subs:
-            # Vérifier l'état réel côté Stripe avant de downgrader
             if sub.stripe_subscription_id:
                 try:
                     stripe_sub = stripe.Subscription.retrieve(sub.stripe_subscription_id)
                     stripe_status = stripe_sub.get("status", "")
 
                     if stripe_status == "active":
-                        # Stripe dit active → mettre à jour la période et continuer
                         new_end = datetime.fromtimestamp(
                             stripe_sub["current_period_end"], tz=timezone.utc
                         )
@@ -853,19 +849,14 @@ def check_expired_subscriptions(db_factory) -> None:
                     logger.warning("Stripe retrieve failed for sub %s: %s", sub.stripe_subscription_id, e)
 
             else:
-                # Pas de subscription Stripe (plan forcé admin) → downgrade direct
                 user = db.execute(
                     select(User).where(User.id == sub.user_id)
                 ).scalar_one_or_none()
                 if user:
                     _downgrade_to_free(db, user, sub, status="expired")
 
-        # Purge des PendingSubscription > 30 jours
         from datetime import timedelta
         cutoff = now - timedelta(days=30)
-        db.execute(
-            select(PendingSubscription).where(PendingSubscription.created_at < cutoff)
-        )
         old_pending = db.execute(
             select(PendingSubscription).where(PendingSubscription.created_at < cutoff)
         ).scalars().all()
@@ -888,13 +879,14 @@ def admin_delete_promo(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
+    _stripe()  # force la clé NAVIRE
+
     promo = db.execute(
         select(PromoCode).where(PromoCode.id == promo_id)
     ).scalar_one_or_none()
     if not promo:
         raise HTTPException(404, detail="Code promo introuvable.")
 
-    # Archiver le coupon Stripe si existant
     if promo.stripe_coupon_id and STRIPE_SECRET_KEY:
         try:
             stripe.Coupon.delete(promo.stripe_coupon_id)
