@@ -273,6 +273,7 @@ def create_checkout_session(
         "line_items": [{"price": price_id, "quantity": 1}],
         "success_url": STRIPE_SUCCESS_URL,
         "cancel_url": STRIPE_CANCEL_URL,
+        "allow_promotion_codes": True,
         "metadata": {
             "user_id": str(user.id),
             "plan": payload.plan,
