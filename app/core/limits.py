@@ -71,17 +71,11 @@ def get_limit(plan: str, key: str) -> Any:
 # ============================================================
 
 def check_qcm_daily_limit(user: User, db: Session) -> None:
-    """
-    Vérifie que l'utilisateur n'a pas dépassé sa limite de sessions QCM
-    pour le jour calendaire en cours (UTC).
-
-    Utilisé dans : routers/qcm.py → POST /qcm/start
-    """
     limit = get_limit(user.plan, "qcm_per_day")
     if limit is None:
-        return  # illimité, on passe
+        return
 
-    from app.db.models import QcmSessionHistory  # import local pour éviter les circular imports
+    from app.db.models import QcmSessionHistory
 
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -90,6 +84,8 @@ def check_qcm_daily_limit(user: User, db: Session) -> None:
         .filter(
             QcmSessionHistory.user_id == user.id,
             QcmSessionHistory.started_at >= today_start,
+            # ✅ Ne compter que les sessions où l'utilisateur a réellement joué
+            (QcmSessionHistory.correct_answers + QcmSessionHistory.wrong_answers) > 0,
         )
         .count()
     )
