@@ -5,11 +5,11 @@ from typing import Dict, List
 PRODUCTS = {
     "meoles_custom":    {"name": "MEOLES CUSTOM",      "price_id": "price_1TEZ9ULbFEfgkQPquMlHQqrv", "price": 2500},
     "bague_fluid":      {"name": "Bague Fluid",         "price_id": "price_1TKKRWLbFEfgkQPqVnkZBBUE", "price": 5500},
-    "collier_polaris":  {"name": "Collier Polaris",     "price_id": "price_1SGc0kLbFEfgkQPqZqV6sbwe",  "price": 7000},
+    "collier_polaris":  {"name": "Collier Polaris",     "price_id": "price_1SGc0kLbFEfgkQPqZqV6sbwe",  "price": 6500},
     "collier_silence":  {"name": "Collier Silence",     "price_id": "price_1TKKUaLbFEfgkQPqv2DUD4HS",  "price": 9000},
-    "tee_s": {"name": "Silences Tee — S", "price_id": "price_1TMBmwLbFEfgkQPqNNbXpFVq", "price": 2300},
-    "tee_m": {"name": "Silences Tee — M", "price_id": "price_1TMBnxLbFEfgkQPqCVsqdmGW", "price": 2300},
-    "tee_l": {"name": "Silences Tee — L", "price_id": "price_1TMBnPLbFEfgkQPqo6qj57Qq", "price": 2300},
+    "tee_s": {"name": "Silences Tee — S", "price_id": "price_1TMBmwLbFEfgkQPqNNbXpFVq", "price": 2700},
+    "tee_m": {"name": "Silences Tee — M", "price_id": "price_1TMBnxLbFEfgkQPqCVsqdmGW", "price": 2700},
+    "tee_l": {"name": "Silences Tee — L", "price_id": "price_1TMBnPLbFEfgkQPqo6qj57Qq", "price": 2700},
 }
 
 # Stockage in-memory des paniers
