@@ -578,8 +578,16 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             except Exception:
                 pass
 
-            if stripe_status == "active":
+            cancel_at_period_end = data.get("cancel_at_period_end", False)
+
+            if cancel_at_period_end:
+                # L'user a demandé une résiliation → accès maintenu jusqu'à current_period_end
+                sub.status = "cancelled"
+                if not sub.cancelled_at:
+                    sub.cancelled_at = utcnow()
+            elif stripe_status == "active":
                 sub.status = "active"
+                sub.cancelled_at = None  # réactivation éventuelle
             elif stripe_status in ("past_due", "unpaid"):
                 sub.status = "past_due"
 
