@@ -774,10 +774,10 @@ def answer(
     if q.answered:
         correct_letter = (q.correct_letter or "").strip().upper()
         correct_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(correct_letter, -1)
-
-        prev_letter = (q.user_letter or "").strip().upper()
-        prev_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(prev_letter, -1)
-        is_correct = (prev_index == correct_index)
+        # FIX: utiliser choice_index reçu, pas prev_letter — évite le cas où
+        # une réponse en retard arrivait avec un choice_index différent de ce
+        # que l'user avait cliqué, retournant un is_correct erroné.
+        is_correct = (choice_index == correct_index)
 
         u = db.execute(select(User).where(User.id == user.id)).scalar_one()
         return {
