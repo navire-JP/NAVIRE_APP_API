@@ -774,10 +774,16 @@ def answer(
     if q.answered:
         correct_letter = (q.correct_letter or "").strip().upper()
         correct_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(correct_letter, -1)
-        # FIX: utiliser choice_index reçu, pas prev_letter — évite le cas où
-        # une réponse en retard arrivait avec un choice_index différent de ce
-        # que l'user avait cliqué, retournant un is_correct erroné.
         is_correct = (choice_index == correct_index)
+
+        print(
+            f"[ANSWER already_answered] sid={session_id[:8]} idx={idx0} "
+            f"sent={choice_index} correct_letter={correct_letter} correct_index={correct_index} "
+            f"is_correct={is_correct} | "
+            f"A={str(q.choice_a)[:20]} B={str(q.choice_b)[:20]} "
+            f"C={str(q.choice_c)[:20]} D={str(q.choice_d)[:20]}",
+            flush=True
+        )
 
         u = db.execute(select(User).where(User.id == user.id)).scalar_one()
         return {
@@ -795,6 +801,15 @@ def answer(
     correct_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(correct_letter, -1)
     is_correct = (choice_index == correct_index)
 
+    print(
+        f"[ANSWER] sid={session_id[:8]} idx={idx0} "
+        f"sent={choice_index} correct_letter={correct_letter} correct_index={correct_index} "
+        f"is_correct={is_correct} | "
+        f"A={str(q.choice_a)[:20]} B={str(q.choice_b)[:20]} "
+        f"C={str(q.choice_c)[:20]} D={str(q.choice_d)[:20]}",
+        flush=True
+    )
+
     q.answered = True
     q.user_letter = ["A", "B", "C", "D"][choice_index]
     db.commit()
@@ -811,7 +826,6 @@ def answer(
         meta={"difficulty": session.difficulty, "is_correct": is_correct},
     )
 
-    # ── Mise à jour historique après chaque réponse ──
     _update_history_on_answer(db, session)
 
     spawn_generation(session.id)
