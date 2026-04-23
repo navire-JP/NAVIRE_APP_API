@@ -484,8 +484,8 @@ def generate_all_questions_for_session(session_id: str) -> None:
                     data = parse_qcm_answer(content)
                     validate_qcm_data(data, seen)
 
-                    # ── Shuffle aléatoire des choix avant écriture en base ──
-                    data = _shuffle_choices(data)
+                    # Shuffle supprimé — il cassait la cohérence entre
+                    # correct_letter et l'explication générée par GPT.
 
                     q = QcmQuestion(
                         session_id=session.id,
