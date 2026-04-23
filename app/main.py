@@ -1,5 +1,8 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
+import asyncio
+import threading
+import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
@@ -10,6 +13,7 @@ from app.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, ensure_storage_
 from app.db.database import Base, engine, SessionLocal
 from app.db import models  # noqa: F401
 from app.db.models import QcmSessionHistory
+from app.db.migrate_discord_fields import run_discord_migrations
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
 from app.routers.meta import router as meta_router
@@ -24,6 +28,7 @@ from app.routers.subscriptions import router as subscriptions_router, check_expi
 from app.routers.veille import router as veille_router
 from app.routers.leaderboard import router as leaderboard_router
 from app.routers.cab import router as cab_router
+from app.routers.discord_bot import router as discord_bot_router
 
 # ============================================================
 # MEOLES — import isolé
@@ -37,10 +42,6 @@ from app.meoles_site.custom_routes import router as meoles_custom_router
 # ============================================================
 
 def _purge_old_history() -> None:
-    """
-    Supprime les entrées QcmSessionHistory dont last_activity_at
-    est antérieure à 6 mois. Lancé quotidiennement à 3h UTC.
-    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=180)
     db = SessionLocal()
     try:
@@ -69,6 +70,26 @@ scheduler.add_job(
     replace_existing=True,
 )
 
+# ============================================================
+# Discord bot — thread daemon
+# ============================================================
+
+def _start_discord_bot() -> None:
+    if not os.getenv("DISCORD_TOKEN"):
+        print("⚠️  DISCORD_TOKEN absent — bot Discord désactivé")
+        return
+
+    from app.bot_discord.bot import run_bot
+
+    def _run():
+        try:
+            asyncio.run(run_bot())
+        except Exception as e:
+            print(f"❌ Bot Discord crash : {e}")
+
+    threading.Thread(target=_run, daemon=True, name="discord-bot").start()
+    print("✅ Bot Discord lancé en thread daemon")
+
 
 # ============================================================
 # Lifespan (startup / shutdown)
@@ -80,12 +101,16 @@ async def lifespan(app: FastAPI):
     ensure_storage_dirs()
 
     print("🚀 Startup: creating database tables if needed...")
-    # create_all() crée les nouvelles tables sans toucher aux existantes
-    # Les tables cab_sessions, cab_dossier_templates, cab_results seront créées automatiquement
     Base.metadata.create_all(bind=engine)
+
+    print("🚀 Startup: running discord migrations...")
+    run_discord_migrations()
 
     print("🚀 Startup: starting scheduler...")
     scheduler.start()
+
+    print("🚀 Startup: starting Discord bot...")
+    _start_discord_bot()
 
     yield
 
@@ -130,6 +155,7 @@ app.include_router(subscriptions_router)
 app.include_router(veille_router)
 app.include_router(leaderboard_router)
 app.include_router(cab_router)
+app.include_router(discord_bot_router)
 
 # ============================================================
 # MEOLES — Routers

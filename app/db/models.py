@@ -12,6 +12,7 @@ from sqlalchemy import (
     Text,
     JSON,
     Float,
+    Date, 
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -159,6 +160,15 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     elo: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
+
+    # ── Discord ──────────────────────────────────────────────────────────────
+    discord_id: Mapped[str | None] = mapped_column(
+        String(32), unique=True, nullable=True, index=True
+    )
+    discord_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    discord_last_active: Mapped[datetime | None] = mapped_column(Date, nullable=True)
+    discord_messages_pending: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # ─────────────────────────────────────────────────────────────────────────
 
     # ============================================================
     # Relations
