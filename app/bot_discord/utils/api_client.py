@@ -1,7 +1,7 @@
 # app/bot_discord/utils/api_client.py
 
 import httpx
-from app.bot_discord.config import API_BASE_URL, BOT_SECRET
+from app.bot_discord.config import API_BASE_URL, BOT_SECRET, LEADERBOARD_LIMIT
 
 _HEADERS = {"x-bot-secret": BOT_SECRET, "Content-Type": "application/json"}
 _TIMEOUT = 10.0
@@ -41,6 +41,6 @@ async def record_participation(discord_id: str, message_count: int = 1) -> dict:
     })
 
 
-async def get_leaderboard(limit: int = 10) -> list[dict]:
+async def get_leaderboard(limit: int = LEADERBOARD_LIMIT) -> list[dict]:
     data = await _get("/discord/leaderboard", limit=limit)
     return data if isinstance(data, list) else []

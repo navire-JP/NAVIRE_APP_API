@@ -1,66 +1,20 @@
+# app/bot_discord/config.py
+
 import os
-from pathlib import Path
 
-def _split_csv(value: str) -> list[str]:
-    return [x.strip() for x in value.split(",") if x.strip()]
+DISCORD_TOKEN               = os.getenv("DISCORD_TOKEN", "")
+BOT_SECRET                  = os.getenv("BOT_SECRET", "DEV_BOT_SECRET_CHANGE_ME")
+API_BASE_URL                = os.getenv("API_BASE_URL", "https://navire-app-api.onrender.com")
+GUILD_ID                    = int(os.getenv("DISCORD_GUILD_ID", "0"))
+CLASSEMENT_CHANNEL_ID       = int(os.getenv("DISCORD_CLASSEMENT_CHANNEL_ID", "0"))
+LOG_CHANNEL_ID              = int(os.getenv("DISCORD_LOG_CHANNEL_ID", "1351521002068119593"))
+LEADERBOARD_REFRESH_SECONDS = int(os.getenv("LEADERBOARD_REFRESH_SECONDS", "300"))
+LEADERBOARD_LIMIT           = int(os.getenv("LEADERBOARD_LIMIT", "20"))
 
-# ============================================================
-# App
-# ============================================================
-APP_ENV      = os.getenv("APP_ENV", "dev")
-APP_NAME     = os.getenv("APP_NAME", "NAVIRE APP API")
-APP_VERSION  = os.getenv("APP_VERSION", "0.1.0")
-API_BASE_URL = os.getenv("API_BASE_URL", "")
-CORS_ORIGINS = _split_csv(os.getenv("CORS_ORIGINS", ""))
+# Rôle admin Discord — seuls les membres avec ce rôle peuvent utiliser les commandes admin
+ADMIN_ROLE_ID = int(os.getenv("DISCORD_ADMIN_ROLE_ID", "1132339702159118346"))
 
-# ============================================================
-# Auth / JWT
-# ============================================================
-JWT_SECRET                  = os.getenv("JWT_SECRET", "DEV_ONLY_CHANGE_ME")
-JWT_ALGO                    = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
-
-# ============================================================
-# Bot Discord
-# ============================================================
-BOT_SECRET = os.getenv("BOT_SECRET", "DEV_BOT_SECRET_CHANGE_ME")
-
-# ============================================================
-# Storage
-# ============================================================
-STORAGE_PATH     = os.getenv("STORAGE_PATH", str(Path("./storage").resolve()))
-USER_FILES_DIR   = Path(STORAGE_PATH) / "UserFiles"
-MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
-
-# ============================================================
-# Stripe
-# ============================================================
-STRIPE_SECRET_KEY     = os.getenv("STRIPE_SECRET_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-
-STRIPE_PRICES: dict[str, dict[str, str]] = {
-    "membre": {
-        "monthly": os.getenv("STRIPE_PRICE_MEMBRE_MONTHLY", ""),
-        "annual":  os.getenv("STRIPE_PRICE_MEMBRE_ANNUAL", ""),
-    },
-    "membre+": {
-        "monthly": os.getenv("STRIPE_PRICE_MEMBRE_PLUS_MONTHLY", ""),
-        "annual":  os.getenv("STRIPE_PRICE_MEMBRE_PLUS_ANNUAL", ""),
-    },
+PLAN_TO_ROLE: dict[str, str] = {
+    "membre":  os.getenv("DISCORD_ROLE_MEMBRE",      "navire_ai"),
+    "membre+": os.getenv("DISCORD_ROLE_MEMBRE_PLUS", "navire_ai+"),
 }
-
-STRIPE_SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://ton-app.fr/subscribe?success=true")
-STRIPE_CANCEL_URL  = os.getenv("STRIPE_CANCEL_URL",  "https://ton-app.fr/subscribe?cancelled=true")
-
-# ============================================================
-# Brevo
-# ============================================================
-BREVO_API_KEY      = os.getenv("BREVO_API_KEY", "")
-BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "no-reply@navire.fr")
-BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "NAVIRE")
-FRONTEND_URL       = os.getenv("FRONTEND_URL", "https://navire-ai.com")
-
-
-def ensure_storage_dirs() -> None:
-    Path(STORAGE_PATH).mkdir(parents=True, exist_ok=True)
-    USER_FILES_DIR.mkdir(parents=True, exist_ok=True)

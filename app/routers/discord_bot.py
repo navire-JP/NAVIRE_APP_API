@@ -125,7 +125,8 @@ def record_participation(body: ParticipationIn, db: Session = Depends(get_db)):
 
 
 @router.get("/leaderboard", dependencies=[Depends(_require_bot)])
-def discord_leaderboard(limit: int = 10, db: Session = Depends(get_db)):
+def discord_leaderboard(limit: int = 20, db: Session = Depends(get_db)):
+    """Top N users par ELO — inclut discord_streak pour l'affichage."""
     limit = max(1, min(50, limit))
     rows  = (
         db.query(User)
@@ -135,7 +136,13 @@ def discord_leaderboard(limit: int = 10, db: Session = Depends(get_db)):
         .all()
     )
     return [
-        {"rank": i + 1, "discord_id": u.discord_id, "username": u.username,
-         "elo": u.elo or 0, "plan": u.plan}
+        {
+            "rank":           i + 1,
+            "discord_id":     u.discord_id,
+            "username":       u.username,
+            "elo":            u.elo or 0,
+            "plan":           u.plan,
+            "discord_streak": u.discord_streak or 0,
+        }
         for i, u in enumerate(rows)
     ]
