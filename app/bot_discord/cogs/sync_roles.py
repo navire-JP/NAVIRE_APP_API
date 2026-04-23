@@ -3,8 +3,13 @@
 import discord
 from discord.ext import commands
 
-from app.bot_discord.config import PLAN_TO_ROLE
+from app.bot_discord.config import PLAN_TO_ROLE, ADMIN_ROLE_ID
 from app.bot_discord.utils.api_client import get_navire_user, link_discord
+
+
+def _is_admin(ctx: commands.Context) -> bool:
+    role = discord.utils.get(ctx.guild.roles, id=ADMIN_ROLE_ID)
+    return role in ctx.author.roles if role else False
 
 
 class SyncRolesCog(commands.Cog):
@@ -37,11 +42,45 @@ class SyncRolesCog(commands.Cog):
 
         return plan
 
+    # ── Commande user : //link <user_id_navire> ──────────────────────────────
+
     @commands.command(name="link")
-    async def link(self, ctx: commands.Context, token: str = ""):
-        """//link <user_id_navire> — Lie ton compte Discord à NAVIRE."""
+    async def link(self, ctx: commands.Context, target: str = "", navire_id: str = ""):
+        """
+        Usage user  : //link <user_id_navire>
+        Usage admin : //link @mention <user_id_navire>
+        """
         await ctx.message.delete(delay=2)
 
+        # ── Cas admin : //link @mention <user_id_navire> ──────────────────────
+        if ctx.message.mentions and navire_id:
+            if not _is_admin(ctx):
+                return await ctx.send("❌ Réservé aux admins.", delete_after=5)
+
+            if not navire_id.isdigit():
+                return await ctx.send(
+                    "❌ Usage admin : `//link @mention <user_id_navire>`",
+                    delete_after=10,
+                )
+
+            member  = ctx.message.mentions[0]
+            discord_id = str(member.id)
+
+            try:
+                result = await link_discord(int(navire_id), discord_id)
+                if result.get("ok"):
+                    await ctx.send(
+                        f"✅ **{member.display_name}** lié au compte NAVIRE `#{navire_id}`.",
+                        delete_after=10,
+                    )
+                else:
+                    await ctx.send("❌ Liaison échouée.", delete_after=10)
+            except Exception as e:
+                await ctx.send(f"❌ Erreur : {e}", delete_after=10)
+            return
+
+        # ── Cas user : //link <user_id_navire> ───────────────────────────────
+        token = target  # premier argument = user_id_navire
         if not token.isdigit():
             return await ctx.send(
                 "❌ Usage : `//link <ton_user_id_navire>`\n"
@@ -60,6 +99,8 @@ class SyncRolesCog(commands.Cog):
                 await ctx.send("❌ Liaison échouée.", delete_after=10)
         except Exception as e:
             await ctx.send(f"❌ Erreur : {e}", delete_after=10)
+
+    # ── Commande user : //sync ───────────────────────────────────────────────
 
     @commands.command(name="sync")
     async def sync(self, ctx: commands.Context):
