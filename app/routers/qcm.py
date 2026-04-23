@@ -231,13 +231,17 @@ Réponse B: ...
 Réponse C: ...
 Réponse D: ...
 Bonne Réponse: {correct_position}
-Explication: ✅ A : [1 phrase max] | ❌ B : [1 phrase max] | ❌ C : [1 phrase max] | ❌ D : [1 phrase max]
+Explication:
+✅ {correct_position} : [raison courte]
+❌ [autre lettre] : [raison courte]
+❌ [autre lettre] : [raison courte]
+❌ [autre lettre] : [raison courte]
 
 Règles pour l'explication :
-- Format IMPOSÉ : une ligne par lettre, séparées par " | "
-- ✅ devant la bonne réponse, ❌ devant les fausses
+- Format IMPOSÉ : une ligne par lettre, dans l'ordre A / B / C / D
+- ✅ devant la bonne réponse ({correct_position}), ❌ devant les fausses
 - 1 phrase courte et précise par lettre, fondement juridique si possible
-- Commence toujours par la lettre {correct_position} (la bonne réponse)
+- Toujours dans l'ordre A, B, C, D — peu importe laquelle est correcte
 
 EXTRAIT:
 {source_text}
@@ -259,7 +263,23 @@ def parse_qcm_answer(txt: str) -> dict:
     c = pick("Réponse C")
     d = pick("Réponse D")
     good = pick("Bonne Réponse").upper()[:1]
-    exp = pick("Explication")
+
+    # Capture l'explication multilignes — tout ce qui suit "Explication:"
+    exp = ""
+    raw_lines = (txt or "").split("\n")
+    in_exp = False
+    exp_parts = []
+    for line in raw_lines:
+        stripped = line.strip()
+        if stripped.lower().startswith("explication:"):
+            in_exp = True
+            after = stripped.split(":", 1)[1].strip()
+            if after:
+                exp_parts.append(after)
+        elif in_exp:
+            if stripped:
+                exp_parts.append(stripped)
+    exp = "\n".join(exp_parts).strip()
 
     if not (q and a and b and c and d and good in ["A", "B", "C", "D"] and exp):
         raise ValueError("Format OpenAI invalide")
