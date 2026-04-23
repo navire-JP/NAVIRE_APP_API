@@ -46,7 +46,7 @@ SESSION_TTL_MIN = int(os.getenv("QCM_SESSION_TTL_MIN", "30"))
 MIN_TEXT_LEN = int(os.getenv("QCM_MIN_TEXT_LEN", "700"))
 MIN_QUESTION_LEN = int(os.getenv("QCM_MIN_QUESTION_LEN", "25"))
 MIN_CHOICE_LEN = int(os.getenv("QCM_MIN_CHOICE_LEN", "8"))
-MIN_EXPLANATION_LEN = int(os.getenv("QCM_MIN_EXPLANATION_LEN", "120"))
+MIN_EXPLANATION_LEN = int(os.getenv("QCM_MIN_EXPLANATION_LEN", "40"))  # format schématique A|B|C|D
 
 DUPLICATE_SIMILARITY_GUARD = os.getenv("QCM_DUP_GUARD", "1") == "1"
 CHUNK_WORDS = int(os.getenv("QCM_CHUNK_WORDS", "380"))
@@ -200,8 +200,9 @@ def difficulty_block(difficulty: str) -> str:
 def build_prompt(source_text: str, difficulty: str, seen_questions: set[str] | None = None) -> str:
     qcm_type = random.choice(QCM_TYPES)
 
-    # FIX 1B : injecter les questions déjà posées dans le prompt pour forcer GPT
-    # à couvrir un angle différent du document
+    # Force GPT à varier la position de la bonne réponse
+    correct_position = random.choice(["A", "B", "C", "D"])
+
     seen_block = ""
     if seen_questions:
         listed = "\n".join(f"- {q}" for q in list(seen_questions)[:10])
@@ -218,9 +219,9 @@ TYPE: {qcm_type}
 {seen_block}
 Contraintes:
 - 1 seule réponse correcte (A/B/C/D)
-- Les 3 autres sont crédibles mais fausses
-- Explication OBLIGATOIRE : au moins 2 phrases. Justifie pourquoi la bonne réponse est correcte ET pourquoi chaque mauvaise réponse est fausse. Une explication vide ou d'une seule phrase est INTERDITE.
-- Pas d'ambiguïté
+- La bonne réponse DOIT être en position {correct_position} — OBLIGATOIRE.
+- Les 3 autres sont crédibles mais juridiquement fausses
+- Pas d'ambiguïté, pas de réponses absurdes
 - Ne renvoie rien d'autre que le format demandé.
 
 Format STRICT:
@@ -229,8 +230,14 @@ Réponse A: ...
 Réponse B: ...
 Réponse C: ...
 Réponse D: ...
-Bonne Réponse: A|B|C|D
-Explication: ...
+Bonne Réponse: {correct_position}
+Explication: ✅ A : [1 phrase max] | ❌ B : [1 phrase max] | ❌ C : [1 phrase max] | ❌ D : [1 phrase max]
+
+Règles pour l'explication :
+- Format IMPOSÉ : une ligne par lettre, séparées par " | "
+- ✅ devant la bonne réponse, ❌ devant les fausses
+- 1 phrase courte et précise par lettre, fondement juridique si possible
+- Commence toujours par la lettre {correct_position} (la bonne réponse)
 
 EXTRAIT:
 {source_text}
