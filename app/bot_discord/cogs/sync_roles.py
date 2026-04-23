@@ -12,6 +12,15 @@ def _is_admin(ctx: commands.Context) -> bool:
     return role in ctx.author.roles if role else False
 
 
+def _find_member_by_name(guild: discord.Guild, name: str) -> discord.Member | None:
+    """Cherche un membre par username ou display_name (insensible à la casse)."""
+    name_lower = name.lower()
+    for member in guild.members:
+        if member.name.lower() == name_lower or member.display_name.lower() == name_lower:
+            return member
+    return None
+
+
 class SyncRolesCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -42,35 +51,37 @@ class SyncRolesCog(commands.Cog):
 
         return plan
 
-    # ── Commande user : //link <user_id_navire> ──────────────────────────────
+    # ── //link ───────────────────────────────────────────────────────────────
+    # User  : //link <user_id_navire>
+    # Admin : //link <discord_username> <user_id_navire>
 
     @commands.command(name="link")
-    async def link(self, ctx: commands.Context, target: str = "", navire_id: str = ""):
-        """
-        Usage user  : //link <user_id_navire>
-        Usage admin : //link @mention <user_id_navire>
-        """
+    async def link(self, ctx: commands.Context, arg1: str = "", arg2: str = ""):
         await ctx.message.delete(delay=2)
 
-        # ── Cas admin : //link @mention <user_id_navire> ──────────────────────
-        if ctx.message.mentions and navire_id:
+        # ── Cas admin : //link <discord_username> <navire_id> ────────────────
+        if arg1 and arg2:
             if not _is_admin(ctx):
                 return await ctx.send("❌ Réservé aux admins.", delete_after=5)
 
-            if not navire_id.isdigit():
+            if not arg2.isdigit():
                 return await ctx.send(
-                    "❌ Usage admin : `//link @mention <user_id_navire>`",
+                    "❌ Usage admin : `//link <discord_username> <user_id_navire>`",
                     delete_after=10,
                 )
 
-            member  = ctx.message.mentions[0]
-            discord_id = str(member.id)
+            member = _find_member_by_name(ctx.guild, arg1)
+            if not member:
+                return await ctx.send(
+                    f"❌ Aucun membre trouvé avec le nom `{arg1}`.",
+                    delete_after=10,
+                )
 
             try:
-                result = await link_discord(int(navire_id), discord_id)
+                result = await link_discord(int(arg2), str(member.id))
                 if result.get("ok"):
                     await ctx.send(
-                        f"✅ **{member.display_name}** lié au compte NAVIRE `#{navire_id}`.",
+                        f"✅ **{member.display_name}** lié au compte NAVIRE `#{arg2}`.",
                         delete_after=10,
                     )
                 else:
@@ -80,8 +91,7 @@ class SyncRolesCog(commands.Cog):
             return
 
         # ── Cas user : //link <user_id_navire> ───────────────────────────────
-        token = target  # premier argument = user_id_navire
-        if not token.isdigit():
+        if not arg1.isdigit():
             return await ctx.send(
                 "❌ Usage : `//link <ton_user_id_navire>`\n"
                 "Trouve ton ID dans ton profil sur navire-ai.com.",
@@ -89,7 +99,7 @@ class SyncRolesCog(commands.Cog):
             )
 
         try:
-            result = await link_discord(int(token), str(ctx.author.id))
+            result = await link_discord(int(arg1), str(ctx.author.id))
             if result.get("ok"):
                 await ctx.send(
                     "✅ Compte lié ! Tape `//sync` pour mettre à jour ton rôle.",
@@ -100,7 +110,7 @@ class SyncRolesCog(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Erreur : {e}", delete_after=10)
 
-    # ── Commande user : //sync ───────────────────────────────────────────────
+    # ── //sync ───────────────────────────────────────────────────────────────
 
     @commands.command(name="sync")
     async def sync(self, ctx: commands.Context):
