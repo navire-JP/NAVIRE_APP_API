@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import User, QCMSession
+from app.db.models import User, QcmSession, QcmQuestion
 from app.schemas.auth import ProfileUpdateIn, UserOut
 from app.routers.auth import get_current_user
 
@@ -30,17 +30,25 @@ def get_user_public(username: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
 
-    sessions = db.query(QCMSession).filter(
-        QCMSession.user_id == user.id,
-        QCMSession.status == "completed"
-    ).all()
+    session_ids = [
+        s.id for s in db.query(QcmSession.id).filter(
+            QcmSession.user_id == user.id,
+            QcmSession.status == "done",
+        ).all()
+    ]
 
-    total_sessions = len(sessions)
-    total_questions = sum(s.total_questions or 0 for s in sessions)
-    total_correct = sum(s.correct_answers or 0 for s in sessions)
-    success_rate = round(
-        (total_correct / total_questions * 100) if total_questions > 0 else 0, 1
-    )
+    total_sessions = len(session_ids)
+
+    if session_ids:
+        questions = db.query(QcmQuestion).filter(
+            QcmQuestion.session_id.in_(session_ids),
+            QcmQuestion.answered == True,
+        ).all()
+        total_answered = len(questions)
+        total_correct = sum(1 for q in questions if q.user_letter == q.correct_letter)
+        success_rate = round((total_correct / total_answered * 100) if total_answered > 0 else 0, 1)
+    else:
+        success_rate = 0.0
 
     return {
         "username": user.username,
