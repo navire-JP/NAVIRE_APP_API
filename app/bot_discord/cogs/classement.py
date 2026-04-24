@@ -1,8 +1,10 @@
 # app/bot_discord/cogs/classement.py
 # - //setup_classement  : poste l'embed dans le channel (admin seulement)
 # - Mise à jour auto de l'embed à chaque gain/perte ELO (appelé depuis participation.py)
-# - Format identique à l'embed existant + streak 🔥
+# - Persistance du message_id dans un fichier JSON pour survivre aux redémarrages
 
+import json
+import os
 import discord
 from discord.ext import commands, tasks
 
@@ -14,7 +16,24 @@ from app.bot_discord.config import (
 )
 from app.bot_discord.utils.api_client import get_leaderboard
 
-# Grades NAVIRE (copie de elo service)
+# ── Persistance du message_id ────────────────────────────────────────────────
+_STATE_FILE = os.path.join(os.path.dirname(__file__), ".classement_state.json")
+
+
+def _load_message_id() -> int | None:
+    try:
+        with open(_STATE_FILE) as f:
+            return json.load(f).get("message_id")
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return None
+
+
+def _save_message_id(message_id: int | None) -> None:
+    with open(_STATE_FILE, "w") as f:
+        json.dump({"message_id": message_id}, f)
+
+
+# ── Grades ───────────────────────────────────────────────────────────────────
 _GRADE_THRESHOLDS = [
     (9231, "🌑 KRONOS"),
     (1200, "🌟 Polaris"),
@@ -25,47 +44,40 @@ _GRADE_THRESHOLDS = [
     (0,    "Esseulé"),
 ]
 
+
 def _grade_from_elo(elo: int) -> str:
     for threshold, name in _GRADE_THRESHOLDS:
         if elo >= threshold:
             return name
     return "Esseulé"
 
+
 _MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
 
 
 def _build_embed(rows: list[dict]) -> discord.Embed:
-    embed = discord.Embed(
-        title="🏆 Classement des Elo",
-        color=0xE87722,
-    )
+    embed = discord.Embed(title="🏆 Classement des Elo", color=0xE87722)
 
     if not rows:
         embed.description = "Aucun classement disponible."
-        embed.set_footer(text="Mise à jour automatiquement à chaque changement de score")
+        embed.set_footer(text="Mis à jour automatiquement à chaque changement de score")
         return embed
 
     lines = []
     for row in rows:
-        rank    = row["rank"]
-        elo     = row["elo"] or 0
-        grade   = _grade_from_elo(elo)
-        streak  = row.get("discord_streak", 0)
+        rank     = row["rank"]
+        elo      = row["elo"] or 0
+        grade    = _grade_from_elo(elo)
+        streak   = row.get("discord_streak", 0)
         username = row.get("username", "?")
 
-        # Préfixe rang
-        if rank <= 3:
-            prefix = _MEDALS[rank]
-        else:
-            prefix = f"#{rank}"
-
-        # Streak
-        streak_str = f" 🔥 : **{streak}**" if streak and streak > 0 else ""
+        prefix     = _MEDALS[rank] if rank <= 3 else f"#{rank}"
+        streak_str = f" 🔥 **{streak}**" if streak and streak > 0 else ""
 
         lines.append(f"{prefix} – **{username}** – {grade} – {elo} Elo{streak_str}")
 
     embed.description = "\n".join(lines)
-    embed.set_footer(text="Mise à jour automatiquement à chaque changement de score")
+    embed.set_footer(text="Mis à jour automatiquement à chaque changement de score")
     return embed
 
 
@@ -77,12 +89,40 @@ def _is_admin(ctx: commands.Context) -> bool:
 class ClassementCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot         = bot
-        self._message_id: int | None = None
+        self._message_id: int | None = _load_message_id()
         self.refresh.change_interval(seconds=LEADERBOARD_REFRESH_SECONDS)
         self.refresh.start()
 
     def cog_unload(self):
         self.refresh.cancel()
+
+    # ── Noyau : obtenir ou créer le message embed ────────────────────────────
+
+    async def _get_or_create_message(
+        self,
+        channel: discord.TextChannel,
+        embed: discord.Embed,
+    ) -> discord.Message:
+        """
+        Tente de récupérer le message existant.
+        Si introuvable, purge les anciens messages du bot et en crée un seul.
+        """
+        if self._message_id:
+            try:
+                msg = await channel.fetch_message(self._message_id)
+                return msg
+            except (discord.NotFound, discord.HTTPException):
+                # Message supprimé — on repart de zéro
+                self._message_id = None
+                _save_message_id(None)
+
+        # Purger pour éviter tout doublon avant de poster
+        await channel.purge(limit=20, check=lambda m: m.author == self.bot.user)
+
+        msg = await channel.send(embed=embed)
+        self._message_id = msg.id
+        _save_message_id(msg.id)
+        return msg
 
     # ── Mise à jour de l'embed (appelable depuis l'extérieur) ────────────────
 
@@ -91,6 +131,7 @@ class ClassementCog(commands.Cog):
         channel = self.bot.get_channel(CLASSEMENT_CHANNEL_ID)
         if not channel:
             return
+
         try:
             rows  = await get_leaderboard(limit=LEADERBOARD_LIMIT)
             embed = _build_embed(rows)
@@ -98,19 +139,17 @@ class ClassementCog(commands.Cog):
             print(f"[classement] Erreur API : {e}")
             return
 
-        if self._message_id:
-            try:
-                msg = await channel.fetch_message(self._message_id)
+        try:
+            msg = await self._get_or_create_message(channel, embed)
+            # Si le message existait déjà, on l'édite (sinon il est déjà posté frais)
+            if msg.embeds and msg.embeds[0].description != embed.description:
                 await msg.edit(embed=embed)
-                return
-            except (discord.NotFound, discord.HTTPException):
-                self._message_id = None
+            elif not msg.embeds:
+                await msg.edit(embed=embed)
+        except Exception as e:
+            print(f"[classement] Erreur update_embed : {e}")
 
-        # Pas de message existant → on en crée un
-        msg = await channel.send(embed=embed)
-        self._message_id = msg.id
-
-    # ── Task de refresh périodique (filet de sécurité) ───────────────────────
+    # ── Task de refresh périodique ───────────────────────────────────────────
 
     @tasks.loop(seconds=300)
     async def refresh(self):
@@ -120,11 +159,11 @@ class ClassementCog(commands.Cog):
     async def before_refresh(self):
         await self.bot.wait_until_ready()
 
-    # ── Commande //setup_classement (admin) ──────────────────────────────────
+    # ── //setup_classement (admin) ───────────────────────────────────────────
 
     @commands.command(name="setup_classement")
     async def setup_classement(self, ctx: commands.Context):
-        """//setup_classement — Installe l'embed classement dans #classement (admin)."""
+        """//setup_classement — (Re)installe l'embed classement (admin)."""
         if not _is_admin(ctx):
             return await ctx.send("❌ Commande réservée aux admins.", delete_after=5)
 
@@ -137,9 +176,9 @@ class ClassementCog(commands.Cog):
                 delete_after=10,
             )
 
-        # Purger les anciens messages du bot dans ce channel
-        await channel.purge(limit=10, check=lambda m: m.author == self.bot.user)
+        # Forcer la recréation propre
         self._message_id = None
+        _save_message_id(None)
 
         try:
             rows  = await get_leaderboard(limit=LEADERBOARD_LIMIT)
@@ -147,8 +186,7 @@ class ClassementCog(commands.Cog):
         except Exception as e:
             return await ctx.send(f"❌ Erreur API : {e}", delete_after=10)
 
-        msg = await channel.send(embed=embed)
-        self._message_id = msg.id
+        await self._get_or_create_message(channel, embed)
 
         await ctx.send(
             f"✅ Embed classement installé dans <#{CLASSEMENT_CHANNEL_ID}>.",
