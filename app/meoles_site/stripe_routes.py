@@ -211,6 +211,8 @@ async def create_checkout_session(
     request: Request,
     meoles_session: Optional[str] = Cookie(default=None)
 ):
+    print(f"[checkout] meoles_session cookie = {meoles_session}")
+    print(f"[checkout] cookies reçus = {request.cookies}")
     if not meoles_session:
         raise HTTPException(400, "Panier introuvable")
 
