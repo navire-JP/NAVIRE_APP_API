@@ -174,7 +174,7 @@ def _apply_promo(db: Session, user: User, promo: PromoCode) -> None:
 # ============================================================
 
 class CheckoutIn(BaseModel):
-    plan: Literal["membre", "membre+"]
+    plan: Literal["membre", "membre+", "beta"]
     billing_cycle: Literal["monthly", "annual"]
     promo_code: str | None = None
 

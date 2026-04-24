@@ -44,6 +44,12 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "files_total":      24,
         "file_ttl_hours":   None,
     },
+    "beta": {
+        "qcm_per_day":      None,
+        "flashcards_total": 500,
+        "files_total":      7,
+        "file_ttl_hours":   None,
+    },
 }
 
 # Fallback si un plan inconnu se retrouve en base (ne devrait pas arriver)

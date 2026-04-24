@@ -60,6 +60,9 @@ STRIPE_PRICES: dict[str, dict[str, str]] = {
         "monthly": os.getenv("STRIPE_PRICE_MEMBRE_PLUS_MONTHLY", ""),
         "annual":  os.getenv("STRIPE_PRICE_MEMBRE_PLUS_ANNUAL", ""),
     },
+    "beta": {
+        "monthly": os.getenv("STRIPE_PRICE_BETA", ""),
+    },
 }
 
 # URL de redirection après checkout Stripe (à setter sur Render)
