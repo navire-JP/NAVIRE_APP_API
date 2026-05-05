@@ -33,9 +33,11 @@ from app.routers.discord_bot import router as discord_bot_router
 # ============================================================
 # MEOLES — import isolé
 # ============================================================
+from app.meoles_site import meoles_models  # noqa: F401 — enregistre CartSession + CartItem dans Base
 from app.meoles_site.cart_routes import router as meoles_cart_router
 from app.meoles_site.stripe_routes import router as meoles_stripe_router
 from app.meoles_site.custom_routes import router as meoles_custom_router
+from app.meoles_site.admin_routes import router as meoles_admin_router
 
 # ============================================================
 # APScheduler — purge QcmSessionHistory > 6 mois d'inactivité
@@ -163,6 +165,7 @@ app.include_router(discord_bot_router)
 app.include_router(meoles_cart_router)
 app.include_router(meoles_stripe_router)
 app.include_router(meoles_custom_router)
+app.include_router(meoles_admin_router)
 
 # ============================================================
 # Healthcheck
