@@ -3,23 +3,24 @@ import httpx
 import asyncio
 
 from datetime import datetime
-from fastapi import APIRouter, Cookie, Response
+from fastapi import APIRouter, Cookie, Response, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
+from sqlalchemy.orm import Session
 
+from app.db.database import get_db
 from app.meoles_site.config import meoles_settings
 from app.meoles_site.cart import create_session, add_to_cart
 
 router = APIRouter(prefix="/meoles/custom", tags=["meoles-custom"])
 
-# ─── Stockage in-memory des demandes CUSTOM ───────────────────────────────────
-# { custom_id: { prenom, nom, email, telephone, type, matiere, description } }
+# _custom_store reste in-memory : buffer temporaire avant envoi mail, pas besoin de persistance
 _custom_store: dict = {}
 
 BREVO_URL = "https://api.brevo.com/v3/smtp/email"
 ADMIN_EMAIL = "contact.meoles@gmail.com"
-TEMPLATE_CUSTOM_CLIENT_ID = 3  # MEOLES CUSTOM - Confirmation d'inscription
+TEMPLATE_CUSTOM_CLIENT_ID = 3
 
 
 def _brevo_headers() -> dict:
@@ -66,7 +67,6 @@ def _admin_custom_html(data: dict, custom_id: str) -> str:
         <p style="margin:4px 0;"><strong>Téléphone :</strong> {data.get('telephone') or '—'}</p>
         <p style="margin:4px 0;"><strong>Date :</strong> {submitted_at}</p>
         <p style="margin:4px 0;"><strong>Réf. demande :</strong> <code style="font-size:11px;">{custom_id}</code></p>
-
         <table style="width:100%;border-collapse:collapse;margin-top:24px;">
           <tr style="border-top:1px solid #e8e8e8;">
             <td style="padding:14px 0;width:35%;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#aaa;">Type</td>
@@ -132,18 +132,16 @@ async def custom_submit(
     body: CustomSubmitRequest,
     response: Response,
     meoles_session: Optional[str] = Cookie(default=None),
+    db: Session = Depends(get_db),
 ):
-    # Valider
     if not all([body.prenom, body.nom, body.email, body.type, body.matiere, body.description]):
         return JSONResponse(status_code=400, content={"error": "Champs manquants"})
 
     if len(body.description.strip()) < 20:
         return JSONResponse(status_code=400, content={"error": "Description trop courte"})
 
-    # Créer un ID unique pour cette demande
     custom_id = str(uuid.uuid4())[:12].upper()
 
-    # Stocker les données
     data = {
         "prenom":      body.prenom,
         "nom":         body.nom,
@@ -157,7 +155,6 @@ async def custom_submit(
     }
     _custom_store[custom_id] = data
 
-    # Envoyer les deux mails en parallèle (sans bloquer la réponse)
     async def _send_mails():
         await asyncio.gather(
             _mail_admin_custom(data, custom_id),
@@ -166,16 +163,14 @@ async def custom_submit(
         )
     asyncio.create_task(_send_mails())
 
-    # Créer/récupérer la session panier et ajouter le produit
     if not meoles_session:
-        meoles_session = create_session()
+        meoles_session = create_session(db)
 
     try:
-        add_to_cart(meoles_session, "meoles_custom", 1)
+        add_to_cart(meoles_session, "meoles_custom", db, 1)
     except ValueError:
         pass
 
-    # Poser le cookie session
     response.set_cookie(
         key="meoles_session",
         value=meoles_session,
@@ -192,7 +187,7 @@ async def custom_submit(
     }
 
 
-# ─── Utilitaire : récupérer une demande par custom_id (usage interne webhook) ─
+# ─── Utilitaire interne ───────────────────────────────────────────────────────
 
 def get_custom_data(custom_id: str) -> Optional[dict]:
     return _custom_store.get(custom_id)

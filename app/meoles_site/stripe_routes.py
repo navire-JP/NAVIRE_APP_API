@@ -3,9 +3,11 @@ import httpx
 import stripe
 
 from datetime import datetime
-from fastapi import APIRouter, Request, HTTPException, Cookie
+from fastapi import APIRouter, Request, HTTPException, Cookie, Depends
 from typing import Optional
+from sqlalchemy.orm import Session
 
+from app.db.database import get_db
 from app.meoles_site.config import meoles_settings
 from app.meoles_site.cart import get_line_items, get_cart, clear_cart
 
@@ -209,14 +211,15 @@ async def _mail_client(session: dict, items: list, total: float, customer_name: 
 @router.post("/create-session")
 async def create_checkout_session(
     request: Request,
-    meoles_session: Optional[str] = Cookie(default=None)
+    meoles_session: Optional[str] = Cookie(default=None),
+    db: Session = Depends(get_db),
 ):
     print(f"[checkout] meoles_session cookie = {meoles_session}")
     print(f"[checkout] cookies reçus = {request.cookies}")
     if not meoles_session:
         raise HTTPException(400, "Panier introuvable")
 
-    line_items = get_line_items(meoles_session)
+    line_items = get_line_items(meoles_session, db)
     if not line_items:
         raise HTTPException(400, "Panier vide")
 
@@ -250,7 +253,7 @@ async def create_checkout_session(
 
 
 @router.post("/webhook")
-async def stripe_webhook(request: Request):
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
@@ -268,7 +271,7 @@ async def stripe_webhook(request: Request):
         customer_name  = session.get("customer_details", {}).get("name", "")
 
         if meoles_session_id:
-            cart = get_cart(meoles_session_id)
+            cart = get_cart(meoles_session_id, db)
             items = cart.get("items", [])
             total = cart.get("total", 0)
             if total > 100:
@@ -279,6 +282,6 @@ async def stripe_webhook(request: Request):
                 tasks.append(_mail_client(session, items, total, customer_name, customer_email))
 
             await asyncio.gather(*tasks, return_exceptions=True)
-            clear_cart(meoles_session_id)
+            clear_cart(meoles_session_id, db)
 
     return {"status": "ok"}
