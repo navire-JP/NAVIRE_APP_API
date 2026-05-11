@@ -243,6 +243,7 @@ async def create_checkout_session(
             cancel_url=f"{meoles_settings.MEOLES_FRONTEND_URL}?commande=cancel",
             metadata={"meoles_session_id": sid},
             billing_address_collection="required",
+            allow_promotion_codes=True,
             locale="fr",
         )
         if shipping_rate:
