@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Response, Depends
+from fastapi import APIRouter, Cookie, Response, Depends, Header
 from fastapi.responses import JSONResponse
 from typing import Optional
 from pydantic import BaseModel
@@ -23,6 +23,18 @@ class UpdateItemRequest(BaseModel):
     quantity: int
 
 
+def _resolve_session(
+    meoles_session: Optional[str],
+    x_meoles_session: Optional[str],
+    db: Session,
+) -> str:
+    """Cookie en priorité, sinon header, sinon nouvelle session."""
+    sid = meoles_session or x_meoles_session
+    if not sid:
+        sid = create_session(db)
+    return sid
+
+
 def _cart_response(session_id: str, data: dict, response: Response):
     response.set_cookie(
         key=COOKIE_NAME,
@@ -32,6 +44,8 @@ def _cart_response(session_id: str, data: dict, response: Response):
         samesite="none",
         secure=True,
     )
+    # Toujours renvoyer le session_id dans la réponse JSON
+    data["session_id"] = session_id
     return data
 
 
@@ -39,13 +53,12 @@ def _cart_response(session_id: str, data: dict, response: Response):
 async def get_cart_route(
     response: Response,
     meoles_session: Optional[str] = Cookie(default=None),
+    x_meoles_session: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    if not meoles_session:
-        meoles_session = create_session(db)
-
-    cart = get_cart(meoles_session, db)
-    return _cart_response(meoles_session, cart, response)
+    sid = _resolve_session(meoles_session, x_meoles_session, db)
+    cart = get_cart(sid, db)
+    return _cart_response(sid, cart, response)
 
 
 @router.post("/add")
@@ -53,17 +66,15 @@ async def add_item(
     body: AddItemRequest,
     response: Response,
     meoles_session: Optional[str] = Cookie(default=None),
+    x_meoles_session: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    if not meoles_session:
-        meoles_session = create_session(db)
-
+    sid = _resolve_session(meoles_session, x_meoles_session, db)
     try:
-        cart = add_to_cart(meoles_session, body.product_key, db, body.quantity)
+        cart = add_to_cart(sid, body.product_key, db, body.quantity)
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
-
-    return _cart_response(meoles_session, cart, response)
+    return _cart_response(sid, cart, response)
 
 
 @router.post("/update")
@@ -71,13 +82,12 @@ async def update_item(
     body: UpdateItemRequest,
     response: Response,
     meoles_session: Optional[str] = Cookie(default=None),
+    x_meoles_session: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    if not meoles_session:
-        meoles_session = create_session(db)
-
-    cart = update_quantity(meoles_session, body.product_key, body.quantity, db)
-    return _cart_response(meoles_session, cart, response)
+    sid = _resolve_session(meoles_session, x_meoles_session, db)
+    cart = update_quantity(sid, body.product_key, body.quantity, db)
+    return _cart_response(sid, cart, response)
 
 
 @router.delete("/remove/{product_key}")
@@ -85,10 +95,9 @@ async def remove_item(
     product_key: str,
     response: Response,
     meoles_session: Optional[str] = Cookie(default=None),
+    x_meoles_session: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    if not meoles_session:
-        meoles_session = create_session(db)
-
-    cart = remove_from_cart(meoles_session, product_key, db)
-    return _cart_response(meoles_session, cart, response)
+    sid = _resolve_session(meoles_session, x_meoles_session, db)
+    cart = remove_from_cart(sid, product_key, db)
+    return _cart_response(sid, cart, response)

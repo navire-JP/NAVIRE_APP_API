@@ -3,7 +3,7 @@ import httpx
 import stripe
 
 from datetime import datetime
-from fastapi import APIRouter, Request, HTTPException, Cookie, Depends
+from fastapi import APIRouter, Request, HTTPException, Cookie, Depends, Header
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -212,14 +212,18 @@ async def _mail_client(session: dict, items: list, total: float, customer_name: 
 async def create_checkout_session(
     request: Request,
     meoles_session: Optional[str] = Cookie(default=None),
+    x_meoles_session: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    print(f"[checkout] meoles_session cookie = {meoles_session}")
-    print(f"[checkout] cookies reçus = {request.cookies}")
-    if not meoles_session:
+    # Cookie en priorité, sinon header
+    sid = meoles_session or x_meoles_session
+
+    print(f"[checkout] cookie={meoles_session} | header={x_meoles_session} | resolved={sid}")
+
+    if not sid:
         raise HTTPException(400, "Panier introuvable")
 
-    line_items = get_line_items(meoles_session, db)
+    line_items = get_line_items(sid, db)
     if not line_items:
         raise HTTPException(400, "Panier vide")
 
@@ -237,7 +241,7 @@ async def create_checkout_session(
             mode="payment",
             success_url=f"{meoles_settings.MEOLES_FRONTEND_URL}?commande=success",
             cancel_url=f"{meoles_settings.MEOLES_FRONTEND_URL}?commande=cancel",
-            metadata={"meoles_session_id": meoles_session},
+            metadata={"meoles_session_id": sid},
             billing_address_collection="required",
             locale="fr",
         )

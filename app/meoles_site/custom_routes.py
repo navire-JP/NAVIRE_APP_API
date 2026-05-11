@@ -3,7 +3,7 @@ import httpx
 import asyncio
 
 from datetime import datetime
-from fastapi import APIRouter, Cookie, Response, Depends
+from fastapi import APIRouter, Cookie, Response, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -15,7 +15,6 @@ from app.meoles_site.cart import create_session, add_to_cart
 
 router = APIRouter(prefix="/meoles/custom", tags=["meoles-custom"])
 
-# _custom_store reste in-memory : buffer temporaire avant envoi mail, pas besoin de persistance
 _custom_store: dict = {}
 
 BREVO_URL = "https://api.brevo.com/v3/smtp/email"
@@ -37,8 +36,6 @@ def _fourchette(type_bijou: str) -> str:
     return "180 – 220 €"
 
 
-# ─── Schéma ───────────────────────────────────────────────────────────────────
-
 class CustomSubmitRequest(BaseModel):
     prenom: str
     nom: str
@@ -48,8 +45,6 @@ class CustomSubmitRequest(BaseModel):
     matiere: str
     description: str
 
-
-# ─── Mails ────────────────────────────────────────────────────────────────────
 
 def _admin_custom_html(data: dict, custom_id: str) -> str:
     submitted_at = datetime.now().strftime("%d/%m/%Y à %H:%M")
@@ -125,13 +120,12 @@ async def _mail_client_custom(data: dict):
         r.raise_for_status()
 
 
-# ─── Route ────────────────────────────────────────────────────────────────────
-
 @router.post("/submit")
 async def custom_submit(
     body: CustomSubmitRequest,
     response: Response,
     meoles_session: Optional[str] = Cookie(default=None),
+    x_meoles_session: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     if not all([body.prenom, body.nom, body.email, body.type, body.matiere, body.description]):
@@ -163,17 +157,19 @@ async def custom_submit(
         )
     asyncio.create_task(_send_mails())
 
-    if not meoles_session:
-        meoles_session = create_session(db)
+    # Cookie en priorité, sinon header, sinon nouvelle session
+    sid = meoles_session or x_meoles_session
+    if not sid:
+        sid = create_session(db)
 
     try:
-        add_to_cart(meoles_session, "meoles_custom", db, 1)
+        add_to_cart(sid, "meoles_custom", db, 1)
     except ValueError:
         pass
 
     response.set_cookie(
         key="meoles_session",
-        value=meoles_session,
+        value=sid,
         max_age=60 * 60 * 24,
         httponly=False,
         samesite="none",
@@ -183,11 +179,9 @@ async def custom_submit(
     return {
         "status":     "ok",
         "custom_id":  custom_id,
-        "session_id": meoles_session,
+        "session_id": sid,
     }
 
-
-# ─── Utilitaire interne ───────────────────────────────────────────────────────
 
 def get_custom_data(custom_id: str) -> Optional[dict]:
     return _custom_store.get(custom_id)
