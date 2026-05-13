@@ -3,42 +3,63 @@ import httpx
 import stripe
 
 from datetime import datetime
-from fastapi import APIRouter, Request, HTTPException, Cookie, Depends, Header
-from typing import Optional
+from fastapi import APIRouter, Request, HTTPException
 from sqlalchemy.orm import Session
 
-from app.db.database import get_db
 from app.meoles_site.config import meoles_settings
-from app.meoles_site.cart import get_line_items, get_cart, clear_cart
 
 stripe.api_key = meoles_settings.STRIPE_SECRET_KEY_MEOLES
 
 router = APIRouter(prefix="/meoles/checkout", tags=["meoles-checkout"])
 
-BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+BREVO_URL  = "https://api.brevo.com/v3/smtp/email"
 ADMIN_EMAIL = "contact.meoles@gmail.com"
 TEMPLATE_CLIENT_ID = 2
 
-PRODUCT_IMAGES = {
-    "bague_silence":   "https://i.imgur.com/6uVMxQ1.jpeg",
-    "collier_silence": "https://i.imgur.com/6uVMxQ1.jpeg",
-    "collier_polaris": "https://image.noelshack.com/fichiers/2026/13/5/1774638097-img-20251110-144538641-2.jpg",
-    "meoles_custom":   "https://i.imgur.com/bLUkEs5.jpeg",
+# ─── Catalogue local (price_id → label / image) ───────────────────────────────
+# Utilisé pour enrichir les mails à partir des line_items Stripe
+
+PRICE_META = {
+    "price_1TKKRWLbFEfgkQPqVnkZBBUE": {
+        "label": "Bague Silences — Argent 925",
+        "image": "https://cdn.phototourl.com/free/2026-04-10-dcaf837b-e17f-4a24-8152-7a81c85d59b8.jpg",
+        "key":   "bague_fluid",
+    },
+    "price_1TKKUaLbFEfgkQPqv2DUD4HS": {
+        "label": "Collier Silences — Argent 925",
+        "image": "https://cdn.phototourl.com/free/2026-04-10-7cbb53e3-179d-436f-83cf-ed18300595bf.jpg",
+        "key":   "collier_silence",
+    },
+    "price_1SGc0kLbFEfgkQPqZqV6sbwe": {
+        "label": "Collier Polaris — Argent 925 (Edition limitée)",
+        "image": "https://image.noelshack.com/fichiers/2026/13/5/1774638097-img-20251110-144538641-2.jpg",
+        "key":   "collier_polaris",
+    },
+    "price_1TMBmwLbFEfgkQPqNNbXpFVq": {
+        "label": "T-Shirt Silences — S",
+        "image": "https://image.noelshack.com/fichiers/2026/16/2/1776178739-img-20250915-124611456-1.jpg",
+        "key":   "tee_s",
+    },
+    "price_1TMBnxLbFEfgkQPqCVsqdmGW": {
+        "label": "T-Shirt Silences — M",
+        "image": "https://image.noelshack.com/fichiers/2026/16/2/1776178739-img-20250915-124611456-1.jpg",
+        "key":   "tee_m",
+    },
+    "price_1TMBnPLbFEfgkQPqo6qj57Qq": {
+        "label": "T-Shirt Silences — L",
+        "image": "https://image.noelshack.com/fichiers/2026/16/2/1776178739-img-20250915-124611456-1.jpg",
+        "key":   "tee_l",
+    },
 }
 
-PRODUCT_LABELS = {
-    "bague_silence":   "Bague Silence — Argent 925",
-    "collier_silence": "Collier Silence — Argent 925",
-    "collier_polaris": "Collier Polaris — Argent 925 (Précommande)",
-    "meoles_custom":   "MEOLES CUSTOM — Inscription",
-}
 
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _brevo_headers() -> dict:
     return {
-        "accept": "application/json",
+        "accept":       "application/json",
         "content-type": "application/json",
-        "api-key": meoles_settings.BREVO_API_KEY_MEOLES,
+        "api-key":      meoles_settings.BREVO_API_KEY_MEOLES,
     }
 
 
@@ -52,26 +73,44 @@ def _get_address(addr: dict) -> dict:
     }
 
 
-def _item_key(item: dict) -> str:
-    return item.get("product_key") or item.get("key", "")
-
-
-def _item_price(item: dict) -> float:
-    price = item.get("price", 0)
-    return price / 100 if price > 100 else price
+def _items_from_stripe(stripe_session_id: str) -> list[dict]:
+    """
+    Récupère les line_items depuis l'API Stripe et les normalise.
+    Retourne une liste de dicts : {label, image, key, quantity, unit_price, subtotal}
+    """
+    try:
+        li = stripe.checkout.Session.list_line_items(stripe_session_id, limit=10)
+        items = []
+        for line in li.data:
+            price_id = line.price.id if line.price else ""
+            meta = PRICE_META.get(price_id, {})
+            qty  = line.quantity or 1
+            unit = (line.price.unit_amount or 0)        # centimes
+            items.append({
+                "label":      meta.get("label", line.description or "Article"),
+                "image":      meta.get("image", ""),
+                "key":        meta.get("key", ""),
+                "quantity":   qty,
+                "unit_price": unit / 100,
+                "subtotal":   unit * qty / 100,
+            })
+        return items
+    except Exception as e:
+        print(f"[webhook] Erreur list_line_items : {e}")
+        return []
 
 
 def _build_item_params(items: list) -> dict:
+    """Formate les items pour le template Brevo (3 slots max)."""
     params = {}
     for i in range(3):
         idx = i + 1
         if i < len(items):
             item = items[i]
-            key = _item_key(item)
-            params[f"item{idx}_name"]  = PRODUCT_LABELS.get(key, item.get("name", ""))
-            params[f"item{idx}_image"] = PRODUCT_IMAGES.get(key, "")
-            params[f"item{idx}_qty"]   = str(item.get("quantity", 1))
-            params[f"item{idx}_price"] = f"{_item_price(item) * item.get('quantity', 1):.2f}"
+            params[f"item{idx}_name"]  = item["label"]
+            params[f"item{idx}_image"] = item["image"]
+            params[f"item{idx}_qty"]   = str(item["quantity"])
+            params[f"item{idx}_price"] = f"{item['subtotal']:.2f}"
         else:
             params[f"item{idx}_name"]  = ""
             params[f"item{idx}_image"] = ""
@@ -80,32 +119,30 @@ def _build_item_params(items: list) -> dict:
     return params
 
 
+def _addr_block(a: dict) -> str:
+    return "<br>".join(filter(None, [
+        a.get("line1", ""), a.get("line2", ""),
+        f"{a.get('postal_code', '')} {a.get('city', '')}".strip(),
+        a.get("country", ""),
+    ])) or "—"
+
+
 def _admin_html(session: dict, items: list, total: float) -> str:
-    customer = session.get("customer_details", {})
-    name = customer.get("name", "—")
-    email = customer.get("email", "—")
+    customer   = session.get("customer_details", {})
+    name       = customer.get("name", "—")
+    email      = customer.get("email", "—")
     session_id = session.get("id", "—")
     order_date = datetime.now().strftime("%d/%m/%Y à %H:%M")
-    shipping = (session.get("shipping_details") or {}).get("address", {})
-    billing = customer.get("address") or {}
-
-    def addr_block(a: dict) -> str:
-        return "<br>".join(filter(None, [
-            a.get("line1", ""), a.get("line2", ""),
-            f"{a.get('postal_code', '')} {a.get('city', '')}".strip(),
-            a.get("country", "")
-        ])) or "—"
+    shipping   = (session.get("shipping_details") or {}).get("address", {})
+    billing    = customer.get("address") or {}
 
     rows = ""
     for item in items:
-        label = PRODUCT_LABELS.get(_item_key(item), item.get("name", "Article"))
-        qty = item.get("quantity", 1)
-        price = _item_price(item)
         rows += (
             f"<tr>"
-            f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:13px;'>{label}</td>"
-            f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:13px;'>{qty}</td>"
-            f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px;'>{price * qty:.2f} €</td>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:13px;'>{item['label']}</td>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:13px;'>{item['quantity']}</td>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px;'>{item['subtotal']:.2f} €</td>"
             f"</tr>"
         )
 
@@ -119,16 +156,16 @@ def _admin_html(session: dict, items: list, total: float) -> str:
         <p style="margin:4px 0;"><strong>Client :</strong> {name}</p>
         <p style="margin:4px 0;"><strong>Email :</strong> {email}</p>
         <p style="margin:4px 0;"><strong>Date :</strong> {order_date}</p>
-        <p style="margin:4px 0;"><strong>Session :</strong> <code style="font-size:11px;">{session_id}</code></p>
+        <p style="margin:4px 0;"><strong>Session Stripe :</strong> <code style="font-size:11px;">{session_id}</code></p>
         <table style="width:100%;border-collapse:collapse;margin-top:24px;background:#f9f9f9;">
           <tr>
             <td style="padding:16px;vertical-align:top;width:50%;">
               <p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Livraison</p>
-              <p style="margin:0;font-size:13px;line-height:1.6;">{addr_block(shipping)}</p>
+              <p style="margin:0;font-size:13px;line-height:1.6;">{_addr_block(shipping)}</p>
             </td>
             <td style="padding:16px;vertical-align:top;border-left:1px solid #eee;">
               <p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Facturation</p>
-              <p style="margin:0;font-size:13px;line-height:1.6;">{addr_block(billing)}</p>
+              <p style="margin:0;font-size:13px;line-height:1.6;">{_addr_block(billing)}</p>
             </td>
           </tr>
         </table>
@@ -160,22 +197,22 @@ async def _mail_admin(session: dict, items: list, total: float):
     name = session.get("customer_details", {}).get("name", "—")
     async with httpx.AsyncClient() as client:
         r = await client.post(BREVO_URL, headers=_brevo_headers(), json={
-            "sender": {"name": "MEOLES", "email": ADMIN_EMAIL},
-            "to": [{"email": ADMIN_EMAIL, "name": "Jvlien"}],
-            "subject": f"🛍️ Commande — {name} — {total:.2f} €",
+            "sender":      {"name": "MEOLES", "email": ADMIN_EMAIL},
+            "to":          [{"email": ADMIN_EMAIL, "name": "Jvlien"}],
+            "subject":     f"🛍️ Commande — {name} — {total:.2f} €",
             "htmlContent": _admin_html(session, items, total),
         }, timeout=10)
         r.raise_for_status()
 
 
 async def _mail_client(session: dict, items: list, total: float, customer_name: str, customer_email: str):
-    customer = session.get("customer_details", {})
+    customer   = session.get("customer_details", {})
     first_name = customer_name.split()[0] if customer_name else "cher client"
     order_date = datetime.now().strftime("%d %B %Y")
     session_id = session.get("id", "")
-    order_id = session_id[-8:].upper() if session_id else "—"
-    shipping = _get_address((session.get("shipping_details") or {}).get("address", {}))
-    billing  = _get_address(customer.get("address") or {})
+    order_id   = session_id[-8:].upper() if session_id else "—"
+    shipping   = _get_address((session.get("shipping_details") or {}).get("address", {}))
+    billing    = _get_address(customer.get("address") or {})
 
     async with httpx.AsyncClient() as client:
         r = await client.post(BREVO_URL, headers=_brevo_headers(), json={
@@ -206,60 +243,11 @@ async def _mail_client(session: dict, items: list, total: float, customer_name: 
         r.raise_for_status()
 
 
-# ─── Routes ───────────────────────────────────────────────────────────────────
-
-@router.post("/create-session")
-async def create_checkout_session(
-    request: Request,
-    meoles_session: Optional[str] = Cookie(default=None),
-    x_meoles_session: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    # Cookie en priorité, sinon header
-    sid = meoles_session or x_meoles_session
-
-    print(f"[checkout] cookie={meoles_session} | header={x_meoles_session} | resolved={sid}")
-
-    if not sid:
-        raise HTTPException(400, "Panier introuvable")
-
-    line_items = get_line_items(sid, db)
-    if not line_items:
-        raise HTTPException(400, "Panier vide")
-
-    shipping_rate = None
-    try:
-        body = await request.json()
-        shipping_rate = body.get("shipping_rate")
-    except Exception:
-        pass
-
-    try:
-        session_params = dict(
-            payment_method_types=["card"],
-            line_items=line_items,
-            mode="payment",
-            success_url=f"{meoles_settings.MEOLES_FRONTEND_URL}?commande=success",
-            cancel_url=f"{meoles_settings.MEOLES_FRONTEND_URL}?commande=cancel",
-            metadata={"meoles_session_id": sid},
-            billing_address_collection="required",
-            allow_promotion_codes=True,
-            locale="fr",
-        )
-        if shipping_rate:
-            session_params["shipping_options"] = [{"shipping_rate": shipping_rate}]
-        else:
-            session_params["shipping_address_collection"] = {"allowed_countries": ["FR", "BE", "CH", "LU"]}
-
-        session = stripe.checkout.Session.create(**session_params)
-        return {"checkout_url": session.url}
-    except stripe.error.StripeError as e:
-        raise HTTPException(400, str(e))
-
+# ─── Webhook ──────────────────────────────────────────────────────────────────
 
 @router.post("/webhook")
-async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    payload = await request.body()
+async def stripe_webhook(request: Request):
+    payload    = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
     try:
@@ -270,23 +258,19 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(400, "Signature invalide")
 
     if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        meoles_session_id = session.get("metadata", {}).get("meoles_session_id")
+        session        = event["data"]["object"]
+        stripe_sid     = session.get("id", "")
         customer_email = session.get("customer_details", {}).get("email")
         customer_name  = session.get("customer_details", {}).get("name", "")
+        amount_total   = (session.get("amount_total") or 0) / 100   # centimes → euros
 
-        if meoles_session_id:
-            cart = get_cart(meoles_session_id, db)
-            items = cart.get("items", [])
-            total = cart.get("total", 0)
-            if total > 100:
-                total = total / 100
+        # Récupération des produits achetés depuis l'API Stripe
+        items = _items_from_stripe(stripe_sid)
 
-            tasks = [_mail_admin(session, items, total)]
-            if customer_email and items:
-                tasks.append(_mail_client(session, items, total, customer_name, customer_email))
+        tasks = [_mail_admin(session, items, amount_total)]
+        if customer_email:
+            tasks.append(_mail_client(session, items, amount_total, customer_name, customer_email))
 
-            await asyncio.gather(*tasks, return_exceptions=True)
-            clear_cart(meoles_session_id, db)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     return {"status": "ok"}
