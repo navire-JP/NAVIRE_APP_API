@@ -321,3 +321,84 @@ def get_summary(
         **_compute_session_counts(history),
         "files": _compute_file_stats(history),
     }
+
+
+# =========================================================
+# À AJOUTER dans app/routers/stats.py
+# =========================================================
+# Colle ce bloc à la fin du fichier, après /summary
+
+
+@router.get("/calendar")
+def get_calendar(
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+    tz_offset: int = Query(default=0, description="getTimezoneOffset() JS"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Heatmap calendaire pour le mois donné.
+    Retourne pour chaque jour actif une intensité 0.0→1.0
+    basée sur le nombre de sessions ce jour / max sessions sur un jour du mois.
+
+    Réponse :
+    {
+        "year": 2026,
+        "month": 6,
+        "days": {
+            "2026-06-01": 0.4,
+            "2026-06-03": 1.0,
+            "2026-06-07": 0.2
+        }
+    }
+    Les jours sans activité sont absents du dict (intensité implicite = 0).
+    """
+    from calendar import monthrange
+
+    now = utcnow()
+    if year is None:
+        year = (now + timedelta(minutes=-tz_offset)).year
+    if month is None:
+        month = (now + timedelta(minutes=-tz_offset)).month
+
+    # Bornes du mois en UTC (on prend large pour couvrir tous les fuseaux)
+    month_start = datetime(year, month, 1, tzinfo=timezone.utc) - timedelta(hours=14)
+    _, last_day = monthrange(year, month)
+    month_end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc) + timedelta(hours=14)
+
+    # Récupère toutes les sessions du mois (complètes ou non — on compte la présence)
+    sessions = db.execute(
+        select(QcmSessionHistory)
+        .where(QcmSessionHistory.user_id == user.id)
+        .where(QcmSessionHistory.started_at >= month_start)
+        .where(QcmSessionHistory.started_at <= month_end)
+    ).scalars().all()
+
+    # Agrège par jour local
+    day_counts: dict[str, int] = {}
+    for s in sessions:
+        dt = s.completed_at or s.started_at
+        if dt is None:
+            continue
+        day_str = _to_local_date(dt, tz_offset)
+        # Vérifie que le jour appartient bien au mois demandé
+        if not day_str.startswith(f"{year:04d}-{month:02d}-"):
+            continue
+        day_counts[day_str] = day_counts.get(day_str, 0) + 1
+
+    if not day_counts:
+        return {"year": year, "month": month, "days": {}}
+
+    max_count = max(day_counts.values())
+
+    # Normalise 0→1 avec une légère courbe racine carrée
+    # pour que même 1 session soit visible (pas juste 0.1)
+    import math
+    days_intensity: dict[str, float] = {}
+    for day_str, count in day_counts.items():
+        raw = count / max_count          # 0.0 → 1.0 linéaire
+        intensity = math.sqrt(raw)       # courbe douce : 1 session/max → plus visible
+        days_intensity[day_str] = round(intensity, 3)
+
+    return {"year": year, "month": month, "days": days_intensity}
