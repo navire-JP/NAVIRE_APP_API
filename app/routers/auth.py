@@ -105,7 +105,10 @@ def activate_pending_subscription(db: Session, user: User) -> bool:
 @router.post("/register", response_model=AuthOut)
 def register(payload: RegisterIn, db: Session = Depends(get_db)):
     # 0) validation password
-    validate_password(payload.password)
+    try:
+        validate_password(payload.password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # 1) vérifier email unique
     existing = db.execute(
