@@ -159,8 +159,8 @@ def delete_user(
     db: Session = Depends(get_db),
     _: None = Depends(verify_admin_code),
 ):
-    from sqlalchemy import delete as sql_delete
-    from app.db.models import Subscription, File, QcmSessionHistory, FlashCard, EloHistory
+    from sqlalchemy import delete as sql_delete, text
+    from app.db.models import QcmSession, PromoRedemption
 
     user = db.execute(
         select(models.User).where(models.User.id == user_id)
@@ -169,12 +169,12 @@ def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
 
-    for model in [Subscription, File, QcmSessionHistory, FlashCard, EloHistory]:
-        try:
-            db.execute(sql_delete(model).where(model.user_id == user_id))
-        except Exception:
-            db.rollback()
+    # Ces deux tables n'ont pas ondelete=CASCADE → suppression manuelle
+    db.execute(sql_delete(PromoRedemption).where(PromoRedemption.user_id == user_id))
+    db.execute(sql_delete(QcmSession).where(QcmSession.user_id == user_id))
+    db.flush()
 
+    # Tout le reste cascade automatiquement
     db.delete(user)
     db.commit()
     return {"ok": True, "deleted_id": user_id}
