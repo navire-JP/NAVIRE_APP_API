@@ -159,12 +159,28 @@ def delete_user(
     db: Session = Depends(get_db),
     _: None = Depends(verify_admin_code),
 ):
+    from sqlalchemy import delete as sql_delete
+    from app.db.models import (
+        Subscription, File, QcmSessionHistory,
+        FlashCard, FlashSession, EloHistory,
+    )
+
     user = db.execute(
         select(models.User).where(models.User.id == user_id)
     ).scalar_one_or_none()
 
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    # Suppression manuelle des dépendances
+    for model in [
+        Subscription, File, QcmSessionHistory,
+        FlashCard, FlashSession, EloHistory,
+    ]:
+        try:
+            db.execute(sql_delete(model).where(model.user_id == user_id))
+        except Exception:
+            pass
 
     db.delete(user)
     db.commit()
