@@ -25,10 +25,10 @@ def utcnow() -> datetime:
 def _to_local_date(dt: datetime, tz_offset_minutes: int) -> str:
     """
     Convertit un datetime UTC en date locale (YYYY-MM-DD)
-    selon l'offset en minutes fourni par le client (ex: -120 pour UTC+2).
-    On utilise un offset simple car pytz n'est pas requis.
+    selon l'offset en minutes fourni par le client via getTimezoneOffset().
+    JS retourne -120 pour UTC+2 → on soustrait directement (signe déjà inversé côté JS).
     """
-    local_dt = dt + timedelta(minutes=-tz_offset_minutes)
+    local_dt = dt + timedelta(minutes=tz_offset_minutes)  # fix: signe corrigé (JS getTimezoneOffset() est déjà inversé)
     return local_dt.strftime("%Y-%m-%d")
 
 
@@ -81,8 +81,9 @@ def _compute_streaks(
     # Ensemble des dates locales avec au moins une session complète
     active_dates: set[str] = set()
     for h in completed:
-        if h.completed_at:
-            active_dates.add(_to_local_date(h.completed_at, tz_offset_minutes))
+        dt = h.completed_at or h.started_at  # fix: fallback started_at si completed_at NULL
+        if dt:
+            active_dates.add(_to_local_date(dt, tz_offset_minutes))
 
     sorted_dates = sorted(active_dates)  # ["2026-01-01", "2026-01-02", ...]
     total_days = len(sorted_dates)
@@ -358,9 +359,9 @@ def get_calendar(
 
     now = utcnow()
     if year is None:
-        year = (now + timedelta(minutes=-tz_offset)).year
+        year = (now + timedelta(minutes=tz_offset)).year  # fix: signe corrigé
     if month is None:
-        month = (now + timedelta(minutes=-tz_offset)).month
+        month = (now + timedelta(minutes=tz_offset)).month  # fix: signe corrigé
 
     # Bornes du mois en UTC (on prend large pour couvrir tous les fuseaux)
     month_start = datetime(year, month, 1, tzinfo=timezone.utc) - timedelta(hours=14)
