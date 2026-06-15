@@ -24,11 +24,13 @@ def utcnow() -> datetime:
 
 def _to_local_date(dt: datetime, tz_offset_minutes: int) -> str:
     """
-    Convertit un datetime UTC en date locale (YYYY-MM-DD)
-    selon l'offset en minutes fourni par le client via getTimezoneOffset().
-    JS retourne -120 pour UTC+2 → on soustrait directement (signe déjà inversé côté JS).
+    Convertit un datetime UTC en date locale (YYYY-MM-DD).
+    getTimezoneOffset() JS retourne -120 pour UTC+2.
+    local = UTC - getTimezoneOffset() => dt + timedelta(minutes=-tz_offset_minutes).
     """
-    local_dt = dt + timedelta(minutes=tz_offset_minutes)  # fix: signe corrigé (JS getTimezoneOffset() est déjà inversé)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    local_dt = dt + timedelta(minutes=-tz_offset_minutes)
     return local_dt.strftime("%Y-%m-%d")
 
 
@@ -43,6 +45,11 @@ def _get_user_history(db: Session, user_id: int) -> list[QcmSessionHistory]:
         .where(QcmSessionHistory.user_id == user_id)
         .order_by(QcmSessionHistory.started_at.asc())
     ).scalars().all()
+
+
+def _answered_only(history: list[QcmSessionHistory]) -> list[QcmSessionHistory]:
+    """Filtre : sessions avec au moins 1 réponse donnée (correct ou faux)."""
+    return [h for h in history if (h.correct_answers + h.wrong_answers) > 0]
 
 
 def _completed_only(history: list[QcmSessionHistory]) -> list[QcmSessionHistory]:
@@ -69,7 +76,7 @@ def _compute_streaks(
     Le streak est maintenu si l'utilisateur a joué aujourd'hui OU hier
     (pour ne pas pénaliser les fuseaux horaires et les sessions de fin de journée).
     """
-    completed = _completed_only(history)
+    completed = _answered_only(history)
     if not completed:
         return {
             "current_streak": 0,
