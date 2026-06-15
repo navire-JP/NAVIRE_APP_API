@@ -30,6 +30,7 @@ from app.routers.veille import router as veille_router
 from app.routers.leaderboard import router as leaderboard_router
 from app.routers.cab import router as cab_router
 from app.routers.discord_bot import router as discord_bot_router
+from app.routers.prepa import router as prepa_router
 
 # ============================================================
 # MEOLES — import isolé
@@ -162,6 +163,7 @@ app.include_router(veille_router)
 app.include_router(leaderboard_router)
 app.include_router(cab_router)
 app.include_router(discord_bot_router)
+app.include_router(prepa_router)
 
 # ============================================================
 # MEOLES — Routers
