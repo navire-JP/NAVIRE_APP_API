@@ -14,6 +14,7 @@ from app.db.database import Base, engine, SessionLocal
 from app.db import models  # noqa: F401
 from app.db.models import QcmSessionHistory
 from app.db.migrate_discord_fields import run_discord_migrations
+from app.db.prepa_migration import run_prepa_migration
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
 from app.routers.meta import router as meta_router
@@ -107,6 +108,9 @@ async def lifespan(app: FastAPI):
 
     print("🚀 Startup: running discord migrations...")
     run_discord_migrations()
+
+    print("🚀 Startup: running prepasserelle migration...")
+    run_prepa_migration()
 
     print("🚀 Startup: starting scheduler...")
     scheduler.start()

@@ -3,7 +3,7 @@ app/core/limits.py
 ==================
 Source de vérité des limites par plan d'abonnement.
 
-Plans : free | membre | membre+
+Plans : free | membre | membre+ | prepa
 
 Importé par les routers qcm, flash et files pour enforcer les limites
 avant chaque opération sensible.
@@ -43,6 +43,18 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "flashcards_total": 1000,
         "files_total":      24,
         "file_ttl_hours":   None,
+    },
+    "prepa": {
+        # Programme d'été. L'élève a un accès large à NAVIRE pendant sa
+        # période. Ces limites concernent UNIQUEMENT les features NAVIRE
+        # (QCM, flashcards, host de fichiers perso) — le contenu PREPASSERELLE
+        # (cours, sujets, dépôts) vit dans des tables dédiées et n'est PAS
+        # décompté ici. L'accès au contenu prepa est gaté par le plan + l'année
+        # (voir has_active_prepa_access / check_prepa_access plus bas).
+        "qcm_per_day":      None,   # illimité (inclus dans l'offre)
+        "flashcards_total": 1000,   # généreux, cohérent avec le tarif
+        "files_total":      7,      # host perso de l'élève (PDF à lui)
+        "file_ttl_hours":   None,   # pas d'expiration pendant la période
     },
     "beta": {
         "qcm_per_day":      None,
@@ -180,3 +192,49 @@ def get_file_ttl(plan: str) -> int | None:
     Utilisé dans : routers/files.py au moment du calcul de expires_at.
     """
     return get_limit(plan, "file_ttl_hours")
+
+# ============================================================
+# ACCÈS PREPASSERELLE
+# ============================================================
+# Le plan "prepa" est à durée limitée (paiement unique → prepa_expires_at).
+# Ces deux helpers centralisent la règle d'accès pour que le router prepa
+# ne réimplémente pas la logique d'expiration.
+#
+# NB : le filtrage par année (un L1 ne voit que le contenu L1) se fait au
+# niveau du router, car il nécessite l'objet cours/exercice
+# (course.annee == user.prepa_annee). Ici on ne juge que l'accès global.
+
+def has_active_prepa_access(user: User) -> bool:
+    """
+    True si l'utilisateur a un accès PREPASSERELLE valide (plan prepa non expiré).
+    Version booléenne — pour conditionner un affichage ou une réponse API.
+    """
+    if user.plan != "prepa":
+        return False
+    if user.prepa_expires_at is None:
+        # Un plan prepa sans date de fin est anormal : on refuse par sécurité.
+        return False
+    return user.prepa_expires_at > datetime.now(timezone.utc)
+
+
+def check_prepa_access(user: User) -> None:
+    """
+    Lève une HTTPException 403 si l'utilisateur n'a pas d'accès prepa actif.
+    Version bloquante — à injecter en garde dans les endpoints du router prepa.
+    """
+    if has_active_prepa_access(user):
+        return
+
+    expired = user.plan == "prepa" and user.prepa_expires_at is not None
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": "PREPA_EXPIRED" if expired else "PREPA_ACCESS_REQUIRED",
+            "message": (
+                "Votre accès PREPASSERELLE a expiré."
+                if expired
+                else "Accès réservé aux inscrits PREPASSERELLE."
+            ),
+            "plan": user.plan,
+        },
+    )

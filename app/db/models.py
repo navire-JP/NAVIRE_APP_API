@@ -148,10 +148,12 @@ class User(Base):
     score: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     grade: Mapped[str] = mapped_column(String(64), default="Primo", nullable=False)
 
-    # Plan d'abonnement : free | membre | membre+
+    # Plan d'abonnement : free | membre | membre+ | prepa
     # Source de vérité = table subscriptions.
     # Ce champ est un cache dénormalisé pour éviter une jointure à chaque requête.
     # Il est mis à jour automatiquement par les helpers dans subscriptions.py.
+    # NB : "prepa" est un plan à durée limitée (paiement unique). Voir
+    # prepa_expires_at ci-dessous : à l'expiration, un job repasse à "free".
     plan: Mapped[str] = mapped_column(String(32), default="free", nullable=False)
 
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -168,6 +170,18 @@ class User(Base):
     discord_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     discord_last_active: Mapped[datetime | None] = mapped_column(Date, nullable=True)
     discord_messages_pending: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── PrepaPasserelle ──────────────────────────────────────────────────────
+    # Année choisie au checkout (L1 | L2 | L3). NULL si l'user n'a jamais
+    # souscrit au programme prepa. Gate l'accès aux cours : un élève ne voit
+    # que le contenu de SON année (course.annee == user.prepa_annee).
+    prepa_annee: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    # Fin d'accès prepa (paiement unique → date de fin, ex. fin août).
+    # À l'expiration, un job APScheduler repasse plan="prepa" → "free".
+    prepa_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # ─────────────────────────────────────────────────────────────────────────
 
     # ============================================================
@@ -222,6 +236,16 @@ class User(Base):
 
     cab_results: Mapped[list["CabResult"]] = relationship(
         "CabResult",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    # ============================================================
+    # PrepaPasserelle
+    # ============================================================
+    prepa_submissions: Mapped[list["PrepaSubmission"]] = relationship(
+        "PrepaSubmission",
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -916,3 +940,209 @@ class CabResult(Base):
 
     # Relations
     user: Mapped["User"] = relationship("User", back_populates="cab_results")
+
+# ============================================================
+# PREPASSERELLE — Programme d'été (cours + exercices encadrés)
+# ============================================================
+
+class PrepaCourse(Base):
+    """
+    Un cours = une matière d'une année donnée (ex: "Droit constitutionnel" en L1).
+    Contenu curé par l'admin, en lecture seule pour l'élève. Contient plusieurs
+    PDF de leçons (PrepaCourseFile).
+
+    L'accès est gaté côté router par :
+        user.plan == "prepa"  ET  user.prepa_annee == course.annee.
+    """
+    __tablename__ = "prepa_courses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    annee: Mapped[str] = mapped_column(String(4), nullable=False, index=True)
+    # L1 | L2 | L3
+
+    titre: Mapped[str] = mapped_column(String(200), nullable=False)
+    # Nom de la matière (ex: "Droit des obligations")
+
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    # Ordre d'affichage dans la liste des cours de l'année
+    ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Publié = visible par les élèves. Permet de produire au fil de l'eau :
+    # on remplit semaine par semaine sans tout exposer d'un coup.
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relations
+    files: Mapped[list["PrepaCourseFile"]] = relationship(
+        "PrepaCourseFile",
+        back_populates="course",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PrepaCourseFile.ordre",
+    )
+
+
+class PrepaCourseFile(Base):
+    """
+    Un PDF de leçon rattaché à un cours. Stocké sur le disque persistant via
+    app/core/prepa_storage.py (dossier PREPA_COURSES_DIR/<course_id>/).
+    Les champs filename_* / path / size_bytes mappent exactement le dict
+    renvoyé par save_prepa_pdf().
+    """
+    __tablename__ = "prepa_course_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_courses.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    titre: Mapped[str] = mapped_column(String(200), nullable=False)
+    # Titre de la leçon (ex: "Leçon 1 : la formation du contrat")
+
+    filename_original: Mapped[str] = mapped_column(String(255), nullable=False)
+    filename_stored: Mapped[str] = mapped_column(String(255), nullable=False)
+    path: Mapped[str] = mapped_column(String(500), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relation
+    course: Mapped["PrepaCourse"] = relationship("PrepaCourse", back_populates="files")
+
+
+class PrepaExercise(Base):
+    """
+    Un exercice hebdomadaire (1 à 6) pour une année donnée. L'élève dépose sa
+    copie (PrepaSubmission), corrigée et notée individuellement.
+
+    Le sujet est visible dès publication ; le corrigé-type n'est révélé qu'une
+    fois corrige_published passé à True (en général après la deadline).
+    Les exercices ne sont PAS rattachés à un cours précis : ils sont rangés par
+    année et par semaine (offre : 1 exercice / semaine pendant 6 semaines).
+    """
+    __tablename__ = "prepa_exercises"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    annee: Mapped[str] = mapped_column(String(4), nullable=False, index=True)
+    # L1 | L2 | L3
+
+    week_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 1 à 6
+
+    titre: Mapped[str] = mapped_column(String(200), nullable=False)
+    consigne: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    # Type d'exo + instructions (ex: "Fiche d'arrêt — Cass. civ. 1re, 29 mai 2024")
+
+    # ── Sujet (PDF déposé par l'admin) ───────────────────────
+    subject_filename_original: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    subject_filename_stored: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    subject_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    subject_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # ── Corrigé-type (PDF, révélé après la deadline) ─────────
+    corrige_filename_original: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    corrige_filename_stored: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    corrige_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    corrige_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    corrige_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Date limite de rendu — alimente les carrés "devoir" du calendrier
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relations
+    submissions: Mapped[list["PrepaSubmission"]] = relationship(
+        "PrepaSubmission",
+        back_populates="exercise",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class PrepaSubmission(Base):
+    """
+    Le dépôt d'un élève pour un exercice. Stocké via prepa_storage.py dans
+    PREPA_SUBMISSIONS_DIR/<user_id>/. Reçoit ensuite une note /20 et un
+    feedback saisis par le correcteur.
+
+    Règle métier : un seul dépôt par (user, exercice). Le router fait un UPSERT
+    (un nouveau dépôt remplace l'ancien + supprime l'ancien fichier disque),
+    même logique que les redemptions de codes promo (contrainte gérée applicativement).
+    """
+    __tablename__ = "prepa_submissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    exercise_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_exercises.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    # ── Copie déposée (PDF) ──────────────────────────────────
+    filename_original: Mapped[str] = mapped_column(String(255), nullable=False)
+    filename_stored: Mapped[str] = mapped_column(String(255), nullable=False)
+    path: Mapped[str] = mapped_column(String(500), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # ── Correction (remplie par le correcteur) ───────────────
+    status: Mapped[str] = mapped_column(String(20), default="submitted", nullable=False)
+    # submitted | corrected
+
+    note: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Note /20
+
+    feedback: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    corrected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Relations
+    user: Mapped["User"] = relationship("User", back_populates="prepa_submissions")
+    exercise: Mapped["PrepaExercise"] = relationship("PrepaExercise", back_populates="submissions")
