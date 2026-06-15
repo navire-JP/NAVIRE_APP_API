@@ -344,3 +344,28 @@ def set_prepa_access(
         "prepa_annee": annee,
         "prepa_expires_at": expiry.isoformat(),
     }
+
+
+@router.post("/fix-complete-sessions")
+def fix_complete_sessions(
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_code),
+):
+    """
+    One-shot patch : marque is_complete=True sur toutes les sessions
+    qui ont >= 5 réponses données mais is_complete=False (bug historique).
+    À supprimer après usage.
+    """
+    from sqlalchemy import update
+    from app.db.models import QcmSessionHistory
+
+    result = db.execute(
+        update(QcmSessionHistory)
+        .where(QcmSessionHistory.is_complete == False)
+        .where(
+            (QcmSessionHistory.correct_answers + QcmSessionHistory.wrong_answers) >= 5
+        )
+        .values(is_complete=True)
+    )
+    db.commit()
+    return {"patched": result.rowcount}
