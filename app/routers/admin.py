@@ -284,3 +284,63 @@ def set_manual_subscription(
     db.commit()
 
     return {"ok": True, "email": email, "plan": plan, "is_manual": True}
+
+@router.post("/set-prepa")
+def set_prepa_access(
+    email: str,
+    annee: str,
+    expires_at: str | None = None,
+    x_admin_code: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """
+    Donne (ou met à jour) un accès PREPASSERELLE à un utilisateur, sans Stripe.
+    Pour les ventes closées à la main (high ticket) et les tests.
+
+    Query params :
+      - email      : email du compte cible
+      - annee      : L1 | L2 | L3
+      - expires_at : ISO 8601 optionnel (ex 2026-08-31T23:59:59).
+                     Par défaut : 31 août de l'année en cours.
+    Header requis : X-Admin-Code
+
+    Pour RÉVOQUER un accès prepa : appeler /admin/set-subscription avec plan=free
+    (l'accès prepa tombe dès que plan != "prepa").
+    """
+    if x_admin_code != ADMIN_CODE:
+        raise HTTPException(status_code=401, detail="Invalid admin code")
+
+    if annee not in ("L1", "L2", "L3"):
+        raise HTTPException(status_code=400, detail="annee invalide (L1, L2 ou L3)")
+
+    from datetime import datetime, timezone
+
+    if expires_at:
+        try:
+            expiry = datetime.fromisoformat(expires_at)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="expires_at invalide (format ISO attendu)")
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+    else:
+        today = datetime.now(timezone.utc)
+        expiry = datetime(today.year, 8, 31, 23, 59, 59, tzinfo=timezone.utc)
+
+    user = db.execute(
+        select(models.User).where(models.User.email == email)
+    ).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.plan = "prepa"
+    user.prepa_annee = annee
+    user.prepa_expires_at = expiry
+    db.commit()
+
+    return {
+        "ok": True,
+        "email": email,
+        "plan": "prepa",
+        "prepa_annee": annee,
+        "prepa_expires_at": expiry.isoformat(),
+    }
