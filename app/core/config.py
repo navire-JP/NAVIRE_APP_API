@@ -63,6 +63,11 @@ STRIPE_PRICES: dict[str, dict[str, str]] = {
     "beta": {
         "monthly": os.getenv("STRIPE_PRICE_BETA", ""),
     },
+    "prepa": {
+        # Paiement unique (mode "payment", pas "subscription").
+        # Price ID Stripe : price_1Tif3lLeRHpDiZMshDohbgZq
+        "onetime": os.getenv("STRIPE_PRICE_PREPA_ONETIME", "price_1Tif3lLeRHpDiZMshDohbgZq"),
+    },
 }
 
 # URL de redirection après checkout Stripe (à setter sur Render)

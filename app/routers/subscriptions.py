@@ -179,8 +179,12 @@ class CheckoutIn(BaseModel):
     promo_code: str | None = None
 
 
+class CheckoutPrepaIn(BaseModel):
+    annee: Literal["L1", "L2", "L3"]
+
+
 class SetPlanIn(BaseModel):
-    plan: Literal["free", "membre", "membre+"]
+    plan: Literal["free", "membre", "membre+", "prepa"]
     billing_cycle: Literal["monthly", "annual"] | None = None
     note: str | None = None
 
@@ -395,6 +399,59 @@ def validate_promo_code(
     }
 
 
+@router.post("/checkout-prepa")
+def create_checkout_prepa(
+    payload: CheckoutPrepaIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Crée une Stripe Checkout Session en mode "payment" (paiement unique) pour
+    le programme PREPASSERELLE.
+
+    Le price_id est fixe (STRIPE_PRICES["prepa"]["onetime"]).
+    L'année choisie (L1/L2/L3) est stockée en metadata pour l'activer au webhook.
+    L'accès expire le 31 août 2026 (hardcodé pour le lancement juillet 2026).
+    """
+    _stripe()
+
+    # Bloquer si déjà accès prepa actif
+    from app.core.limits import has_active_prepa_access
+    if has_active_prepa_access(user):
+        raise HTTPException(400, detail={
+            "code": "PREPA_ALREADY_ACTIVE",
+            "message": "Vous avez déjà un accès PREPASSERELLE actif.",
+        })
+
+    price_id = STRIPE_PRICES.get("prepa", {}).get("onetime")
+    if not price_id:
+        raise HTTPException(500, detail="Configuration Stripe PREPASSERELLE manquante.")
+
+    sub = get_or_create_subscription(db, user)
+    customer_id = _get_or_create_stripe_customer(user, sub, db)
+
+    try:
+        session = stripe.checkout.Session.create(
+            customer=customer_id,
+            mode="payment",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=STRIPE_SUCCESS_URL,
+            cancel_url=STRIPE_CANCEL_URL,
+            metadata={
+                "user_id": str(user.id),
+                "plan": "prepa",
+                "prepa_annee": payload.annee,
+            },
+        )
+    except stripe.StripeError as e:
+        raise HTTPException(502, detail=f"Erreur Stripe : {str(e)}")
+
+    return {
+        "checkout_url": session.url,
+        "session_id": session.id,
+    }
+
+
 # ============================================================
 # Webhook Stripe
 # ============================================================
@@ -437,6 +494,28 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         customer_email = data.get("customer_details", {}).get("email") or data.get("customer_email", "")
 
         if not plan:
+            return {"ok": True}
+
+        # ── Branche PREPASSERELLE (paiement unique) ─────────
+        if plan == "prepa":
+            prepa_annee = meta.get("prepa_annee", "")
+            if not prepa_annee or not user_id:
+                return {"ok": True}
+
+            user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+            if not user:
+                return {"ok": True}
+
+            from datetime import date
+            # Accès jusqu'au 31 août de l'année en cours (lancement été 2026).
+            today = date.today()
+            expiry = datetime(today.year, 8, 31, 23, 59, 59, tzinfo=timezone.utc)
+
+            user.plan = "prepa"
+            user.prepa_annee = prepa_annee
+            user.prepa_expires_at = expiry
+            db.commit()
+            print(f"✅ PREPASSERELLE activé : user {user_id}, année {prepa_annee}, expire {expiry.date()}")
             return {"ok": True}
 
         # Récupérer les dates de période depuis Stripe
@@ -814,6 +893,7 @@ def check_expired_subscriptions(db_factory) -> None:
     """
     Job horaire : repasse en free les abonnements dont current_period_end
     est dépassé et dont le statut Stripe est expiré/annulé.
+    Gère aussi l'expiration des accès PREPASSERELLE (prepa_expires_at).
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -824,6 +904,21 @@ def check_expired_subscriptions(db_factory) -> None:
     try:
         now = datetime.now(timezone.utc)
 
+        # ── Expiration PREPASSERELLE ───────────────────────
+        expired_prepa = db.execute(
+            select(User).where(
+                User.plan == "prepa",
+                User.prepa_expires_at < now,
+            )
+        ).scalars().all()
+
+        for user in expired_prepa:
+            user.plan = "free"
+            db.commit()
+            logger.info("PREPASSERELLE expiré : user %s repassé en free", user.id)
+            print(f"🎓 PREPASSERELLE expiré : user {user.id} → free")
+
+        # ── Expiration abonnements Stripe ──────────────────
         expired_subs = db.execute(
             select(Subscription).where(
                 Subscription.plan != "free",
