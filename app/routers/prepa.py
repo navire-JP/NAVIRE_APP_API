@@ -446,6 +446,22 @@ async def admin_upload_corrige(
     return _serialize_exercise_admin(e)
 
 
+@router.get("/admin/exercises/{exercise_id}/subject/download", dependencies=[Depends(verify_admin_code)])
+def admin_download_subject(exercise_id: int, db: Session = Depends(get_db)):
+    e = _exercise_or_404(db, exercise_id)
+    if not e.subject_path:
+        raise HTTPException(status_code=404, detail="Aucun sujet.")
+    return _file_response(e.subject_path, e.subject_filename_original or "sujet.pdf")
+
+
+@router.get("/admin/exercises/{exercise_id}/corrige/download", dependencies=[Depends(verify_admin_code)])
+def admin_download_corrige(exercise_id: int, db: Session = Depends(get_db)):
+    e = _exercise_or_404(db, exercise_id)
+    if not e.corrige_path:
+        raise HTTPException(status_code=404, detail="Aucun corrigé.")
+    return _file_response(e.corrige_path, e.corrige_filename_original or "corrige.pdf")
+
+
 # ════════════════════════════════════════════════════════════
 # ADMIN — COPIES / NOTATION
 # ════════════════════════════════════════════════════════════
