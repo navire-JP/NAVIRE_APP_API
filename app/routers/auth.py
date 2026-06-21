@@ -180,6 +180,7 @@ def me(current_user: User = Depends(get_current_user)):
         "newsletter_opt_in": current_user.newsletter_opt_in,
         "university": current_user.university,
         "study_level": current_user.study_level,
+        "avatar_url": current_user.avatar_url,
 
         "score": current_user.score,
         "grade": current_user.grade,
