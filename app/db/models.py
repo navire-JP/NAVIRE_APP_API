@@ -145,6 +145,11 @@ class User(Base):
     university: Mapped[str | None] = mapped_column(String(120), nullable=True)
     study_level: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
+    # Photo de profil — URL Cloudinary (secure_url). NULL si l'utilisateur n'a
+    # jamais uploadé d'avatar (le frontend doit alors afficher un fallback,
+    # ex: initiale du username).
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     score: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     grade: Mapped[str] = mapped_column(String(64), default="Primo", nullable=False)
 
