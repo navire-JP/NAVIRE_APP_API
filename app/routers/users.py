@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile
 from sqlalchemy.orm import Session
-from sqlalchemy import func, select, asc
+from sqlalchemy import func, select, asc, desc
 
 from app.db.database import get_db
 from app.db.models import User, QcmSessionHistory, File as FileModel
@@ -231,6 +231,28 @@ def get_profile_summary(
         for i, r in enumerate(reversed(rows_above))
     ]
 
+    # --- Tous les utilisateurs EN DESSOUS en ELO (classement complet, sans
+    # limite). Triés par ELO décroissant : le premier en dessous a le rang
+    # rank+1, le suivant rank+2, etc. Inclut explicitement User.elo == 0 ou
+    # négatif si jamais présents — pas de filtre arbitraire ici, seulement
+    # "strictement inférieur à mon ELO".
+    rows_below = db.execute(
+        select(User.id, User.username, User.elo, User.avatar_url)
+        .where(User.elo < u.elo)
+        .order_by(desc(User.elo))
+    ).all()
+
+    below_list = [
+        {
+            "rank": rank + 1 + i,
+            "user_id": r.id,
+            "username": r.username,
+            "elo": int(r.elo or 0),
+            "avatar_url": resolve_avatar_url(r.avatar_url),
+        }
+        for i, r in enumerate(rows_below)
+    ]
+
     return {
         "user": {
             "id": u.id,
@@ -258,6 +280,7 @@ def get_profile_summary(
             "limit": files_limit,
         },
         "ranking_above": above_list,
+        "ranking_below": below_list,
     }
 
 
