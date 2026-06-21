@@ -125,6 +125,40 @@ async def update_avatar(
     return _user_dict(current_user)
 
 
+@router.patch("/me/avatar-url")
+def update_avatar_url(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Enregistre une URL d'avatar déjà uploadée côté client (ex: via le
+    Cloudinary Upload Widget, qui upload directement depuis le navigateur
+    avec un preset non signé — l'upload ne passe pas par ce backend, on ne
+    fait qu'enregistrer l'URL résultante ici).
+
+    Validation minimale : on exige que l'URL pointe bien vers Cloudinary,
+    pour éviter d'enregistrer n'importe quelle URL externe arbitraire sur
+    le profil d'un utilisateur.
+    """
+    url = (payload or {}).get("avatar_url", "")
+    url = (url or "").strip()
+
+    if not url:
+        raise HTTPException(status_code=400, detail="avatar_url manquant.")
+
+    if not url.startswith("https://res.cloudinary.com/"):
+        raise HTTPException(
+            status_code=400,
+            detail="URL invalide — doit provenir de Cloudinary.",
+        )
+
+    current_user.avatar_url = url
+    db.commit()
+    db.refresh(current_user)
+    return _user_dict(current_user)
+
+
 # ============================================================
 # Profil — résumé agrégé (page profil complète en un seul appel)
 # ============================================================
