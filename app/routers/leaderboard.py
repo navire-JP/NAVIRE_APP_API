@@ -22,6 +22,7 @@ class UserRank(BaseModel):
     rank: int
     username: str
     elo: int
+    avatar_url: str | None = None
     is_current_user: bool = False
 
 
@@ -78,6 +79,7 @@ def get_users_leaderboard(
                 rank=idx,
                 username=user.username,
                 elo=user.elo,
+                avatar_url=user.avatar_url,
                 is_current_user=is_current,
             )
         )
@@ -96,6 +98,7 @@ def get_users_leaderboard(
             rank=rank,
             username=current_user.username,
             elo=current_user.elo,
+            avatar_url=current_user.avatar_url,
             is_current_user=True,
         )
 
