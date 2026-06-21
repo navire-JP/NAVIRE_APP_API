@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from app.db.database import get_db
 from app.db.models import User
 from app.routers.auth import get_current_user_optional
+from app.core.cloudinary_client import resolve_avatar_url
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
@@ -79,7 +80,7 @@ def get_users_leaderboard(
                 rank=idx,
                 username=user.username,
                 elo=user.elo,
-                avatar_url=user.avatar_url,
+                avatar_url=resolve_avatar_url(user.avatar_url),
                 is_current_user=is_current,
             )
         )
@@ -98,7 +99,7 @@ def get_users_leaderboard(
             rank=rank,
             username=current_user.username,
             elo=current_user.elo,
-            avatar_url=current_user.avatar_url,
+            avatar_url=resolve_avatar_url(current_user.avatar_url),
             is_current_user=True,
         )
 

@@ -8,7 +8,7 @@ from app.db.database import get_db
 from app.db.models import User, QcmSessionHistory, File as FileModel
 from app.schemas.auth import ProfileUpdateIn, UserOut
 from app.routers.auth import get_current_user
-from app.core.cloudinary_client import upload_avatar, is_allowed_image, MAX_AVATAR_BYTES
+from app.core.cloudinary_client import upload_avatar, is_allowed_image, MAX_AVATAR_BYTES, resolve_avatar_url
 from app.core.limits import get_limit
 
 
@@ -27,7 +27,7 @@ def _user_dict(u: User) -> dict:
         "email": u.email,
         "university": u.university,
         "study_level": u.study_level,
-        "avatar_url": u.avatar_url,
+        "avatar_url": resolve_avatar_url(u.avatar_url),
         "plan": u.plan,
         "elo": int(u.elo or 0),
     }
@@ -225,7 +225,7 @@ def get_profile_summary(
             "user_id": r.id,
             "username": r.username,
             "elo": int(r.elo or 0),
-            "avatar_url": r.avatar_url,
+            "avatar_url": resolve_avatar_url(r.avatar_url),
         }
         for i, r in enumerate(reversed(rows_above))
     ]
@@ -237,7 +237,7 @@ def get_profile_summary(
             "email": u.email,
             "university": u.university,
             "study_level": u.study_level,
-            "avatar_url": u.avatar_url,
+            "avatar_url": resolve_avatar_url(u.avatar_url),
             "plan": u.plan,
             "created_at": u.created_at,
         },
@@ -288,7 +288,7 @@ def get_user_public(username: str, db: Session = Depends(get_db)):
     return {
         "username": user.username,
         "university": user.university or "Non renseignée",
-        "avatar_url": user.avatar_url,
+        "avatar_url": resolve_avatar_url(user.avatar_url),
         "elo": user.elo or 0,
         "total_sessions": total_sessions,
         "success_rate": success_rate,

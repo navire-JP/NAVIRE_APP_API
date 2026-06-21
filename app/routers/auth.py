@@ -9,6 +9,7 @@ from app.db.models import User, Subscription, PendingSubscription
 from app.schemas.auth import RegisterIn, LoginIn, AuthOut, UserOut, validate_password
 from app.core.security import hash_password, verify_password, create_access_token, decode_token
 from app.core.limits import get_limits
+from app.core.cloudinary_client import resolve_avatar_url
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
@@ -180,7 +181,7 @@ def me(current_user: User = Depends(get_current_user)):
         "newsletter_opt_in": current_user.newsletter_opt_in,
         "university": current_user.university,
         "study_level": current_user.study_level,
-        "avatar_url": current_user.avatar_url,
+        "avatar_url": resolve_avatar_url(current_user.avatar_url),
 
         "score": current_user.score,
         "grade": current_user.grade,

@@ -8,8 +8,9 @@ par le SDK Cloudinary au premier import — aucune config manuelle nécessaire
 si la variable d'env est bien définie sur Render.
 
 Utilisation :
-    from app.core.cloudinary_client import upload_avatar
+    from app.core.cloudinary_client import upload_avatar, resolve_avatar_url
     url = upload_avatar(file_bytes, public_id=f"user_{user_id}")
+    display_url = resolve_avatar_url(user.avatar_url)  # jamais None
 """
 from __future__ import annotations
 
@@ -30,6 +31,24 @@ ALLOWED_CONTENT_TYPES = {
 MAX_AVATAR_BYTES = 8 * 1024 * 1024  # 8 MB — large car Cloudinary recompresse
 
 AVATAR_FOLDER = "navire/avatars"
+
+# ============================================================
+# AVATAR PAR DÉFAUT
+# ============================================================
+# Image affichée pour tout utilisateur n'ayant jamais uploadé de photo.
+# Centralisé ici : toute route qui renvoie avatar_url doit passer par
+# resolve_avatar_url() plutôt que de renvoyer user.avatar_url brut, pour que
+# le fallback soit cohérent sur tout le backend (auth, users, leaderboard…).
+DEFAULT_AVATAR_URL = "https://image.noelshack.com/fichiers/2026/25/7/1782078362-294f2b4fc8c430f7ff19c7afec00de5a.jpg"
+
+
+def resolve_avatar_url(avatar_url: str | None) -> str:
+    """
+    Retourne l'URL d'avatar à afficher : celle de l'utilisateur si définie,
+    sinon l'avatar par défaut. Ne retourne jamais None — toute route qui
+    expose un avatar à un client doit utiliser cette fonction.
+    """
+    return avatar_url if avatar_url else DEFAULT_AVATAR_URL
 
 
 def is_allowed_image(content_type: str | None) -> bool:
