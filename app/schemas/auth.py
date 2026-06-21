@@ -26,9 +26,12 @@ class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=72)
 
+
 class ProfileUpdateIn(BaseModel):
-    university: str = Field(min_length=1, max_length=120)
-    study_level: str = Field(min_length=1, max_length=120)
+    
+    username: str | None = Field(default=None, min_length=1, max_length=64)
+    university: str | None = Field(default=None, min_length=1, max_length=120)
+    study_level: str | None = Field(default=None, min_length=1, max_length=120)
 
 
 # =========================
@@ -43,6 +46,7 @@ class UserOut(BaseModel):
     newsletter_opt_in: bool
     university: str | None
     study_level: str | None
+    avatar_url: str | None = None
 
     score: int
     grade: str
