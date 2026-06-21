@@ -208,13 +208,14 @@ def get_profile_summary(
     ).scalar_one()
     files_limit = get_limit(u.plan, "files_total")
 
-    # --- Voisins immédiats au-dessus en ELO (les N juste devant) ---
-    NEIGHBORS_LIMIT = 5
+    # --- Tous les utilisateurs au-dessus en ELO (classement complet, sans
+    # limite) — nécessaire pour le pattern UX "ma ligne reste collée en bas
+    # jusqu'à ce que le scroll atteigne ma vraie position dans le classement"
+    # côté frontend. Pas de LIMIT ici par choix : voir discussion produit.
     rows_above = db.execute(
         select(User.id, User.username, User.elo, User.avatar_url)
         .where(User.elo > u.elo)
         .order_by(asc(User.elo))
-        .limit(NEIGHBORS_LIMIT)
     ).all()
 
     # rows_above est trié du plus proche (juste au-dessus) au plus loin ;
