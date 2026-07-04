@@ -31,18 +31,21 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "flashcards_total": 200,    # nombre total de flashcards stockées
         "files_total":      1,      # nombre de fichiers hébergés simultanément
         "file_ttl_hours":   24,     # durée de vie des fichiers en heures (None = infini)
+        "navire_per_day":   3,      # NAVIRE : questions/jour (non abonnes)
     },
     "membre": {
         "qcm_per_day":      None,
         "flashcards_total": 500,
         "files_total":      7,
         "file_ttl_hours":   None,
+        "navire_per_day":   None,   # NAVIRE illimite
     },
     "membre+": {
         "qcm_per_day":      None,
         "flashcards_total": 1000,
         "files_total":      24,
         "file_ttl_hours":   None,
+        "navire_per_day":   None,   # NAVIRE illimite
     },
     "prepa": {
         # Programme d'été. L'élève a un accès large à NAVIRE pendant sa
@@ -55,12 +58,14 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "flashcards_total": 1000,   # généreux, cohérent avec le tarif
         "files_total":      7,      # host perso de l'élève (PDF à lui)
         "file_ttl_hours":   None,   # pas d'expiration pendant la période
+        "navire_per_day":   None,   # NAVIRE illimite
     },
     "beta": {
         "qcm_per_day":      None,
         "flashcards_total": 500,
         "files_total":      7,
         "file_ttl_hours":   None,
+        "navire_per_day":   None,   # NAVIRE illimite
     },
 }
 
@@ -117,6 +122,49 @@ def check_qcm_daily_limit(user: User, db: Session) -> None:
                 "plan": user.plan,
                 "limit": limit,
                 "used": sessions_today,
+            },
+        )
+
+
+def check_navire_daily_limit(user: User, db: Session) -> None:
+    """
+    Limite le nombre de messages envoyes a NAVIRE par jour calendaire (UTC).
+    Compte les messages "user" sur les conversations mises a jour aujourd'hui.
+
+    Utilise dans : routers/navire.py -> POST /navire/chat
+    """
+    limit = get_limit(user.plan, "navire_per_day")
+    if limit is None:
+        return
+
+    from app.db.models import NavireConversation
+
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    conversations_today = (
+        db.query(NavireConversation)
+        .filter(
+            NavireConversation.user_id == user.id,
+            NavireConversation.updated_at >= today_start,
+        )
+        .all()
+    )
+
+    used = 0
+    for conv in conversations_today:
+        for msg in (conv.messages or []):
+            if msg.get("role") == "user" and msg.get("at", "") >= today_start.isoformat():
+                used += 1
+
+    if used >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "NAVIRE_DAILY_LIMIT_REACHED",
+                "message": f"Limite de {limit} question(s) NAVIRE par jour atteinte.",
+                "plan": user.plan,
+                "limit": limit,
+                "used": used,
             },
         )
 

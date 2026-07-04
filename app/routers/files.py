@@ -14,6 +14,8 @@ from app.db.models import User, File as FileModel
 from app.routers.auth import get_current_user
 from app.core.config import USER_FILES_DIR, MAX_UPLOAD_BYTES
 from app.core.limits import check_file_limit, get_file_ttl, get_limit
+from app.db.models import NavireChunk  # NAVIRE — nettoyage des chunks liés aux PDF
+from app.services.navire_ingest import ingest_user_file  # NAVIRE — indexation RAG des PDF perso
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -55,6 +57,14 @@ def purge_expired_files(db: Session, user: User) -> int:
                 p.unlink()
         except Exception:
             pass
+        # NAVIRE : retirer les chunks indexés de ce PDF expiré
+        try:
+            db.query(NavireChunk).filter(
+                NavireChunk.source_type == "pdf_user",
+                NavireChunk.source_id == row.id,
+            ).delete()
+        except Exception as e:
+            print(f"⚠️ Purge chunks NAVIRE échouée pour file {row.id}: {e}")
         db.delete(row)
         deleted += 1
 
@@ -152,6 +162,13 @@ async def upload_file(
     db.commit()
     db.refresh(row)
 
+    # NAVIRE : indexer le PDF pour le RAG (cloisonné par user via owner_user_id).
+    # Non bloquant : un échec d'indexation ne doit pas faire échouer l'upload.
+    try:
+        ingest_user_file(db, row)
+    except Exception as e:
+        print(f"⚠️ Indexation NAVIRE échouée pour file {row.id}: {e}")
+
     return {
         "id": row.id,
         "filename_original": row.filename_original,
@@ -223,6 +240,15 @@ def delete_file(
             p.unlink()
     except Exception:
         pass
+
+    # NAVIRE : retirer les chunks indexés de ce PDF
+    try:
+        db.query(NavireChunk).filter(
+            NavireChunk.source_type == "pdf_user",
+            NavireChunk.source_id == row.id,
+        ).delete()
+    except Exception as e:
+        print(f"⚠️ Suppression chunks NAVIRE échouée pour file {row.id}: {e}")
 
     db.delete(row)
     db.commit()

@@ -17,6 +17,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from pgvector.sqlalchemy import Vector  # NAVIRE — colonne vectorielle RAG
+
 from app.db.database import Base
 
 
@@ -1151,3 +1153,112 @@ class PrepaSubmission(Base):
     # Relations
     user: Mapped["User"] = relationship("User", back_populates="prepa_submissions")
     exercise: Mapped["PrepaExercise"] = relationship("PrepaExercise", back_populates="submissions")
+
+
+# ============================================================
+# NAVIRE - IA juridique etudiante (RAG)
+# ============================================================
+
+class NavireChunk(Base):
+    """
+    Un chunk de texte source vectorisé pour le RAG de NAVIRE.
+
+    source_type : "cours" | "actu" | "pdf_user"
+        - "cours"    -> découpe de PrepaCourseFile (cours L1/L2/L3 + méthodo)
+        - "actu"     -> une VeilleItem (title + essentiel + impact)
+        - "pdf_user" -> découpe d'un File uploadé par un utilisateur
+
+    owner_user_id : NULL pour tout contenu global (cours, actus).
+        Rempli UNIQUEMENT pour les chunks issus des PDF perso d'un
+        utilisateur ("pdf_user"). Le retrieval DOIT filtrer par
+        (owner_user_id IS NULL OR owner_user_id == current_user.id)
+        — jamais d'exception, c'est la garantie de confidentialité
+        entre utilisateur X et Y.
+
+    source_id : id de l'objet d'origine (PrepaCourseFile.id, VeilleItem.id,
+        File.id) — permet de retrouver / re-ingérer / citer la source.
+
+    embedding : liste de floats sérialisée en JSON (fallback pré-pgvector).
+        Dimension attendue : 1536 (text-embedding-3-small).
+    """
+    __tablename__ = "navire_chunks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    source_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    source_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+    # NULL = contenu global (cours, actus). Rempli seulement pour pdf_user.
+    owner_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    # Filtre pédagogique (L1|L2|L3) — NULL si non applicable (actu, pdf_user)
+    annee: Mapped[str | None] = mapped_column(String(4), nullable=True, index=True)
+
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    # Texte brut du chunk (ce qui est injecté dans le prompt si retenu)
+
+    embedding: Mapped[list] = mapped_column(Vector(1536), nullable=False)
+    # 1536 = dimension de text-embedding-3-small. Colonne pgvector native,
+    # utilisée directement par l'opérateur <=> (distance cosinus) en SQL.
+
+    extra: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    # Métadonnées libres pour la citation : titre du cours, source_url actu,
+    # nom du fichier PDF, etc. Ex: {"titre": "Leçon 3 : la formation du contrat"}
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class NavireConversation(Base):
+    """
+    Historique de conversation NAVIRE par utilisateur.
+
+    Une ligne = UNE conversation (pas un message). `messages` contient
+    la liste complète des tours (user + assistant) en JSON.
+
+    Rétention : on ne garde que les 10 dernières conversations par user
+    (purge applicative au moment de la création d'une 11e — voir
+    app/services/navire_chat.py::_enforce_conversation_retention).
+    """
+    __tablename__ = "navire_conversations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    title: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    # Résumé auto (ex: 1res mots de la 1re question) pour affichage liste
+
+    messages: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    # [{"role": "user"|"assistant", "content": "...", "at": "iso datetime"}, ...]
+
+    mode: Mapped[str] = mapped_column(String(20), default="chat", nullable=False)
+    # chat | cas_pratique | note_synthese  (préprompt utilisé)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+
+    # Relation
+    user: Mapped["User"] = relationship("User")

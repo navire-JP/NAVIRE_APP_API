@@ -15,6 +15,7 @@ from app.db import models  # noqa: F401
 from app.db.models import QcmSessionHistory
 from app.db.migrate_discord_fields import run_discord_migrations
 from app.db.prepa_migration import run_prepa_migration
+from app.db.navire_migration import run_navire_migration
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
 from app.routers.meta import router as meta_router
@@ -31,6 +32,7 @@ from app.routers.leaderboard import router as leaderboard_router
 from app.routers.cab import router as cab_router
 from app.routers.discord_bot import router as discord_bot_router
 from app.routers.prepa import router as prepa_router
+from app.routers.navire import router as navire_router
 
 # ============================================================
 # MEOLES — import isolé
@@ -107,6 +109,9 @@ async def lifespan(app: FastAPI):
     print("🚀 Startup: creating database tables if needed...")
     Base.metadata.create_all(bind=engine)
 
+    print("🚀 Startup: activating pgvector + navire index...")
+    run_navire_migration()
+
     print("🚀 Startup: running discord migrations...")
     run_discord_migrations()
 
@@ -164,6 +169,7 @@ app.include_router(leaderboard_router)
 app.include_router(cab_router)
 app.include_router(discord_bot_router)
 app.include_router(prepa_router)
+app.include_router(navire_router)
 
 # ============================================================
 # MEOLES — Routers
