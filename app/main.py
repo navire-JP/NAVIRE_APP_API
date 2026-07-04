@@ -15,7 +15,7 @@ from app.db import models  # noqa: F401
 from app.db.models import QcmSessionHistory
 from app.db.migrate_discord_fields import run_discord_migrations
 from app.db.prepa_migration import run_prepa_migration
-from app.db.navire_migration import run_navire_migration
+from app.db.navire_migration import run_navire_migration, ensure_vector_extension
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
 from app.routers.meta import router as meta_router
@@ -106,10 +106,13 @@ async def lifespan(app: FastAPI):
     print("🚀 Startup: ensuring storage dirs...")
     ensure_storage_dirs()
 
+    print("🚀 Startup: ensuring pgvector extension...")
+    ensure_vector_extension()
+
     print("🚀 Startup: creating database tables if needed...")
     Base.metadata.create_all(bind=engine)
 
-    print("🚀 Startup: activating pgvector + navire index...")
+    print("🚀 Startup: creating navire vector index...")
     run_navire_migration()
 
     print("🚀 Startup: running discord migrations...")

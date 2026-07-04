@@ -1,11 +1,18 @@
 """
 app/db/navire_migration.py
 ============================
-Active l'extension pgvector sur le Render PG et crée l'index de similarité
-sur navire_chunks.embedding.
+Migration pgvector pour NAVIRE, en DEUX temps à cause de l'ordre de démarrage :
 
-Suit le même pattern que migrate_discord_fields.py / prepa_migration.py :
-une fonction idempotente appelée au démarrage (lifespan de main.py).
+  1. ensure_vector_extension()  -> CREATE EXTENSION vector
+     DOIT tourner AVANT Base.metadata.create_all(), car la table
+     navire_chunks déclare une colonne de type `vector` : sans l'extension
+     activée, create_all échoue avec "type vector does not exist".
+
+  2. run_navire_migration()     -> CREATE INDEX ivfflat
+     DOIT tourner APRÈS create_all(), car l'index porte sur une table qui
+     doit déjà exister.
+
+Les deux sont idempotentes (IF NOT EXISTS) — sans risque à chaque redémarrage.
 """
 
 from __future__ import annotations
@@ -15,18 +22,25 @@ from sqlalchemy import text
 from app.db.database import engine
 
 
-def run_navire_migration() -> None:
+def ensure_vector_extension() -> None:
+    """
+    Active l'extension pgvector. À appeler AVANT Base.metadata.create_all().
+    """
     with engine.connect() as conn:
-        # 1. Activer l'extension (idempotent — CREATE EXTENSION IF NOT EXISTS)
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         conn.commit()
         print("✅ Extension pgvector activée (ou déjà présente)")
 
-        # 2. Index ivfflat pour la recherche par similarité cosinus.
-        #    Nécessite que la table existe déjà (create_all tourne avant
-        #    cet appel dans le lifespan — voir INTEGRATION_NOTES.md).
-        #    lists=100 est un réglage raisonnable pour un volume de quelques
-        #    dizaines de milliers de chunks ; à revoir si le volume explose.
+
+def run_navire_migration() -> None:
+    """
+    Crée l'index ivfflat de similarité cosinus sur navire_chunks.embedding.
+    À appeler APRÈS Base.metadata.create_all() (la table doit exister).
+
+    lists=100 : réglage raisonnable pour quelques dizaines de milliers de
+    chunks ; à revoir si le volume explose.
+    """
+    with engine.connect() as conn:
         try:
             conn.execute(text("""
                 CREATE INDEX IF NOT EXISTS navire_chunks_embedding_idx
@@ -38,4 +52,4 @@ def run_navire_migration() -> None:
             print("✅ Index ivfflat créé (ou déjà présent) sur navire_chunks.embedding")
         except Exception as e:
             conn.rollback()
-            print(f"⚠️ Index ivfflat non créé (normal si table vide ou pas encore migrée) : {e}")
+            print(f"⚠️ Index ivfflat non créé (table vide ou absente) : {e}")
