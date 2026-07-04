@@ -12,11 +12,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import User, NavireConversation
+from app.db.models import User, NavireConversation, NavireChunk, File
 from app.routers.auth import get_current_user
 from app.core.limits import check_navire_daily_limit
 from app.services.navire_chat import send_message
-from app.services.navire_ingest import ingest_all_prepa_courses, ingest_all_veille_items
+from app.services.navire_ingest import ingest_all_prepa_courses, ingest_all_veille_items, ingest_user_file
 
 router = APIRouter(prefix="/navire", tags=["navire"])
 
@@ -164,3 +164,66 @@ def admin_ingest_actus(
     if x_admin_code != ADMIN_CODE:
         raise HTTPException(status_code=403, detail="Accès refusé.")
     return ingest_all_veille_items(db, limit=limit)
+
+
+@router.post("/admin/ingest/user-files")
+def admin_ingest_user_files(
+    db: Session = Depends(get_db),
+    x_admin_code: str = Header(...),
+):
+    """
+    RATTRAPAGE : ingère tous les PDF users déjà présents en base qui n'ont
+    pas encore de chunks dans l'index (uploadés avant le déploiement du hook).
+    Idempotent : les fichiers déjà indexés sont réingérés proprement
+    (suppression des anciens chunks avant réinsertion).
+    """
+    if x_admin_code != ADMIN_CODE:
+        raise HTTPException(status_code=403, detail="Accès refusé.")
+
+    files = db.query(File).all()
+    processed = 0
+    chunks_total = 0
+    errors: list[dict] = []
+    for f in files:
+        try:
+            created = ingest_user_file(db, f)
+            chunks_total += created
+            processed += 1
+        except Exception as e:
+            errors.append({"file_id": f.id, "filename": f.filename_original, "error": str(e)})
+
+    return {
+        "files_processed": processed,
+        "chunks_created": chunks_total,
+        "errors": errors,
+    }
+
+
+@router.get("/admin/index-status")
+def admin_index_status(
+    db: Session = Depends(get_db),
+    x_admin_code: str = Header(...),
+):
+    """
+    DIAGNOSTIC : état réel de l'index vectoriel, par type de source.
+    Permet de vérifier en un coup d'œil si les ingestions ont bien tourné.
+    """
+    if x_admin_code != ADMIN_CODE:
+        raise HTTPException(status_code=403, detail="Accès refusé.")
+
+    from sqlalchemy import func as sa_func
+
+    rows = (
+        db.query(NavireChunk.source_type, sa_func.count(NavireChunk.id))
+        .group_by(NavireChunk.source_type)
+        .all()
+    )
+    counts = {source_type: count for source_type, count in rows}
+    return {
+        "total_chunks": sum(counts.values()),
+        "by_source": {
+            "cours": counts.get("cours", 0),
+            "actu": counts.get("actu", 0),
+            "pdf_user": counts.get("pdf_user", 0),
+        },
+    }
