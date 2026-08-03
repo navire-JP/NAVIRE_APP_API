@@ -70,7 +70,28 @@ PREPA_MONTHLY_QUANTITIES: dict[str, list[int]] = {
 }
 
 
+# Libellés d'affichage (emails, export CSV, formulaire public). Séparé des
+# clés techniques : celles-ci sont figées côté Stripe et ne doivent pas bouger.
+PREPA_MATIERE_NAMES: dict[str, str] = {
+    "L1_droit_constit":               "Droit constitutionnel",
+    "L1_intro_au_droit":              "Introduction au droit",
+    "L1_droit_ijae":                  "Droit IJAE",
+    "L2_droit_administratif":         "Droit administratif",
+    "L2_droit_des_obligations":       "Droit des obligations",
+    "L2_droit_penal":                 "Droit pénal",
+    "L3_droit_des_societes":          "Droit des sociétés",
+    "L3_droit_des_suretes":           "Droit des sûretés",
+    "L3_droit_des_contrats_speciaux": "Droit des contrats spéciaux",
+}
+
+
+def matiere_niveau(matiere_key: str) -> str:
+    """Niveau porté par la clé, ex: 'L1_droit_constit' -> 'L1'."""
+    return matiere_key.partition("_")[0]
+
+
 def matiere_label(matiere_key: str) -> str:
-    """Libellé lisible pour affichage/email, ex: 'L1_droit_constit' -> 'L1 – Droit constit'."""
+    """Libellé lisible, ex: 'L1_droit_constit' -> 'L1 – Droit constitutionnel'."""
     niveau, _, rest = matiere_key.partition("_")
-    return f"{niveau} – {rest.replace('_', ' ').capitalize()}"
+    nom = PREPA_MATIERE_NAMES.get(matiere_key) or rest.replace("_", " ").capitalize()
+    return f"{niveau} – {nom}"

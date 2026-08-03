@@ -52,6 +52,23 @@ _STATEMENTS: list[str] = [
     """,
     "CREATE INDEX IF NOT EXISTS ix_discord_link_codes_user_id ON discord_link_codes (user_id)",
     "CREATE INDEX IF NOT EXISTS ix_discord_link_codes_code ON discord_link_codes (code)",
+
+    # ── prepa_adjuris_inscriptions (formulaire public du site) ──
+    """
+    CREATE TABLE IF NOT EXISTS prepa_adjuris_inscriptions (
+        id          SERIAL       PRIMARY KEY,
+        prenom      VARCHAR(80)  NOT NULL,
+        nom         VARCHAR(80)  NOT NULL,
+        email       VARCHAR(320) NOT NULL UNIQUE,
+        niveau      VARCHAR(4)   NOT NULL,
+        matieres    JSON         NOT NULL DEFAULT '[]'::json,
+        created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_email ON prepa_adjuris_inscriptions (email)",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_niveau ON prepa_adjuris_inscriptions (niveau)",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_created_at ON prepa_adjuris_inscriptions (created_at)",
 ]
 
 

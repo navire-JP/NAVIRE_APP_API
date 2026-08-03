@@ -1336,3 +1336,40 @@ class DiscordLinkCode(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PrepaAdjurisInscription(Base):
+    """
+    Pré-inscription déposée via le formulaire public du site (embed HTML).
+
+    C'est une manifestation d'intérêt, PAS un paiement : elle précède le
+    checkout Stripe et n'ouvre aucun accès. Elle sert à remplir les 10 places
+    par matière et à recontacter les étudiants.
+
+    Une seule ligne par email (upsert applicatif dans le router) : une
+    nouvelle soumission avec le même email met à jour la ligne existante et
+    fusionne les matières, plutôt que d'empiler des doublons.
+    """
+    __tablename__ = "prepa_adjuris_inscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    prenom: Mapped[str] = mapped_column(String(80), nullable=False)
+    nom: Mapped[str] = mapped_column(String(80), nullable=False)
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+
+    niveau: Mapped[str] = mapped_column(String(4), nullable=False, index=True)
+    # L1 | L2 | L3
+
+    matieres: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    # liste de matiere_key (mêmes clés que PREPA_PRICES)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
