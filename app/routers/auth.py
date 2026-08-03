@@ -103,6 +103,44 @@ def activate_pending_subscription(db: Session, user: User) -> bool:
     return True
 
 
+def activate_pending_prepa_adjuris(db: Session, user: User) -> int:
+    """
+    Appelé à l'inscription. Rattache les paiements Prép'AdJuris effectués avec
+    cet email avant la création du compte (le formulaire public paie sans
+    authentification), puis ouvre l'accès Discord.
+    Retourne le nombre de matières rattachées.
+
+    Imports différés : subscriptions.py importe ce module, un import en tête de
+    fichier créerait un cycle.
+    """
+    from sqlalchemy import select as _select
+    from app.db.models import PrepaAdjurisEnrollment
+    from app.routers.subscriptions import send_adjuris_discord_invite
+
+    orphelines = db.execute(
+        _select(PrepaAdjurisEnrollment).where(
+            PrepaAdjurisEnrollment.user_id.is_(None),
+            PrepaAdjurisEnrollment.email == user.email.lower(),
+        )
+    ).scalars().all()
+
+    if not orphelines:
+        return 0
+
+    for enrollment in orphelines:
+        enrollment.user_id = user.id
+    db.commit()
+
+    actives = [e.matiere_key for e in orphelines if e.status == "active"]
+    try:
+        send_adjuris_discord_invite(db, user, actives)
+    except Exception:
+        # L'accès Discord ne doit jamais faire échouer une inscription.
+        pass
+
+    return len(orphelines)
+
+
 @router.post("/register", response_model=AuthOut)
 def register(payload: RegisterIn, db: Session = Depends(get_db)):
     # 0) validation password
@@ -141,6 +179,9 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
 
     # Activer un abonnement en attente si l'email correspond à un paiement Stripe
     activate_pending_subscription(db, user)
+
+    # Rattacher les paiements Prép'AdJuris faits avant la création du compte
+    activate_pending_prepa_adjuris(db, user)
 
     # 4) création du token (même logique que login)
     token = create_access_token(str(user.id))

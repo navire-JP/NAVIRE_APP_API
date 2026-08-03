@@ -230,23 +230,8 @@ def link_discord_adjuris(payload: LinkDiscordAdjurisIn, db: Session = Depends(ge
 # Formulaire public du site (pré-inscription, sans paiement)
 # ============================================================
 
-@router.post("/inscription")
-def create_prepa_adjuris_inscription(
-    payload: PrepaAdjurisInscriptionIn,
-    db: Session = Depends(get_db),
-):
-    """
-    Enregistre une pré-inscription venue du formulaire embarqué sur le site.
-    Aucune authentification : l'embed est public. Aucun accès n'est ouvert ici
-    — c'est une manifestation d'intérêt, le paiement passe par /checkout-session.
-
-    Upsert par email : une nouvelle soumission avec le même email met à jour la
-    ligne et fusionne les matières, au lieu de créer un doublon.
-    """
-    # Bot détecté → on répond OK pour ne pas lui signaler la détection.
-    if payload.website.strip():
-        return {"ok": True}
-
+def _validate_inscription(payload: PrepaAdjurisInscriptionIn) -> tuple[str, list[str]]:
+    """Valide niveau + matières. Retourne (niveau, matieres dédoublonnées)."""
     niveau = payload.niveau.strip().upper()
     if niveau not in VALID_NIVEAUX:
         raise HTTPException(status_code=400, detail="Niveau invalide (L1, L2 ou L3).")
@@ -265,6 +250,17 @@ def create_prepa_adjuris_inscription(
             detail=f"La matière {hors_niveau[0]} n'appartient pas au niveau {niveau}.",
         )
 
+    return niveau, matieres
+
+
+def _upsert_inscription(
+    db: Session, payload: PrepaAdjurisInscriptionIn, niveau: str, matieres: list[str]
+) -> list[str]:
+    """
+    Enregistre (ou met à jour) la pré-inscription. Une nouvelle soumission avec
+    le même email met à jour la ligne et fusionne les matières, au lieu de
+    créer un doublon. Retourne les matières finalement enregistrées.
+    """
     email = payload.email.strip().lower()
     prenom = payload.prenom.strip()
     nom = payload.nom.strip()
@@ -283,19 +279,115 @@ def create_prepa_adjuris_inscription(
         existing.niveau = niveau
         existing.matieres = matieres
         db.commit()
-        return {"ok": True, "matieres": matieres}
+        return matieres
 
-    row = PrepaAdjurisInscription(
-        prenom=prenom,
-        nom=nom,
-        email=email,
-        niveau=niveau,
-        matieres=matieres,
-    )
-    db.add(row)
+    db.add(PrepaAdjurisInscription(
+        prenom=prenom, nom=nom, email=email, niveau=niveau, matieres=matieres,
+    ))
     db.commit()
+    return matieres
 
+
+@router.post("/inscription")
+def create_prepa_adjuris_inscription(
+    payload: PrepaAdjurisInscriptionIn,
+    db: Session = Depends(get_db),
+):
+    """
+    Enregistre une pré-inscription sans paiement (manifestation d'intérêt).
+    Conservé pour un usage hors tunnel de paiement ; le formulaire du site
+    appelle /checkout, qui enregistre la même chose PUIS redirige vers Stripe.
+    """
+    if payload.website.strip():
+        return {"ok": True}  # bot : on ne lui signale pas la détection
+
+    niveau, matieres = _validate_inscription(payload)
+    matieres = _upsert_inscription(db, payload, niveau, matieres)
     return {"ok": True, "matieres": matieres}
+
+
+@router.post("/checkout")
+def create_prepa_adjuris_public_checkout(
+    payload: PrepaAdjurisInscriptionIn,
+    db: Session = Depends(get_db),
+):
+    """
+    Point d'entrée du formulaire public : enregistre la pré-inscription (donc
+    le lead est gardé même si le paiement est abandonné) puis crée la Checkout
+    Session Stripe et renvoie son URL.
+
+    Pas d'authentification, volontairement : l'embed vit dans une iframe et ne
+    peut pas lire le token du site parent. L'identité repose sur l'email, et le
+    webhook rattache le paiement au compte NAVIRE (existant ou créé ensuite).
+
+    Toutes les matières appartiennent au même niveau (validé ci-dessous), donc
+    elles partagent le même calendrier de quantités : un seul abonnement Stripe
+    à N items suffit, avec les mêmes quantités par phase pour tous les items.
+    """
+    if payload.website.strip():
+        raise HTTPException(status_code=400, detail="Requête invalide.")
+
+    niveau, matieres = _validate_inscription(payload)
+    _upsert_inscription(db, payload, niveau, matieres)
+
+    email = payload.email.strip().lower()
+
+    # Retire les matières déjà payées, pour ne pas facturer deux fois.
+    deja_payees = set(db.execute(
+        select(PrepaAdjurisEnrollment.matiere_key).where(
+            PrepaAdjurisEnrollment.email == email,
+            PrepaAdjurisEnrollment.status == "active",
+        )
+    ).scalars().all())
+    a_payer = [m for m in matieres if m not in deja_payees]
+
+    if not a_payer:
+        raise HTTPException(status_code=400, detail={
+            "code": "ALREADY_ENROLLED",
+            "message": "Tu es déjà inscrit à ces matières.",
+        })
+
+    _stripe()  # force la clé NAVIRE
+
+    # Le one_time couvre une séance de septembre → -1 sur le recurring.
+    septembre_recurring_qty = PREPA_MONTHLY_QUANTITIES[a_payer[0]][0] - 1
+
+    line_items = []
+    for key in a_payer:
+        line_items.append({"price": PREPA_PRICES[key]["one_time"], "quantity": 1})
+        if septembre_recurring_qty > 0:
+            line_items.append({
+                "price": PREPA_PRICES[key]["recurring"],
+                "quantity": septembre_recurring_qty,
+            })
+
+    # Si un compte NAVIRE existe déjà pour cet email, on le référence tout de
+    # suite ; sinon le webhook rattachera par email.
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+
+    params = {
+        "mode": "subscription",
+        "customer_email": email,
+        "line_items": line_items,
+        "success_url": f"{FRONTEND_URL}/prepa-merci?session_id={{CHECKOUT_SESSION_ID}}",
+        "cancel_url": f"{FRONTEND_URL}/prepa-adjuris",
+        "metadata": {
+            "matiere_keys": ",".join(a_payer),
+            "niveau": niveau,
+            "email": email,
+            "prenom": payload.prenom.strip()[:80],
+            "nom": payload.nom.strip()[:80],
+        },
+    }
+    if user:
+        params["client_reference_id"] = str(user.id)
+
+    try:
+        session = stripe.checkout.Session.create(**params)
+    except stripe.StripeError as e:
+        raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
+
+    return {"checkout_url": session.url, "matieres": a_payer}
 
 
 # ============================================================

@@ -33,7 +33,7 @@ import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, update
 
 from app.db.database import get_db
 from app.db.models import (
@@ -492,73 +492,19 @@ def _get_active_link_code(db: Session, user_id: int) -> DiscordLinkCode | None:
     ).scalars().first()
 
 
-def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_key: str) -> None:
+def send_adjuris_discord_invite(db: Session, user: User, matieres: list[str]) -> None:
     """
-    Traite un checkout.session.completed Prép'AdJuris : enregistre l'inscription,
-    convertit l'abonnement en Subscription Schedule pour les mois suivants
-    (quantités oct/nov/déc, fin d'engagement = arrêt automatique après déc.),
-    puis attribue le rôle Discord (ou envoie le code de liaison par email).
+    Ouvre l'accès Discord après paiement : rôles directs si le compte est déjà
+    lié, sinon un code de liaison à usage unique envoyé par email.
+    Appelé par le webhook, et par auth.py au rattachement d'un paiement fait
+    avant la création du compte.
     """
-    if matiere_key not in PREPA_PRICES:
+    if not matieres:
         return
 
-    user_id_raw = session.get("client_reference_id")
-    sub_id = session.get("subscription")
-    if not user_id_raw or not sub_id:
-        return
-
-    user = db.execute(select(User).where(User.id == int(user_id_raw))).scalar_one_or_none()
-    if not user:
-        return
-
-    # Idempotence : Stripe peut relivrer le même event (retry après timeout).
-    # stripe_subscription_id est UNIQUE — sans ce garde-fou, une redélivrance
-    # planterait sur l'INSERT et bouclerait indéfiniment côté Stripe.
-    already = db.execute(
-        select(PrepaAdjurisEnrollment).where(
-            PrepaAdjurisEnrollment.stripe_subscription_id == sub_id
-        )
-    ).scalar_one_or_none()
-    if already:
-        return
-
-    enrollment = PrepaAdjurisEnrollment(
-        user_id=user.id,
-        matiere_key=matiere_key,
-        stripe_subscription_id=sub_id,
-        stripe_customer_id=session.get("customer"),
-        status="active",
-    )
-    db.add(enrollment)
-    db.commit()
-
-    # ── Conversion en Subscription Schedule (oct/nov/déc) ──────
-    # Engagement 4 mois (sept → déc) : end_behavior="cancel" pour que
-    # l'abonnement s'arrête automatiquement après la phase de décembre —
-    # pas de reconduction implicite, l'étudiant se réinscrit ensuite.
-    recurring_price = PREPA_PRICES[matiere_key]["recurring"]
-    quantites = PREPA_MONTHLY_QUANTITIES[matiere_key]
-    prochains_mois = quantites[1:]  # oct, nov, déc — pas d'ajustement -1 ici
-
-    try:
-        schedule = stripe.SubscriptionSchedule.create(from_subscription=sub_id)
-        future_phases = [
-            {"items": [{"price": recurring_price, "quantity": q}], "iterations": 1}
-            for q in prochains_mois
-        ]
-        stripe.SubscriptionSchedule.modify(
-            schedule["id"],
-            phases=[schedule["phases"][0]] + future_phases,
-            end_behavior="cancel",
-        )
-        enrollment.stripe_schedule_id = schedule["id"]
-        db.commit()
-    except stripe.StripeError as e:
-        logger.error("Adjuris : échec création Subscription Schedule pour %s : %s", sub_id, e)
-
-    # ── Discord : rôle direct si déjà lié, sinon code + email ──
     if user.discord_id:
-        assign_adjuris_role_sync(user.discord_id, matiere_key)
+        for key in matieres:
+            assign_adjuris_role_sync(user.discord_id, key)
         return
 
     code_row = _get_active_link_code(db, user.id)
@@ -571,26 +517,141 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_key: str)
         db.add(code_row)
         db.commit()
 
-    subject, html = mail_prepa_adjuris_link_code(user.email, code_row.code, matiere_label(matiere_key))
+    libelles = ", ".join(matiere_label(k) for k in matieres)
+    subject, html = mail_prepa_adjuris_link_code(user.email, code_row.code, libelles)
     send_mail(user.email, subject, html)
 
 
+def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: list[str]) -> None:
+    """
+    Traite un checkout.session.completed Prép'AdJuris : enregistre une ligne par
+    matière, convertit l'abonnement en Subscription Schedule pour les mois
+    suivants (quantités oct/nov/déc, arrêt automatique après décembre), puis
+    ouvre l'accès Discord.
+
+    Un Checkout Session ne crée qu'UN abonnement : si plusieurs matières ont été
+    payées, toutes les lignes partagent le même stripe_subscription_id, et
+    l'abonnement porte un item recurring par matière. Comme le formulaire impose
+    un niveau unique, toutes partagent aussi le même calendrier de quantités.
+
+    Le paiement peut venir d'un email sans compte NAVIRE : dans ce cas les
+    lignes sont créées sans user_id et rattachées à l'inscription (auth.py).
+    """
+    matiere_keys = [k for k in matiere_keys if k in PREPA_PRICES]
+    if not matiere_keys:
+        return
+
+    sub_id = session.get("subscription")
+    if not sub_id:
+        return
+
+    # Idempotence : Stripe relivre le même event en cas de timeout.
+    already = db.execute(
+        select(PrepaAdjurisEnrollment).where(
+            PrepaAdjurisEnrollment.stripe_subscription_id == sub_id
+        )
+    ).first()
+    if already:
+        return
+
+    meta = session.get("metadata") or {}
+    email = (
+        meta.get("email")
+        or (session.get("customer_details") or {}).get("email")
+        or session.get("customer_email")
+        or ""
+    ).strip().lower()
+
+    user = None
+    user_id_raw = session.get("client_reference_id")
+    if user_id_raw:
+        user = db.execute(select(User).where(User.id == int(user_id_raw))).scalar_one_or_none()
+    if not user and email:
+        user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+
+    if not user and not email:
+        logger.error("Adjuris : paiement %s sans email ni compte — impossible à rattacher.", sub_id)
+        return
+
+    for key in matiere_keys:
+        db.add(PrepaAdjurisEnrollment(
+            user_id=user.id if user else None,
+            email=email or (user.email if user else None),
+            matiere_key=key,
+            stripe_subscription_id=sub_id,
+            stripe_customer_id=session.get("customer"),
+            status="active",
+        ))
+    db.commit()
+
+    # ── Conversion en Subscription Schedule (oct/nov/déc) ──────
+    # Engagement 4 mois (sept → déc) : end_behavior="cancel" pour que
+    # l'abonnement s'arrête automatiquement après la phase de décembre —
+    # pas de reconduction implicite, l'étudiant se réinscrit ensuite.
+    prochains_mois = PREPA_MONTHLY_QUANTITIES[matiere_keys[0]][1:]  # oct, nov, déc
+
+    try:
+        schedule = stripe.SubscriptionSchedule.create(from_subscription=sub_id)
+        future_phases = [
+            {
+                "items": [
+                    {"price": PREPA_PRICES[k]["recurring"], "quantity": q}
+                    for k in matiere_keys
+                ],
+                "iterations": 1,
+            }
+            for q in prochains_mois
+        ]
+        stripe.SubscriptionSchedule.modify(
+            schedule["id"],
+            phases=[schedule["phases"][0]] + future_phases,
+            end_behavior="cancel",
+        )
+        db.execute(
+            update(PrepaAdjurisEnrollment)
+            .where(PrepaAdjurisEnrollment.stripe_subscription_id == sub_id)
+            .values(stripe_schedule_id=schedule["id"])
+        )
+        db.commit()
+    except stripe.StripeError as e:
+        logger.error("Adjuris : échec création Subscription Schedule pour %s : %s", sub_id, e)
+
+    # ── Accès Discord ──────────────────────────────────────────
+    if user:
+        send_adjuris_discord_invite(db, user, matiere_keys)
+    else:
+        # Pas encore de compte NAVIRE : on invite à le créer, l'accès Discord
+        # sera ouvert au moment de l'inscription (auth.py).
+        subject, html = mail_pending_subscription(email, "prepa-adjuris", FRONTEND_URL)
+        send_mail(email, subject, html)
+
+
 def _handle_adjuris_subscription_event(db: Session, stripe_sub_id: str, status: str) -> None:
-    """Symétrique de l'attribution : retire le rôle Discord de la matière concernée."""
-    enrollment = db.execute(
+    """
+    Symétrique de l'attribution : passe les inscriptions concernées dans l'état
+    donné et retire les rôles Discord. Boucle sur toutes les lignes, car un
+    abonnement peut porter plusieurs matières.
+    """
+    enrollments = db.execute(
         select(PrepaAdjurisEnrollment).where(
             PrepaAdjurisEnrollment.stripe_subscription_id == stripe_sub_id
         )
-    ).scalar_one_or_none()
-    if not enrollment:
+    ).scalars().all()
+    if not enrollments:
         return
 
-    enrollment.status = status
+    for enrollment in enrollments:
+        enrollment.status = status
     db.commit()
 
-    user = db.execute(select(User).where(User.id == enrollment.user_id)).scalar_one_or_none()
-    if user and user.discord_id:
-        remove_adjuris_role_sync(user.discord_id, enrollment.matiere_key)
+    for enrollment in enrollments:
+        if not enrollment.user_id:
+            continue
+        user = db.execute(
+            select(User).where(User.id == enrollment.user_id)
+        ).scalar_one_or_none()
+        if user and user.discord_id:
+            remove_adjuris_role_sync(user.discord_id, enrollment.matiere_key)
 
 
 # ============================================================
@@ -628,12 +689,15 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     if event_type == "checkout.session.completed":
         meta = data.get("metadata") or {}
 
-        # Branche Prép'AdJuris — metadata dédiée (matiere_key), pas de "plan".
-        # Traitée à part et en premier pour ne pas retomber dans la logique
-        # membre/membre+/prepa ci-dessous (qui exige metadata["plan"]).
-        matiere_key = meta.get("matiere_key", "")
-        if matiere_key:
-            _handle_prepa_adjuris_checkout(db, data, matiere_key)
+        # Branche Prép'AdJuris — metadata dédiée, pas de "plan". Traitée à part
+        # et en premier pour ne pas retomber dans la logique membre/membre+/prepa
+        # ci-dessous (qui exige metadata["plan"]).
+        # matiere_keys = formulaire public (N matières) ; matiere_key = ancien
+        # checkout authentifié à une seule matière, conservé par compatibilité.
+        matiere_keys_raw = meta.get("matiere_keys") or meta.get("matiere_key") or ""
+        if matiere_keys_raw:
+            keys = [k.strip() for k in matiere_keys_raw.split(",") if k.strip()]
+            _handle_prepa_adjuris_checkout(db, data, keys)
             return {"ok": True}
 
         user_id = int(meta.get("user_id", 0))

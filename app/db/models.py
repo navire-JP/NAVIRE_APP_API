@@ -1284,19 +1284,36 @@ class PrepaAdjurisEnrollment(Base):
     plusieurs lignes actives en parallèle (une par matière souscrite) —
     structurellement différent de PREPASSERELLE (User.plan == "prepa"), qui
     ne gère qu'une année unique par plan.
+
+    Deux points structurants :
+
+    - user_id est NULLABLE. Le paiement part d'un formulaire public : on ne
+      peut pas exiger d'être connecté (l'embed est dans une iframe et ne peut
+      pas lire le token du site parent). Si l'email ne correspond à aucun
+      compte NAVIRE au moment du paiement, la ligne est créée sans user_id et
+      rattachée à l'inscription du compte — même patron que
+      PendingSubscription / activate_pending_subscription dans auth.py.
+      email est donc TOUJOURS rempli : c'est lui la clé de rattachement.
+
+    - stripe_subscription_id n'est PAS unique. Un Checkout Session ne peut
+      créer qu'UN abonnement : si l'étudiant prend 3 matières d'un coup, les
+      3 lignes partagent le même abonnement Stripe (à 3 items).
     """
     __tablename__ = "prepa_adjuris_enrollments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
     )
+
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
+    # Email du payeur — sert à rattacher la ligne au compte NAVIRE créé après coup.
 
     matiere_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     # une des clés de PREPA_PRICES / PREPA_MONTHLY_QUANTITIES
 
-    stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     stripe_schedule_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # ID du Subscription Schedule une fois converti (phases oct/nov/déc)

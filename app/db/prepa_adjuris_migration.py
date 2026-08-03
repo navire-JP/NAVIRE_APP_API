@@ -25,18 +25,26 @@ _STATEMENTS: list[str] = [
     """
     CREATE TABLE IF NOT EXISTS prepa_adjuris_enrollments (
         id                       SERIAL       PRIMARY KEY,
-        user_id                  INTEGER      NOT NULL
+        user_id                  INTEGER
                                  REFERENCES users (id) ON DELETE CASCADE,
+        email                    VARCHAR(320),
         matiere_key              VARCHAR(64)  NOT NULL,
-        stripe_subscription_id   VARCHAR(100) UNIQUE,
+        stripe_subscription_id   VARCHAR(100),
         stripe_customer_id       VARCHAR(100),
         stripe_schedule_id       VARCHAR(100),
         status                   VARCHAR(20)  NOT NULL DEFAULT 'active',
         created_at               TIMESTAMPTZ  NOT NULL DEFAULT now()
     )
     """,
+    # Rattrapage si la table a été créée par une version antérieure de ce
+    # fichier (user_id NOT NULL, stripe_subscription_id UNIQUE, pas d'email).
+    "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS email VARCHAR(320)",
+    "ALTER TABLE prepa_adjuris_enrollments ALTER COLUMN user_id DROP NOT NULL",
+    "ALTER TABLE prepa_adjuris_enrollments DROP CONSTRAINT IF EXISTS prepa_adjuris_enrollments_stripe_subscription_id_key",
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_enrollments_user_id ON prepa_adjuris_enrollments (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_enrollments_email ON prepa_adjuris_enrollments (email)",
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_enrollments_matiere_key ON prepa_adjuris_enrollments (matiere_key)",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_enrollments_stripe_subscription_id ON prepa_adjuris_enrollments (stripe_subscription_id)",
 
     # ── discord_link_codes ───────────────────────────────────
     """
