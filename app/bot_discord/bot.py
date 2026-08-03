@@ -16,6 +16,7 @@ _COGS = [
     "app.bot_discord.cogs.participation",
     "app.bot_discord.cogs.sync_roles",
     "app.bot_discord.cogs.classement",
+    "app.bot_discord.cogs.prepa_adjuris",
 ]
 
 
@@ -33,4 +34,10 @@ async def run_bot():
                 print(f"[bot_discord] ✅ {cog}")
             except Exception as e:
                 print(f"[bot_discord] ❌ {cog} : {e}")
+
+        # Vue persistante (bouton "Lier mon compte NAVIRE") — enregistrée une
+        # fois pour survivre aux redémarrages du bot.
+        from app.bot_discord.cogs.prepa_adjuris import LinkAccountView
+        bot.add_view(LinkAccountView())
+
         await bot.start(DISCORD_TOKEN)

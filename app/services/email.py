@@ -22,7 +22,13 @@ from __future__ import annotations
 import logging
 import httpx
 
-from app.core.config import BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME
+from app.core.config import (
+    BREVO_API_KEY,
+    BREVO_SENDER_EMAIL,
+    BREVO_SENDER_NAME,
+    DISCORD_GUILD_ID,
+    DISCORD_PREPA_ADJURIS_CHANNEL_ID,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +80,7 @@ def send_mail(to: str, subject: str, html: str) -> bool:
         return False
 
 
+
 # ============================================================
 # Templates
 # ============================================================
@@ -111,6 +118,56 @@ def mail_pending_subscription(email: str, plan: str, frontend_url: str) -> tuple
     </p>
     <p style="font-size: 0.85em; color: #888;">
       Si vous n'êtes pas à l'origine de ce paiement, contactez-nous.
+    </p>
+  </div>
+</body>
+</html>
+"""
+    return subject, html
+
+
+def mail_prepa_adjuris_link_code(email: str, code: str, matiere_label: str) -> tuple[str, str]:
+    """
+    Retourne (subject, html) pour envoyer le code de liaison Discord après
+    une inscription Prép'AdJuris (utilisateur pas encore lié en discord_id).
+    """
+    channel_url = None
+    if DISCORD_GUILD_ID and DISCORD_PREPA_ADJURIS_CHANNEL_ID:
+        channel_url = f"https://discord.com/channels/{DISCORD_GUILD_ID}/{DISCORD_PREPA_ADJURIS_CHANNEL_ID}"
+
+    channel_block = ""
+    if channel_url:
+        channel_block = f"""
+    <a href="{channel_url}"
+       style="display: inline-block; background: #5865F2; color: #fff;
+              padding: 12px 24px; border-radius: 8px; text-decoration: none;
+              font-weight: bold; margin: 16px 0;">
+      Rejoindre le channel Discord
+    </a>"""
+
+    subject = "Débloque ton accès Discord Prép'AdJuris"
+    html = f"""
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
+  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
+    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
+    <p>Bonjour,</p>
+    <p>
+      Ton inscription à <strong>Prép'AdJuris — {matiere_label}</strong> est confirmée.
+      Il ne reste plus qu'à lier ton compte NAVIRE sur Discord pour accéder au channel.
+    </p>
+    <p style="font-size: 1.4em; letter-spacing: 2px; font-weight: bold; text-align: center;
+              background: #1f1f1f; border-radius: 8px; padding: 16px; margin: 16px 0;">
+      {code}
+    </p>
+    <p>
+      Rejoins le channel Discord, clique sur le bouton <strong>« Lier mon compte NAVIRE »</strong>,
+      puis entre ton email et ce code.
+    </p>{channel_block}
+    <p style="font-size: 0.85em; color: #888;">
+      Ce code est valable 7 jours et à usage unique.
     </p>
   </div>
 </body>

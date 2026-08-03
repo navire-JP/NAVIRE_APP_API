@@ -44,3 +44,17 @@ async def record_participation(discord_id: str, message_count: int = 1) -> dict:
 async def get_leaderboard(limit: int = LEADERBOARD_LIMIT) -> list[dict]:
     data = await _get("/discord/leaderboard", limit=limit)
     return data if isinstance(data, list) else []
+
+
+async def link_adjuris_discord(discord_id: str, email: str, code: str) -> dict:
+    """
+    Valide un code de liaison Prép'AdJuris et lie discord_id au compte NAVIRE
+    correspondant à `email`. Retourne toujours {"ok": bool, "message"?: str,
+    "matieres"?: [...]} avec un statut 200 — jamais d'exception pour un code
+    invalide/expiré, seulement pour une vraie panne réseau/serveur.
+    """
+    return await _post("/prepa/adjuris/link-discord", {
+        "discord_id": discord_id,
+        "email": email,
+        "code": code,
+    })

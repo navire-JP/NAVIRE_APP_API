@@ -85,6 +85,15 @@ BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "NAVIRE")
 # URL du front — utilisée dans les liens des emails (ex: lien d'inscription)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire-ai.com")
 
+# ============================================================
+# Discord (côté backend — construction de liens dans les emails)
+# ============================================================
+# Mêmes variables d'env que app/bot_discord/config.py (GUILD_ID, etc.) — le
+# bot et le backend tournent dans le même process mais lisent chacun leur
+# propre copie de config, comme BOT_SECRET ci-dessus.
+DISCORD_GUILD_ID = int(os.getenv("DISCORD_GUILD_ID", "0"))
+DISCORD_PREPA_ADJURIS_CHANNEL_ID = int(os.getenv("DISCORD_PREPA_ADJURIS_CHANNEL_ID", "0"))
+
 
 def ensure_storage_dirs() -> None:
     """

@@ -258,6 +258,16 @@ class User(Base):
         passive_deletes=True,
     )
 
+    # ============================================================
+    # Prép'AdJuris
+    # ============================================================
+    prepa_adjuris_enrollments: Mapped[list["PrepaAdjurisEnrollment"]] = relationship(
+        "PrepaAdjurisEnrollment",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
 
 class File(Base):
     __tablename__ = "files"
@@ -1262,3 +1272,67 @@ class NavireConversation(Base):
 
     # Relation
     user: Mapped["User"] = relationship("User")
+
+
+# ============================================================
+# PRÉP'ADJURIS — soutien scolaire par matière (Stripe + Discord)
+# ============================================================
+
+class PrepaAdjurisEnrollment(Base):
+    """
+    Une inscription active à une matière Prép'AdJuris. Un user peut avoir
+    plusieurs lignes actives en parallèle (une par matière souscrite) —
+    structurellement différent de PREPASSERELLE (User.plan == "prepa"), qui
+    ne gère qu'une année unique par plan.
+    """
+    __tablename__ = "prepa_adjuris_enrollments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    matiere_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # une des clés de PREPA_PRICES / PREPA_MONTHLY_QUANTITIES
+
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    stripe_schedule_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # ID du Subscription Schedule une fois converti (phases oct/nov/déc)
+
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    # active | cancelled | payment_failed
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    # Relation
+    user: Mapped["User"] = relationship("User", back_populates="prepa_adjuris_enrollments")
+
+
+class DiscordLinkCode(Base):
+    """
+    Code de liaison à usage unique, généré à l'inscription Prép'AdJuris
+    (uniquement si l'utilisateur n'a pas encore de discord_id). Consommé via
+    le Modal Discord (email + code) pour lier discord_id sur User et
+    déclencher l'attribution des rôles pour toutes les matières actives.
+    """
+    __tablename__ = "discord_link_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    code: Mapped[str] = mapped_column(String(16), unique=True, nullable=False, index=True)
+    # 8 caractères alphanumériques majuscules, charset sans caractères ambigus
+    # (pas de 0/O, 1/I/L)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
