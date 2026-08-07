@@ -35,7 +35,10 @@ from app.routers.discord_bot import router as discord_bot_router
 from app.routers.prepa import router as prepa_router
 from app.routers.prepa_adjuris import router as prepa_adjuris_router
 from app.routers.navire import router as navire_router
-from app.routers.navire import router as prepa_adjuris_espace
+# NB : le routeur de l'espace Prép'AdJuris (app/routers/prepa_adjuris_espace.py)
+# n'est pas monté — il importe PrepaAdjurisRessource et PrepaAdjurisSeance, deux
+# modèles qui n'existent pas encore dans app/db/models.py. Le monter en l'état
+# ferait échouer le démarrage.
 # ============================================================
 # MEOLES — import isolé
 # ============================================================
@@ -179,7 +182,6 @@ app.include_router(discord_bot_router)
 app.include_router(prepa_router)
 app.include_router(prepa_adjuris_router)
 app.include_router(navire_router)
-app.include_router(prepa_adjuris_espace)
 
 # ============================================================
 # MEOLES — Routers
