@@ -77,6 +77,45 @@ _STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_email ON prepa_adjuris_inscriptions (email)",
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_niveau ON prepa_adjuris_inscriptions (niveau)",
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_created_at ON prepa_adjuris_inscriptions (created_at)",
+
+    # ── prepa_adjuris_ressources (PDF matières + méthodo) ──────
+    """
+    CREATE TABLE IF NOT EXISTS prepa_adjuris_ressources (
+        id                 SERIAL       PRIMARY KEY,
+        niveau             VARCHAR(4)   NOT NULL,
+        matiere_key        VARCHAR(64),
+        titre              VARCHAR(200) NOT NULL,
+        description        TEXT         NOT NULL DEFAULT '',
+        filename_original  VARCHAR(255) NOT NULL,
+        filename_stored    VARCHAR(255) NOT NULL,
+        path               VARCHAR(500) NOT NULL,
+        size_bytes         INTEGER      NOT NULL,
+        ordre              INTEGER      NOT NULL DEFAULT 0,
+        is_published       BOOLEAN      NOT NULL DEFAULT TRUE,
+        created_at         TIMESTAMPTZ  NOT NULL DEFAULT now()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_ressources_niveau ON prepa_adjuris_ressources (niveau)",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_ressources_matiere_key ON prepa_adjuris_ressources (matiere_key)",
+
+    # ── prepa_adjuris_seances (cours datés) ────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS prepa_adjuris_seances (
+        id             SERIAL       PRIMARY KEY,
+        niveau         VARCHAR(4)   NOT NULL,
+        matiere_key    VARCHAR(64),
+        titre          VARCHAR(200) NOT NULL DEFAULT '',
+        date_debut     TIMESTAMPTZ  NOT NULL,
+        duree_minutes  INTEGER      NOT NULL DEFAULT 60,
+        lien           VARCHAR(500) NOT NULL DEFAULT '',
+        statut         VARCHAR(20)  NOT NULL DEFAULT 'prevue',
+        created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_seances_niveau ON prepa_adjuris_seances (niveau)",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_seances_matiere_key ON prepa_adjuris_seances (matiere_key)",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_seances_date_debut ON prepa_adjuris_seances (date_debut)",
 ]
 
 

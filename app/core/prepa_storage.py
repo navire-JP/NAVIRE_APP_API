@@ -39,6 +39,7 @@ PREPA_COURSES_DIR     = PREPA_FILES_DIR / "courses"      # PDF de leçons (admin
 PREPA_SUBJECTS_DIR    = PREPA_FILES_DIR / "subjects"     # sujets d'exercices (admin)
 PREPA_CORRECTIONS_DIR = PREPA_FILES_DIR / "corrections"  # corrigés-types (admin)
 PREPA_SUBMISSIONS_DIR = PREPA_FILES_DIR / "submissions"  # dépôts des élèves
+PREPA_ADJURIS_DIR     = PREPA_FILES_DIR / "adjuris" 
 
 
 # Taille max spécifique aux PDF de cours (admin) : un poly de cours complet
