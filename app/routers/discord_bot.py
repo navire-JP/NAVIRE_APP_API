@@ -22,7 +22,7 @@ PLAN_LABELS = {
     "free":    "Gratuit",
     "membre":  "NAVIRE AI",
     "membre+": "NAVIRE AI+",
-    "prepa":   "Prép'AdJuris",
+    "prepa":   "PREPASSERELLE",
 }
 
 

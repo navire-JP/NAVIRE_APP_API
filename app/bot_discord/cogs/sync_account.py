@@ -10,7 +10,9 @@ Trois responsabilités :
    entre comptes » qui déplie les détails en éphémère.
 
 2. À la liaison, le plan d'abonnement est lu et le rôle correspondant posé
-   immédiatement (navire_ai, navire_ai+, prepadjuris — cf. PLAN_TO_ROLE).
+   immédiatement (navire_ai, navire_ai+ — cf. PLAN_TO_ROLE). Les accès
+   Prép'AdJuris ne passent pas par là : ce sont des rôles par matière,
+   attribués à l'inscription (voir role_sync.py).
 
 3. Une boucle de surveillance relit périodiquement l'état des comptes liés
    (`GET /discord/sync-state`) et ne touche qu'aux membres dont l'abonnement a
@@ -23,9 +25,9 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 import discord
-import httpx
 from discord import app_commands
 from discord.ext import commands, tasks
 
@@ -35,7 +37,10 @@ from app.bot_discord.config import (
     PLAN_TO_ROLE,
     SYNC_POLL_SECONDS,
 )
-from app.bot_discord.utils.api_client import get_sync_state, link_discord
+from app.bot_discord.utils.api_client import get_sync_state, verify_discord_link
+
+# Format des codes de liaison, aligné sur app/services/discord_link.py.
+CODE_RE = re.compile(r"^AJ\d{6}$")
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +58,7 @@ PLAN_LABELS = {
     "free":    "Gratuit",
     "membre":  "NAVIRE AI",
     "membre+": "NAVIRE AI+",
-    "prepa":   "Prép'AdJuris",
+    "prepa":   "PREPASSERELLE",
 }
 
 
@@ -72,20 +77,49 @@ def _is_admin(member: discord.Member) -> bool:
 
 
 class SyncAccountModal(discord.ui.Modal, title="Lier mes comptes"):
-    user_id = discord.ui.TextInput(
-        label="Ton identifiant NAVIRE",
-        placeholder="Ex. 1042 — visible dans ton profil sur navire-ai.com",
+    """
+    Trois facteurs concordants. Un code seul ne suffit jamais : il est rattaché
+    à un compte précis, et l'identifiant comme l'email doivent correspondre.
+    """
+
+    account_id = discord.ui.TextInput(
+        label="Identifiant NAVIRE",
+        placeholder="Ex. 1042 — affiché dans ton profil",
+        max_length=16,
+        required=True,
+    )
+    email = discord.ui.TextInput(
+        label="Email du compte NAVIRE",
+        placeholder="toi@exemple.fr",
+        max_length=320,
+        required=True,
+    )
+    code = discord.ui.TextInput(
+        label="Code de connexion",
+        placeholder="AJ601405",
+        min_length=8,
         max_length=16,
         required=True,
     )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        raw = self.user_id.value.strip().lstrip("#")
+        raw_id = self.account_id.value.strip().lstrip("#")
+        email = self.email.value.strip().lower()
+        code = re.sub(r"[\s\-_.]", "", self.code.value).upper()
 
-        if not raw.isdigit():
+        if not raw_id.isdigit():
             await interaction.response.send_message(
-                f"L'identifiant NAVIRE est un nombre (ex. `1042`). "
-                f"Tu le trouves dans ton profil sur {SITE_URL}.",
+                f"L'identifiant NAVIRE est un nombre (ex. `1042`), affiché dans "
+                f"ton profil sur {SITE_URL}.",
+                ephemeral=True,
+            )
+            return
+
+        if not CODE_RE.match(code):
+            await interaction.response.send_message(
+                "Le code a la forme `AJ601405` (AJ suivi de six chiffres).\n"
+                f"Génère-le depuis ton profil sur {SITE_URL}, bouton "
+                "« Connecter mes comptes » — il reste valable quelques minutes.",
                 ephemeral=True,
             )
             return
@@ -93,23 +127,13 @@ class SyncAccountModal(discord.ui.Modal, title="Lier mes comptes"):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         try:
-            result = await link_discord(int(raw), str(interaction.user.id))
-        except httpx.HTTPStatusError as e:
-            code = e.response.status_code
-            if code == 404:
-                message = (
-                    f"Aucun compte NAVIRE avec l'identifiant `{raw}`. "
-                    f"Vérifie-le dans ton profil sur {SITE_URL}."
-                )
-            elif code == 409:
-                message = (
-                    "Ce compte Discord est déjà lié à un autre compte NAVIRE. "
-                    "Contacte un membre de l'équipe pour le délier."
-                )
-            else:
-                message = "Le serveur NAVIRE n'a pas répondu correctement. Réessaie dans quelques instants."
-            await interaction.followup.send(message, ephemeral=True)
-            return
+            result = await verify_discord_link(
+                discord_id=str(interaction.user.id),
+                discord_name=str(interaction.user),
+                user_id=int(raw_id),
+                email=email,
+                code=code,
+            )
         except Exception:
             await interaction.followup.send(
                 "Connexion au serveur NAVIRE impossible. Réessaie dans quelques instants.",
@@ -118,29 +142,28 @@ class SyncAccountModal(discord.ui.Modal, title="Lier mes comptes"):
             return
 
         if not (result or {}).get("ok"):
-            await interaction.followup.send(
-                "La liaison a échoué. Vérifie ton identifiant NAVIRE et réessaie.",
-                ephemeral=True,
-            )
+            message = (result or {}).get("message", "Identifiant, email ou code incorrect.")
+            await interaction.followup.send(message, ephemeral=True)
             return
 
         # Applique tout de suite le rôle correspondant à l'abonnement.
-        detail = ""
-        cog = interaction.client.get_cog("SyncRolesCog")
-        if cog and isinstance(interaction.user, discord.Member):
-            try:
-                plan = await cog.sync_member_role(interaction.user)
-                if plan and plan != "not_linked":
-                    detail = f"\nAbonnement détecté : **{_plan_label(plan)}**."
-                    sync_cog = interaction.client.get_cog("SyncAccountCog")
-                    if sync_cog:
-                        sync_cog.remember_plan(str(interaction.user.id), plan)
-            except Exception:
-                logger.warning("Rôle non appliqué après liaison", exc_info=True)
+        plan = result.get("plan") or "free"
+        if isinstance(interaction.user, discord.Member):
+            roles_cog = interaction.client.get_cog("SyncRolesCog")
+            if roles_cog:
+                try:
+                    await roles_cog.apply_plan_role(interaction.user, plan)
+                except Exception:
+                    logger.warning("Rôle non appliqué après liaison", exc_info=True)
+            sync_cog = interaction.client.get_cog("SyncAccountCog")
+            if sync_cog:
+                sync_cog.remember_plan(str(interaction.user.id), plan)
 
         await interaction.followup.send(
-            f"Comptes liés. Ton Discord est relié au compte NAVIRE `#{raw}`.{detail}\n"
-            "Ton rôle suivra automatiquement les changements de ton abonnement.",
+            f"Comptes liés. Ton Discord est relié au compte NAVIRE `#{raw_id}`.\n"
+            f"Abonnement détecté : **{_plan_label(plan)}** — ton rôle suivra "
+            "automatiquement tes changements d'abonnement.\n"
+            "Une confirmation vient de t'être envoyée par email.",
             ephemeral=True,
         )
 
@@ -179,30 +202,47 @@ def build_info_embed() -> discord.Embed:
         inline=False,
     )
     embed.add_field(
-        name="Ce qui est échangé",
+        name="Pourquoi trois informations",
         value=(
-            "Uniquement le lien entre ton identifiant NAVIRE et ton identifiant "
-            "Discord. Le bot ne lit pas tes messages privés, ne publie rien en "
-            "ton nom, et n'a accès ni à ton mot de passe ni à tes moyens de "
-            "paiement. Ta saisie et le résultat ne sont visibles que par toi."
+            "La liaison donne des accès : il faut donc prouver que le compte "
+            "NAVIRE est bien le tien. Le code seul ne suffit pas — il est "
+            "rattaché à un compte précis, et l'identifiant comme l'email "
+            "doivent correspondre. Un code expire en quelques minutes et ne "
+            "sert qu'une fois ; après quelques essais ratés il est annulé."
         ),
         inline=False,
     )
     embed.add_field(
-        name="Où trouver mon identifiant",
+        name="Où obtenir mon code",
         value=(
-            f"Connecte-toi sur {SITE_URL} et ouvre ton profil : l'identifiant "
-            "est le nombre affiché à côté de ton nom d'utilisateur."
+            f"Sur {SITE_URL}, dans ton profil, bouton **Connecter mes comptes** : "
+            "il affiche ton identifiant, ton email et un code de la forme "
+            "`AJ601405`. Aucun achat n'est nécessaire.\n"
+            "Si tu as acheté un abonnement, un code longue durée t'a aussi été "
+            "envoyé par email — l'un ou l'autre fonctionne."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="Ce qui est échangé",
+        value=(
+            "Uniquement le lien entre ton compte NAVIRE et ton compte Discord. "
+            "Le bot ne lit pas tes messages privés, ne publie rien en ton nom, "
+            "et n'a accès ni à ton mot de passe ni à tes moyens de paiement. Ta "
+            "saisie et le résultat ne sont visibles que par toi, et un email de "
+            "confirmation t'est envoyé une fois la liaison faite."
         ),
         inline=False,
     )
     embed.add_field(
         name="En cas de problème",
         value=(
-            "« Déjà lié à un autre compte » signifie que ce Discord a été "
-            "associé à un autre compte NAVIRE : un membre de l'équipe peut le "
-            "délier. Si ton rôle n'apparaît pas après quelques minutes, "
-            "utilise `//sync` pour forcer la mise à jour."
+            "« Code expiré » : regénère-en un depuis ton profil, il ne vit que "
+            "quelques minutes.\n"
+            "« Déjà lié à un autre compte » : ce Discord est associé à un autre "
+            "compte NAVIRE, un membre de l'équipe peut le délier.\n"
+            "Si ton rôle n'apparaît pas après quelques minutes, `//sync` force "
+            "la mise à jour."
         ),
         inline=False,
     )
@@ -247,12 +287,13 @@ def build_welcome_embed() -> discord.Embed:
             "serveur te reconnaisse : tu reçois automatiquement le rôle et les "
             "salons correspondant à ton abonnement, et ton activité ici compte "
             "pour ta progression.\n\n"
-            "**1.** Crée ton compte ou connecte-toi sur "
-            f"{SITE_URL}\n"
-            "**2.** Ouvre ton profil et copie ton identifiant (un nombre)\n"
-            "**3.** Clique sur **Lier mes comptes** et colle-le\n\n"
-            "L'opération prend dix secondes et ne se fait qu'une fois. "
-            "Ta réponse n'est visible que par toi."
+            f"**1.** Connecte-toi sur {SITE_URL} et ouvre ton profil\n"
+            "**2.** Clique sur **Connecter mes comptes** : ton identifiant, ton "
+            "email et un code `AJ______` s'affichent\n"
+            "**3.** Reviens ici, clique sur **Lier mes comptes** et recopie les trois\n\n"
+            "Le code n'est valable que quelques minutes — garde la page ouverte. "
+            "Pas besoin d'avoir acheté quoi que ce soit, et ta saisie n'est "
+            "visible que par toi."
         ),
         color=discord.Color.blurple(),
     )

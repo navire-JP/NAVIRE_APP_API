@@ -5,7 +5,7 @@ import os
 DISCORD_TOKEN               = os.getenv("DISCORD_TOKEN", "")
 BOT_SECRET                  = os.getenv("BOT_SECRET", "DEV_BOT_SECRET_CHANGE_ME")
 API_BASE_URL                = os.getenv("API_BASE_URL", "https://navire-app-api.onrender.com")
-GUILD_ID                    = int(os.getenv("DISCORD_GUILD_ID", "0"))
+GUILD_ID                    = int(os.getenv("DISCORD_GUILD_ID", "1131156852265201715"))
 CLASSEMENT_CHANNEL_ID       = int(os.getenv("DISCORD_CLASSEMENT_CHANNEL_ID", "0"))
 LOG_CHANNEL_ID              = int(os.getenv("DISCORD_LOG_CHANNEL_ID", "1351521002068119593"))
 LEADERBOARD_REFRESH_SECONDS = int(os.getenv("LEADERBOARD_REFRESH_SECONDS", "300"))
@@ -18,10 +18,13 @@ ADMIN_ROLE_ID = int(os.getenv("DISCORD_ADMIN_ROLE_ID", "1132339702159118346"))
 # C'est la seule source de vérité des rôles "d'abonnement" : sync_member_role
 # retire tous les rôles listés ici avant de poser celui du plan courant.
 # Le plan "free" n'a volontairement pas de rôle (aucun rôle posé).
+#
+# Pas d'entrée pour le plan "prepa" (PREPASSERELLE) : ce programme n'a pas de
+# rôle Discord. Prép'AdJuris non plus n'apparaît pas ici — ses accès passent par
+# les rôles par matière ci-dessous, attribués sur un chemin séparé.
 PLAN_TO_ROLE: dict[str, str] = {
     "membre":  os.getenv("DISCORD_ROLE_MEMBRE",      "navire_ai"),
     "membre+": os.getenv("DISCORD_ROLE_MEMBRE_PLUS", "navire_ai+"),
-    "prepa":   os.getenv("DISCORD_ROLE_PREPA",       "prepadjuris"),
 }
 
 # Surveillance des changements d'abonnement (cogs/sync_account.py) : intervalle

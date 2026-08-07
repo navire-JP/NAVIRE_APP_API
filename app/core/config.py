@@ -91,13 +91,13 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire-ai.com")
 # Mêmes variables d'env que app/bot_discord/config.py (GUILD_ID, etc.) — le
 # bot et le backend tournent dans le même process mais lisent chacun leur
 # propre copie de config, comme BOT_SECRET ci-dessus.
-DISCORD_GUILD_ID = int(os.getenv("DISCORD_GUILD_ID", "0"))
+DISCORD_GUILD_ID = int(os.getenv("DISCORD_GUILD_ID", "1131156852265201715"))
 DISCORD_PREPA_ADJURIS_CHANNEL_ID = int(os.getenv("DISCORD_PREPA_ADJURIS_CHANNEL_ID", "0"))
 # Salon #🔹connecter-mon-compte-navire — sert à construire le lien de
 # redirection donné au bouton « Connecter mes comptes » de la page profil.
-DISCORD_SYNC_CHANNEL_ID = int(os.getenv("DISCORD_SYNC_CHANNEL_ID", "0"))
+DISCORD_SYNC_CHANNEL_ID = int(os.getenv("DISCORD_SYNC_CHANNEL_ID", "1535091433768489061"))
 # Invitation publique du serveur, utilisée si l'élève n'a pas encore rejoint.
-DISCORD_INVITE_URL = os.getenv("DISCORD_INVITE_URL", "")
+DISCORD_INVITE_URL = os.getenv("DISCORD_INVITE_URL", "https://discord.gg/gW6FX8kVNB")
 
 
 def ensure_storage_dirs() -> None:
