@@ -41,6 +41,15 @@ async def record_participation(discord_id: str, message_count: int = 1) -> dict:
     })
 
 
+async def get_sync_state() -> list[dict]:
+    """
+    Plan d'abonnement de tous les comptes liés : [{discord_id, user_id,
+    username, plan}, …]. Une requête par cycle de surveillance.
+    """
+    data = await _get("/discord/sync-state")
+    return data if isinstance(data, list) else []
+
+
 async def get_leaderboard(limit: int = LEADERBOARD_LIMIT) -> list[dict]:
     data = await _get("/discord/leaderboard", limit=limit)
     return data if isinstance(data, list) else []

@@ -26,14 +26,26 @@ class SyncRolesCog(commands.Cog):
         self.bot = bot
 
     async def sync_member_role(self, member: discord.Member) -> str:
+        """Relit le plan côté API puis applique le rôle correspondant."""
         data = await get_navire_user(str(member.id))
         if not data:
             return "not_linked"
 
-        plan      = data.get("plan", "free")
+        return await self.apply_plan_role(member, data.get("plan", "free"))
+
+    async def apply_plan_role(self, member: discord.Member, plan: str) -> str:
+        """
+        Applique le rôle d'abonnement correspondant à `plan` (déjà connu).
+
+        Retire d'abord tous les rôles de PLAN_TO_ROLE pour garantir l'exclusivité,
+        puis pose celui du plan courant. `plan="free"` retire simplement tout.
+        Les rôles Prép'AdJuris par matière ne sont pas concernés (voir role_sync.py).
+        """
         role_name = PLAN_TO_ROLE.get(plan)
 
         for rn in PLAN_TO_ROLE.values():
+            if rn == role_name:
+                continue
             role = discord.utils.get(member.guild.roles, name=rn)
             if role and role in member.roles:
                 try:
@@ -43,7 +55,7 @@ class SyncRolesCog(commands.Cog):
 
         if role_name:
             role = discord.utils.get(member.guild.roles, name=role_name)
-            if role:
+            if role and role not in member.roles:
                 try:
                     await member.add_roles(role, reason=f"Plan NAVIRE : {plan}")
                 except discord.Forbidden:

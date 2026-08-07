@@ -124,6 +124,27 @@ def record_participation(body: ParticipationIn, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/sync-state", dependencies=[Depends(_require_bot)])
+def discord_sync_state(db: Session = Depends(get_db)):
+    """
+    État d'abonnement de tous les comptes liés à un Discord.
+
+    Lu périodiquement par le bot (cogs/sync_account.py) qui compare au snapshot
+    précédent et ne touche aux rôles que des membres dont le plan a bougé.
+    Une seule requête par cycle, quel que soit le nombre de membres.
+    """
+    rows = db.query(User).filter(User.discord_id.isnot(None)).all()
+    return [
+        {
+            "discord_id": u.discord_id,
+            "user_id":    u.id,
+            "username":   u.username,
+            "plan":       u.plan or "free",
+        }
+        for u in rows
+    ]
+
+
 @router.get("/leaderboard", dependencies=[Depends(_require_bot)])
 def discord_leaderboard(limit: int = 20, db: Session = Depends(get_db)):
     """Top N users par ELO — inclut discord_streak pour l'affichage."""

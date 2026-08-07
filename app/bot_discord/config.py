@@ -14,10 +14,19 @@ LEADERBOARD_LIMIT           = int(os.getenv("LEADERBOARD_LIMIT", "20"))
 # Rôle admin Discord — seuls les membres avec ce rôle peuvent utiliser les commandes admin
 ADMIN_ROLE_ID = int(os.getenv("DISCORD_ADMIN_ROLE_ID", "1132339702159118346"))
 
+# Plan NAVIRE → nom du rôle Discord correspondant.
+# C'est la seule source de vérité des rôles "d'abonnement" : sync_member_role
+# retire tous les rôles listés ici avant de poser celui du plan courant.
+# Le plan "free" n'a volontairement pas de rôle (aucun rôle posé).
 PLAN_TO_ROLE: dict[str, str] = {
     "membre":  os.getenv("DISCORD_ROLE_MEMBRE",      "navire_ai"),
     "membre+": os.getenv("DISCORD_ROLE_MEMBRE_PLUS", "navire_ai+"),
+    "prepa":   os.getenv("DISCORD_ROLE_PREPA",       "prepadjuris"),
 }
+
+# Surveillance des changements d'abonnement (cogs/sync_account.py) : intervalle
+# entre deux relectures de l'état des comptes liés côté API.
+SYNC_POLL_SECONDS = int(os.getenv("DISCORD_SYNC_POLL_SECONDS", "180"))
 
 # ============================================================
 # Prép'AdJuris — rôles additifs, indépendants de PLAN_TO_ROLE
