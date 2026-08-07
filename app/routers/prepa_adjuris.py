@@ -48,10 +48,15 @@ from app.routers.auth import get_current_user
 from app.routers.admin import verify_admin_code
 from app.routers.discord_bot import _require_bot
 from app.routers.subscriptions import _stripe
-from app.core.config import FRONTEND_URL
+from app.core.config import (
+    FRONTEND_URL,
+    DISCORD_GUILD_ID,
+    DISCORD_PREPA_ADJURIS_CHANNEL_ID,
+)
 from app.core.prepa_adjuris_config import (
     PREPA_PRICES,
     PREPA_MONTHLY_QUANTITIES,
+    PREPA_MATIERE_NAMES,
     PREPA_FIRST_BILLING_DATE,
     matiere_label,
     matiere_niveau,
@@ -70,7 +75,10 @@ VALID_NIVEAUX = {"L1", "L2", "L3"}
 # ============================================================
 
 class PrepaAdjurisCheckoutIn(BaseModel):
-    matiere_key: str
+    """Une matière (matiere_key) ou plusieurs (matieres). matiere_key est
+    conservé pour ne pas casser un appel existant."""
+    matiere_key: str | None = None
+    matieres: list[str] | None = None
 
 
 class LinkDiscordAdjurisIn(BaseModel):
@@ -102,25 +110,110 @@ def my_adjuris_enrollments(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Matières actives de l'utilisateur connecté — sert de gate pour l'UI /prepa."""
+    """
+    Matières de l'utilisateur connecté — alimente le tableau de bord /prepa.
+
+    `items` inclut aussi les inscriptions en échec de paiement : sans elles,
+    un étudiant dont le prélèvement a échoué ne verrait plus rien et croirait
+    avoir perdu son accès sans explication. `matieres` ne liste que les
+    matières actives, celles qui bloquent un nouvel achat.
+    """
     rows = db.execute(
         select(PrepaAdjurisEnrollment).where(
             PrepaAdjurisEnrollment.user_id == user.id,
-            PrepaAdjurisEnrollment.status == "active",
+            PrepaAdjurisEnrollment.status.in_(("active", "payment_failed")),
         )
     ).scalars().all()
 
+    actives = [r.matiere_key for r in rows if r.status == "active"]
+    niveaux = sorted({matiere_niveau(r.matiere_key) for r in rows})
+
     return {
-        "matieres": [r.matiere_key for r in rows],
+        "matieres": actives,
+        "niveau": niveaux[0] if len(niveaux) == 1 else None,
+        "discord_url": (
+            f"https://discord.com/channels/{DISCORD_GUILD_ID}/{DISCORD_PREPA_ADJURIS_CHANNEL_ID}"
+            if DISCORD_GUILD_ID and DISCORD_PREPA_ADJURIS_CHANNEL_ID else None
+        ),
+        "discord_lie": bool(user.discord_id),
         "items": [
             {
                 "matiere_key": r.matiere_key,
+                "label": PREPA_MATIERE_NAMES.get(r.matiere_key, r.matiere_key),
+                "niveau": matiere_niveau(r.matiere_key),
                 "status": r.status,
                 "created_at": r.created_at.isoformat() if r.created_at else None,
             }
             for r in rows
         ],
     }
+
+
+def _creer_checkout_session(
+    matieres: list[str],
+    email: str,
+    user: User | None = None,
+    metadata_extra: dict | None = None,
+):
+    """
+    Construit et crée la Checkout Session. Partagé par les deux points d'entrée
+    (formulaire public et espace connecté) : c'est ce qui garantit qu'ils
+    facturent à l'identique — seuls les 20 € par matière sont encaissés, le
+    récurrent étant différé au premier prélèvement.
+
+    Toutes les matières doivent être du même niveau : les phases du Subscription
+    Schedule appliquent une quantité unique par mois à tous les items.
+    """
+    niveaux = {matiere_niveau(m) for m in matieres}
+    if len(niveaux) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Les matières d'un même paiement doivent appartenir au même niveau.",
+        )
+
+    _stripe()  # force la clé NAVIRE
+
+    # Le one_time couvre une séance de septembre → -1 sur le recurring.
+    septembre_recurring_qty = PREPA_MONTHLY_QUANTITIES[matieres[0]][0] - 1
+
+    line_items = []
+    for key in matieres:
+        line_items.append({"price": PREPA_PRICES[key]["one_time"], "quantity": 1})
+        if septembre_recurring_qty > 0:
+            line_items.append({
+                "price": PREPA_PRICES[key]["recurring"],
+                "quantity": septembre_recurring_qty,
+            })
+
+    metadata = {"matiere_keys": ",".join(matieres), "email": email}
+    metadata.update(metadata_extra or {})
+
+    params = {
+        "mode": "subscription",
+        "customer_email": email,
+        "line_items": line_items,
+        "success_url": f"{FRONTEND_URL}/prepa-merci?session_id={{CHECKOUT_SESSION_ID}}",
+        "cancel_url": f"{FRONTEND_URL}/prepa-adjuris",
+        "metadata": metadata,
+    }
+    if user:
+        params["client_reference_id"] = str(user.id)
+
+    # Trial jusqu'au premier prélèvement : sans lui, Stripe facturerait le
+    # récurrent dès le checkout (60 € en L1 au lieu des 20 € d'inscription).
+    trial_end = _first_billing_timestamp()
+    if trial_end:
+        params["subscription_data"] = {"trial_end": trial_end}
+        # Stripe affiche « Puis X € par mois » d'après la quantité du checkout :
+        # on détaille le vrai échéancier juste au-dessus du bouton de paiement.
+        params["custom_text"] = {
+            "submit": {"message": _recap_prelevements(matieres[0], len(matieres))}
+        }
+
+    try:
+        return stripe.checkout.Session.create(**params)
+    except stripe.StripeError as e:
+        raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
 
 
 @router.post("/checkout-session")
@@ -130,49 +223,33 @@ def create_prepa_adjuris_checkout(
     user: User = Depends(get_current_user),
 ):
     """
-    Crée une Checkout Session en mode subscription combinant le one_time
-    (une des séances de septembre) et le recurring (le reste du mois),
-    conformément au pattern Stripe "recurring plan with a one-time setup fee".
+    Checkout depuis l'espace connecté (tableau de bord /prepa). Accepte une
+    matière (matiere_key) ou plusieurs (matieres) en un seul paiement.
     """
-    if payload.matiere_key not in PREPA_PRICES:
-        raise HTTPException(status_code=400, detail="Matière inconnue.")
+    matieres = payload.matieres or ([payload.matiere_key] if payload.matiere_key else [])
+    matieres = list(dict.fromkeys(m for m in matieres if m))
+    if not matieres:
+        raise HTTPException(status_code=400, detail="Aucune matière sélectionnée.")
 
-    existing = db.execute(
-        select(PrepaAdjurisEnrollment).where(
+    inconnues = [m for m in matieres if m not in PREPA_PRICES]
+    if inconnues:
+        raise HTTPException(status_code=400, detail=f"Matière inconnue : {inconnues[0]}")
+
+    deja = set(db.execute(
+        select(PrepaAdjurisEnrollment.matiere_key).where(
             PrepaAdjurisEnrollment.user_id == user.id,
-            PrepaAdjurisEnrollment.matiere_key == payload.matiere_key,
             PrepaAdjurisEnrollment.status == "active",
         )
-    ).scalar_one_or_none()
-    if existing:
+    ).scalars().all())
+    a_payer = [m for m in matieres if m not in deja]
+    if not a_payer:
         raise HTTPException(status_code=400, detail={
             "code": "ALREADY_ENROLLED",
-            "message": "Vous êtes déjà inscrit à cette matière.",
+            "message": "Vous êtes déjà inscrit à ces matières.",
         })
 
-    _stripe()  # force la clé NAVIRE
-
-    prices = PREPA_PRICES[payload.matiere_key]
-    quantites = PREPA_MONTHLY_QUANTITIES[payload.matiere_key]
-    septembre_recurring_qty = quantites[0] - 1
-
-    try:
-        session = stripe.checkout.Session.create(
-            mode="subscription",
-            customer_email=user.email,
-            client_reference_id=str(user.id),
-            line_items=[
-                {"price": prices["one_time"], "quantity": 1},
-                {"price": prices["recurring"], "quantity": septembre_recurring_qty},
-            ],
-            success_url=f"{FRONTEND_URL}/prepa-merci?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{FRONTEND_URL}/prepa-adjuris",
-            metadata={"matiere_key": payload.matiere_key},
-        )
-    except stripe.StripeError as e:
-        raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
-
-    return {"checkout_url": session.url}
+    session = _creer_checkout_session(a_payer, user.email, user=user)
+    return {"checkout_url": session.url, "matieres": a_payer}
 
 
 # ============================================================
@@ -411,57 +488,18 @@ def create_prepa_adjuris_public_checkout(
             "message": "Tu es déjà inscrit à ces matières.",
         })
 
-    _stripe()  # force la clé NAVIRE
-
-    # Le one_time couvre une séance de septembre → -1 sur le recurring.
-    septembre_recurring_qty = PREPA_MONTHLY_QUANTITIES[a_payer[0]][0] - 1
-
-    line_items = []
-    for key in a_payer:
-        line_items.append({"price": PREPA_PRICES[key]["one_time"], "quantity": 1})
-        if septembre_recurring_qty > 0:
-            line_items.append({
-                "price": PREPA_PRICES[key]["recurring"],
-                "quantity": septembre_recurring_qty,
-            })
-
     # Si un compte NAVIRE existe déjà pour cet email, on le référence tout de
     # suite ; sinon le webhook rattachera par email.
     user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
 
-    params = {
-        "mode": "subscription",
-        "customer_email": email,
-        "line_items": line_items,
-        "success_url": f"{FRONTEND_URL}/prepa-merci?session_id={{CHECKOUT_SESSION_ID}}",
-        "cancel_url": f"{FRONTEND_URL}/prepa-adjuris",
-        "metadata": {
-            "matiere_keys": ",".join(a_payer),
+    session = _creer_checkout_session(
+        a_payer, email, user=user,
+        metadata_extra={
             "niveau": niveau,
-            "email": email,
             "prenom": payload.prenom.strip()[:80],
             "nom": payload.nom.strip()[:80],
         },
-    }
-    if user:
-        params["client_reference_id"] = str(user.id)
-
-    # Trial jusqu'au premier prélèvement : sans lui, Stripe facturerait le
-    # récurrent dès le checkout (60 € en L1 au lieu des 20 € d'inscription).
-    trial_end = _first_billing_timestamp()
-    if trial_end:
-        params["subscription_data"] = {"trial_end": trial_end}
-        # Stripe affiche « Puis X € par mois » d'après la quantité du checkout :
-        # on détaille le vrai échéancier juste au-dessus du bouton de paiement.
-        params["custom_text"] = {
-            "submit": {"message": _recap_prelevements(a_payer[0], len(a_payer))}
-        }
-
-    try:
-        session = stripe.checkout.Session.create(**params)
-    except stripe.StripeError as e:
-        raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
-
+    )
     return {"checkout_url": session.url, "matieres": a_payer}
 
 
