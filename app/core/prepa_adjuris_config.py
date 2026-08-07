@@ -16,6 +16,21 @@ Règles métier (voir spec) :
 
 from __future__ import annotations
 
+import os
+
+# Date du PREMIER prélèvement mensuel (fin septembre).
+#
+# À l'inscription, l'étudiant ne paie que les 20 € du one_time — ils valent
+# pour une séance de septembre (la séance commune du 10 septembre, elle, est
+# offerte et n'est jamais facturée). Le reste des séances de septembre est
+# prélevé à cette date, puis chaque mois suivant selon
+# PREPA_MONTHLY_QUANTITIES.
+#
+# Concrètement : l'abonnement Stripe est créé avec un trial jusqu'à cette date,
+# ce qui empêche le récurrent d'être facturé au moment du checkout.
+# Surchargeable par variable d'environnement, au format AAAA-MM-JJ (UTC).
+PREPA_FIRST_BILLING_DATE = os.getenv("PREPA_ADJURIS_FIRST_BILLING", "2026-09-30")
+
 PREPA_PRICES: dict[str, dict[str, str]] = {
     "L1_droit_constit": {
         "recurring": "price_1U0Mp3LeRHpDiZMsi6n48xTM",

@@ -28,7 +28,8 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timedelta, timezone
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -51,10 +52,13 @@ from app.core.config import FRONTEND_URL
 from app.core.prepa_adjuris_config import (
     PREPA_PRICES,
     PREPA_MONTHLY_QUANTITIES,
+    PREPA_FIRST_BILLING_DATE,
     matiere_label,
     matiere_niveau,
 )
 from app.bot_discord.role_sync import assign_adjuris_role_sync
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/prepa/adjuris", tags=["prepa-adjuris"])
 
@@ -230,6 +234,32 @@ def link_discord_adjuris(payload: LinkDiscordAdjurisIn, db: Session = Depends(ge
 # Formulaire public du site (pré-inscription, sans paiement)
 # ============================================================
 
+def _first_billing_timestamp() -> int | None:
+    """
+    Timestamp du premier prélèvement mensuel, passé à Stripe en trial_end.
+    Tant que ce trial court, seul le paiement d'inscription (20 €) est encaissé.
+
+    Retourne None si la date est passée ou trop proche : Stripe exige un
+    trial_end à plus de 48 h, et un étudiant qui s'inscrit après cette date doit
+    de toute façon être facturé immédiatement.
+    """
+    try:
+        jour = datetime.strptime(PREPA_FIRST_BILLING_DATE, "%Y-%m-%d")
+    except ValueError:
+        logger.error(
+            "PREPA_ADJURIS_FIRST_BILLING invalide (%s) — attendu AAAA-MM-JJ. "
+            "Trial désactivé : le récurrent sera facturé dès le checkout.",
+            PREPA_FIRST_BILLING_DATE,
+        )
+        return None
+
+    # Fin de journée, pour que le prélèvement tombe bien le jour dit.
+    echeance = jour.replace(hour=22, minute=0, tzinfo=timezone.utc)
+    if echeance < datetime.now(timezone.utc) + timedelta(hours=49):
+        return None
+    return int(echeance.timestamp())
+
+
 def _validate_inscription(payload: PrepaAdjurisInscriptionIn) -> tuple[str, list[str]]:
     """Valide niveau + matières. Retourne (niveau, matieres dédoublonnées)."""
     niveau = payload.niveau.strip().upper()
@@ -381,6 +411,12 @@ def create_prepa_adjuris_public_checkout(
     }
     if user:
         params["client_reference_id"] = str(user.id)
+
+    # Trial jusqu'au premier prélèvement : sans lui, Stripe facturerait le
+    # récurrent dès le checkout (60 € en L1 au lieu des 20 € d'inscription).
+    trial_end = _first_billing_timestamp()
+    if trial_end:
+        params["subscription_data"] = {"trial_end": trial_end}
 
     try:
         session = stripe.checkout.Session.create(**params)
