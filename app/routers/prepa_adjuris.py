@@ -260,6 +260,40 @@ def _first_billing_timestamp() -> int | None:
     return int(echeance.timestamp())
 
 
+_MOIS_SUIVANTS = ("octobre", "novembre", "décembre")
+
+
+def _recap_prelevements(matiere_key: str, nb_matieres: int) -> str:
+    """
+    Message affiché sur la page Stripe, au-dessus du bouton de paiement.
+
+    Stripe résume l'abonnement par « Puis X € par mois », calculé sur la
+    quantité du checkout — trompeur ici, puisque le nombre de séances (donc le
+    montant) change chaque mois. Ce texte donne le détail réel.
+    """
+    quantites = PREPA_MONTHLY_QUANTITIES[matiere_key]
+    prix = lambda seances: seances * 20 * nb_matieres  # noqa: E731
+
+    try:
+        jour = datetime.strptime(PREPA_FIRST_BILLING_DATE, "%Y-%m-%d")
+        date_1 = f"le {jour.day} septembre"
+    except ValueError:
+        date_1 = "fin septembre"
+
+    lignes = [f"{prix(quantites[0] - 1)} € {date_1}"]
+    lignes += [
+        f"{prix(q)} € en {mois}"
+        for q, mois in zip(quantites[1:], _MOIS_SUIVANTS)
+    ]
+
+    return (
+        "Le montant prélevé chaque mois correspond au total des séances "
+        "facturées ce mois-là (20 € la séance), il n'est donc pas fixe : "
+        + ", ".join(lignes[:-1]) + " et " + lignes[-1] + ". "
+        "L'abonnement prend fin automatiquement après décembre."
+    )
+
+
 def _validate_inscription(payload: PrepaAdjurisInscriptionIn) -> tuple[str, list[str]]:
     """Valide niveau + matières. Retourne (niveau, matieres dédoublonnées)."""
     niveau = payload.niveau.strip().upper()
@@ -417,6 +451,11 @@ def create_prepa_adjuris_public_checkout(
     trial_end = _first_billing_timestamp()
     if trial_end:
         params["subscription_data"] = {"trial_end": trial_end}
+        # Stripe affiche « Puis X € par mois » d'après la quantité du checkout :
+        # on détaille le vrai échéancier juste au-dessus du bouton de paiement.
+        params["custom_text"] = {
+            "submit": {"message": _recap_prelevements(a_payer[0], len(a_payer))}
+        }
 
     try:
         session = stripe.checkout.Session.create(**params)
