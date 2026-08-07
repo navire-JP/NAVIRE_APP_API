@@ -12,8 +12,18 @@ from sqlalchemy.orm import Session
 from app.core.config import BOT_SECRET
 from app.db.database import get_db
 from app.db.models import User
+from app.services.discord_link import verify_and_link
+from app.services.email import mail_discord_linked, send_mail
 
 router = APIRouter(prefix="/discord", tags=["discord-bot"])
+
+# Libellés d'abonnement pour les messages adressés aux utilisateurs.
+PLAN_LABELS = {
+    "free":    "Gratuit",
+    "membre":  "NAVIRE AI",
+    "membre+": "NAVIRE AI+",
+    "prepa":   "Prép'AdJuris",
+}
 
 
 def _require_bot(x_bot_secret: str = Header(...)) -> None:
@@ -24,6 +34,15 @@ def _require_bot(x_bot_secret: str = Header(...)) -> None:
 class LinkDiscordIn(BaseModel):
     user_id: int
     discord_id: str
+
+
+class VerifyLinkIn(BaseModel):
+    """Triplet exigé par le Modal Discord : compte + email + code."""
+    discord_id: str
+    discord_name: str = ""
+    user_id: int
+    email: str
+    code: str
 
 
 class ParticipationIn(BaseModel):
@@ -122,6 +141,39 @@ def record_participation(body: ParticipationIn, db: Session = Depends(get_db)):
         "streak":       user.discord_streak,
         "pending":      user.discord_messages_pending,
     }
+
+
+@router.post("/link-verify", dependencies=[Depends(_require_bot)])
+def verify_link(body: VerifyLinkIn, db: Session = Depends(get_db)):
+    """
+    Liaison authentifiée : valide (identifiant, email, code) puis rattache
+    discord_id au compte et confirme par email.
+
+    Retourne toujours 200 — les échecs attendus (code expiré, triplet
+    incohérent, Discord déjà lié ailleurs) remontent en {"ok": false,
+    "message": ...} pour que le bot les affiche à l'utilisateur.
+    """
+    ok, message, user = verify_and_link(
+        db,
+        user_id=body.user_id,
+        email=body.email,
+        code=body.code,
+        discord_id=body.discord_id,
+    )
+
+    if not ok:
+        return {"ok": False, "message": message}
+
+    plan = user.plan or "free"
+
+    subject, html = mail_discord_linked(
+        username=user.username,
+        discord_name=body.discord_name or body.discord_id,
+        plan_label=PLAN_LABELS.get(plan, plan),
+    )
+    send_mail(user.email, subject, html)
+
+    return {"ok": True, "user_id": user.id, "username": user.username, "plan": plan}
 
 
 @router.get("/sync-state", dependencies=[Depends(_require_bot)])

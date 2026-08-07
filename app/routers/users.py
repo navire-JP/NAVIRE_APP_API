@@ -9,7 +9,15 @@ from app.db.models import User, QcmSessionHistory, File as FileModel
 from app.schemas.auth import ProfileUpdateIn, UserOut
 from app.routers.auth import get_current_user
 from app.core.cloudinary_client import upload_avatar, is_allowed_image, MAX_AVATAR_BYTES, resolve_avatar_url
+from app.core.config import DISCORD_INVITE_URL
 from app.core.limits import get_limit
+from app.services.discord_link import (
+    LinkCodeRateLimited,
+    SOURCE_PROFILE,
+    issue_code,
+    seconds_left,
+)
+from app.services.email import discord_sync_channel_url
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -30,6 +38,7 @@ def _user_dict(u: User) -> dict:
         "avatar_url": resolve_avatar_url(u.avatar_url),
         "plan": u.plan,
         "elo": int(u.elo or 0),
+        "discord_linked": bool(u.discord_id),
     }
 
 
@@ -157,6 +166,51 @@ def update_avatar_url(
     db.commit()
     db.refresh(current_user)
     return _user_dict(current_user)
+
+
+# ============================================================
+# Profil — bouton « Connecter mes comptes » (liaison Discord)
+# ============================================================
+
+@router.post("/me/discord-code")
+def create_discord_link_code(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Émet un code de liaison Discord à durée courte pour l'utilisateur connecté.
+
+    C'est le chemin ouvert à tous : aucun achat n'est nécessaire, n'importe
+    quel titulaire d'un compte NAVIRE peut lier son Discord. Le front affiche
+    le code renvoyé, le décompte, et le lien vers le salon de liaison.
+
+    Le code seul ne suffit pas à s'authentifier : le bot exige aussi
+    l'identifiant du compte et l'email, tous deux rappelés dans la réponse
+    pour que la page profil puisse les afficher à recopier.
+    """
+    try:
+        row = issue_code(db, current_user, SOURCE_PROFILE)
+    except LinkCodeRateLimited as e:
+        raise HTTPException(
+            status_code=429,
+            detail="Trop de codes demandés. Réessaie dans quelques minutes.",
+            headers={"Retry-After": str(e.retry_after_seconds)},
+        )
+    except RuntimeError:
+        raise HTTPException(
+            status_code=503,
+            detail="Génération de code indisponible. Réessaie dans un instant.",
+        )
+
+    return {
+        "code":          row.code,
+        "expires_at":    row.expires_at,
+        "expires_in":    seconds_left(row),
+        "user_id":       current_user.id,
+        "email":         current_user.email,
+        "already_linked": bool(current_user.discord_id),
+        "discord_url":   discord_sync_channel_url() or DISCORD_INVITE_URL or None,
+    }
 
 
 # ============================================================

@@ -93,6 +93,11 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire-ai.com")
 # propre copie de config, comme BOT_SECRET ci-dessus.
 DISCORD_GUILD_ID = int(os.getenv("DISCORD_GUILD_ID", "0"))
 DISCORD_PREPA_ADJURIS_CHANNEL_ID = int(os.getenv("DISCORD_PREPA_ADJURIS_CHANNEL_ID", "0"))
+# Salon #🔹connecter-mon-compte-navire — sert à construire le lien de
+# redirection donné au bouton « Connecter mes comptes » de la page profil.
+DISCORD_SYNC_CHANNEL_ID = int(os.getenv("DISCORD_SYNC_CHANNEL_ID", "0"))
+# Invitation publique du serveur, utilisée si l'élève n'a pas encore rejoint.
+DISCORD_INVITE_URL = os.getenv("DISCORD_INVITE_URL", "")
 
 
 def ensure_storage_dirs() -> None:

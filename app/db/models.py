@@ -1331,10 +1331,10 @@ class PrepaAdjurisEnrollment(Base):
 
 class DiscordLinkCode(Base):
     """
-    Code de liaison à usage unique, généré à l'inscription Prép'AdJuris
-    (uniquement si l'utilisateur n'a pas encore de discord_id). Consommé via
-    le Modal Discord (email + code) pour lier discord_id sur User et
-    déclencher l'attribution des rôles pour toutes les matières actives.
+    Code de liaison à usage unique servant à authentifier un utilisateur sur
+    Discord. Consommé par le Modal du bot, qui exige le triplet
+    (identifiant du compte, email, code) — voir app/services/discord_link.py,
+    seul endroit où ces codes sont générés et vérifiés.
     """
     __tablename__ = "discord_link_codes"
 
@@ -1344,9 +1344,18 @@ class DiscordLinkCode(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
 
-    code: Mapped[str] = mapped_column(String(16), unique=True, nullable=False, index=True)
-    # 8 caractères alphanumériques majuscules, charset sans caractères ambigus
-    # (pas de 0/O, 1/I/L)
+    # Format "AJ" + 6 chiffres (ex. AJ601405). Volontairement non unique en
+    # base : l'espace n'est que d'un million de valeurs, et l'unicité utile est
+    # (user_id, code) — un code ne vaut que pour le compte qui l'a demandé.
+    code: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+
+    # "profile"  → bouton de la page profil, valable quelques minutes
+    # "purchase" → envoyé par email à l'achat, valable plusieurs jours
+    source: Mapped[str] = mapped_column(String(16), default="profile", nullable=False)
+
+    # Essais ratés. Au-delà du seuil le code est consommé : six chiffres ne
+    # résistent au balayage que si le nombre de tentatives est borné.
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -1354,84 +1363,6 @@ class DiscordLinkCode(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-
-class PrepaAdjurisRessource(Base):
-    """
-    Un PDF mis à disposition dans l'espace Prép'AdJuris : soit rattaché à une
-    matière, soit au bloc méthodologie du niveau.
-
-    matiere_key NULL  → ressource du bloc méthodo, visible par tout étudiant du
-                        niveau, quelles que soient ses matières.
-    matiere_key rempli → ressource de cette matière, visible seulement si
-                        l'étudiant y est inscrit (sinon le bloc est cadenassé).
-    """
-    __tablename__ = "prepa_adjuris_ressources"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    niveau: Mapped[str] = mapped_column(String(4), nullable=False, index=True)
-    # L1 | L2 | L3
-    matiere_key: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    # NULL = bloc méthodo du niveau
-
-    titre: Mapped[str] = mapped_column(String(200), nullable=False)
-    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
-
-    filename_original: Mapped[str] = mapped_column(String(255), nullable=False)
-    filename_stored: Mapped[str] = mapped_column(String(255), nullable=False)
-    path: Mapped[str] = mapped_column(String(500), nullable=False)
-    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
-
-    ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
-    )
-
-
-class PrepaAdjurisSeance(Base):
-    """
-    Une séance datée (cours en visio). Alimente l'encart « prochain cours » de
-    l'espace étudiant et, plus tard, le calendrier.
-
-    matiere_key NULL → séance commune à tout le niveau (ex : la séance offerte
-    du 10 septembre). Sinon, séance de la matière concernée : seuls les
-    étudiants inscrits à cette matière la voient.
-
-    Attention : ce calendrier est indépendant de la facturation. Annuler une
-    séance ici ne modifie pas les quantités Stripe (PREPA_MONTHLY_QUANTITIES),
-    qui restent la référence des prélèvements.
-    """
-    __tablename__ = "prepa_adjuris_seances"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    niveau: Mapped[str] = mapped_column(String(4), nullable=False, index=True)
-    matiere_key: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    # NULL = séance commune au niveau
-
-    titre: Mapped[str] = mapped_column(String(200), default="", nullable=False)
-    date_debut: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
-    duree_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
-
-    lien: Mapped[str] = mapped_column(String(500), default="", nullable=False)
-    # Lien visio / salon Discord communiqué à l'étudiant
-
-    statut: Mapped[str] = mapped_column(String(20), default="prevue", nullable=False)
-    # prevue | annulee
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
 
 class PrepaAdjurisInscription(Base):
     """

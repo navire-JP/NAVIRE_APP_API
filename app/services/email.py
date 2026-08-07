@@ -28,6 +28,8 @@ from app.core.config import (
     BREVO_SENDER_NAME,
     DISCORD_GUILD_ID,
     DISCORD_PREPA_ADJURIS_CHANNEL_ID,
+    DISCORD_SYNC_CHANNEL_ID,
+    FRONTEND_URL,
 )
 
 logger = logging.getLogger(__name__)
@@ -126,11 +128,18 @@ def mail_pending_subscription(email: str, plan: str, frontend_url: str) -> tuple
     return subject, html
 
 
-def mail_prepa_adjuris_link_code(email: str, code: str, matiere_label: str) -> tuple[str, str]:
+def mail_prepa_adjuris_link_code(
+    email: str, code: str, matiere_label: str, user_id: int | None = None
+) -> tuple[str, str]:
     """
     Retourne (subject, html) pour envoyer le code de liaison Discord après
     une inscription Prép'AdJuris (utilisateur pas encore lié en discord_id).
     """
+    identifiant_line = (
+        f"<li>ton identifiant NAVIRE : <strong>{user_id}</strong></li>"
+        if user_id is not None
+        else ""
+    )
     channel_url = None
     if DISCORD_GUILD_ID and DISCORD_PREPA_ADJURIS_CHANNEL_ID:
         channel_url = f"https://discord.com/channels/{DISCORD_GUILD_ID}/{DISCORD_PREPA_ADJURIS_CHANNEL_ID}"
@@ -163,11 +172,136 @@ def mail_prepa_adjuris_link_code(email: str, code: str, matiere_label: str) -> t
       {code}
     </p>
     <p>
-      Rejoins le channel Discord, clique sur le bouton <strong>« Lier mon compte NAVIRE »</strong>,
-      puis entre ton email et ce code.
-    </p>{channel_block}
+      Rejoins le serveur Discord, clique sur le bouton <strong>« Lier mes comptes »</strong>,
+      puis renseigne :
+    </p>
+    <ul style="line-height: 1.7;">
+      {identifiant_line}
+      <li>ton email : <strong>{email}</strong></li>
+      <li>ce code : <strong>{code}</strong></li>
+    </ul>{channel_block}
     <p style="font-size: 0.85em; color: #888;">
-      Ce code est valable 7 jours et à usage unique.
+      Ce code est valable 7 jours et à usage unique. Tu peux aussi en générer un
+      nouveau depuis ton profil, bouton « Connecter mes comptes ».
+    </p>
+  </div>
+</body>
+</html>
+"""
+    return subject, html
+
+# ============================================================
+# Liaison Discord — code d'authentification et confirmation
+# ============================================================
+
+def discord_sync_channel_url() -> str | None:
+    """Lien profond vers #🔹connecter-mon-compte-navire, si configuré."""
+    if DISCORD_GUILD_ID and DISCORD_SYNC_CHANNEL_ID:
+        return f"https://discord.com/channels/{DISCORD_GUILD_ID}/{DISCORD_SYNC_CHANNEL_ID}"
+    return None
+
+
+def mail_discord_link_code(
+    user_id: int,
+    email: str,
+    code: str,
+    validity_label: str,
+    context_label: str = "",
+) -> tuple[str, str]:
+    """
+    (subject, html) du mail contenant un code de liaison Discord.
+    Envoyé à l'achat ; le même code peut aussi être obtenu à tout moment
+    depuis la page profil.
+    """
+    channel_url = discord_sync_channel_url()
+    channel_block = ""
+    if channel_url:
+        channel_block = f"""
+    <a href="{channel_url}"
+       style="display: inline-block; background: #5865F2; color: #fff;
+              padding: 12px 24px; border-radius: 8px; text-decoration: none;
+              font-weight: bold; margin: 16px 0;">
+      Ouvrir le salon Discord
+    </a>"""
+
+    intro = (
+        f"Ton accès <strong>{context_label}</strong> est confirmé."
+        if context_label
+        else "Ton achat est confirmé."
+    )
+
+    subject = "Ton code pour lier ton compte NAVIRE à Discord"
+    html = f"""
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
+  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
+    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
+    <p>Bonjour,</p>
+    <p>
+      {intro} Pour recevoir tes accès sur le serveur Discord, lie ton compte
+      NAVIRE à ton compte Discord avec le code ci-dessous.
+    </p>
+    <p style="font-size: 1.6em; letter-spacing: 4px; font-weight: bold; text-align: center;
+              background: #1f1f1f; border-radius: 8px; padding: 16px; margin: 16px 0;">
+      {code}
+    </p>
+    <p>
+      Dans le salon <strong>#connecter-mon-compte-navire</strong>, clique sur
+      <strong>« Lier mes comptes »</strong> puis renseigne :
+    </p>
+    <ul style="line-height: 1.7;">
+      <li>ton identifiant NAVIRE : <strong>{user_id}</strong></li>
+      <li>ton email : <strong>{email}</strong></li>
+      <li>ce code : <strong>{code}</strong></li>
+    </ul>{channel_block}
+    <p style="font-size: 0.85em; color: #888;">
+      Ce code est valable {validity_label} et à usage unique. Tu peux aussi en
+      générer un nouveau à tout moment depuis ton profil sur {FRONTEND_URL},
+      bouton « Connecter mes comptes ».
+    </p>
+    <p style="font-size: 0.85em; color: #888;">
+      Ne transmets ce code à personne : il permet de rattacher un compte Discord au tien.
+    </p>
+  </div>
+</body>
+</html>
+"""
+    return subject, html
+
+
+def mail_discord_linked(
+    username: str,
+    discord_name: str,
+    plan_label: str,
+) -> tuple[str, str]:
+    """
+    (subject, html) de la confirmation envoyée une fois les comptes liés.
+    Sert aussi d'alerte de sécurité : c'est par ce mail que l'utilisateur
+    apprend qu'un compte Discord a été rattaché au sien.
+    """
+    subject = "Ton compte Discord est lié à NAVIRE"
+    html = f"""
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
+  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
+    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
+    <p>Bonjour {username},</p>
+    <p>
+      Le compte Discord <strong>{discord_name}</strong> vient d'être lié à ton
+      compte NAVIRE. Ton rôle sur le serveur correspond désormais à ton
+      abonnement : <strong>{plan_label}</strong>.
+    </p>
+    <p>
+      Il suivra automatiquement tes changements d'abonnement — rien à refaire
+      lors d'un renouvellement, d'un changement de formule ou d'une résiliation.
+    </p>
+    <p style="font-size: 0.85em; color: #888;">
+      Tu n'es pas à l'origine de cette liaison ? Change ton mot de passe sur
+      {FRONTEND_URL} et préviens l'équipe : nous délierons le compte Discord.
     </p>
   </div>
 </body>

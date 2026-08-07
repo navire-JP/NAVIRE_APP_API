@@ -41,6 +41,24 @@ async def record_participation(discord_id: str, message_count: int = 1) -> dict:
     })
 
 
+async def verify_discord_link(
+    discord_id: str, discord_name: str, user_id: int, email: str, code: str
+) -> dict:
+    """
+    Liaison authentifiée par le triplet (identifiant, email, code).
+    Retourne toujours {"ok": bool, "message"?: str, ...} en 200 : les échecs
+    attendus (code expiré, triplet incohérent) ne lèvent pas d'exception,
+    seules les vraies pannes réseau/serveur le font.
+    """
+    return await _post("/discord/link-verify", {
+        "discord_id":   discord_id,
+        "discord_name": discord_name,
+        "user_id":      user_id,
+        "email":        email,
+        "code":         code,
+    })
+
+
 async def get_sync_state() -> list[dict]:
     """
     Plan d'abonnement de tous les comptes liés : [{discord_id, user_id,

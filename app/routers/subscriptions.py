@@ -25,7 +25,6 @@ Endpoints admin :
 from __future__ import annotations
 
 import logging
-import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -56,7 +55,18 @@ from app.core.config import (
     FRONTEND_URL,
 )
 from app.core.prepa_adjuris_config import PREPA_PRICES, PREPA_MONTHLY_QUANTITIES, matiere_label
-from app.services.email import send_mail, mail_pending_subscription, mail_prepa_adjuris_link_code
+from app.services.email import (
+    send_mail,
+    mail_pending_subscription,
+    mail_prepa_adjuris_link_code,
+    mail_discord_link_code,
+)
+from app.services.discord_link import (
+    PURCHASE_TTL_DAYS,
+    SOURCE_PURCHASE,
+    active_codes,
+    issue_code,
+)
 from app.bot_discord.role_sync import assign_adjuris_role_sync, remove_adjuris_role_sync
 
 logger = logging.getLogger(__name__)
@@ -470,26 +480,46 @@ def create_checkout_prepa(
 # Prép'AdJuris — helpers webhook
 # ============================================================
 
-_LINK_CODE_CHARSET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # sans 0/O, 1/I/L
-_LINK_CODE_TTL_DAYS = 7
+def _purchase_link_code(db: Session, user: User) -> DiscordLinkCode | None:
+    """
+    Code de liaison longue durée à envoyer après un achat. Réutilise celui déjà
+    en circulation s'il en reste un valable, pour ne pas invalider le code d'un
+    email précédent quand plusieurs achats se suivent.
+    """
+    for row in active_codes(db, user.id):
+        if row.source == SOURCE_PURCHASE:
+            return row
+    try:
+        return issue_code(db, user, SOURCE_PURCHASE, enforce_rate_limit=False)
+    except RuntimeError:
+        logger.error("Code de liaison Discord non généré pour user %s", user.id)
+        return None
 
 
-def _generate_link_code() -> str:
-    return "".join(secrets.choice(_LINK_CODE_CHARSET) for _ in range(8))
+def send_discord_link_invite(db: Session, user: User, context_label: str = "") -> None:
+    """
+    Envoie par email le code permettant de lier le compte Discord après un
+    achat. Sans effet si le compte est déjà lié : la synchronisation des rôles
+    se fait alors toute seule (cogs/sync_account.py).
 
+    L'élève peut toujours obtenir un code plus court depuis son profil : ce mail
+    n'est qu'un raccourci pour ne pas l'obliger à repasser par le site.
+    """
+    if user.discord_id:
+        return
 
-def _get_active_link_code(db: Session, user_id: int) -> DiscordLinkCode | None:
-    """Code existant, non expiré et non utilisé, le plus récent s'il y en a plusieurs."""
-    now = utcnow()
-    return db.execute(
-        select(DiscordLinkCode)
-        .where(
-            DiscordLinkCode.user_id == user_id,
-            DiscordLinkCode.used_at.is_(None),
-            DiscordLinkCode.expires_at > now,
-        )
-        .order_by(desc(DiscordLinkCode.created_at))
-    ).scalars().first()
+    code_row = _purchase_link_code(db, user)
+    if not code_row:
+        return
+
+    subject, html = mail_discord_link_code(
+        user_id=user.id,
+        email=user.email,
+        code=code_row.code,
+        validity_label=f"{PURCHASE_TTL_DAYS} jours",
+        context_label=context_label,
+    )
+    send_mail(user.email, subject, html)
 
 
 def send_adjuris_discord_invite(db: Session, user: User, matieres: list[str]) -> None:
@@ -507,18 +537,14 @@ def send_adjuris_discord_invite(db: Session, user: User, matieres: list[str]) ->
             assign_adjuris_role_sync(user.discord_id, key)
         return
 
-    code_row = _get_active_link_code(db, user.id)
+    code_row = _purchase_link_code(db, user)
     if not code_row:
-        code_row = DiscordLinkCode(
-            user_id=user.id,
-            code=_generate_link_code(),
-            expires_at=utcnow() + timedelta(days=_LINK_CODE_TTL_DAYS),
-        )
-        db.add(code_row)
-        db.commit()
+        return
 
     libelles = ", ".join(matiere_label(k) for k in matieres)
-    subject, html = mail_prepa_adjuris_link_code(user.email, code_row.code, libelles)
+    subject, html = mail_prepa_adjuris_link_code(
+        user.email, code_row.code, libelles, user_id=user.id
+    )
     send_mail(user.email, subject, html)
 
 
@@ -730,6 +756,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             user.prepa_expires_at = expiry
             db.commit()
             print(f"✅ PREPASSERELLE activé : user {user_id}, année {prepa_annee}, expire {expiry.date()}")
+            send_discord_link_invite(db, user, context_label="PREPASSERELLE")
             return {"ok": True}
 
         # Récupérer les dates de période depuis Stripe
@@ -793,6 +820,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         sub.cancelled_at = None
         db.commit()
         _sync_user_plan(db, user, plan)
+
+        # Code de liaison Discord envoyé avec la confirmation d'achat, pour que
+        # l'élève n'ait pas à repasser par son profil. Sans effet si déjà lié.
+        send_discord_link_invite(
+            db, user, context_label="NAVIRE AI+" if plan == "membre+" else "NAVIRE AI"
+        )
 
         if promo_code_str:
             try:
@@ -1177,7 +1210,6 @@ def check_expired_subscriptions(db_factory) -> None:
                 if user:
                     _downgrade_to_free(db, user, sub, status="expired")
 
-        from datetime import timedelta
         cutoff = now - timedelta(days=30)
         old_pending = db.execute(
             select(PendingSubscription).where(PendingSubscription.created_at < cutoff)
