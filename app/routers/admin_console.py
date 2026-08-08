@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 
-from app.bot_discord.veille_publish import publish_veille_item_sync
 from app.db.database import get_db
 from app.db.models import User, Subscription
 from app.routers.auth import get_current_user
@@ -41,6 +40,10 @@ class SetAdminIn(BaseModel):
 
 class PlanAddIn(BaseModel):
     plan: Literal["free", "membre", "membre+"]
+
+class PrepaGrantIn(BaseModel):
+    annee: Literal["L1", "L2", "L3"]
+    duration_days: int = Field(default=30, ge=1, le=365, description="Durée de l'accès temporaire, en jours")
 
 
 # =========================================================
@@ -116,6 +119,8 @@ def admin_user_get(
         "study_level": u.study_level,
         "elo": int(u.elo or 0),
         "plan": u.plan,
+        "prepa_annee": u.prepa_annee,
+        "prepa_expires_at": (u.prepa_expires_at.isoformat() if u.prepa_expires_at else None),
         "is_admin": bool(u.is_admin),
         "created_at": (u.created_at.isoformat() if u.created_at else None),
         "last_login_at": (u.last_login_at.isoformat() if u.last_login_at else None),
@@ -375,6 +380,65 @@ def admin_user_plan_clear(
 
     return {"ok": True, "user_id": u.id, "plan": "free"}
 
+
+# =========================================================
+# PREPA COMMANDS
+# =========================================================
+
+@router.post("/users/{user_id}/prepa/grant")
+def admin_user_prepa_grant(
+    user_id: int,
+    body: PrepaGrantIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Attribue un accès PREPASSERELLE temporaire, sans Stripe (vente manuelle, test, geste commercial).
+    "prepa" écrase le plan courant : ce n'est pas cumulable avec membre/membre+.
+    Commande console : /user <id> prepa <L1|L2|L3> <jours>
+    """
+    u = get_user_or_404(db, user_id)
+
+    now = datetime.now(timezone.utc)
+    expiry = now + timedelta(days=body.duration_days)
+
+    u.plan = "prepa"
+    u.prepa_annee = body.annee
+    u.prepa_expires_at = expiry
+    db.commit()
+
+    return {
+        "ok": True,
+        "user_id": u.id,
+        "username": u.username,
+        "plan": "prepa",
+        "prepa_annee": u.prepa_annee,
+        "prepa_expires_at": expiry.isoformat(),
+    }
+
+
+@router.post("/users/{user_id}/prepa/revoke")
+def admin_user_prepa_revoke(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Révoque l'accès PREPASSERELLE en cours et repasse l'user en free.
+    Commande console : /user <id> prepa revoke
+    """
+    u = get_user_or_404(db, user_id)
+
+    if u.plan != "prepa":
+        raise HTTPException(400, detail="Cet utilisateur n'a pas d'accès prepa actif.")
+
+    u.plan = "free"
+    u.prepa_annee = None
+    u.prepa_expires_at = None
+    db.commit()
+
+    return {"ok": True, "user_id": u.id, "plan": "free"}
+
 # =========================================================
 # ACTUS (VEILLE) COMMANDS
 # =========================================================
@@ -475,19 +539,6 @@ def admin_actus_add(
     db.add(item)
     db.commit()
     db.refresh(item)
-
-    # Diffusion simultanée sur Discord (#veille + log #logsnewsletter),
-    # best-effort — ne doit jamais faire échouer la création de l'actu.
-    publish_veille_item_sync(
-        item_id=item.id,
-        title=item.title,
-        essentiel=item.essentiel,
-        impact=item.impact,
-        category=item.category,
-        source_url=item.source_url,
-        source_name=item.source_name,
-        published_at=item.published_at,
-    )
 
     return {
         "ok": True,
