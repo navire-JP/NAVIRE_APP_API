@@ -213,6 +213,31 @@ def create_discord_link_code(
     }
 
 
+@router.post("/me/discord-unlink")
+def unlink_discord(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Délie le compte Discord courant du compte NAVIRE (ex: mauvais compte lié
+    par erreur, changement de compte Discord). L'utilisateur peut ensuite
+    relier un autre compte via /me/discord-code.
+
+    Ne retire PAS les rôles côté serveur Discord : ça demande une
+    intervention du bot (pas de helper sync pour les rôles PLAN_TO_ROLE,
+    contrairement aux rôles par matière AdJuris) et un rôle orphelin sur un
+    membre non lié est sans conséquence côté NAVIRE. Il repart au prochain
+    /me/discord-code + re-liaison, qui réapplique le bon rôle.
+    """
+    if not current_user.discord_id:
+        raise HTTPException(status_code=400, detail="Aucun compte Discord lié.")
+
+    current_user.discord_id = None
+    db.commit()
+    db.refresh(current_user)
+    return _user_dict(current_user)
+
+
 # ============================================================
 # Profil — résumé agrégé (page profil complète en un seul appel)
 # ============================================================
@@ -317,9 +342,6 @@ def get_profile_summary(
             "avatar_url": resolve_avatar_url(u.avatar_url),
             "plan": u.plan,
             "created_at": u.created_at,
-            # Pilote l'encart « Compte Discord » de la page profil : bouton de
-            # liaison si absent, état connecté sinon.
-            "discord_linked": bool(u.discord_id),
         },
         "elo": {
             "value": int(u.elo or 0),
