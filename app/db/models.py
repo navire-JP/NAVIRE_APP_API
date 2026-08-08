@@ -1329,6 +1329,48 @@ class PrepaAdjurisEnrollment(Base):
     user: Mapped["User"] = relationship("User", back_populates="prepa_adjuris_enrollments")
 
 
+class AdjurisPromoCode(Base):
+    """
+    Code promo appliqué au tarif d'inscription (one_time) Prép'AdJuris.
+
+    Contrairement à PromoCode (subscriptions), ce n'est pas une réduction
+    en % ou en € fixe sur un prix Stripe existant : override_price_cents
+    remplace intégralement le prix facturé, matière par matière, via un
+    price_data dynamique côté Stripe Checkout (voir _creer_checkout_session).
+    Le montant récurrent (mensualités après le trial) n'est jamais concerné —
+    seule l'inscription (séance de septembre) l'est.
+
+    Le code s'applique à toutes les matières du panier au moment du checkout :
+    pas de scope par matiere_key, un seul code vaut pour toute l'offre AdJuris.
+    """
+    __tablename__ = "adjuris_promo_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+
+    override_price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Prix exact facturé par matière quand ce code est utilisé (en centimes).
+
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)    # NULL = illimité
+    uses_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # NULL = pas d'expiration
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
 class DiscordLinkCode(Base):
     """
     Code de liaison à usage unique servant à authentifier un utilisateur sur

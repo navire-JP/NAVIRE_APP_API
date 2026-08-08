@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import (
+    AdjurisPromoCode,
     DiscordLinkCode,
     PrepaAdjurisEnrollment,
     PrepaAdjurisInscription,
@@ -79,6 +80,7 @@ class PrepaAdjurisCheckoutIn(BaseModel):
     conservé pour ne pas casser un appel existant."""
     matiere_key: str | None = None
     matieres: list[str] | None = None
+    promo_code: str | None = None
 
 
 class LinkDiscordAdjurisIn(BaseModel):
@@ -99,6 +101,8 @@ class PrepaAdjurisInscriptionIn(BaseModel):
     # Honeypot : champ invisible pour un humain, rempli par la plupart des bots.
     # S'il est non vide, on répond OK sans rien enregistrer.
     website: str = ""
+
+    promo_code: str | None = None
 
 
 # ============================================================
@@ -149,11 +153,50 @@ def my_adjuris_enrollments(
     }
 
 
+def _validate_adjuris_promo(db: Session, code: str) -> AdjurisPromoCode:
+    """Vérifie qu'un code promo AdJuris est utilisable. Lève 400 sinon.
+
+    Pas de vérification par utilisateur (contrairement à _validate_promo dans
+    subscriptions.py) : le checkout AdJuris est ouvert sans authentification
+    (formulaire public), il n'y a pas toujours d'user_id à qui rattacher une
+    utilisation.
+    """
+    promo = db.execute(
+        select(AdjurisPromoCode).where(AdjurisPromoCode.code == code.strip().upper())
+    ).scalar_one_or_none()
+
+    if not promo:
+        raise HTTPException(400, detail={"code": "PROMO_NOT_FOUND", "message": "Code promo introuvable."})
+    if not promo.is_active:
+        raise HTTPException(400, detail={"code": "PROMO_INACTIVE", "message": "Code promo inactif."})
+    if promo.expires_at and promo.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(400, detail={"code": "PROMO_EXPIRED", "message": "Code promo expiré."})
+    if promo.max_uses is not None and promo.uses_count >= promo.max_uses:
+        raise HTTPException(400, detail={"code": "PROMO_EXHAUSTED", "message": "Code promo épuisé."})
+
+    return promo
+
+
+# Cache en mémoire : le product Stripe d'une matière ne change jamais après
+# création du Price, pas besoin de le re-résoudre à chaque checkout.
+_ADJURIS_PRODUCT_ID_CACHE: dict[str, str] = {}
+
+
+def _adjuris_stripe_product_id(matiere_key: str) -> str:
+    """Product Stripe associé au Price one_time de la matière — nécessaire
+    pour construire un price_data (prix promo dynamique) sur ce produit."""
+    if matiere_key not in _ADJURIS_PRODUCT_ID_CACHE:
+        price = stripe.Price.retrieve(PREPA_PRICES[matiere_key]["one_time"])
+        _ADJURIS_PRODUCT_ID_CACHE[matiere_key] = price["product"]
+    return _ADJURIS_PRODUCT_ID_CACHE[matiere_key]
+
+
 def _creer_checkout_session(
     matieres: list[str],
     email: str,
     user: User | None = None,
     metadata_extra: dict | None = None,
+    override_price_cents: int | None = None,
 ):
     """
     Construit et crée la Checkout Session. Partagé par les deux points d'entrée
@@ -163,6 +206,11 @@ def _creer_checkout_session(
 
     Toutes les matières doivent être du même niveau : les phases du Subscription
     Schedule appliquent une quantité unique par mois à tous les items.
+
+    override_price_cents (code promo validé en amont) remplace le Price
+    one_time fixe par un price_data au montant exact, matière par matière.
+    Le récurrent n'est jamais concerné par la promo — seule l'inscription
+    (séance de septembre) l'est.
     """
     niveaux = {matiere_niveau(m) for m in matieres}
     if len(niveaux) > 1:
@@ -178,7 +226,17 @@ def _creer_checkout_session(
 
     line_items = []
     for key in matieres:
-        line_items.append({"price": PREPA_PRICES[key]["one_time"], "quantity": 1})
+        if override_price_cents is not None:
+            line_items.append({
+                "price_data": {
+                    "currency": "eur",
+                    "product": _adjuris_stripe_product_id(key),
+                    "unit_amount": override_price_cents,
+                },
+                "quantity": 1,
+            })
+        else:
+            line_items.append({"price": PREPA_PRICES[key]["one_time"], "quantity": 1})
         if septembre_recurring_qty > 0:
             line_items.append({
                 "price": PREPA_PRICES[key]["recurring"],
@@ -248,7 +306,20 @@ def create_prepa_adjuris_checkout(
             "message": "Vous êtes déjà inscrit à ces matières.",
         })
 
-    session = _creer_checkout_session(a_payer, user.email, user=user)
+    override_price_cents = None
+    promo = None
+    if payload.promo_code:
+        promo = _validate_adjuris_promo(db, payload.promo_code)
+        override_price_cents = promo.override_price_cents
+
+    session = _creer_checkout_session(
+        a_payer, user.email, user=user, override_price_cents=override_price_cents
+    )
+
+    if promo:
+        promo.uses_count += 1
+        db.commit()
+
     return {"checkout_url": session.url, "matieres": a_payer}
 
 
@@ -492,6 +563,12 @@ def create_prepa_adjuris_public_checkout(
     # suite ; sinon le webhook rattachera par email.
     user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
 
+    override_price_cents = None
+    promo = None
+    if payload.promo_code:
+        promo = _validate_adjuris_promo(db, payload.promo_code)
+        override_price_cents = promo.override_price_cents
+
     session = _creer_checkout_session(
         a_payer, email, user=user,
         metadata_extra={
@@ -499,7 +576,13 @@ def create_prepa_adjuris_public_checkout(
             "prenom": payload.prenom.strip()[:80],
             "nom": payload.nom.strip()[:80],
         },
+        override_price_cents=override_price_cents,
     )
+
+    if promo:
+        promo.uses_count += 1
+        db.commit()
+
     return {"checkout_url": session.url, "matieres": a_payer}
 
 

@@ -23,6 +23,10 @@ Admin (header X-Admin-Code) :
   DELETE /prepa/adjuris/admin/seances/{id}
   POST   /prepa/adjuris/admin/acces               (accès sans paiement, limité)
   POST   /prepa/adjuris/admin/acces/revoquer
+  GET    /prepa/adjuris/admin/promo                (codes promo inscription)
+  POST   /prepa/adjuris/admin/promo
+  PATCH  /prepa/adjuris/admin/promo/{id}
+  DELETE /prepa/adjuris/admin/promo/{id}
 
 expirer_acces_adjuris() est appelée par le job horaire de subscriptions.py.
 """
@@ -42,12 +46,13 @@ from fastapi import (
     Form,
 )
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, desc
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import (
+    AdjurisPromoCode,
     PrepaAdjurisEnrollment,
     PrepaAdjurisInscription,
     PrepaAdjurisRessource,
@@ -100,6 +105,20 @@ class AccesIn(BaseModel):
 class AccesRevokeIn(BaseModel):
     email: str
     matiere_key: str
+
+
+class AdjurisPromoCreateIn(BaseModel):
+    code: str = Field(..., min_length=3, max_length=50)
+    prix_euros: float = Field(..., ge=0)
+    max_uses: int | None = Field(None, gt=0)
+    expires_at: datetime | None = None
+
+
+class AdjurisPromoUpdateIn(BaseModel):
+    is_active: bool | None = None
+    prix_euros: float | None = Field(None, ge=0)
+    max_uses: int | None = None
+    expires_at: datetime | None = None
 
 
 class RessourceUpdateIn(BaseModel):
@@ -660,6 +679,107 @@ def admin_revoquer_acces(payload: AccesRevokeIn, db: Session = Depends(get_db)):
         remove_adjuris_role_sync(user.discord_id, payload.matiere_key)
 
     return {"ok": True, "email": email, "matiere_key": payload.matiere_key}
+
+
+# ============================================================
+# Admin — codes promo sur le tarif d'inscription (toutes matières)
+# ============================================================
+
+@router.get("/admin/promo", dependencies=[Depends(verify_admin_code)])
+def admin_list_adjuris_promos(db: Session = Depends(get_db)):
+    """Liste des codes promo AdJuris, plus récents d'abord."""
+    promos = db.execute(
+        select(AdjurisPromoCode).order_by(desc(AdjurisPromoCode.created_at))
+    ).scalars().all()
+    return {
+        "items": [
+            {
+                "id": p.id,
+                "code": p.code,
+                "prix_euros": p.override_price_cents / 100,
+                "max_uses": p.max_uses,
+                "uses_count": p.uses_count,
+                "expires_at": p.expires_at,
+                "is_active": p.is_active,
+                "created_at": p.created_at,
+            }
+            for p in promos
+        ]
+    }
+
+
+@router.post("/admin/promo", dependencies=[Depends(verify_admin_code)])
+def admin_create_adjuris_promo(payload: AdjurisPromoCreateIn, db: Session = Depends(get_db)):
+    """
+    Crée un code promo qui, utilisé au checkout, remplace le prix
+    d'inscription (one_time) par payload.prix_euros — pour chaque matière
+    du panier, quel que soit son prix normal.
+    """
+    code = payload.code.strip().upper()
+    existing = db.execute(
+        select(AdjurisPromoCode).where(AdjurisPromoCode.code == code)
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(400, detail={
+            "code": "PROMO_CODE_EXISTS",
+            "message": f"Le code '{code}' existe déjà.",
+        })
+
+    promo = AdjurisPromoCode(
+        code=code,
+        override_price_cents=round(payload.prix_euros * 100),
+        max_uses=payload.max_uses,
+        expires_at=payload.expires_at,
+        is_active=True,
+    )
+    db.add(promo)
+    db.commit()
+    db.refresh(promo)
+
+    return {
+        "ok": True,
+        "id": promo.id,
+        "code": promo.code,
+        "prix_euros": promo.override_price_cents / 100,
+        "max_uses": promo.max_uses,
+        "expires_at": promo.expires_at,
+    }
+
+
+@router.patch("/admin/promo/{promo_id}", dependencies=[Depends(verify_admin_code)])
+def admin_update_adjuris_promo(
+    promo_id: int, payload: AdjurisPromoUpdateIn, db: Session = Depends(get_db)
+):
+    promo = db.execute(
+        select(AdjurisPromoCode).where(AdjurisPromoCode.id == promo_id)
+    ).scalar_one_or_none()
+    if not promo:
+        raise HTTPException(404, detail="Code promo introuvable.")
+
+    if payload.is_active is not None:
+        promo.is_active = payload.is_active
+    if payload.prix_euros is not None:
+        promo.override_price_cents = round(payload.prix_euros * 100)
+    if payload.max_uses is not None:
+        promo.max_uses = payload.max_uses
+    if payload.expires_at is not None:
+        promo.expires_at = payload.expires_at
+
+    db.commit()
+    return {"ok": True, "id": promo.id, "code": promo.code}
+
+
+@router.delete("/admin/promo/{promo_id}", dependencies=[Depends(verify_admin_code)])
+def admin_delete_adjuris_promo(promo_id: int, db: Session = Depends(get_db)):
+    promo = db.execute(
+        select(AdjurisPromoCode).where(AdjurisPromoCode.id == promo_id)
+    ).scalar_one_or_none()
+    if not promo:
+        raise HTTPException(404, detail="Code promo introuvable.")
+
+    db.delete(promo)
+    db.commit()
+    return {"ok": True, "deleted_code": promo.code}
 
 
 def expirer_acces_adjuris(db_factory) -> int:
