@@ -197,6 +197,7 @@ def _creer_checkout_session(
     user: User | None = None,
     metadata_extra: dict | None = None,
     override_price_cents: int | None = None,
+    success_path: str = "/prepa-merci",
 ):
     """
     Construit et crée la Checkout Session. Partagé par les deux points d'entrée
@@ -211,6 +212,12 @@ def _creer_checkout_session(
     one_time fixe par un price_data au montant exact, matière par matière.
     Le récurrent n'est jamais concerné par la promo — seule l'inscription
     (séance de septembre) l'est.
+
+    success_path : destination après paiement. Le checkout authentifié
+    (compte créé avant paiement) redirige vers /login pour que l'élève voie
+    son grade tout de suite ; le formulaire public, resté possible pour
+    compatibilité, garde /prepa-merci — une simple page de remerciement,
+    puisqu'il n'y a pas encore de session à reprendre.
     """
     niveaux = {matiere_niveau(m) for m in matieres}
     if len(niveaux) > 1:
@@ -250,7 +257,7 @@ def _creer_checkout_session(
         "mode": "subscription",
         "customer_email": email,
         "line_items": line_items,
-        "success_url": f"{FRONTEND_URL}/prepa-merci?session_id={{CHECKOUT_SESSION_ID}}",
+        "success_url": f"{FRONTEND_URL}{success_path}?session_id={{CHECKOUT_SESSION_ID}}",
         "cancel_url": f"{FRONTEND_URL}/prepa-adjuris",
         "metadata": metadata,
     }
@@ -313,7 +320,9 @@ def create_prepa_adjuris_checkout(
         override_price_cents = promo.override_price_cents
 
     session = _creer_checkout_session(
-        a_payer, user.email, user=user, override_price_cents=override_price_cents
+        a_payer, user.email, user=user,
+        override_price_cents=override_price_cents,
+        success_path="/login",
     )
 
     if promo:

@@ -54,7 +54,12 @@ from app.core.config import (
     STRIPE_CANCEL_URL,
     FRONTEND_URL,
 )
-from app.core.prepa_adjuris_config import PREPA_PRICES, PREPA_MONTHLY_QUANTITIES, matiere_label
+from app.core.prepa_adjuris_config import (
+    PREPA_PRICES,
+    PREPA_MONTHLY_QUANTITIES,
+    matiere_label,
+    matiere_niveau,
+)
 from app.services.email import (
     send_mail,
     mail_pending_subscription,
@@ -642,6 +647,19 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
         db.commit()
     except stripe.StripeError as e:
         logger.error("Adjuris : échec création Subscription Schedule pour %s : %s", sub_id, e)
+
+    # ── Grade NAVIRE ─────────────────────────────────────────
+    # Sans ça le badge PREPA n'apparaissait jamais sur le profil après un
+    # vrai paiement — seul un grant admin manuel le posait. L'engagement
+    # Stripe s'arrête après la phase de décembre (end_behavior="cancel" plus
+    # haut) : même échéance ici, pas de renouvellement implicite.
+    if user:
+        today = datetime.now(timezone.utc)
+        expiry = datetime(today.year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        user.plan = "prepa"
+        user.prepa_annee = matiere_niveau(matiere_keys[0])
+        user.prepa_expires_at = expiry
+        db.commit()
 
     # ── Accès Discord ──────────────────────────────────────────
     if user:

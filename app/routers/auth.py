@@ -115,6 +115,7 @@ def activate_pending_prepa_adjuris(db: Session, user: User) -> int:
     """
     from sqlalchemy import select as _select
     from app.db.models import PrepaAdjurisEnrollment
+    from app.core.prepa_adjuris_config import matiere_niveau
     from app.routers.subscriptions import send_adjuris_discord_invite
 
     orphelines = db.execute(
@@ -132,6 +133,18 @@ def activate_pending_prepa_adjuris(db: Session, user: User) -> int:
     db.commit()
 
     actives = [e.matiere_key for e in orphelines if e.status == "active"]
+
+    # Même grade que le webhook (subscriptions.py::_handle_prepa_adjuris_checkout) :
+    # ce chemin ne fait que rattraper un paiement fait avant la création du
+    # compte, le résultat doit être identique.
+    if actives:
+        today = datetime.now(timezone.utc)
+        expiry = datetime(today.year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        user.plan = "prepa"
+        user.prepa_annee = matiere_niveau(actives[0])
+        user.prepa_expires_at = expiry
+        db.commit()
+
     try:
         send_adjuris_discord_invite(db, user, actives)
     except Exception:
