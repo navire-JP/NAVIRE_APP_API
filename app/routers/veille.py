@@ -25,6 +25,11 @@ router = APIRouter(prefix="/veille", tags=["veille"])
 VEILLE_RETENTION_DAYS = 14
 VEILLE_GOAL_PER_DAY = 5
 
+# Interactions acceptées. Une valeur hors liste est refusée en 400 : sans ce
+# garde-fou, une faute de frappe côté client s'enregistre silencieusement et
+# la lecture n'est jamais comptée.
+VALID_EVENT_TYPES = {"impression", "read", "skip", "open"}
+
 
 # ============================================================
 # Helpers
@@ -197,6 +202,87 @@ def get_state(
     )
 
 
+def record_event(db: Session, user: User, item_id: int, event_type: str) -> dict:
+    """
+    Enregistre une interaction et, pour un "read", fait avancer la progression
+    du jour puis le streak.
+
+    Le compteur du jour ne bouge qu'à la PREMIÈRE lecture d'un item : relire la
+    même actu, ou double-cliquer sur « Lu », ne fait pas avancer l'objectif.
+
+    Retourne la progression à jour pour que le client se resynchronise sur la
+    réponse, sans second appel à /state — c'est ce qui évite qu'un compteur
+    tenu en mémoire côté navigateur diverge de la base.
+    """
+    if event_type not in VALID_EVENT_TYPES:
+        raise HTTPException(400, detail=f"event_type invalide : {event_type}")
+
+    item = db.execute(
+        select(VeilleItem).where(VeilleItem.id == item_id)
+    ).scalar_one_or_none()
+
+    if not item:
+        raise HTTPException(404, detail="Item introuvable.")
+
+    profile = get_or_create_profile(db, user)
+    daily = get_or_create_daily_state(db, user)
+
+    # Le doublon se juge AVANT d'ajouter la nouvelle ligne, sinon celle-ci
+    # compterait comme une lecture antérieure et aucune lecture ne serait
+    # jamais décomptée. first() plutôt que scalar_one_or_none() : d'anciens
+    # doublons en base ne doivent pas faire tomber la requête en 500.
+    already_read = False
+    if event_type == "read":
+        already_read = db.execute(
+            select(VeilleEvent.id).where(
+                and_(
+                    VeilleEvent.user_id == user.id,
+                    VeilleEvent.item_id == item_id,
+                    VeilleEvent.event_type == "read",
+                )
+            )
+        ).first() is not None
+
+    db.add(VeilleEvent(user_id=user.id, item_id=item_id, event_type=event_type))
+
+    if event_type == "read" and not already_read:
+        daily.read_count += 1
+        profile.total_read += 1
+
+        if daily.read_count >= daily.goal and not daily.goal_reached:
+            daily.goal_reached = True
+            update_streak(db, user, profile)
+
+    db.commit()
+    db.refresh(daily)
+    db.refresh(profile)
+
+    return {
+        "ok":           True,
+        "already_read": already_read,
+        "read_today":   daily.read_count,
+        "goal":         daily.goal,
+        "goal_reached": daily.goal_reached,
+        "streak":       profile.streak,
+    }
+
+
+@router.post("/read/{item_id}")
+def mark_read(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Marque une actu comme lue — la route qu'appelle le bouton « Lu » du feed.
+
+    Elle double POST /event volontairement : le client n'a pas de corps de
+    requête à composer, et un chemin dédié rend une erreur visible (404 sur un
+    item supprimé) au lieu de la noyer dans un event générique.
+    """
+    return record_event(db, user, item_id, "read")
+
+
 @router.post("/event")
 def log_event(
     payload: VeilleEventIn,
@@ -207,50 +293,7 @@ def log_event(
     Enregistre une interaction (impression, read, skip, open).
     Si event_type == "read", met à jour le compteur du jour et potentiellement le streak.
     """
-    # Vérifie que l'item existe
-    item = db.execute(
-        select(VeilleItem).where(VeilleItem.id == payload.item_id)
-    ).scalar_one_or_none()
-
-    if not item:
-        raise HTTPException(404, detail="Item introuvable.")
-
-    # Enregistre l'event
-    event = VeilleEvent(
-        user_id=user.id,
-        item_id=payload.item_id,
-        event_type=payload.event_type,
-    )
-    db.add(event)
-
-    # Si c'est un "read", update daily state + streak
-    if payload.event_type == "read":
-        # Évite les doublons de lecture
-        already_read = db.execute(
-            select(VeilleEvent).where(
-                and_(
-                    VeilleEvent.user_id == user.id,
-                    VeilleEvent.item_id == payload.item_id,
-                    VeilleEvent.event_type == "read",
-                )
-            )
-        ).scalar_one_or_none()
-
-        if not already_read:
-            profile = get_or_create_profile(db, user)
-            daily = get_or_create_daily_state(db, user)
-
-            daily.read_count += 1
-            profile.total_read += 1
-
-            # Check objectif atteint
-            if daily.read_count >= daily.goal and not daily.goal_reached:
-                daily.goal_reached = True
-                update_streak(db, user, profile)
-
-    db.commit()
-
-    return {"ok": True}
+    return record_event(db, user, payload.item_id, payload.event_type)
 
 
 # ============================================================
