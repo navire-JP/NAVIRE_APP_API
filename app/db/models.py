@@ -1319,7 +1319,14 @@ class PrepaAdjurisEnrollment(Base):
     # ID du Subscription Schedule une fois converti (phases oct/nov/déc)
 
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
-    # active | cancelled | payment_failed
+    # active | cancelled | payment_failed | expired
+
+    source: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # "stripe" (paiement) | "admin" (accès accordé à la main) | NULL (legacy)
+
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Échéance d'un accès accordé à la main (source="admin"). NULL pour un
+    # accès payé (Stripe) — celui-ci n'expire que par annulation/impayé.
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -1327,6 +1334,56 @@ class PrepaAdjurisEnrollment(Base):
 
     # Relation
     user: Mapped["User"] = relationship("User", back_populates="prepa_adjuris_enrollments")
+
+
+class PrepaAdjurisRessource(Base):
+    """PDF déposé pour une matière AdJuris, ou pour le bloc méthodo commun
+    d'un niveau (matiere_key NULL)."""
+    __tablename__ = "prepa_adjuris_ressources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    niveau: Mapped[str] = mapped_column(String(4), nullable=False, index=True)
+    matiere_key: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # NULL = ressource du bloc méthodo commun au niveau
+
+    titre: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    filename_original: Mapped[str] = mapped_column(String(255), nullable=False)
+    filename_stored: Mapped[str] = mapped_column(String(255), nullable=False)
+    path: Mapped[str] = mapped_column(String(500), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class PrepaAdjurisSeance(Base):
+    """Cours daté (visio/Discord) pour une matière AdJuris, ou séance commune
+    à tout un niveau (matiere_key NULL — ex: la séance offerte du 10 septembre)."""
+    __tablename__ = "prepa_adjuris_seances"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    niveau: Mapped[str] = mapped_column(String(4), nullable=False, index=True)
+    matiere_key: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+
+    titre: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    date_debut: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    duree_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    lien: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+
+    statut: Mapped[str] = mapped_column(String(20), default="prevue", nullable=False)
+    # prevue | annulee
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
 
 
 class AdjurisPromoCode(Base):

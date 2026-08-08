@@ -34,11 +34,11 @@ from app.routers.cab import router as cab_router
 from app.routers.discord_bot import router as discord_bot_router
 from app.routers.prepa import router as prepa_router
 from app.routers.prepa_adjuris import router as prepa_adjuris_router
+from app.routers.prepa_adjuris_espace import (
+    router as prepa_adjuris_espace_router,
+    expirer_acces_adjuris,
+)
 from app.routers.navire import router as navire_router
-# NB : le routeur de l'espace Prép'AdJuris (app/routers/prepa_adjuris_espace.py)
-# n'est pas monté — il importe PrepaAdjurisRessource et PrepaAdjurisSeance, deux
-# modèles qui n'existent pas encore dans app/db/models.py. Le monter en l'état
-# ferait échouer le démarrage.
 # ============================================================
 # MEOLES — import isolé
 # ============================================================
@@ -78,6 +78,14 @@ scheduler.add_job(
     hours=1,
     args=[SessionLocal],
     id="check_expired_subscriptions",
+    replace_existing=True,
+)
+scheduler.add_job(
+    expirer_acces_adjuris,
+    trigger="interval",
+    hours=1,
+    args=[SessionLocal],
+    id="expirer_acces_adjuris",
     replace_existing=True,
 )
 
@@ -181,6 +189,7 @@ app.include_router(cab_router)
 app.include_router(discord_bot_router)
 app.include_router(prepa_router)
 app.include_router(prepa_adjuris_router)
+app.include_router(prepa_adjuris_espace_router)
 app.include_router(navire_router)
 
 # ============================================================

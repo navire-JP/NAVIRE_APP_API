@@ -607,6 +607,7 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
             stripe_subscription_id=sub_id,
             stripe_customer_id=session.get("customer"),
             status="active",
+            source="stripe",
         ))
     db.commit()
 
