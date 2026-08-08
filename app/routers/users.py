@@ -223,18 +223,25 @@ def unlink_discord(
     par erreur, changement de compte Discord). L'utilisateur peut ensuite
     relier un autre compte via /me/discord-code.
 
-    Ne retire PAS les rôles côté serveur Discord : ça demande une
-    intervention du bot (pas de helper sync pour les rôles PLAN_TO_ROLE,
-    contrairement aux rôles par matière AdJuris) et un rôle orphelin sur un
-    membre non lié est sans conséquence côté NAVIRE. Il repart au prochain
-    /me/discord-code + re-liaison, qui réapplique le bon rôle.
+    Retire aussi les rôles Discord gérés par NAVIRE (abonnement + matières
+    Prép'AdJuris) sur le membre — best-effort, ne bloque jamais la réponse :
+    une fois discord_id vidé, plus rien ne resynchronisera ce membre, le rôle
+    resterait sinon indéfiniment même après un désabonnement.
     """
     if not current_user.discord_id:
         raise HTTPException(status_code=400, detail="Aucun compte Discord lié.")
 
+    discord_id = current_user.discord_id
     current_user.discord_id = None
     db.commit()
     db.refresh(current_user)
+
+    try:
+        from app.bot_discord.role_sync import remove_all_navire_roles_sync
+        remove_all_navire_roles_sync(discord_id)
+    except Exception:
+        pass
+
     return _user_dict(current_user)
 
 

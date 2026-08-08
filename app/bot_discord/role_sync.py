@@ -27,6 +27,48 @@ def remove_adjuris_role_sync(discord_id: str, matiere_key: str) -> None:
     _schedule_role_action(discord_id, matiere_key, add=False)
 
 
+def remove_all_navire_roles_sync(discord_id: str) -> None:
+    """
+    Retire tous les rôles gérés par NAVIRE (abonnement PLAN_TO_ROLE + Prép'AdJuris
+    par matière) d'un membre. Appelé à la déliaison d'un compte : une fois
+    discord_id vidé côté NAVIRE, plus rien ne resynchronisera ce membre — sans
+    ça le rôle resterait indéfiniment, même après désabonnement.
+    """
+    import discord
+
+    from app.bot_discord.bot import bot
+    from app.bot_discord.config import GUILD_ID, PLAN_TO_ROLE, PREPA_ADJURIS_ROLE_IDS
+
+    if not GUILD_ID:
+        return
+
+    async def _action() -> None:
+        guild = bot.get_guild(GUILD_ID)
+        if not guild:
+            return
+        member = guild.get_member(int(discord_id))
+        if not member:
+            return
+
+        plan_role_names = set(PLAN_TO_ROLE.values())
+        adjuris_role_ids = set(PREPA_ADJURIS_ROLE_IDS.values())
+        roles_to_remove = [
+            r for r in member.roles
+            if r.name in plan_role_names or r.id in adjuris_role_ids
+        ]
+        if not roles_to_remove:
+            return
+        try:
+            await member.remove_roles(*roles_to_remove, reason="Déliaison du compte NAVIRE")
+        except discord.Forbidden:
+            pass
+
+    try:
+        asyncio.run_coroutine_threadsafe(_action(), bot.loop)
+    except Exception:
+        logger.warning("Bot Discord indisponible — rôles NAVIRE non retirés pour %s", discord_id)
+
+
 def _schedule_role_action(discord_id: str, matiere_key: str, add: bool) -> None:
     import discord
 
