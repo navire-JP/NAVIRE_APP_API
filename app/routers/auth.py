@@ -154,6 +154,22 @@ def activate_pending_prepa_adjuris(db: Session, user: User) -> int:
     return len(orphelines)
 
 
+@router.get("/email-exists")
+def email_exists(email: str, db: Session = Depends(get_db)):
+    """
+    Un compte existe-t-il déjà avec cet email ? Utilisé par les formulaires
+    d'inscription pour basculer entre écran de connexion et écran de
+    création de compte avant même la soumission (ex : Prép'AdJuris). Ne
+    révèle rien de plus que ce que /auth/register révèle déjà via son 400
+    "Email already registered" — même comparaison, non insensible à la casse,
+    pour rester cohérent avec register()/login().
+    """
+    user = db.execute(
+        select(User).where(User.email == email)
+    ).scalar_one_or_none()
+    return {"exists": user is not None}
+
+
 @router.post("/register", response_model=AuthOut)
 def register(payload: RegisterIn, db: Session = Depends(get_db)):
     # 0) validation password
