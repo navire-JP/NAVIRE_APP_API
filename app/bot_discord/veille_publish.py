@@ -31,25 +31,34 @@ def publish_veille_item_sync(
     source_name: str,
     published_at: datetime | None,
 ) -> None:
-    from app.bot_discord.bot import bot
-
-    async def _action() -> None:
-        cog = bot.get_cog("VeilleCog")
-        if not cog:
-            logger.warning("VeilleCog absent — actu #%s non diffusée sur Discord.", item_id)
-            return
-        await cog.publish_item(
-            item_id=item_id,
-            title=title,
-            essentiel=essentiel,
-            impact=impact,
-            category=category,
-            source_url=source_url,
-            source_name=source_name,
-            published_at=published_at,
-        )
-
     try:
-        asyncio.run_coroutine_threadsafe(_action(), bot.loop)
+        from app.bot_discord.bot import bot
+
+        # bot.loop n'est une vraie boucle qu'une fois le bot démarré : avant ça
+        # (token absent en dev, démarrage en cours) c'est une sentinelle. On le
+        # vérifie avant de construire la coroutine, sinon on en laisserait une
+        # jamais attendue derrière soi à chaque publication.
+        loop = getattr(bot, "loop", None)
+        if loop is None or not isinstance(loop, asyncio.AbstractEventLoop) or loop.is_closed():
+            logger.warning("Bot Discord non démarré — actu #%s non diffusée.", item_id)
+            return
+
+        async def _action() -> None:
+            cog = bot.get_cog("VeilleCog")
+            if not cog:
+                logger.warning("VeilleCog absent — actu #%s non diffusée sur Discord.", item_id)
+                return
+            await cog.publish_item(
+                item_id=item_id,
+                title=title,
+                essentiel=essentiel,
+                impact=impact,
+                category=category,
+                source_url=source_url,
+                source_name=source_name,
+                published_at=published_at,
+            )
+
+        asyncio.run_coroutine_threadsafe(_action(), loop)
     except Exception:
         logger.warning("Bot Discord indisponible — actu #%s non diffusée.", item_id, exc_info=True)

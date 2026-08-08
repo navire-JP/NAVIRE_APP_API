@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.orm import Session
 
+from app.bot_discord.veille_publish import publish_veille_item_sync
 from app.db.database import get_db
 from app.db.models import (
     User,
@@ -344,6 +345,21 @@ def admin_create_item(
     db.add(item)
     db.commit()
     db.refresh(item)
+
+    # Diffusion Discord (#veille + trace dans #logsnewsletter). C'est la route
+    # qu'utilise la console du site : elle doit publier au même titre que
+    # /admin/actus/add, sinon une actu créée depuis la console n'atteint
+    # jamais Discord. Best-effort — ne doit jamais faire échouer la création.
+    publish_veille_item_sync(
+        item_id=item.id,
+        title=item.title,
+        essentiel=item.essentiel,
+        impact=item.impact,
+        category=item.category,
+        source_url=item.source_url,
+        source_name=item.source_name,
+        published_at=item.published_at,
+    )
 
     return {"ok": True, "id": item.id}
 
