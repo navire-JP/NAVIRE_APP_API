@@ -349,6 +349,7 @@ def get_profile_summary(
             "avatar_url": resolve_avatar_url(u.avatar_url),
             "plan": u.plan,
             "created_at": u.created_at,
+            "discord_linked": bool(u.discord_id),
         },
         "elo": {
             "value": int(u.elo or 0),
