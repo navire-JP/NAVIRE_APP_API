@@ -14,6 +14,34 @@ LEADERBOARD_LIMIT           = int(os.getenv("LEADERBOARD_LIMIT", "20"))
 # Rôle admin Discord — seuls les membres avec ce rôle peuvent utiliser les commandes admin
 ADMIN_ROLE_ID = int(os.getenv("DISCORD_ADMIN_ROLE_ID", "1132339702159118346"))
 
+# ============================================================
+# Salons — accueil, veille, logs
+# ============================================================
+NOTIFICATOR_CHANNEL_ID     = int(os.getenv("DISCORD_NOTIFICATOR_CHANNEL_ID",     "1355177276005679247"))
+HELPMENU_CHANNEL_ID        = int(os.getenv("DISCORD_HELPMENU_CHANNEL_ID",        "1424454231607349258"))
+VEILLE_CHANNEL_ID          = int(os.getenv("DISCORD_VEILLE_CHANNEL_ID",          "1368599844511416391"))
+LOGS_NEWSLETTER_CHANNEL_ID = int(os.getenv("DISCORD_LOGS_NEWSLETTER_CHANNEL_ID", "1368661001049739335"))
+VOICE_LOGS_CHANNEL_ID      = int(os.getenv("DISCORD_VOICE_LOGS_CHANNEL_ID",      "1535543052750299278"))
+# Pas d'ID fourni pour le journal de modération — reste désactivé (aucun envoi,
+# le reste de la modération fonctionne quand même) tant que la variable n'est
+# pas positionnée.
+MODLOG_CHANNEL_ID          = int(os.getenv("DISCORD_MODLOG_CHANNEL_ID", "0"))
+
+# ============================================================
+# Charte visuelle des embeds
+# ============================================================
+# Blanc/bleu pour tout ce qui est visible des étudiants, noir pour le
+# côté admin (logs, panneaux de modération/aide réservés au staff).
+COLOR_PRIMARY = 0x2E86DE  # bleu
+COLOR_WHITE   = 0xFFFFFF
+COLOR_ADMIN   = 0x000000  # noir
+
+# ============================================================
+# Modération
+# ============================================================
+MOD_MAX_WARNS       = int(os.getenv("DISCORD_MOD_MAX_WARNS", "3"))
+MOD_TIMEOUT_MINUTES = int(os.getenv("DISCORD_MOD_TIMEOUT_MINUTES", "10"))
+
 # Plan NAVIRE → nom du rôle Discord correspondant.
 # C'est la seule source de vérité des rôles "d'abonnement" : sync_member_role
 # retire tous les rôles listés ici avant de poser celui du plan courant.

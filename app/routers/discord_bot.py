@@ -10,10 +10,12 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import BOT_SECRET
+from app.core.limits import check_navire_daily_limit
 from app.db.database import get_db
 from app.db.models import User
 from app.services.discord_link import verify_and_link
 from app.services.email import mail_discord_linked, send_mail
+from app.services.navire_chat import send_message as navire_send_message
 
 router = APIRouter(prefix="/discord", tags=["discord-bot"])
 
@@ -48,6 +50,12 @@ class VerifyLinkIn(BaseModel):
 class ParticipationIn(BaseModel):
     discord_id: str
     message_count: int = 1
+
+
+class NavireAiChatIn(BaseModel):
+    discord_id: str
+    message: str
+    conversation_id: Optional[int] = None
 
 
 MESSAGES_PER_ELO = 3
@@ -195,6 +203,55 @@ def discord_sync_state(db: Session = Depends(get_db)):
         }
         for u in rows
     ]
+
+
+@router.post("/navire/chat", dependencies=[Depends(_require_bot)])
+def discord_navire_chat(body: NavireAiChatIn, db: Session = Depends(get_db)):
+    """
+    Relaie une question posée depuis Discord (/navire) à NAVIRE AI.
+
+    Partage la même limite quotidienne que l'appli (check_navire_daily_limit) :
+    une question posée sur Discord compte pour le quota du plan, tous canaux
+    confondus. Retourne toujours 200 — {"ok": false, "message": ...} pour les
+    cas attendus (compte non lié, limite atteinte) afin que le bot les affiche
+    tels quels.
+    """
+    user = _by_discord(db, body.discord_id)
+    if not user:
+        return {
+            "ok": False,
+            "code": "NOT_LINKED",
+            "message": "Compte NAVIRE non lié. Rendez-vous dans #🔹connecter-mon-compte-navire pour lier votre compte.",
+        }
+
+    message = (body.message or "").strip()
+    if not message:
+        return {"ok": False, "code": "EMPTY", "message": "Message vide."}
+    message = message[:2000]
+
+    try:
+        check_navire_daily_limit(user, db)
+    except HTTPException as e:
+        detail = e.detail if isinstance(e.detail, dict) else {}
+        return {
+            "ok": False,
+            "code": detail.get("code", "LIMIT_REACHED"),
+            "message": detail.get("message", "Limite quotidienne NAVIRE atteinte."),
+        }
+
+    try:
+        result = navire_send_message(
+            db, user, conversation_id=body.conversation_id, user_message=message, mode="discord"
+        )
+    except Exception:
+        return {"ok": False, "code": "ERROR", "message": "NAVIRE AI est momentanément indisponible."}
+
+    return {
+        "ok":              True,
+        "reply":           result["reply"],
+        "sources":         result.get("sources", []),
+        "conversation_id": result.get("conversation_id"),
+    }
 
 
 @router.get("/leaderboard", dependencies=[Depends(_require_bot)])

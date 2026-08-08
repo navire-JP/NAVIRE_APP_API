@@ -73,6 +73,19 @@ async def get_leaderboard(limit: int = LEADERBOARD_LIMIT) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
+async def navire_ai_chat(discord_id: str, message: str, conversation_id: int | None = None) -> dict:
+    """
+    Relaie une question posée depuis Discord à NAVIRE AI (RAG cours + actus).
+    Retourne toujours {"ok": bool, ...} en 200 — {"ok": false, "message": ...}
+    pour les cas attendus (compte non lié, limite quotidienne atteinte).
+    """
+    return await _post("/discord/navire/chat", {
+        "discord_id":      discord_id,
+        "message":         message,
+        "conversation_id": conversation_id,
+    })
+
+
 async def link_adjuris_discord(discord_id: str, email: str, code: str) -> dict:
     """
     Valide un code de liaison Prép'AdJuris et lie discord_id au compte NAVIRE

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 
+from app.bot_discord.veille_publish import publish_veille_item_sync
 from app.db.database import get_db
 from app.db.models import User, Subscription
 from app.routers.auth import get_current_user
@@ -474,6 +475,19 @@ def admin_actus_add(
     db.add(item)
     db.commit()
     db.refresh(item)
+
+    # Diffusion simultanée sur Discord (#veille + log #logsnewsletter),
+    # best-effort — ne doit jamais faire échouer la création de l'actu.
+    publish_veille_item_sync(
+        item_id=item.id,
+        title=item.title,
+        essentiel=item.essentiel,
+        impact=item.impact,
+        category=item.category,
+        source_url=item.source_url,
+        source_name=item.source_name,
+        published_at=item.published_at,
+    )
 
     return {
         "ok": True,
