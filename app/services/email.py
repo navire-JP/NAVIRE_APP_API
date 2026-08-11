@@ -308,3 +308,38 @@ def mail_discord_linked(
 </html>
 """
     return subject, html
+
+
+def mail_verification_code(code: str, username: str, ttl_minutes: int) -> tuple[str, str]:
+    """
+    (subject, html) du code à 6 chiffres qui prouve que l'adresse appartient
+    bien à la personne en train de s'inscrire.
+    """
+    hello = f"Bonjour {username}," if username else "Bonjour,"
+
+    subject = f"{code} est ton code de confirmation NAVIRE"
+    html = f"""
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
+  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
+    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
+    <p>{hello}</p>
+    <p>Voici le code qui confirme ton adresse email et termine ton inscription :</p>
+    <p style="font-size: 2em; letter-spacing: 10px; font-weight: bold; text-align: center;
+              background: #1f1f1f; border-radius: 8px; padding: 20px; margin: 20px 0;">
+      {code}
+    </p>
+    <p style="font-size: 0.85em; color: #888;">
+      Ce code est valable {ttl_minutes} minutes et ne sert qu'une fois.
+    </p>
+    <p style="font-size: 0.85em; color: #888;">
+      Tu n'es pas à l'origine de cette inscription ? Ignore ce message :
+      sans ce code, aucun compte ne sera créé avec ton adresse.
+    </p>
+  </div>
+</body>
+</html>
+"""
+    return subject, html
