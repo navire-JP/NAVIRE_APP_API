@@ -50,7 +50,7 @@ MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
-# Price IDs — un par combinaison plan × cycle
+# Price IDs : un par combinaison plan × cycle
 STRIPE_PRICES: dict[str, dict[str, str]] = {
     "membre": {
         "monthly": os.getenv("STRIPE_PRICE_MEMBRE_MONTHLY", ""),
@@ -82,7 +82,7 @@ BREVO_API_KEY     = os.getenv("BREVO_API_KEY", "")
 BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "no-reply@navire.fr")
 BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "NAVIRE")
 
-# URL du front — utilisée dans les liens des emails (ex: lien d'inscription)
+# URL du front, utilisée dans les liens des emails (ex: lien d'inscription)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire-ai.com")
 
 # ============================================================
@@ -95,6 +95,9 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire-ai.com")
 # FACEBOOK_APP_ID / FACEBOOK_APP_SECRET : developers.facebook.com.
 #   Le secret ne quitte jamais le serveur, il sert à valider le jeton reçu.
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+# Nécessaire au flux par fenêtre : l'échange du code contre un jeton se fait
+# de serveur à serveur. Ce secret ne doit jamais figurer dans l'embed.
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 FACEBOOK_APP_ID = os.getenv("FACEBOOK_APP_ID", "")
 FACEBOOK_APP_SECRET = os.getenv("FACEBOOK_APP_SECRET", "")
 
@@ -116,14 +119,14 @@ EMAIL_CODE_RESEND_COOLDOWN = int(os.getenv("EMAIL_CODE_RESEND_COOLDOWN", "60"))
 REQUIRE_EMAIL_VERIFICATION = os.getenv("REQUIRE_EMAIL_VERIFICATION", "false").lower() == "true"
 
 # ============================================================
-# Discord (côté backend — construction de liens dans les emails)
+# Discord (côté backend : construction de liens dans les emails)
 # ============================================================
-# Mêmes variables d'env que app/bot_discord/config.py (GUILD_ID, etc.) — le
+# Mêmes variables d'env que app/bot_discord/config.py (GUILD_ID, etc.) : le
 # bot et le backend tournent dans le même process mais lisent chacun leur
 # propre copie de config, comme BOT_SECRET ci-dessus.
 DISCORD_GUILD_ID = int(os.getenv("DISCORD_GUILD_ID", "1131156852265201715"))
 DISCORD_PREPA_ADJURIS_CHANNEL_ID = int(os.getenv("DISCORD_PREPA_ADJURIS_CHANNEL_ID", "0"))
-# Salon #🔹connecter-mon-compte-navire — sert à construire le lien de
+# Salon #🔹connecter-mon-compte-navire, sert à construire le lien de
 # redirection donné au bouton « Connecter mes comptes » de la page profil.
 DISCORD_SYNC_CHANNEL_ID = int(os.getenv("DISCORD_SYNC_CHANNEL_ID", "1535091433768489061"))
 # Invitation publique du serveur, utilisée si l'élève n'a pas encore rejoint.

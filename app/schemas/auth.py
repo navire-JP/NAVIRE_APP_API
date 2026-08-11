@@ -47,7 +47,12 @@ class OAuthIn(BaseModel):
     navigateur ; il est revérifié côté serveur avant toute création de compte.
     """
     provider: str = Field(pattern="^(google|facebook)$")
-    access_token: str = Field(min_length=10, max_length=4096)
+
+    # Deux chemins possibles :
+    #  - ticket : rendu par /auth/{provider}/callback, profil déjà vérifié ;
+    #  - access_token : jeton du SDK, revérifié auprès du fournisseur.
+    ticket: str | None = Field(default=None, max_length=4096)
+    access_token: str | None = Field(default=None, max_length=4096)
 
     university: str | None = Field(default=None, max_length=120)
     study_level: str | None = Field(default=None, max_length=120)

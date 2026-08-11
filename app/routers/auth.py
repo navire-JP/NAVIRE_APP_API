@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -31,6 +32,15 @@ from app.services.oauth import (
     verify_provider_token,
     OAuthError,
     OAuthNotConfigured,
+    callback_url,
+    issue_state,
+    check_state,
+    issue_ticket,
+    read_ticket,
+    google_auth_url,
+    facebook_auth_url,
+    exchange_google_code,
+    exchange_facebook_code,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -80,7 +90,7 @@ def get_current_user_optional(
     return user
 
 
-# compute_file_entitlements supprimé — remplacé par app.core.limits
+# compute_file_entitlements supprimé, remplacé par app.core.limits
 
 
 def activate_pending_subscription(db: Session, user: User) -> bool:
@@ -183,7 +193,7 @@ def email_exists(email: str, db: Session = Depends(get_db)):
     d'inscription pour basculer entre écran de connexion et écran de
     création de compte avant même la soumission (ex : Prép'AdJuris). Ne
     révèle rien de plus que ce que /auth/register révèle déjà via son 400
-    "Email already registered" — même comparaison, non insensible à la casse,
+    "Email already registered" : même comparaison, non insensible à la casse,
     pour rester cohérent avec register()/login().
     """
     user = db.execute(
@@ -384,7 +394,14 @@ def oauth_login(payload: OAuthIn, db: Session = Depends(get_db)):
       - aucun compte, on en crée un, sans mot de passe et déjà vérifié.
     """
     try:
-        profile = verify_provider_token(payload.provider, payload.access_token)
+        if payload.ticket:
+            # Flux par fenêtre : le profil a déjà été vérifié au retour du
+            # fournisseur, il est scellé dans un jeton que nous avons signé.
+            profile = read_ticket(payload.ticket, payload.provider)
+        elif payload.access_token:
+            profile = verify_provider_token(payload.provider, payload.access_token)
+        else:
+            raise HTTPException(status_code=400, detail="Jeton de connexion manquant.")
     except OAuthNotConfigured as e:
         # Configuration serveur incomplète : c'est une erreur d'exploitation,
         # pas une faute de l'utilisateur.
@@ -466,3 +483,113 @@ def oauth_login(payload: OAuthIn, db: Session = Depends(get_db)):
     token = create_access_token(str(user.id))
 
     return AuthOut(access_token=token, user=user)
+
+
+# ============================================================
+# Flux par fenêtre : Google et Facebook depuis une iframe
+# ============================================================
+#
+# L'embed est cloisonné par Framer, son origine vaut "null" et les fournisseurs
+# refusent la demande. Le bouton ouvre donc une fenêtre sur CES routes : tout se
+# joue ici, en haut niveau, sur un domaine déclaré en console.
+
+def _popup_close_page(message: dict, ok: bool = True) -> HTMLResponse:
+    """
+    Page rendue dans la fenêtre au retour du fournisseur : elle transmet le
+    résultat à l'embed qui l'a ouverte, puis se referme.
+
+    La cible du message est "*" faute de mieux : l'origine de l'embed vaut
+    précisément "null", elle ne peut pas être nommée. Le ticket transmis ne
+    vaut que 10 minutes et ne permet rien d'autre que de terminer cette
+    inscription.
+    """
+    import json as _json
+    payload = _json.dumps(message)
+    titre = "Connexion réussie" if ok else "Connexion interrompue"
+
+    html = f"""<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title>{titre}</title>
+<style>
+  body {{ margin:0; height:100vh; display:flex; align-items:center; justify-content:center;
+         background:#0B1B3A; color:#fff; font-family:Arial, Helvetica, sans-serif; }}
+  div {{ text-align:center; font-size:14px; opacity:0.85; }}
+</style></head>
+<body>
+  <div>{titre}<br><small>Tu peux refermer cette fenêtre.</small></div>
+  <script>
+    (function () {{
+      var msg = {payload};
+      try {{ window.opener && window.opener.postMessage(msg, "*"); }} catch (e) {{}}
+      setTimeout(function () {{ try {{ window.close(); }} catch (e) {{}} }}, 400);
+    }})();
+  </script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
+
+
+@router.get("/{provider}/start")
+def oauth_start(provider: str, request: Request):
+    """Ouvre la page d'autorisation du fournisseur."""
+    provider = (provider or "").lower()
+    if provider not in ("google", "facebook"):
+        raise HTTPException(status_code=404, detail="Fournisseur inconnu.")
+
+    redirect_uri = callback_url(provider, str(request.base_url))
+    state = issue_state(provider)
+
+    try:
+        url = (google_auth_url if provider == "google" else facebook_auth_url)(redirect_uri, state)
+    except OAuthNotConfigured as e:
+        return _popup_close_page(
+            {"type": "NAVIRE_OAUTH_ERROR", "provider": provider, "message": str(e)}, ok=False
+        )
+
+    return RedirectResponse(url)
+
+
+@router.get("/{provider}/callback")
+def oauth_callback(provider: str, request: Request, code: str = "", state: str = "", error: str = ""):
+    """Retour du fournisseur : échange le code, puis rend un ticket à l'embed."""
+    provider = (provider or "").lower()
+    if provider not in ("google", "facebook"):
+        raise HTTPException(status_code=404, detail="Fournisseur inconnu.")
+
+    def echec(message: str):
+        return _popup_close_page(
+            {"type": "NAVIRE_OAUTH_ERROR", "provider": provider, "message": message}, ok=False
+        )
+
+    if error:
+        return echec("Connexion annulée.")
+    if not code:
+        return echec("Le fournisseur n'a pas transmis de code.")
+    if not check_state(state, provider):
+        # Sans ce contrôle, un tiers pourrait faire aboutir chez toi une
+        # autorisation qu'il a déclenchée ailleurs.
+        return echec("Session de connexion expirée, recommence.")
+
+    redirect_uri = callback_url(provider, str(request.base_url))
+
+    try:
+        if provider == "google":
+            profile = exchange_google_code(code, redirect_uri)
+        else:
+            profile = exchange_facebook_code(code, redirect_uri)
+    except OAuthNotConfigured as e:
+        return echec(str(e))
+    except OAuthError as e:
+        return echec(str(e))
+
+    if not profile.get("email"):
+        return echec("Ce compte n'a pas d'adresse email. Inscris-toi avec ton email.")
+
+    return _popup_close_page({
+        "type": "NAVIRE_OAUTH_TICKET",
+        "provider": provider,
+        "ticket": issue_ticket(profile),
+        "email": profile["email"],
+        "given_name": profile.get("given_name") or "",
+        "name": profile.get("name") or "",
+    })
