@@ -141,7 +141,22 @@ class User(Base):
 
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     username: Mapped[str] = mapped_column(String(64), nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    # NULL pour les comptes créés via Google/Facebook : ils n'ont pas de mot de
+    # passe. Toute vérification doit donc tester la présence du hash avant
+    # d'appeler verify_password().
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Adresse confirmée par un code envoyé par email, ou attestée par le
+    # fournisseur OAuth (Google/Facebook ne renvoient que des adresses
+    # vérifiées chez eux).
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Compte lié à un fournisseur : "google" | "facebook" | NULL.
+    # oauth_sub est l'identifiant stable de l'utilisateur chez le fournisseur.
+    oauth_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    oauth_sub: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     newsletter_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
     university: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -1497,4 +1512,38 @@ class PrepaAdjurisInscription(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+
+class EmailVerification(Base):
+    """
+    Code à 6 chiffres envoyé pour prouver qu'une adresse email appartient bien
+    à la personne qui s'inscrit. Une ligne par adresse, réécrite à chaque
+    nouvel envoi : il n'existe jamais qu'un seul code valide par adresse.
+
+    La ligne survit à la vérification (verified_at renseigné) le temps que
+    l'inscription se termine, puis est purgée par le job de nettoyage.
+    """
+
+    __tablename__ = "email_verifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
+
+    # Le code n'est jamais stocké en clair : une fuite de base ne doit pas
+    # permettre de valider des adresses.
+    code_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Horodatage du dernier envoi, pour le délai anti-spam entre deux demandes.
+    last_sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

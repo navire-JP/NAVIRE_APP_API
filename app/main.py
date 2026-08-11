@@ -14,6 +14,7 @@ from app.db.database import Base, engine, SessionLocal
 from app.db import models  # noqa: F401
 from app.db.models import QcmSessionHistory
 from app.db.migrate_discord_fields import run_discord_migrations
+from app.db.auth_migration import run_auth_migration
 from app.db.prepa_migration import run_prepa_migration
 from app.db.prepa_adjuris_migration import run_prepa_adjuris_migration
 from app.db.navire_migration import run_navire_migration, ensure_vector_extension
@@ -127,6 +128,9 @@ async def lifespan(app: FastAPI):
 
     print("🚀 Startup: creating navire vector index...")
     run_navire_migration()
+
+    print("🚀 Startup: running auth migrations...")
+    run_auth_migration()
 
     print("🚀 Startup: running discord migrations...")
     run_discord_migrations()

@@ -86,6 +86,36 @@ BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "NAVIRE")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire-ai.com")
 
 # ============================================================
+# Connexion Google / Facebook
+# ============================================================
+# GOOGLE_CLIENT_ID : Client ID OAuth "Web" (console.cloud.google.com).
+#   La même valeur est utilisée par le formulaire côté navigateur ET par la
+#   vérification côté serveur : c'est ce qui garantit que le jeton présenté a
+#   bien été émis pour NAVIRE et pas pour une autre application.
+# FACEBOOK_APP_ID / FACEBOOK_APP_SECRET : developers.facebook.com.
+#   Le secret ne quitte jamais le serveur, il sert à valider le jeton reçu.
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+FACEBOOK_APP_ID = os.getenv("FACEBOOK_APP_ID", "")
+FACEBOOK_APP_SECRET = os.getenv("FACEBOOK_APP_SECRET", "")
+
+# ============================================================
+# Vérification d'adresse email
+# ============================================================
+# Durée de validité du code à 6 chiffres envoyé par email.
+EMAIL_CODE_TTL_MINUTES = int(os.getenv("EMAIL_CODE_TTL_MINUTES", "15"))
+# Nombre d'essais autorisés avant invalidation du code.
+EMAIL_CODE_MAX_ATTEMPTS = int(os.getenv("EMAIL_CODE_MAX_ATTEMPTS", "5"))
+# Délai minimum entre deux envois pour une même adresse (secondes).
+EMAIL_CODE_RESEND_COOLDOWN = int(os.getenv("EMAIL_CODE_RESEND_COOLDOWN", "60"))
+
+# Exiger une adresse vérifiée pour TOUTE inscription par mot de passe.
+# Laisser à "false" tant que d'anciens formulaires appellent /auth/register
+# sans jeton de vérification : ils continueraient à fonctionner, mais leurs
+# comptes seraient créés non vérifiés. Passer à "true" une fois tous les
+# formulaires migrés.
+REQUIRE_EMAIL_VERIFICATION = os.getenv("REQUIRE_EMAIL_VERIFICATION", "false").lower() == "true"
+
+# ============================================================
 # Discord (côté backend — construction de liens dans les emails)
 # ============================================================
 # Mêmes variables d'env que app/bot_discord/config.py (GUILD_ID, etc.) — le

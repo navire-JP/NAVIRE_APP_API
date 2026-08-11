@@ -21,6 +21,38 @@ class RegisterIn(BaseModel):
     university: str | None = Field(default=None, max_length=120)
     study_level: str | None = Field(default=None, max_length=120)
 
+    # Jeton rendu par /auth/verify-code : il prouve que l'adresse a bien reçu
+    # son code, donc qu'elle appartient à la personne qui s'inscrit. Optionnel
+    # pour ne pas casser les formulaires existants ; rendu obligatoire par la
+    # variable REQUIRE_EMAIL_VERIFICATION.
+    email_token: str | None = None
+
+
+class EmailCodeRequestIn(BaseModel):
+    """Demande d'envoi du code à 6 chiffres."""
+    email: EmailStr
+    username: str | None = Field(default=None, max_length=64)
+
+
+class EmailCodeVerifyIn(BaseModel):
+    """Vérification du code reçu par email."""
+    email: EmailStr
+    code: str = Field(min_length=4, max_length=10)
+
+
+class OAuthIn(BaseModel):
+    """
+    Connexion ou inscription via un fournisseur.
+    access_token est le jeton rendu par le SDK Google ou Facebook dans le
+    navigateur ; il est revérifié côté serveur avant toute création de compte.
+    """
+    provider: str = Field(pattern="^(google|facebook)$")
+    access_token: str = Field(min_length=10, max_length=4096)
+
+    university: str | None = Field(default=None, max_length=120)
+    study_level: str | None = Field(default=None, max_length=120)
+    newsletter_opt_in: bool = False
+
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -47,6 +79,8 @@ class UserOut(BaseModel):
     university: str | None
     study_level: str | None
     avatar_url: str | None = None
+
+    email_verified: bool = False
 
     score: int
     grade: str

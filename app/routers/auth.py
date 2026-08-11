@@ -6,10 +6,32 @@ from datetime import datetime, timezone
 
 from app.db.database import get_db
 from app.db.models import User, Subscription, PendingSubscription
-from app.schemas.auth import RegisterIn, LoginIn, AuthOut, UserOut, validate_password
+from app.schemas.auth import (
+    RegisterIn,
+    LoginIn,
+    AuthOut,
+    UserOut,
+    EmailCodeRequestIn,
+    EmailCodeVerifyIn,
+    OAuthIn,
+    validate_password,
+)
 from app.core.security import hash_password, verify_password, create_access_token, decode_token
+from app.core.config import REQUIRE_EMAIL_VERIFICATION
 from app.core.limits import get_limits
 from app.core.cloudinary_client import resolve_avatar_url
+from app.services.email_verification import (
+    request_code,
+    check_code,
+    email_token_is_valid,
+    purge_verification,
+    VerificationError,
+)
+from app.services.oauth import (
+    verify_provider_token,
+    OAuthError,
+    OAuthNotConfigured,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
@@ -186,6 +208,19 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # 1 bis) l'adresse a-t-elle été prouvée ?
+    # Le jeton vient de /auth/verify-code : il atteste que le code envoyé à
+    # cette adresse a bien été rendu, donc que la boîte appartient à la
+    # personne qui s'inscrit. Sans lui, le compte est créé non vérifié (ou
+    # refusé si REQUIRE_EMAIL_VERIFICATION est actif).
+    verified = email_token_is_valid(payload.email_token or "", payload.email)
+
+    if REQUIRE_EMAIL_VERIFICATION and not verified:
+        raise HTTPException(
+            status_code=400,
+            detail="Adresse email non vérifiée. Demande un code puis valide-le avant de créer ton compte.",
+        )
+
     # 2) hash password
     pwd_hash = hash_password(payload.password)
 
@@ -199,6 +234,8 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         newsletter_opt_in=payload.newsletter_opt_in,
         university=payload.university,
         study_level=payload.study_level,
+        email_verified=verified,
+        email_verified_at=datetime.now(timezone.utc) if verified else None,
     )
 
 
@@ -212,6 +249,10 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     # Rattacher les paiements Prép'AdJuris faits avant la création du compte
     activate_pending_prepa_adjuris(db, user)
 
+    # Le code de vérification a rempli son office
+    if verified:
+        purge_verification(db, user.email)
+
     # 4) création du token (même logique que login)
     token = create_access_token(str(user.id))
 
@@ -224,6 +265,15 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
     user = db.execute(
         select(User).where(User.email == payload.email)
     ).scalar_one_or_none()
+
+    # Un compte créé via Google/Facebook n'a pas de mot de passe : verify_password
+    # planterait sur un hash absent, et surtout le seul moyen d'y entrer doit
+    # rester le fournisseur.
+    if user and not user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Ce compte se connecte avec {user.oauth_provider or 'Google ou Facebook'}.",
+        )
 
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(
@@ -248,6 +298,9 @@ def me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "username": current_user.username,
 
+        "email_verified": current_user.email_verified,
+        "oauth_provider": current_user.oauth_provider,
+
         "newsletter_opt_in": current_user.newsletter_opt_in,
         "university": current_user.university,
         "study_level": current_user.study_level,
@@ -265,3 +318,151 @@ def me(current_user: User = Depends(get_current_user)):
         "flashcards_limit": limits["flashcards_total"],
         "qcm_per_day": limits["qcm_per_day"],
     }
+
+# ============================================================
+# Vérification d'adresse email
+# ============================================================
+
+@router.post("/request-code")
+def request_email_code(payload: EmailCodeRequestIn, db: Session = Depends(get_db)):
+    """
+    Envoie un code à 6 chiffres à l'adresse indiquée.
+
+    C'est la seule preuve possible qu'une adresse appartient à la personne qui
+    s'inscrit : le code n'arrive que dans la boîte concernée. Tant qu'il n'est
+    pas rendu, aucun compte n'est créé avec cette adresse.
+    """
+    email = payload.email.strip().lower()
+
+    existing = db.execute(
+        select(User).where(User.email == email)
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="Un compte existe déjà avec cet email.")
+
+    try:
+        cooldown = request_code(db, email, payload.username or "")
+    except VerificationError as e:
+        # 429 quand c'est un problème de cadence, 400 sinon.
+        status_code = 429 if e.retry_after else 400
+        raise HTTPException(status_code=status_code, detail=e.message)
+
+    return {"sent": True, "cooldown": cooldown}
+
+
+@router.post("/verify-code")
+def verify_email_code(payload: EmailCodeVerifyIn, db: Session = Depends(get_db)):
+    """
+    Valide le code reçu et retourne le jeton à joindre à /auth/register.
+    Le jeton vaut 30 minutes et ne concerne que cette adresse.
+    """
+    try:
+        email_token = check_code(db, payload.email, payload.code)
+    except VerificationError as e:
+        raise HTTPException(status_code=400, detail=e.message)
+
+    return {"verified": True, "email_token": email_token}
+
+
+# ============================================================
+# Connexion Google / Facebook
+# ============================================================
+
+@router.post("/oauth", response_model=AuthOut)
+def oauth_login(payload: OAuthIn, db: Session = Depends(get_db)):
+    """
+    Inscription ou connexion via Google/Facebook.
+
+    L'email n'est jamais lu depuis la requête : il est récupéré auprès du
+    fournisseur à partir du jeton, une fois vérifié que ce jeton a bien été
+    émis pour NAVIRE. Impossible, donc, de se déclarer propriétaire d'une
+    adresse qu'on ne possède pas.
+
+    Trois cas :
+      - compte déjà lié au fournisseur, on connecte ;
+      - compte existant avec la même adresse, on rattache le fournisseur ;
+      - aucun compte, on en crée un, sans mot de passe et déjà vérifié.
+    """
+    try:
+        profile = verify_provider_token(payload.provider, payload.access_token)
+    except OAuthNotConfigured as e:
+        # Configuration serveur incomplète : c'est une erreur d'exploitation,
+        # pas une faute de l'utilisateur.
+        raise HTTPException(status_code=503, detail=str(e))
+    except OAuthError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+    email = profile.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Ton compte Facebook n'a pas d'adresse email. Inscris-toi avec ton email.",
+        )
+
+    provider = profile["provider"]
+    sub = profile["sub"]
+
+    # 1) déjà connu par ce fournisseur
+    user = db.execute(
+        select(User).where(User.oauth_provider == provider, User.oauth_sub == sub)
+    ).scalar_one_or_none()
+
+    # 2) sinon, compte existant portant la même adresse
+    if user is None:
+        user = db.execute(
+            select(User).where(User.email == email)
+        ).scalar_one_or_none()
+
+        if user is not None:
+            # Rattachement : l'adresse est prouvée par le fournisseur, le
+            # propriétaire du compte est donc bien celui qui se présente.
+            user.oauth_provider = provider
+            user.oauth_sub = sub
+            if not user.email_verified:
+                user.email_verified = True
+                user.email_verified_at = datetime.now(timezone.utc)
+            db.commit()
+
+    # 3) sinon, création
+    if user is None:
+        username = (profile.get("given_name") or profile.get("name") or email.split("@")[0]).strip()
+        username = (username or "Navigateur")[:64]
+        if len(username) < 3:
+            username = "Navigateur"
+
+        user = User(
+            email=email,
+            username=username,
+            password_hash=None,
+            score=100,
+            grade="Primo",
+            newsletter_opt_in=payload.newsletter_opt_in,
+            university=payload.university,
+            study_level=payload.study_level,
+            email_verified=True,
+            email_verified_at=datetime.now(timezone.utc),
+            oauth_provider=provider,
+            oauth_sub=sub,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        # Mêmes rattrapages que l'inscription classique : un paiement fait
+        # avant la création du compte doit être appliqué ici aussi.
+        activate_pending_subscription(db, user)
+        activate_pending_prepa_adjuris(db, user)
+
+    else:
+        # Connexion d'un compte déjà existant
+        if payload.university and not user.university:
+            user.university = payload.university
+        if payload.study_level and not user.study_level:
+            user.study_level = payload.study_level
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+
+    db.refresh(user)
+    token = create_access_token(str(user.id))
+
+    return AuthOut(access_token=token, user=user)
