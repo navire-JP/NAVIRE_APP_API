@@ -54,6 +54,11 @@ class OAuthIn(BaseModel):
     ticket: str | None = Field(default=None, max_length=4096)
     access_token: str | None = Field(default=None, max_length=4096)
 
+    # Pseudo choisi dans le formulaire. Il prime sur le prénom du compte
+    # Google ou Facebook, qui ne sert que de repli. Ignoré si le compte existe
+    # déjà : on ne renomme pas quelqu'un qui se contente de se connecter.
+    username: str | None = Field(default=None, max_length=64)
+
     university: str | None = Field(default=None, max_length=120)
     study_level: str | None = Field(default=None, max_length=120)
     newsletter_opt_in: bool = False

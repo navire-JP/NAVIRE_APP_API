@@ -442,7 +442,11 @@ def oauth_login(payload: OAuthIn, db: Session = Depends(get_db)):
 
     # 3) sinon, création
     if user is None:
-        username = (profile.get("given_name") or profile.get("name") or email.split("@")[0]).strip()
+        # Le pseudo saisi dans le formulaire passe avant le nom du compte du
+        # fournisseur : c'est celui que la personne a choisi.
+        username = (payload.username or "").strip()
+        if len(username) < 3:
+            username = (profile.get("given_name") or profile.get("name") or email.split("@")[0]).strip()
         username = (username or "Navigateur")[:64]
         if len(username) < 3:
             username = "Navigateur"
