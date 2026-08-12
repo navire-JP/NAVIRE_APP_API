@@ -504,8 +504,16 @@ def _popup_close_page(message: dict, ok: bool = True) -> HTMLResponse:
     inscription.
     """
     import json as _json
+    import html as _html
     payload = _json.dumps(message)
     titre = "Connexion réussie" if ok else "Connexion interrompue"
+
+    # La raison est affichée, pas seulement transmise : quand la fenêtre est
+    # ouverte directement (sans page appelante), c'est le seul endroit où elle
+    # apparaît, et c'est ce qui permet de diagnostiquer une configuration
+    # incomplète sans fouiller les journaux.
+    detail = _html.escape(message.get("message") or "")
+    bloc_detail = f'<p class="detail">{detail}</p>' if detail else ""
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
@@ -513,10 +521,11 @@ def _popup_close_page(message: dict, ok: bool = True) -> HTMLResponse:
 <style>
   body {{ margin:0; height:100vh; display:flex; align-items:center; justify-content:center;
          background:#0B1B3A; color:#fff; font-family:Arial, Helvetica, sans-serif; }}
-  div {{ text-align:center; font-size:14px; opacity:0.85; }}
+  div {{ text-align:center; font-size:14px; opacity:0.85; max-width:420px; padding:24px; }}
+  .detail {{ margin:14px 0 0; font-size:13px; opacity:0.75; line-height:1.5; }}
 </style></head>
 <body>
-  <div>{titre}<br><small>Tu peux refermer cette fenêtre.</small></div>
+  <div>{titre}{bloc_detail}<br><small>Tu peux refermer cette fenêtre.</small></div>
   <script>
     (function () {{
       var msg = {payload};
