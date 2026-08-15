@@ -7,13 +7,25 @@ Endpoints utilisateur :
   GET  /subscriptions/me               → plan actuel + limites
   POST /subscriptions/checkout         → crée une Stripe Checkout Session
   POST /subscriptions/cancel           → résilie via Stripe
+  POST /subscriptions/reactivate       → annule une résiliation programmée
   POST /subscriptions/portal           → ouvre le Stripe Customer Portal
   GET  /subscriptions/promo/{code}     → valide un code promo
+
+Cycle de vie d'un abonnement (exemple mensuel) :
+  15 janvier   paiement    → plan=membre, status=active, période →15 février
+  15 juillet   reconduction→ invoice.payment_succeeded, période →15 août
+  15 août      reconduction→ période →15 septembre
+  31 août      résiliation → status=cancelled, plan CONSERVÉ (accès payé)
+  15 septembre fin période → customer.subscription.deleted → plan=free
+Le grade n'est donc jamais retiré avant current_period_end. Si Stripe ne
+livre pas l'event de fin, le filet de sécurité est double : check_expired_
+subscriptions (job horaire) et _sync_expired_plan (à la lecture de /me).
 
 Endpoints Stripe :
   POST /subscriptions/webhook          → reçoit les events Stripe
 
 Endpoints admin :
+  GET    /subscriptions/admin/prices
   GET    /subscriptions/admin/list
   POST   /subscriptions/admin/set-plan/{user_id}
   GET    /subscriptions/admin/promo
@@ -32,7 +44,7 @@ import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc, update
+from sqlalchemy import select, desc, update, and_, or_
 
 from app.db.database import get_db
 from app.db.models import (
@@ -59,6 +71,13 @@ from app.core.prepa_adjuris_config import (
     PREPA_MONTHLY_QUANTITIES,
     matiere_label,
     matiere_niveau,
+)
+from app.core.navire_plans import (
+    PriceUnavailable,
+    catalog_overview,
+    plan_from_price_id,
+    plan_label,
+    resolve_price_id,
 )
 from app.services.email import (
     send_mail,
@@ -158,6 +177,65 @@ def _downgrade_to_free(db: Session, user: User, sub: Subscription, status: str =
     _sync_user_plan(db, user, "free")
 
 
+def _stripe_period(stripe_sub) -> tuple[datetime | None, datetime | None]:
+    """
+    (début, fin) de la période en cours d'un abonnement Stripe.
+
+    Stripe a déplacé current_period_start/end de l'abonnement vers ses items à
+    partir de l'API 2025-04 : on lit l'emplacement historique, et on retombe
+    sur le premier item si l'objet ne le porte plus. Sans ça, la fin de période
+    resterait NULL et le grade ne s'éteindrait jamais tout seul.
+    """
+    def _ts(value) -> datetime | None:
+        return datetime.fromtimestamp(value, tz=timezone.utc) if value else None
+
+    start = _ts(stripe_sub.get("current_period_start"))
+    end = _ts(stripe_sub.get("current_period_end"))
+    if start and end:
+        return start, end
+
+    items = ((stripe_sub.get("items") or {}).get("data") or [])
+    if items:
+        first = items[0]
+        start = start or _ts(first.get("current_period_start"))
+        end = end or _ts(first.get("current_period_end"))
+    return start, end
+
+
+def _paid_access_until(sub: Subscription) -> datetime | None:
+    """
+    Date jusqu'à laquelle l'accès payé court encore, ou None s'il est terminé.
+    Un abonnement résilié le 31 août dont la période va au 15 septembre rend
+    bien le 15 septembre : l'élève garde son grade jusque-là.
+    """
+    if sub.plan == "free" or not sub.current_period_end:
+        return None
+    end = sub.current_period_end
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    return end if end > utcnow() else None
+
+
+def _sync_expired_plan(db: Session, user: User, sub: Subscription) -> None:
+    """
+    Filet de sécurité à la lecture : un abonnement résilié dont la période est
+    terminée repasse en free, même si l'event Stripe de fin de période s'est
+    perdu. On ne touche PAS à un abonnement actif — sa période sera prolongée
+    par invoice.payment_succeeded au moment du renouvellement, et un décalage
+    de quelques minutes ne doit pas couper l'accès d'un élève qui paie.
+    """
+    if sub.plan == "free" or sub.status not in ("cancelled", "expired", "past_due"):
+        return
+    if not sub.current_period_end or _paid_access_until(sub):
+        return
+    if sub.status == "past_due":
+        # Échec de paiement : Stripe retente pendant plusieurs jours et enverra
+        # customer.subscription.deleted s'il abandonne. Rien à décider ici.
+        return
+    _downgrade_to_free(db, user, sub, status="expired")
+    logger.info("Accès expiré : user %s repassé en free (fin de période).", user.id)
+
+
 def _validate_promo(db: Session, user: User, code: str, billing_cycle: str) -> PromoCode:
     """Vérifie qu'un code promo est utilisable. Lève 400 sinon."""
     promo = db.execute(
@@ -243,16 +321,28 @@ def get_my_subscription(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Plan actuel + statut + limites complètes."""
+    """
+    Plan actuel + statut + limites complètes.
+
+    Lit aussi la fin de l'accès payé : après une résiliation, l'élève garde son
+    grade jusqu'à `access_until`. Si cette date est passée sans que Stripe ait
+    livré son event, le plan est remis à free ici même.
+    """
     sub = get_or_create_subscription(db, user)
+    _sync_expired_plan(db, user, sub)
     limits = get_limits(user.plan)
+    access_until = _paid_access_until(sub)
 
     return {
         "plan": user.plan,
+        "plan_label": plan_label(user.plan),
         "status": sub.status,
         "billing_cycle": sub.billing_cycle,
         "current_period_end": sub.current_period_end,
         "cancelled_at": sub.cancelled_at,
+        # Résilié mais encore payé : le grade tient jusqu'à cette date.
+        "access_until": access_until,
+        "renews": sub.status == "active" and user.plan != "free",
         "limits": {
             "qcm_per_day": limits["qcm_per_day"],
             "flashcards_total": limits["flashcards_total"],
@@ -270,24 +360,62 @@ def create_checkout_session(
 ):
     """
     Crée une Stripe Checkout Session et retourne la checkout_url.
-    Le front redirige l'user vers cette URL pour le paiement.
-    Après paiement, Stripe envoie checkout.session.completed au webhook.
+    Le front (embed d'offres) redirige l'user vers cette URL pour le paiement.
+    Après paiement, Stripe envoie checkout.session.completed au webhook, qui
+    pose le grade `membre` ou `membre+`.
+
+    Le Price facturé vient de app/core/navire_plans.py : variable
+    d'environnement si elle existe, sinon Price retrouvé (ou créé) dans le
+    compte Stripe au tarif public. L'embed peut donc générer un lien de
+    paiement sans qu'aucun price_id n'ait été posé à la main.
     """
     _stripe()  # force la clé NAVIRE
 
     sub = get_or_create_subscription(db, user)
+    _sync_expired_plan(db, user, sub)
 
-    # Bloquer si déjà abonné
-    if sub.status == "active" and user.plan != "free":
-        raise HTTPException(400, detail={
-            "code": "ALREADY_SUBSCRIBED",
-            "message": f"Abonnement actif ({user.plan}). Résiliez d'abord.",
+    # Bloquer si un accès payé court encore — y compris après une résiliation
+    # programmée (status="cancelled" mais période non terminée). Sans ce
+    # second cas, un élève ayant résilié le 31 août pouvait repayer aussitôt
+    # et se retrouver avec deux abonnements Stripe en parallèle.
+    if user.plan != "free":
+        access_until = _paid_access_until(sub)
+        if sub.status == "active":
+            raise HTTPException(400, detail={
+                "code": "ALREADY_SUBSCRIBED",
+                "message": f"Abonnement actif ({plan_label(user.plan)}). Résiliez d'abord.",
+            })
+        if access_until:
+            raise HTTPException(400, detail={
+                "code": "CANCELLED_STILL_ACTIVE",
+                "message": (
+                    f"Votre abonnement {plan_label(user.plan)} reste actif jusqu'au "
+                    f"{access_until.strftime('%d/%m/%Y')}. Réactivez-le depuis votre "
+                    "profil plutôt que d'en souscrire un second."
+                ),
+                "access_until": access_until.isoformat(),
+            })
+        if sub.status == "past_due" and sub.stripe_subscription_id:
+            # Prélèvement en échec : Stripe retente sur le même abonnement.
+            # En ouvrir un second ferait payer deux fois le même élève dès que
+            # sa carte repasse.
+            raise HTTPException(400, detail={
+                "code": "PAYMENT_PAST_DUE",
+                "message": "Un prélèvement de votre abonnement a échoué. "
+                           "Mettez votre moyen de paiement à jour depuis votre profil.",
+            })
+
+    # Price Stripe du couple (plan, cycle)
+    try:
+        price_id = resolve_price_id(payload.plan, payload.billing_cycle)
+    except PriceUnavailable as exc:
+        logger.error("Price Stripe indisponible (%s/%s) : %s",
+                     payload.plan, payload.billing_cycle, exc)
+        raise HTTPException(503, detail={
+            "code": "PRICE_UNAVAILABLE",
+            "message": "Le service de paiement est momentanément indisponible. "
+                       "Réessaie dans quelques minutes.",
         })
-
-    # Récupérer le price_id depuis config
-    price_id = STRIPE_PRICES.get(payload.plan, {}).get(payload.billing_cycle)
-    if not price_id:
-        raise HTTPException(500, detail="Configuration Stripe manquante pour ce plan.")
 
     # Créer ou récupérer le customer Stripe
     customer_id = _get_or_create_stripe_customer(user, sub, db)
@@ -303,10 +431,10 @@ def create_checkout_session(
     checkout_params: dict = {
         "customer": customer_id,
         "mode": "subscription",
+        "client_reference_id": str(user.id),
         "line_items": [{"price": price_id, "quantity": 1}],
         "success_url": STRIPE_SUCCESS_URL,
         "cancel_url": STRIPE_CANCEL_URL,
-        "allow_promotion_codes": True,
         "metadata": {
             "user_id": str(user.id),
             "plan": payload.plan,
@@ -322,8 +450,13 @@ def create_checkout_session(
         },
     }
 
+    # Stripe refuse discounts et allow_promotion_codes ensemble : un code NAVIRE
+    # adossé à un coupon Stripe fait sauter le champ « code promo » de la page
+    # de paiement, sinon la session n'est pas créée du tout (502).
     if stripe_coupon_id:
         checkout_params["discounts"] = [{"coupon": stripe_coupon_id}]
+    else:
+        checkout_params["allow_promotion_codes"] = True
 
     try:
         session = stripe.checkout.Session.create(**checkout_params)
@@ -373,9 +506,75 @@ def cancel_subscription(
     sub.cancelled_at = utcnow()
     db.commit()
 
+    access_until = _paid_access_until(sub)
+    if access_until:
+        message = (
+            "Résiliation programmée. Votre "
+            f"{plan_label(sub.plan)} reste actif jusqu'au "
+            f"{access_until.strftime('%d/%m/%Y')}."
+        )
+    else:
+        message = "Résiliation programmée. Votre accès reste actif jusqu'à la fin de la période."
+
     return {
         "ok": True,
-        "message": "Résiliation programmée. Votre accès reste actif jusqu'à la fin de la période.",
+        "message": message,
+        "current_period_end": sub.current_period_end,
+        "access_until": access_until,
+    }
+
+
+@router.post("/reactivate")
+def reactivate_subscription(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Annule une résiliation programmée, tant que la période payée court encore.
+
+    Sans cet endpoint, un élève qui résilie le 31 août et change d'avis le
+    5 septembre n'avait aucun moyen de revenir en arrière : /checkout refuse
+    (accès encore actif) et il aurait fallu attendre le 15 septembre pour
+    repayer, en perdant l'accès entre-temps.
+    """
+    _stripe()  # force la clé NAVIRE
+
+    sub = get_or_create_subscription(db, user)
+    _sync_expired_plan(db, user, sub)
+
+    if user.plan == "free" or not _paid_access_until(sub):
+        raise HTTPException(400, detail={
+            "code": "NOTHING_TO_REACTIVATE",
+            "message": "Aucun abonnement à réactiver — souscrivez une offre.",
+        })
+
+    if sub.status == "active":
+        return {"ok": True, "message": "Votre abonnement est déjà actif.",
+                "current_period_end": sub.current_period_end}
+
+    if not sub.stripe_subscription_id:
+        # Plan posé à la main par un admin : rien à rouvrir côté Stripe.
+        sub.status = "active"
+        sub.cancelled_at = None
+        db.commit()
+        return {"ok": True, "message": "Abonnement réactivé.",
+                "current_period_end": sub.current_period_end}
+
+    try:
+        stripe.Subscription.modify(
+            sub.stripe_subscription_id,
+            cancel_at_period_end=False,
+        )
+    except stripe.StripeError as e:
+        raise HTTPException(502, detail=f"Erreur Stripe : {str(e)}")
+
+    sub.status = "active"
+    sub.cancelled_at = None
+    db.commit()
+
+    return {
+        "ok": True,
+        "message": f"Abonnement {plan_label(sub.plan)} réactivé — il se renouvellera normalement.",
         "current_period_end": sub.current_period_end,
     }
 
@@ -778,15 +977,16 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             send_discord_link_invite(db, user, context_label="PREPASSERELLE")
             return {"ok": True}
 
-        # Récupérer les dates de période depuis Stripe
+        # Récupérer les dates de période depuis Stripe. La fin de période est
+        # ce qui garantit le grade jusqu'au bout du mois payé : sans elle,
+        # ni /me ni le job horaire ne sauraient quand le retirer.
         period_start = period_end = None
         if stripe_sub_id:
             try:
                 stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
-                period_start = datetime.fromtimestamp(stripe_sub["current_period_start"], tz=timezone.utc)
-                period_end = datetime.fromtimestamp(stripe_sub["current_period_end"], tz=timezone.utc)
-            except Exception:
-                pass
+                period_start, period_end = _stripe_period(stripe_sub)
+            except Exception as exc:
+                logger.warning("Période Stripe illisible pour %s : %s", stripe_sub_id, exc)
 
         user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none() if user_id else None
 
@@ -874,15 +1074,23 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             if sub:
                 try:
                     stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
-                    sub.current_period_start = datetime.fromtimestamp(stripe_sub["current_period_start"], tz=timezone.utc)
-                    sub.current_period_end = datetime.fromtimestamp(stripe_sub["current_period_end"], tz=timezone.utc)
-                    sub.status = "active"
+                    period_start, period_end = _stripe_period(stripe_sub)
+                    if period_start:
+                        sub.current_period_start = period_start
+                    if period_end:
+                        sub.current_period_end = period_end
+                    # Une reconduction ne réactive pas un abonnement résilié :
+                    # cancel_at_period_end reste vrai jusqu'à la dernière
+                    # facture, et repasser en "active" ici rallumerait un
+                    # renouvellement que l'élève a justement arrêté.
+                    if not stripe_sub.get("cancel_at_period_end"):
+                        sub.status = "active"
                     db.commit()
                     user = db.execute(select(User).where(User.id == sub.user_id)).scalar_one_or_none()
                     if user:
                         _sync_user_plan(db, user, sub.plan)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Renouvellement non enregistré pour %s : %s", stripe_sub_id, exc)
 
     # ── invoice.payment_failed ─────────────────────────────
     elif event_type == "invoice.payment_failed":
@@ -921,11 +1129,11 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         ).scalar_one_or_none()
 
         if sub:
-            try:
-                sub.current_period_start = datetime.fromtimestamp(data["current_period_start"], tz=timezone.utc)
-                sub.current_period_end = datetime.fromtimestamp(data["current_period_end"], tz=timezone.utc)
-            except Exception:
-                pass
+            period_start, period_end = _stripe_period(data)
+            if period_start:
+                sub.current_period_start = period_start
+            if period_end:
+                sub.current_period_end = period_end
 
             cancel_at_period_end = data.get("cancel_at_period_end", False)
 
@@ -940,6 +1148,28 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             elif stripe_status in ("past_due", "unpaid"):
                 sub.status = "past_due"
 
+            # Changement de formule fait depuis le Customer Portal (Membre →
+            # Membre+, mensuel → annuel) : l'event ne porte aucune metadata
+            # à jour, seul le Price dit la vérité. Sans cette relecture, l'élève
+            # payait Membre+ en gardant les limites de Membre.
+            items = ((data.get("items") or {}).get("data") or [])
+            price_id = (items[0].get("price") or {}).get("id") if items else None
+            mapping = plan_from_price_id(price_id) if price_id else None
+            if mapping and stripe_status in ("active", "trialing", "past_due"):
+                new_plan, new_cycle = mapping
+                if new_plan != sub.plan or new_cycle != sub.billing_cycle:
+                    logger.info(
+                        "Changement de formule pour user %s : %s/%s → %s/%s",
+                        sub.user_id, sub.plan, sub.billing_cycle, new_plan, new_cycle,
+                    )
+                    sub.plan = new_plan
+                    sub.billing_cycle = new_cycle
+                    user = db.execute(
+                        select(User).where(User.id == sub.user_id)
+                    ).scalar_one_or_none()
+                    if user:
+                        _sync_user_plan(db, user, new_plan)
+
             db.commit()
 
     return {"ok": True}
@@ -948,6 +1178,28 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 # ============================================================
 # Routes admin — abonnements
 # ============================================================
+
+@router.get("/admin/prices")
+def admin_list_prices(
+    provision: bool = False,
+    admin: User = Depends(require_admin),
+):
+    """
+    Prices Stripe utilisés par l'embed d'offres, plan par plan.
+
+    Par défaut, lecture seule : on regarde ce que la prod résoudrait, sans rien
+    créer. `?provision=true` force la création des Prices manquants au tarif du
+    catalogue (même chose que ferait le premier checkout d'un élève) — pratique
+    pour récupérer les price_id et les épingler ensuite en variables
+    d'environnement sur Render.
+    """
+    _stripe()  # force la clé NAVIRE
+    return {
+        "stripe_key_configured": bool(STRIPE_SECRET_KEY),
+        "provisioned": provision,
+        "items": catalog_overview(allow_create=provision),
+    }
+
 
 @router.get("/admin/list")
 def admin_list_subscriptions(
@@ -1189,10 +1441,23 @@ def check_expired_subscriptions(db_factory) -> None:
             print(f"🎓 PREPASSERELLE expiré : user {user.id} → free")
 
         # ── Expiration abonnements Stripe ──────────────────
+        # Deux cas balayés :
+        #   - période terminée (le grade doit tomber) ;
+        #   - période inconnue alors qu'un abonnement Stripe existe : la
+        #     lecture avait échoué au moment du paiement, on la répare ici
+        #     plutôt que de laisser un grade sans date de fin.
+        # Un plan posé à la main par un admin (aucun stripe_subscription_id,
+        # aucune période) reste intouché — il n'expire pas.
         expired_subs = db.execute(
             select(Subscription).where(
                 Subscription.plan != "free",
-                Subscription.current_period_end < now,
+                or_(
+                    Subscription.current_period_end < now,
+                    and_(
+                        Subscription.current_period_end.is_(None),
+                        Subscription.stripe_subscription_id.is_not(None),
+                    ),
+                ),
             )
         ).scalars().all()
 
@@ -1202,12 +1467,15 @@ def check_expired_subscriptions(db_factory) -> None:
                     stripe_sub = stripe.Subscription.retrieve(sub.stripe_subscription_id)
                     stripe_status = stripe_sub.get("status", "")
 
-                    if stripe_status == "active":
-                        new_end = datetime.fromtimestamp(
-                            stripe_sub["current_period_end"], tz=timezone.utc
-                        )
-                        sub.current_period_end = new_end
-                        sub.status = "active"
+                    if stripe_status in ("active", "trialing"):
+                        _, new_end = _stripe_period(stripe_sub)
+                        if new_end:
+                            sub.current_period_end = new_end
+                        # Un abonnement résilié en fin de période reste "active"
+                        # côté Stripe jusqu'au dernier jour : on ne réécrit pas
+                        # son statut local, sinon la résiliation serait perdue.
+                        if not stripe_sub.get("cancel_at_period_end"):
+                            sub.status = "active"
                         db.commit()
                         continue
 
@@ -1222,7 +1490,9 @@ def check_expired_subscriptions(db_factory) -> None:
                 except stripe.StripeError as e:
                     logger.warning("Stripe retrieve failed for sub %s: %s", sub.stripe_subscription_id, e)
 
-            else:
+            elif sub.current_period_end is not None:
+                # Aucun abonnement Stripe rattaché et période dépassée :
+                # rien à interroger, le grade tombe.
                 user = db.execute(
                     select(User).where(User.id == sub.user_id)
                 ).scalar_one_or_none()

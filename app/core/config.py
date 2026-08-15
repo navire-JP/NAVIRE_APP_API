@@ -70,9 +70,24 @@ STRIPE_PRICES: dict[str, dict[str, str]] = {
     },
 }
 
-# URL de redirection après checkout Stripe (à setter sur Render)
-STRIPE_SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://ton-app.fr/subscribe?success=true")
-STRIPE_CANCEL_URL  = os.getenv("STRIPE_CANCEL_URL",  "https://ton-app.fr/subscribe?cancelled=true")
+# URL du front, utilisée par les redirections Stripe et les liens des emails.
+# Définie ici (et non plus bas) parce que les URLs de retour Stripe en dépendent.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire-ai.com")
+
+# Retour après un checkout Stripe. Les valeurs par défaut pointent sur le vrai
+# site : un défaut factice (ancien "https://ton-app.fr/...") envoyait l'élève
+# sur un domaine mort juste après avoir payé, si la variable manquait sur Render.
+#   succès   → /login : l'élève se reconnecte et voit son grade tout de suite,
+#              comme le checkout Prép'AdJuris.
+#   annulé   → retour sur la page des offres.
+STRIPE_SUCCESS_URL = os.getenv(
+    "STRIPE_SUCCESS_URL",
+    f"{FRONTEND_URL}/login?subscription=success",
+)
+STRIPE_CANCEL_URL = os.getenv(
+    "STRIPE_CANCEL_URL",
+    f"{FRONTEND_URL}/offres?subscription=cancelled",
+)
 
 
 # ============================================================
@@ -82,8 +97,6 @@ BREVO_API_KEY     = os.getenv("BREVO_API_KEY", "")
 BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "no-reply@navire.fr")
 BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "NAVIRE")
 
-# URL du front, utilisée dans les liens des emails (ex: lien d'inscription)
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://navire-ai.com")
 
 # ============================================================
 # Connexion Google / Facebook
