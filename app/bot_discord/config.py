@@ -78,3 +78,25 @@ PREPA_ADJURIS_ROLE_IDS: dict[str, int] = {
     "L3_droit_des_societes":          1533851695271116891,
     "L3_droit_des_contrats_speciaux": 1533851742372888727,
 }
+
+# ============================================================
+# Deep work — salon vocal de travail
+# ============================================================
+# Entrer dans ce vocal ouvre une session deep work : le membre reçoit un MP
+# avec un chronomètre qui se met à jour, et choisit un objectif de durée.
+DEEPWORK_CHANNEL_ID = int(os.getenv("DISCORD_DEEPWORK_CHANNEL_ID", "1457415335694303384"))
+
+# Intervalle de rafraîchissement du chronomètre affiché en MP. Descendre en
+# dessous de 10 s fait cogner la limite d'édition de messages de Discord dès
+# que plusieurs membres travaillent en même temps.
+DEEPWORK_REFRESH_SECONDS = max(10, int(os.getenv("DISCORD_DEEPWORK_REFRESH_SECONDS", "15")))
+
+# Salon où journaliser les débuts/fins de session (0 = désactivé). Par défaut
+# le même journal que les autres mouvements vocaux.
+DEEPWORK_LOG_CHANNEL_ID = int(
+    os.getenv("DISCORD_DEEPWORK_LOG_CHANNEL_ID", str(VOICE_LOGS_CHANNEL_ID))
+)
+
+COLOR_DEEPWORK = 0x5B6FFF  # violet-bleu de la page profil
+COLOR_SUCCESS  = 0x4ECDC4
+COLOR_MISS     = 0xFFD166

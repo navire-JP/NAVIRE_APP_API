@@ -9,6 +9,15 @@ _MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_streak           INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_last_active      DATE",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_messages_pending INTEGER NOT NULL DEFAULT 0",
+
+    # Deep work — la table elle-même est créée par Base.metadata.create_all au
+    # démarrage ; on ajoute ici les index de lecture des statistiques, et les
+    # colonnes ajoutées après coup pour les bases déjà en place.
+    "ALTER TABLE deep_work_sessions ADD COLUMN IF NOT EXISTS dm_message_id VARCHAR(32) NOT NULL DEFAULT ''",
+    "CREATE INDEX IF NOT EXISTS ix_deep_work_sessions_user_status "
+    "ON deep_work_sessions (user_id, status)",
+    "CREATE INDEX IF NOT EXISTS ix_deep_work_sessions_started_at "
+    "ON deep_work_sessions (started_at)",
 ]
 
 

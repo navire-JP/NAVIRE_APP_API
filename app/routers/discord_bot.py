@@ -13,6 +13,7 @@ from app.core.config import BOT_SECRET
 from app.core.limits import check_navire_daily_limit
 from app.db.database import get_db
 from app.db.models import User
+from app.services import deepwork as deepwork_service
 from app.services.discord_link import verify_and_link
 from app.services.email import mail_discord_linked, send_mail
 from app.services.navire_chat import send_message as navire_send_message
@@ -56,6 +57,35 @@ class NavireAiChatIn(BaseModel):
     discord_id: str
     message: str
     conversation_id: Optional[int] = None
+
+
+class DeepWorkStartIn(BaseModel):
+    discord_id: str
+    guild_id: str = ""
+    channel_id: str = ""
+
+
+class DeepWorkGoalIn(BaseModel):
+    session_id: int
+    discord_id: str
+    # None = session libre, choix explicite de ne pas se fixer d'objectif.
+    goal_minutes: Optional[int] = None
+
+
+class DeepWorkSessionIn(BaseModel):
+    session_id: int
+    discord_id: str
+
+
+class DeepWorkMessageIn(BaseModel):
+    session_id: int
+    discord_id: str
+    dm_message_id: str
+
+
+class DeepWorkResetIn(BaseModel):
+    """IDs des sessions que le bot suit encore ; toutes les autres sont périmées."""
+    keep_session_ids: list[int] = []
 
 
 MESSAGES_PER_ELO = 3
@@ -276,3 +306,155 @@ def discord_leaderboard(limit: int = 20, db: Session = Depends(get_db)):
         }
         for i, u in enumerate(rows)
     ]
+
+# ============================================================
+# DEEP WORK — salon vocal de travail
+# ============================================================
+# Le bot signale seulement « untel entre / untel sort » : la mesure du temps
+# est faite ici, à partir de started_at posé en base. Comme partout dans ce
+# routeur, les cas attendus (compte non lié, session inconnue) répondent 200
+# avec {"ok": false, ...} pour que le bot les affiche tels quels.
+
+def _deepwork_payload(db: Session, session, user: User) -> dict:
+    return {
+        "ok":      True,
+        "session": deepwork_service.serialize_session(session),
+        "user":    {"user_id": user.id, "username": user.username, "plan": user.plan or "free"},
+        "stats":   deepwork_service.compute_stats(db, user.id),
+    }
+
+
+def _load_session(db: Session, session_id: int, discord_id: str):
+    """
+    Charge la session et vérifie qu'elle appartient bien au Discord qui la
+    manipule : un session_id deviné ne permet pas de toucher à autrui.
+    """
+    session = deepwork_service.get_session(db, session_id)
+    if not session:
+        return None, None
+    user = _by_discord(db, discord_id)
+    if not user or session.user_id != user.id:
+        return None, None
+    return session, user
+
+
+@router.post("/deepwork/start", dependencies=[Depends(_require_bot)])
+def deepwork_start(body: DeepWorkStartIn, db: Session = Depends(get_db)):
+    """Entrée dans le vocal deep work : ouvre une session et renvoie les stats."""
+    user = _by_discord(db, body.discord_id)
+    if not user:
+        return {
+            "ok": False,
+            "code": "NOT_LINKED",
+            "message": (
+                "Ton compte NAVIRE n'est pas encore lié à Discord : tes sessions "
+                "deep work ne peuvent pas être enregistrées. Rends-toi dans "
+                "#🔹connecter-mon-compte-navire pour le lier."
+            ),
+        }
+
+    session = deepwork_service.start_session(
+        db,
+        user,
+        discord_id=body.discord_id,
+        guild_id=body.guild_id,
+        channel_id=body.channel_id,
+    )
+    payload = _deepwork_payload(db, session, user)
+    payload["goal_choices"] = deepwork_service.GOAL_CHOICES
+    return payload
+
+
+@router.post("/deepwork/goal", dependencies=[Depends(_require_bot)])
+def deepwork_goal(body: DeepWorkGoalIn, db: Session = Depends(get_db)):
+    """Objectif choisi dans le MP. goal_minutes absent = session libre."""
+    session, user = _load_session(db, body.session_id, body.discord_id)
+    if not session:
+        return {"ok": False, "code": "NOT_FOUND", "message": "Session introuvable."}
+
+    try:
+        session = deepwork_service.set_goal(db, session, body.goal_minutes)
+    except ValueError:
+        return {"ok": False, "code": "BAD_GOAL", "message": "Objectif non proposé."}
+
+    payload = _deepwork_payload(db, session, user)
+    payload["elapsed_seconds"] = deepwork_service.elapsed_seconds(session)
+    return payload
+
+
+@router.post("/deepwork/tick", dependencies=[Depends(_require_bot)])
+def deepwork_tick(body: DeepWorkSessionIn, db: Session = Depends(get_db)):
+    """
+    Rafraîchissement du chronomètre affiché dans le MP : renvoie le temps
+    écoulé faisant foi et note le franchissement de l'objectif au moment où il
+    se produit (plutôt qu'à la clôture, qui pourrait ne jamais arriver).
+    """
+    session, user = _load_session(db, body.session_id, body.discord_id)
+    if not session:
+        return {"ok": False, "code": "NOT_FOUND", "message": "Session introuvable."}
+
+    was_reached = bool(session.goal_reached)
+    session = deepwork_service.mark_goal_reached(db, session)
+
+    return {
+        "ok":              True,
+        "session":         deepwork_service.serialize_session(session),
+        "elapsed_seconds": deepwork_service.elapsed_seconds(session),
+        "goal_just_reached": bool(session.goal_reached) and not was_reached,
+        "still_active":    session.status == deepwork_service.STATUS_ACTIVE,
+    }
+
+
+@router.post("/deepwork/message", dependencies=[Depends(_require_bot)])
+def deepwork_message(body: DeepWorkMessageIn, db: Session = Depends(get_db)):
+    """Mémorise l'ID du MP porteur du chronomètre."""
+    session, _user = _load_session(db, body.session_id, body.discord_id)
+    if not session:
+        return {"ok": False, "code": "NOT_FOUND", "message": "Session introuvable."}
+    session.dm_message_id = (body.dm_message_id or "")[:32]
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/deepwork/stop", dependencies=[Depends(_require_bot)])
+def deepwork_stop(body: DeepWorkSessionIn, db: Session = Depends(get_db)):
+    """Sortie du vocal : clôture la session et renvoie le bilan + stats à jour."""
+    session, user = _load_session(db, body.session_id, body.discord_id)
+    if not session:
+        return {"ok": False, "code": "NOT_FOUND", "message": "Session introuvable."}
+
+    session = deepwork_service.stop_session(db, session)
+    payload = _deepwork_payload(db, session, user)
+    payload["too_short"] = session.status == deepwork_service.STATUS_DISCARDED
+    payload["min_seconds"] = deepwork_service.MIN_SESSION_SECONDS
+    return payload
+
+
+@router.post("/deepwork/reset-stale", dependencies=[Depends(_require_bot)])
+def deepwork_reset_stale(body: DeepWorkResetIn, db: Session = Depends(get_db)):
+    """
+    Démarrage du bot : les sessions restées « active » n'ont plus de
+    chronomètre attaché, leur durée réelle est inconnue. Elles passent en
+    `stale` et sortent des statistiques, sauf celles que le bot vient de
+    rouvrir pour les membres déjà présents dans le vocal.
+    """
+    closed = deepwork_service.close_stale_sessions(db, keep_session_ids=body.keep_session_ids)
+    return {"ok": True, "closed": closed}
+
+
+@router.get("/deepwork/stats/{discord_id}", dependencies=[Depends(_require_bot)])
+def deepwork_stats(discord_id: str, db: Session = Depends(get_db)):
+    """Stats deep work d'un membre — utilisé par la commande /deepwork."""
+    user = _by_discord(db, discord_id)
+    if not user:
+        return {"ok": False, "code": "NOT_LINKED", "message": "Compte NAVIRE non lié."}
+
+    active = deepwork_service.get_active_session(db, user.id)
+    return {
+        "ok":       True,
+        "username": user.username,
+        "stats":    deepwork_service.compute_stats(db, user.id),
+        "recent":   deepwork_service.recent_sessions(db, user.id, limit=5),
+        "active":   deepwork_service.serialize_session(active) if active else None,
+        "active_elapsed_seconds": deepwork_service.elapsed_seconds(active) if active else 0,
+    }

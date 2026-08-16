@@ -90,6 +90,36 @@ scheduler.add_job(
     replace_existing=True,
 )
 
+
+def _expire_deepwork_sessions() -> None:
+    """
+    Filet de sécurité : une session deep work encore « active » après une
+    journée entière n'a pas été clôturée normalement (membre resté branché,
+    coupure côté bot). Sa durée réelle étant inconnue, elle est marquée périmée
+    et sort des statistiques plutôt que de gonfler les totaux.
+    """
+    from app.services.deepwork import expire_long_sessions
+
+    db = SessionLocal()
+    try:
+        closed = expire_long_sessions(db)
+        if closed:
+            print(f"🧹 Deep work : {closed} session(s) périmée(s) clôturée(s)")
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Expiration des sessions deep work échouée : {e}")
+    finally:
+        db.close()
+
+
+scheduler.add_job(
+    _expire_deepwork_sessions,
+    trigger="interval",
+    hours=1,
+    id="expire_deepwork_sessions",
+    replace_existing=True,
+)
+
 # ============================================================
 # Discord bot — thread daemon
 # ============================================================

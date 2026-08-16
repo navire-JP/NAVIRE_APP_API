@@ -25,6 +25,7 @@ _COGS = [
     "app.bot_discord.cogs.onboarding",
     "app.bot_discord.cogs.veille",
     "app.bot_discord.cogs.voice_logs",
+    "app.bot_discord.cogs.deepwork",
     "app.bot_discord.cogs.logs_cog",
 ]
 

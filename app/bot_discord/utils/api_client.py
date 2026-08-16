@@ -98,3 +98,57 @@ async def link_adjuris_discord(discord_id: str, email: str, code: str) -> dict:
         "email": email,
         "code": code,
     })
+
+# ============================================================
+# Deep work — salon vocal de travail
+# ============================================================
+# Toutes ces routes répondent 200 avec {"ok": bool, ...} : un compte non lié ou
+# une session inconnue ne sont pas des erreurs réseau, le cog les affiche tels
+# quels.
+
+async def deepwork_start(discord_id: str, guild_id: str = "", channel_id: str = "") -> dict:
+    return await _post("/discord/deepwork/start", {
+        "discord_id": discord_id,
+        "guild_id":   guild_id,
+        "channel_id": channel_id,
+    })
+
+
+async def deepwork_set_goal(session_id: int, discord_id: str, goal_minutes: int | None) -> dict:
+    return await _post("/discord/deepwork/goal", {
+        "session_id":   session_id,
+        "discord_id":   discord_id,
+        "goal_minutes": goal_minutes,
+    })
+
+
+async def deepwork_tick(session_id: int, discord_id: str) -> dict:
+    return await _post("/discord/deepwork/tick", {
+        "session_id": session_id,
+        "discord_id": discord_id,
+    })
+
+
+async def deepwork_set_message(session_id: int, discord_id: str, dm_message_id: str) -> dict:
+    return await _post("/discord/deepwork/message", {
+        "session_id":    session_id,
+        "discord_id":    discord_id,
+        "dm_message_id": dm_message_id,
+    })
+
+
+async def deepwork_stop(session_id: int, discord_id: str) -> dict:
+    return await _post("/discord/deepwork/stop", {
+        "session_id": session_id,
+        "discord_id": discord_id,
+    })
+
+
+async def deepwork_reset_stale(keep_session_ids: list[int] | None = None) -> dict:
+    return await _post("/discord/deepwork/reset-stale", {
+        "keep_session_ids": keep_session_ids or [],
+    })
+
+
+async def deepwork_stats(discord_id: str) -> dict:
+    return await _get(f"/discord/deepwork/stats/{discord_id}")

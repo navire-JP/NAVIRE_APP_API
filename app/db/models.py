@@ -283,6 +283,16 @@ class User(Base):
         passive_deletes=True,
     )
 
+    # ============================================================
+    # Deep work Discord
+    # ============================================================
+    deep_work_sessions: Mapped[list["DeepWorkSession"]] = relationship(
+        "DeepWorkSession",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
 
 class File(Base):
     __tablename__ = "files"
@@ -1547,3 +1557,73 @@ class EmailVerification(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
+
+# ============================================================
+# DEEP WORK — sessions de travail en vocal Discord
+# ============================================================
+
+class DeepWorkSession(Base):
+    """
+    Une session = un passage dans le salon vocal deep work.
+
+    Créée quand le membre rejoint le vocal, clôturée quand il le quitte. Le
+    temps fait foi côté serveur : `started_at` est posé à la création,
+    `duration_seconds` calculé à la clôture, jamais envoyé par le bot.
+
+    Cycle de vie de `status` :
+      active    — le membre est actuellement dans le vocal
+      completed — session terminée normalement, comptée dans les stats
+      discarded — passage trop court (< MIN_SESSION_SECONDS), hors stats
+      stale     — session laissée ouverte par un redémarrage du bot ; sa durée
+                  réelle est inconnue, donc exclue des stats
+
+    Seules les sessions `completed` alimentent les statistiques du profil.
+    """
+
+    __tablename__ = "deep_work_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    # Doublon de users.discord_id au moment de la session : permet de retrouver
+    # les sessions même si le compte est délié puis relié à un autre Discord.
+    discord_id: Mapped[str] = mapped_column(String(32), default="", nullable=False, index=True)
+    guild_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    channel_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Objectif choisi dans le MP (20 | 60 | 90 | 120 minutes).
+    # NULL = session libre : l'utilisateur n'a pas répondu, ou a choisi
+    # explicitement de travailler sans objectif.
+    goal_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    goal_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    goal_reached: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    goal_reached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False, index=True)
+
+    # Message privé qui affiche le chronomètre — mémorisé pour pouvoir le
+    # retrouver/éditer sans garder l'état uniquement en mémoire du bot.
+    dm_message_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="deep_work_sessions")

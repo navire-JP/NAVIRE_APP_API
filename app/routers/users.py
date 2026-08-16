@@ -11,6 +11,7 @@ from app.routers.auth import get_current_user
 from app.core.cloudinary_client import upload_avatar, is_allowed_image, MAX_AVATAR_BYTES, resolve_avatar_url
 from app.core.config import DISCORD_INVITE_URL
 from app.core.limits import get_limit
+from app.services import deepwork as deepwork_service
 from app.services.discord_link import (
     LinkCodeRateLimited,
     SOURCE_PROFILE,
@@ -246,6 +247,29 @@ def unlink_discord(
 
 
 # ============================================================
+# Deep work — statistiques détaillées
+# ============================================================
+
+@router.get("/me/deepwork")
+def get_my_deepwork(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Détail des sessions deep work (salon vocal Discord) : agrégats + dernières
+    sessions. `profile-summary` renvoie déjà les agrégats pour l'encart du
+    profil ; cette route sert au détail, sans recharger tout le profil.
+    """
+    return {
+        "discord_linked": bool(current_user.discord_id),
+        "stats":          deepwork_service.compute_stats(db, current_user.id),
+        "sessions":       deepwork_service.recent_sessions(db, current_user.id, limit=limit),
+        "goal_choices":   deepwork_service.GOAL_CHOICES,
+    }
+
+
+# ============================================================
 # Profil — résumé agrégé (page profil complète en un seul appel)
 # ============================================================
 
@@ -339,6 +363,11 @@ def get_profile_summary(
         for i, r in enumerate(rows_below)
     ]
 
+    # --- Deep work (sessions vocales Discord) — alimente l'encart Discord du
+    # profil. Toujours présent, même sans compte Discord lié : le front affiche
+    # alors des compteurs à zéro plutôt qu'un encart qui change de forme.
+    deepwork_stats = deepwork_service.compute_stats(db, u.id)
+
     return {
         "user": {
             "id": u.id,
@@ -351,6 +380,7 @@ def get_profile_summary(
             "created_at": u.created_at,
             "discord_linked": bool(u.discord_id),
         },
+        "deepwork": deepwork_stats,
         "elo": {
             "value": int(u.elo or 0),
             "rank": rank,
