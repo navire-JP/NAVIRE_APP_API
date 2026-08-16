@@ -15,6 +15,7 @@ fantaisiste — les sessions orphelines sont marquées périmées au démarrage.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -53,6 +54,10 @@ GOAL_OPTIONS: list[tuple[int, str]] = [
 ]
 
 PROGRESS_BLOCKS = 12
+
+# Nombre d'essais de la purge au démarrage (délais 5, 10, 20, 40, 60 s) : le
+# temps que l'API du même processus commence à répondre.
+DEEPWORK_BOOTSTRAP_ATTEMPTS = 6
 SITE_PROFILE_URL = "https://navire-ai.com/profil"
 
 
@@ -107,6 +112,9 @@ class LiveSession:
     goal_reached: bool = False
     elapsed: int = 0
     stats: dict = field(default_factory=dict)
+    # Suivi affiché dans le salon vocal au lieu des MP (repli quand les MP
+    # du membre sont fermés).
+    in_channel: bool = False
 
     @property
     def discord_id(self) -> str:
@@ -436,16 +444,41 @@ class DeepWorkCog(commands.Cog):
         try:
             live.message = await member.send(embed=self.running_embed(live), view=view)
         except discord.Forbidden:
-            # MP fermés : la session est quand même comptée, sans chronomètre.
-            logger.info("[deepwork] MP fermés pour %s — session suivie sans message", member.id)
+            # MP fermés côté membre. La session est comptée quand même, et le
+            # chronomètre bascule dans le salon vocal : sans ce repli, le
+            # membre ne voit strictement rien et croit que rien n'a démarré.
+            logger.info("[deepwork] MP fermés pour %s — repli sur le salon vocal", member.id)
+            try:
+                live.message = await channel.send(
+                    content=(
+                        f"{member.mention} — tes messages privés sont fermés, "
+                        "ton suivi deep work s'affiche donc ici."
+                    ),
+                    embed=self.running_embed(live),
+                    view=view,
+                )
+                live.in_channel = True
+            except discord.HTTPException as e:
+                logger.warning("[deepwork] repli salon impossible pour %s : %s", member.id, e)
         except discord.HTTPException as e:
             logger.warning("[deepwork] MP non envoyé à %s : %s", member.id, e)
 
+        # Trace explicite : sans elle, un membre qui dit « je n'ai rien reçu »
+        # est indistinguable d'un envoi qui a échoué en silence.
         if live.message:
+            logger.info(
+                "[deepwork] session %s démarrée pour %s — suivi %s (message %s)",
+                live.session_id, member.id, "salon" if live.in_channel else "MP", live.message.id,
+            )
             try:
                 await deepwork_set_message(live.session_id, live.discord_id, str(live.message.id))
             except Exception:
                 pass  # confort de reprise seulement, rien de bloquant
+        else:
+            logger.warning(
+                "[deepwork] session %s démarrée pour %s SANS aucun message affichable",
+                live.session_id, member.id,
+            )
 
         await self._log(f"🌊 {member.mention} a commencé une session deep work dans **{channel.name}**")
 
@@ -502,6 +535,39 @@ class DeepWorkCog(commands.Cog):
         elif before_id == DEEPWORK_CHANNEL_ID:
             await self._end(member)
 
+    async def _reset_stale_with_retry(self) -> bool:
+        """
+        Purge des sessions orphelines, avec reprise.
+
+        Bot et API tournent dans le même processus : au déploiement, le bot est
+        connecté à Discord avant qu'uvicorn ne réponde sur l'URL publique, et
+        le premier appel se prend un 502. Sans reprise, la purge est
+        définitivement sautée à chaque déploiement et les sessions d'avant le
+        redémarrage restent « actives » en base.
+        """
+        delay = 5
+        for attempt in range(1, DEEPWORK_BOOTSTRAP_ATTEMPTS + 1):
+            try:
+                data = await deepwork_reset_stale([])
+                closed = data.get("closed", 0) if isinstance(data, dict) else 0
+                logger.info("[deepwork] purge au démarrage : %s session(s) périmée(s)", closed)
+                return True
+            except Exception as e:
+                logger.warning(
+                    "[deepwork] purge des sessions orphelines impossible (essai %s/%s) : %s",
+                    attempt, DEEPWORK_BOOTSTRAP_ATTEMPTS, e,
+                )
+                if attempt == DEEPWORK_BOOTSTRAP_ATTEMPTS:
+                    break
+                await asyncio.sleep(delay)
+                delay = min(60, delay * 2)
+
+        # Échec définitif : le filet horaire côté API (expire_long_sessions)
+        # finira par clôturer ces sessions, et start_session ferme de toute
+        # façon la session active d'un membre qui revient.
+        logger.warning("[deepwork] purge au démarrage abandonnée — reprise par le job horaire")
+        return False
+
     @commands.Cog.listener()
     async def on_ready(self) -> None:
         """
@@ -513,10 +579,7 @@ class DeepWorkCog(commands.Cog):
             return
         self._bootstrapped = True
 
-        try:
-            await deepwork_reset_stale([])
-        except Exception as e:
-            logger.warning("[deepwork] purge des sessions orphelines impossible : %s", e)
+        await self._reset_stale_with_retry()
 
         channel = self.bot.get_channel(DEEPWORK_CHANNEL_ID) if DEEPWORK_CHANNEL_ID else None
         if isinstance(channel, discord.VoiceChannel):
@@ -553,7 +616,10 @@ class DeepWorkCog(commands.Cog):
             except discord.HTTPException:
                 continue
 
-            if data.get("goal_just_reached"):
+            # Ping séparé au franchissement de l'objectif — inutile quand le
+            # suivi est déjà dans le salon vocal (l'embed y passe au vert sous
+            # les yeux du membre), et le MP y échouerait de toute façon.
+            if data.get("goal_just_reached") and not live.in_channel:
                 try:
                     await live.member.send(
                         f"🎉 **Objectif atteint** — {_goal_text(live.goal_minutes)} de deep work. "
