@@ -38,15 +38,42 @@ logger = logging.getLogger(__name__)
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 
-def send_mail(to: str, subject: str, html: str) -> bool:
+def mail_config() -> dict:
     """
-    Envoie un email via l'API Brevo.
-    Retourne True si l'envoi a réussi, False sinon (sans lever d'exception).
-    Les erreurs sont loggées mais ne font jamais planter l'appelant.
+    État de la configuration d'envoi, sans jamais exposer la clé elle-même.
+    Sert au diagnostic depuis la console admin : un envoi qui ne part pas vient
+    presque toujours d'ici (clé absente, expéditeur non validé chez Brevo).
+    """
+    return {
+        "brevo_key_present": bool(BREVO_API_KEY),
+        "sender_email": BREVO_SENDER_EMAIL,
+        "sender_name": BREVO_SENDER_NAME,
+        "logo_url": EMAIL_LOGO_URL,
+    }
+
+
+def send_mail_result(to: str, subject: str, html: str) -> dict:
+    """
+    Envoie un email via l'API Brevo et rend le détail de ce qui s'est passé :
+
+        {"sent": bool, "detail": str, "message_id": str | None}
+
+    C'est la version diagnostiquable de send_mail() : le booléen seul ne dit
+    pas *pourquoi* rien n'est parti, ce qui rend un envoi manquant impossible
+    à expliquer depuis la console. Ne lève jamais.
+
+    Attention : `sent` signifie « Brevo a accepté le message », pas « la boîte
+    du destinataire l'a affiché ». Un message accepté peut encore finir en
+    indésirables, ou être rejeté par le serveur d'en face — message_id sert
+    alors à le retrouver dans les logs Brevo.
     """
     if not BREVO_API_KEY:
         logger.warning("BREVO_API_KEY manquant — email non envoyé à %s", to)
-        return False
+        return {
+            "sent": False,
+            "detail": "BREVO_API_KEY absente de l'environnement du serveur.",
+            "message_id": None,
+        }
 
     payload = {
         "sender": {
@@ -75,12 +102,40 @@ def send_mail(to: str, subject: str, html: str) -> bool:
                 to,
                 response.text,
             )
-            return False
-        return True
+            return {
+                "sent": False,
+                "detail": f"Brevo HTTP {response.status_code} — {response.text[:300]}",
+                "message_id": None,
+            }
+
+        message_id = None
+        try:
+            message_id = (response.json() or {}).get("messageId")
+        except Exception:
+            pass
+
+        return {
+            "sent": True,
+            "detail": f"Accepté par Brevo (expéditeur {BREVO_SENDER_EMAIL}).",
+            "message_id": message_id,
+        }
 
     except Exception as exc:
         logger.error("Brevo send failed for %s : %s", to, exc)
-        return False
+        return {
+            "sent": False,
+            "detail": f"Appel Brevo impossible — {exc}",
+            "message_id": None,
+        }
+
+
+def send_mail(to: str, subject: str, html: str) -> bool:
+    """
+    Envoie un email via l'API Brevo.
+    Retourne True si l'envoi a réussi, False sinon (sans lever d'exception).
+    Les erreurs sont loggées mais ne font jamais planter l'appelant.
+    """
+    return send_mail_result(to, subject, html)["sent"]
 
 
 

@@ -380,10 +380,13 @@ def fix_complete_sessions(
 
 @router.get("/emails")
 def list_emails(_: None = Depends(verify_admin_code)):
-    """Liste les emails que l'application sait envoyer, avec leur objet."""
-    from app.services.email import catalog
+    """
+    Liste les emails que l'application sait envoyer, avec leur objet, et
+    l'état de la configuration d'envoi (clé Brevo présente, expéditeur, logo).
+    """
+    from app.services.email import catalog, mail_config
 
-    return {"items": catalog()}
+    return {"items": catalog(), "config": mail_config()}
 
 
 @router.post("/emails/test")
@@ -404,7 +407,12 @@ def send_test_email(
     confondus avec un envoi réel s'ils atterrissent dans la mauvaise boîte.
     Aucune écriture en base : rien n'est créé, aucun code n'est émis.
     """
-    from app.services.email import EMAIL_CATALOG, render_sample, send_mail
+    from app.services.email import (
+        EMAIL_CATALOG,
+        mail_config,
+        render_sample,
+        send_mail_result,
+    )
 
     destination = (to or "").strip()
     if not destination:
@@ -435,8 +443,16 @@ def send_test_email(
     results = []
     for k in keys:
         subject, html = render_sample(k)
-        ok = send_mail(destination, f"[TEST] {subject}", html)
-        results.append({"key": k, "subject": subject, "sent": bool(ok)})
+        outcome = send_mail_result(destination, f"[TEST] {subject}", html)
+        results.append({
+            "key": k,
+            "subject": subject,
+            "sent": bool(outcome["sent"]),
+            # Raison exacte du refus, ou identifiant Brevo du message accepté :
+            # sans ça, un envoi manquant est indébuggable depuis la console.
+            "detail": outcome["detail"],
+            "message_id": outcome["message_id"],
+        })
 
     sent = sum(1 for r in results if r["sent"])
     return {
@@ -445,4 +461,5 @@ def send_test_email(
         "sent": sent,
         "failed": len(results) - sent,
         "results": results,
+        "config": mail_config(),
     }
