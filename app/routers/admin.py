@@ -389,6 +389,21 @@ def list_emails(_: None = Depends(verify_admin_code)):
     return {"items": catalog(), "config": mail_config()}
 
 
+@router.get("/emails/diagnostic")
+def diagnose_emails(_: None = Depends(verify_admin_code)):
+    """
+    Interroge Brevo pour dire si la clé est valide et si l'expéditeur configuré
+    est bien validé chez eux.
+
+    C'est le point aveugle du reste : un expéditeur non validé fait accepter
+    l'appel par Brevo (donc « envoyé » côté NAVIRE) sans jamais rien délivrer.
+    Seule cette route permet de le voir sans ouvrir le tableau de bord Brevo.
+    """
+    from app.services.email import brevo_diagnostic, mail_config
+
+    return {"config": mail_config(), "brevo": brevo_diagnostic()}
+
+
 @router.post("/emails/test")
 def send_test_email(
     key: str = "all",
@@ -444,6 +459,13 @@ def send_test_email(
     for k in keys:
         subject, html = render_sample(k)
         outcome = send_mail_result(destination, f"[TEST] {subject}", html)
+        # Trace visible dans les logs Render : sans elle, un envoi de test ne
+        # laisse aucune trace côté serveur et on ne peut que supposer.
+        print(
+            f"[mail-test] {k} → {destination} : "
+            f"{'OK' if outcome['sent'] else 'ÉCHEC'} — {outcome['detail']}"
+            + (f" (message_id={outcome['message_id']})" if outcome["message_id"] else "")
+        )
         results.append({
             "key": k,
             "subject": subject,

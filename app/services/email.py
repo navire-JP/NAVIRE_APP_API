@@ -52,6 +52,86 @@ def mail_config() -> dict:
     }
 
 
+BREVO_ACCOUNT_URL = "https://api.brevo.com/v3/account"
+BREVO_SENDERS_URL = "https://api.brevo.com/v3/senders"
+
+
+def brevo_diagnostic() -> dict:
+    """
+    Interroge Brevo pour répondre aux deux seules questions qui expliquent la
+    quasi-totalité des « le mail ne part pas » :
+
+      1. la clé API est-elle valide ? (GET /v3/account)
+      2. l'expéditeur configuré est-il validé chez Brevo ? (GET /v3/senders)
+
+    Un expéditeur non validé est le piège classique : Brevo accepte l'appel
+    (HTTP 201, donc `sent: true` de notre côté) puis ne délivre rien. Sans
+    cette vérification, l'envoi paraît réussi et disparaît en silence.
+
+    Ne lève jamais : toute panne est rendue dans "erreur".
+    """
+    out = {
+        "sender_configured": BREVO_SENDER_EMAIL,
+        "key_valid": None,
+        "account": None,
+        "senders": [],
+        "sender_is_verified": None,
+        "erreur": None,
+    }
+
+    if not BREVO_API_KEY:
+        out["erreur"] = "BREVO_API_KEY absente de l'environnement du serveur."
+        out["key_valid"] = False
+        return out
+
+    headers = {"api-key": BREVO_API_KEY, "Accept": "application/json"}
+
+    try:
+        r = httpx.get(BREVO_ACCOUNT_URL, headers=headers, timeout=10.0)
+        if r.status_code == 200:
+            data = r.json() or {}
+            out["key_valid"] = True
+            out["account"] = {
+                "email": data.get("email"),
+                "company": (data.get("companyName") or ""),
+                "plan": [
+                    {"type": p.get("type"), "credits": p.get("credits")}
+                    for p in (data.get("plan") or [])
+                ],
+            }
+        else:
+            out["key_valid"] = False
+            out["erreur"] = f"Clé refusée par Brevo — HTTP {r.status_code} : {r.text[:200]}"
+            return out
+    except Exception as exc:
+        out["erreur"] = f"Brevo injoignable — {exc}"
+        return out
+
+    try:
+        r = httpx.get(BREVO_SENDERS_URL, headers=headers, timeout=10.0)
+        if r.status_code == 200:
+            senders = (r.json() or {}).get("senders") or []
+            out["senders"] = [
+                {
+                    "email": sdr.get("email"),
+                    "name": sdr.get("name"),
+                    "active": bool(sdr.get("active")),
+                }
+                for sdr in senders
+            ]
+            configured = (BREVO_SENDER_EMAIL or "").lower()
+            out["sender_is_verified"] = any(
+                (sdr["email"] or "").lower() == configured and sdr["active"]
+                for sdr in out["senders"]
+            )
+        else:
+            out["erreur"] = f"Liste des expéditeurs indisponible — HTTP {r.status_code}."
+    except Exception as exc:
+        out["erreur"] = f"Liste des expéditeurs indisponible — {exc}"
+
+    return out
+
+
 def send_mail_result(to: str, subject: str, html: str) -> dict:
     """
     Envoie un email via l'API Brevo et rend le détail de ce qui s'est passé :
