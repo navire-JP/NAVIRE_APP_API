@@ -29,6 +29,7 @@ from app.core.config import (
     DISCORD_GUILD_ID,
     DISCORD_PREPA_ADJURIS_CHANNEL_ID,
     DISCORD_SYNC_CHANNEL_ID,
+    EMAIL_LOGO_URL,
     FRONTEND_URL,
 )
 
@@ -84,6 +85,95 @@ def send_mail(to: str, subject: str, html: str) -> bool:
 
 
 # ============================================================
+# Gabarit commun — en-tête au logo NAVIRE
+# ============================================================
+# Tous les emails passent par layout() : un seul endroit à toucher pour
+# changer l'identité visuelle, et surtout un logo présent partout au lieu du
+# titre texte « NAVIRE » que chaque template redéfinissait dans son coin.
+#
+# Contraintes propres au mail, qui expliquent le HTML daté ci-dessous :
+#   - tableaux plutôt que flex/grid : Outlook ne sait pas faire autrement ;
+#   - styles en ligne uniquement : les <style> sont retirés par Gmail ;
+#   - l'image porte un alt « NAVIRE » : la plupart des clients bloquent les
+#     images par défaut, l'en-tête doit rester lisible sans elle.
+
+def logo_url() -> str:
+    """URL absolue du logo. Publique et sans jeton : c'est le client mail qui
+    la télécharge, pas l'application."""
+    return EMAIL_LOGO_URL
+
+
+def layout(content_html: str, preheader: str = "") -> str:
+    """
+    Enveloppe un contenu dans le gabarit NAVIRE (en-tête logo + pied de page).
+
+    `preheader` est le texte d'aperçu affiché par la boîte de réception à côté
+    de l'objet ; masqué dans le corps du message.
+    """
+    preheader_block = ""
+    if preheader:
+        preheader_block = (
+            '<div style="display:none;max-height:0;overflow:hidden;opacity:0;'
+            'mso-hide:all;font-size:1px;line-height:1px;color:#0a0a0a;">'
+            f"{preheader}</div>"
+        )
+
+    return f"""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+</head>
+<body style="margin:0; padding:0; background:#0a0a0a; color:#f0f0f0;
+             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+  {preheader_block}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background:#0a0a0a; padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:520px; width:100%;">
+
+          <!-- En-tête : logo + nom -->
+          <tr>
+            <td align="center" style="padding-bottom:20px;">
+              <img src="{EMAIL_LOGO_URL}" alt="NAVIRE" width="56" height="56"
+                   style="display:block; width:56px; height:56px; border:0; outline:none;
+                          text-decoration:none; margin:0 auto 10px;">
+              <div style="font-size:15px; font-weight:700; letter-spacing:5px;
+                          color:#f0f0f0; text-transform:uppercase;">NAVIRE</div>
+            </td>
+          </tr>
+
+          <!-- Corps -->
+          <tr>
+            <td style="background:#141414; border-radius:12px; padding:32px;
+                       font-size:15px; line-height:1.6; color:#f0f0f0;">
+              {content_html}
+            </td>
+          </tr>
+
+          <!-- Pied de page -->
+          <tr>
+            <td align="center" style="padding-top:20px; font-size:11px; color:#666;
+                                      line-height:1.6;">
+              <a href="{FRONTEND_URL}" style="color:#888; text-decoration:none;">{FRONTEND_URL}</a><br>
+              Email automatique — merci de ne pas y répondre.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+
+# ============================================================
 # Templates
 # ============================================================
 
@@ -96,14 +186,8 @@ def mail_pending_subscription(email: str, plan: str, frontend_url: str) -> tuple
     register_url = f"{frontend_url}/register?email={email}&pending_plan={plan}"
 
     subject = f"Votre abonnement {plan_label} est prêt — créez votre compte NAVIRE"
-    html = f"""
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
-  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
-    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
-    <p>Bonjour,</p>
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour,</p>
     <p>
       Votre paiement pour l'abonnement <strong>{plan_label}</strong> a bien été enregistré.
       Il ne vous reste plus qu'à créer votre compte NAVIRE pour activer votre accès.
@@ -121,10 +205,7 @@ def mail_pending_subscription(email: str, plan: str, frontend_url: str) -> tuple
     <p style="font-size: 0.85em; color: #888;">
       Si vous n'êtes pas à l'origine de ce paiement, contactez-nous.
     </p>
-  </div>
-</body>
-</html>
-"""
+""", preheader=f"Votre abonnement {plan_label} vous attend.")
     return subject, html
 
 
@@ -155,14 +236,8 @@ def mail_prepa_adjuris_link_code(
     </a>"""
 
     subject = "Débloque ton accès Discord Prép'AdJuris"
-    html = f"""
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
-  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
-    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
-    <p>Bonjour,</p>
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour,</p>
     <p>
       Ton inscription à <strong>Prép'AdJuris — {matiere_label}</strong> est confirmée.
       Il ne reste plus qu'à lier ton compte NAVIRE sur Discord pour accéder au channel.
@@ -184,10 +259,7 @@ def mail_prepa_adjuris_link_code(
       Ce code est valable 7 jours et à usage unique. Tu peux aussi en générer un
       nouveau depuis ton profil, bouton « Connecter mes comptes ».
     </p>
-  </div>
-</body>
-</html>
-"""
+""", preheader=f"Ton code de liaison Discord : {code}")
     return subject, html
 
 # ============================================================
@@ -231,14 +303,8 @@ def mail_discord_link_code(
     )
 
     subject = "Ton code pour lier ton compte NAVIRE à Discord"
-    html = f"""
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
-  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
-    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
-    <p>Bonjour,</p>
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour,</p>
     <p>
       {intro} Pour recevoir tes accès sur le serveur Discord, lie ton compte
       NAVIRE à ton compte Discord avec le code ci-dessous.
@@ -264,10 +330,7 @@ def mail_discord_link_code(
     <p style="font-size: 0.85em; color: #888;">
       Ne transmets ce code à personne : il permet de rattacher un compte Discord au tien.
     </p>
-  </div>
-</body>
-</html>
-"""
+""", preheader=f"Ton code de liaison Discord : {code}")
     return subject, html
 
 
@@ -282,14 +345,8 @@ def mail_discord_linked(
     apprend qu'un compte Discord a été rattaché au sien.
     """
     subject = "Ton compte Discord est lié à NAVIRE"
-    html = f"""
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
-  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
-    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
-    <p>Bonjour {username},</p>
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {username},</p>
     <p>
       Le compte Discord <strong>{discord_name}</strong> vient d'être lié à ton
       compte NAVIRE. Ton rôle sur le serveur correspond désormais à ton
@@ -303,10 +360,7 @@ def mail_discord_linked(
       Tu n'es pas à l'origine de cette liaison ? Change ton mot de passe sur
       {FRONTEND_URL} et préviens l'équipe : nous délierons le compte Discord.
     </p>
-  </div>
-</body>
-</html>
-"""
+""", preheader=f"{discord_name} est désormais lié à ton compte NAVIRE.")
     return subject, html
 
 
@@ -325,14 +379,8 @@ def mail_password_changed(username: str, was_set: bool = False) -> tuple[str, st
         if was_set
         else "Ton mot de passe NAVIRE a été modifié"
     )
-    html = f"""
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
-  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
-    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
-    <p>Bonjour {username},</p>
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {username},</p>
     <p>
       Le mot de passe de ton compte NAVIRE vient d'être <strong>{action}</strong>
       depuis ta page profil.
@@ -345,10 +393,7 @@ def mail_password_changed(username: str, was_set: bool = False) -> tuple[str, st
       Tu n'es pas à l'origine de ce changement ? Préviens l'équipe
       immédiatement : ton compte a probablement été compromis.
     </p>
-  </div>
-</body>
-</html>
-"""
+""", preheader=f"Ton mot de passe a été {action}.")
     return subject, html
 
 
@@ -360,14 +405,8 @@ def mail_verification_code(code: str, username: str, ttl_minutes: int) -> tuple[
     hello = f"Bonjour {username}," if username else "Bonjour,"
 
     subject = f"{code} est ton code de confirmation NAVIRE"
-    html = f"""
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
-  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
-    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
-    <p>{hello}</p>
+    html = layout(f"""
+    <p style="margin-top:0;">{hello}</p>
     <p>Voici le code qui confirme ton adresse email et termine ton inscription :</p>
     <p style="font-size: 2em; letter-spacing: 10px; font-weight: bold; text-align: center;
               background: #1f1f1f; border-radius: 8px; padding: 20px; margin: 20px 0;">
@@ -380,8 +419,84 @@ def mail_verification_code(code: str, username: str, ttl_minutes: int) -> tuple[
       Tu n'es pas à l'origine de cette inscription ? Ignore ce message :
       sans ce code, aucun compte ne sera créé avec ton adresse.
     </p>
-  </div>
-</body>
-</html>
-"""
+""", preheader=f"{code} — valable {ttl_minutes} minutes.")
     return subject, html
+
+
+# ============================================================
+# Catalogue des emails — aperçu et envoi de test
+# ============================================================
+# Sert la commande `/mails` de la console admin : lister ce que l'application
+# sait envoyer, et se l'envoyer à soi-même pour vérifier le rendu réel dans une
+# boîte (le logo, surtout, qui dépend d'une URL publique joignable depuis le
+# client mail). Les données sont fictives et n'écrivent rien en base.
+
+EMAIL_CATALOG: dict[str, dict] = {
+    "verification_code": {
+        "label": "Code de confirmation (inscription)",
+        "trigger": "POST /auth/request-code",
+        "render": lambda: mail_verification_code("428913", "Jean", 15),
+    },
+    "pending_subscription": {
+        "label": "Paiement sans compte — invitation à s'inscrire",
+        "trigger": "Webhook Stripe, aucun compte pour cette adresse",
+        "render": lambda: mail_pending_subscription(
+            "eleve@example.com", "membre+", FRONTEND_URL
+        ),
+    },
+    "discord_link_code": {
+        "label": "Code de liaison Discord (après achat)",
+        "trigger": "Achat NAVIRE AI / AI+ / PREPASSERELLE",
+        "render": lambda: mail_discord_link_code(
+            user_id=42,
+            email="eleve@example.com",
+            code="A7K2P9",
+            validity_label="7 jours",
+            context_label="NAVIRE AI+",
+        ),
+    },
+    "prepa_adjuris_link_code": {
+        "label": "Code de liaison Discord — Prép'AdJuris",
+        "trigger": "Achat Prép'AdJuris",
+        "render": lambda: mail_prepa_adjuris_link_code(
+            "eleve@example.com", "A7K2P9", "L2 — Droit administratif", user_id=42
+        ),
+    },
+    "discord_linked": {
+        "label": "Confirmation de liaison Discord",
+        "trigger": "Le bot valide le code de liaison",
+        "render": lambda: mail_discord_linked("Jean", "jean#4021", "NAVIRE AI+"),
+    },
+    "password_changed": {
+        "label": "Mot de passe modifié",
+        "trigger": "POST /users/me/password (compte avec mot de passe)",
+        "render": lambda: mail_password_changed("Jean"),
+    },
+    "password_set": {
+        "label": "Mot de passe défini (compte Google/Facebook)",
+        "trigger": "POST /users/me/password (compte sans mot de passe)",
+        "render": lambda: mail_password_changed("Jean", was_set=True),
+    },
+}
+
+
+def catalog() -> list[dict]:
+    """Liste des emails connus, avec leur objet réel (données d'exemple)."""
+    rows = []
+    for key, entry in EMAIL_CATALOG.items():
+        subject, _ = entry["render"]()
+        rows.append({
+            "key": key,
+            "label": entry["label"],
+            "trigger": entry["trigger"],
+            "subject": subject,
+        })
+    return rows
+
+
+def render_sample(key: str) -> tuple[str, str]:
+    """(subject, html) d'un email du catalogue, rempli de données fictives."""
+    entry = EMAIL_CATALOG.get(key)
+    if not entry:
+        raise KeyError(key)
+    return entry["render"]()

@@ -369,3 +369,80 @@ def fix_complete_sessions(
     )
     db.commit()
     return {"patched": result.rowcount}
+
+# ============================================================
+# Emails — catalogue et envoi de test
+# ============================================================
+# Le rendu réel d'un mail ne se vérifie que dans une vraie boîte : le logo
+# passe par une URL publique, et chaque client (Gmail, Outlook, Apple Mail)
+# applique ses propres règles. D'où ces deux routes, pilotées depuis la
+# commande `/mails` du terminal de la console admin.
+
+@router.get("/emails")
+def list_emails(_: None = Depends(verify_admin_code)):
+    """Liste les emails que l'application sait envoyer, avec leur objet."""
+    from app.services.email import catalog
+
+    return {"items": catalog()}
+
+
+@router.post("/emails/test")
+def send_test_email(
+    key: str = "all",
+    to: str | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_code),
+):
+    """
+    Envoie un email de test rempli de données fictives.
+
+    - `key` : clé du catalogue, ou "all" pour les envoyer tous ;
+    - `to`  : destinataire ; par défaut l'adresse d'un compte admin, pour que
+      la commande console marche sans avoir à retaper son email.
+
+    L'objet est préfixé « [TEST] » : ces messages ne doivent jamais être
+    confondus avec un envoi réel s'ils atterrissent dans la mauvaise boîte.
+    Aucune écriture en base : rien n'est créé, aucun code n'est émis.
+    """
+    from app.services.email import EMAIL_CATALOG, render_sample, send_mail
+
+    destination = (to or "").strip()
+    if not destination:
+        admin = db.execute(
+            select(models.User)
+            .where(models.User.is_admin == True)  # noqa: E712
+            .order_by(models.User.id)
+        ).scalars().first()
+        if not admin:
+            raise HTTPException(
+                status_code=400,
+                detail="Aucun compte admin trouvé — précise une adresse (to=…).",
+            )
+        destination = admin.email
+
+    if "@" not in destination:
+        raise HTTPException(status_code=400, detail="Adresse email invalide.")
+
+    keys = list(EMAIL_CATALOG.keys()) if key == "all" else [key]
+    unknown = [k for k in keys if k not in EMAIL_CATALOG]
+    if unknown:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Email inconnu : {', '.join(unknown)}. "
+                   f"Disponibles : {', '.join(EMAIL_CATALOG)}.",
+        )
+
+    results = []
+    for k in keys:
+        subject, html = render_sample(k)
+        ok = send_mail(destination, f"[TEST] {subject}", html)
+        results.append({"key": k, "subject": subject, "sent": bool(ok)})
+
+    sent = sum(1 for r in results if r["sent"])
+    return {
+        "to": destination,
+        "requested": len(results),
+        "sent": sent,
+        "failed": len(results) - sent,
+        "results": results,
+    }

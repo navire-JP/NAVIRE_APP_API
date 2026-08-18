@@ -13,6 +13,16 @@ APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
 
 API_BASE_URL = os.getenv("API_BASE_URL", "")
 
+# URL publique de l'API, utilisée partout où un lien absolu est nécessaire —
+# en pratique le logo affiché en en-tête des emails, qui ne peut pas être servi
+# par un chemin relatif. API_BASE_URL prime ; à défaut, l'URL Render de prod.
+PUBLIC_API_URL = (API_BASE_URL or "https://navire-app-api.onrender.com").rstrip("/")
+
+# Logo NAVIRE des emails. Servi par app/routers/assets.py depuis le dossier
+# assets/ du dépôt ; surchargeable par EMAIL_LOGO_URL si un jour l'image est
+# hébergée ailleurs (CDN, Cloudinary…).
+EMAIL_LOGO_URL = os.getenv("EMAIL_LOGO_URL", f"{PUBLIC_API_URL}/assets/logo-navire.png")
+
 CORS_ORIGINS = _split_csv(os.getenv("CORS_ORIGINS", ""))
 
 # ============================================================

@@ -20,6 +20,7 @@ from app.db.prepa_adjuris_migration import run_prepa_adjuris_migration
 from app.db.navire_migration import run_navire_migration, ensure_vector_extension
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
+from app.routers.assets import router as assets_router
 from app.routers.meta import router as meta_router
 from app.routers.users import router as users_router
 from app.routers.files import router as files_router
@@ -208,6 +209,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(assets_router)
 app.include_router(meta_router)
 app.include_router(users_router)
 app.include_router(files_router)
