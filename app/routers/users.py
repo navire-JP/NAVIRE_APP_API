@@ -6,8 +6,9 @@ from sqlalchemy import func, select, asc, desc
 
 from app.db.database import get_db
 from app.db.models import User, QcmSessionHistory, File as FileModel
-from app.schemas.auth import ProfileUpdateIn, UserOut
+from app.schemas.auth import PasswordChangeIn, ProfileUpdateIn, UserOut, validate_password
 from app.routers.auth import get_current_user
+from app.core.security import hash_password, verify_password, create_access_token
 from app.core.cloudinary_client import upload_avatar, is_allowed_image, MAX_AVATAR_BYTES, resolve_avatar_url
 from app.core.config import DISCORD_INVITE_URL
 from app.core.limits import get_limit
@@ -18,7 +19,7 @@ from app.services.discord_link import (
     issue_code,
     seconds_left,
 )
-from app.services.email import discord_sync_channel_url
+from app.services.email import discord_sync_channel_url, mail_password_changed, send_mail
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -40,6 +41,11 @@ def _user_dict(u: User) -> dict:
         "plan": u.plan,
         "elo": int(u.elo or 0),
         "discord_linked": bool(u.discord_id),
+        # Le front en a besoin pour choisir entre « Modifier mon mot de passe »
+        # (compte email) et « Définir un mot de passe » (compte Google/Facebook,
+        # qui n'en a aucun tant qu'il n'en crée pas un ici).
+        "has_password": bool(u.password_hash),
+        "oauth_provider": u.oauth_provider,
     }
 
 
@@ -96,6 +102,84 @@ def update_me(
     db.commit()
     db.refresh(current_user)
     return _user_dict(current_user)
+
+
+# ============================================================
+# Mot de passe — changement depuis la page profil
+# ============================================================
+
+@router.post("/me/password")
+def change_my_password(
+    payload: PasswordChangeIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Change le mot de passe du compte connecté (roue « paramètres » de la page
+    profil).
+
+    Deux cas :
+      - compte email : l'ancien mot de passe est obligatoire et vérifié, pour
+        qu'un jeton volé ne suffise pas à verrouiller le compte de son
+        propriétaire ;
+      - compte Google/Facebook (password_hash NULL) : il n'y a pas d'ancien
+        mot de passe à fournir, la route sert alors à en *définir* un. Le
+        compte garde sa connexion par fournisseur et gagne la connexion par
+        email + mot de passe.
+
+    La nouvelle valeur passe par la même politique qu'à l'inscription
+    (validate_password) : 8 à 72 caractères, 1 majuscule, 1 chiffre ou symbole.
+
+    Un nouveau jeton est renvoyé pour que le front remplace celui qu'il garde
+    en local sans forcer une reconnexion.
+    """
+    has_password = bool(current_user.password_hash)
+
+    # 1) Vérification de l'identité pour les comptes qui ont déjà un mot de passe
+    if has_password:
+        if not payload.current_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Mot de passe actuel requis.",
+            )
+        if not verify_password(payload.current_password, current_user.password_hash):
+            raise HTTPException(
+                status_code=400,
+                detail="Mot de passe actuel incorrect.",
+            )
+
+    # 2) Politique de mot de passe (identique à l'inscription)
+    try:
+        validate_password(payload.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 3) Refus d'un « changement » qui n'en est pas un
+    if has_password and verify_password(payload.new_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=400,
+            detail="Le nouveau mot de passe doit être différent de l'actuel.",
+        )
+
+    current_user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    db.refresh(current_user)
+
+    # 4) Alerte de sécurité par email — best effort, ne bloque jamais la
+    # réponse : c'est par ce message que le titulaire du compte apprend qu'un
+    # mot de passe a été changé sans lui.
+    try:
+        subject, html = mail_password_changed(current_user.username, was_set=not has_password)
+        send_mail(current_user.email, subject, html)
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "access_token": create_access_token(str(current_user.id)),
+        "token_type": "bearer",
+        "user": _user_dict(current_user),
+    }
 
 
 # ============================================================
@@ -379,6 +463,8 @@ def get_profile_summary(
             "plan": u.plan,
             "created_at": u.created_at,
             "discord_linked": bool(u.discord_id),
+            "has_password": bool(u.password_hash),
+            "oauth_provider": u.oauth_provider,
         },
         "deepwork": deepwork_stats,
         "elo": {

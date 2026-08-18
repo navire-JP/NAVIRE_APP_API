@@ -310,6 +310,48 @@ def mail_discord_linked(
     return subject, html
 
 
+def mail_password_changed(username: str, was_set: bool = False) -> tuple[str, str]:
+    """
+    (subject, html) de l'alerte envoyée après un changement de mot de passe
+    depuis la page profil.
+
+    was_set=True quand le compte n'avait pas de mot de passe jusque-là (compte
+    Google/Facebook qui vient d'en définir un) : le message parle alors de
+    création, pas de modification.
+    """
+    action = "défini" if was_set else "modifié"
+    subject = (
+        "Un mot de passe a été défini sur ton compte NAVIRE"
+        if was_set
+        else "Ton mot de passe NAVIRE a été modifié"
+    )
+    html = f"""
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; background: #0a0a0a; color: #f0f0f0; padding: 32px;">
+  <div style="max-width: 520px; margin: auto; background: #141414; border-radius: 12px; padding: 32px;">
+    <h1 style="color: #e63946; margin-top: 0;">NAVIRE</h1>
+    <p>Bonjour {username},</p>
+    <p>
+      Le mot de passe de ton compte NAVIRE vient d'être <strong>{action}</strong>
+      depuis ta page profil.
+    </p>
+    <p>
+      Tu peux désormais te connecter sur {FRONTEND_URL} avec ton adresse email
+      et ce nouveau mot de passe.
+    </p>
+    <p style="font-size: 0.85em; color: #888;">
+      Tu n'es pas à l'origine de ce changement ? Préviens l'équipe
+      immédiatement : ton compte a probablement été compromis.
+    </p>
+  </div>
+</body>
+</html>
+"""
+    return subject, html
+
+
 def mail_verification_code(code: str, username: str, ttl_minutes: int) -> tuple[str, str]:
     """
     (subject, html) du code à 6 chiffres qui prouve que l'adresse appartient

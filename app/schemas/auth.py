@@ -69,6 +69,20 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=8, max_length=72)
 
 
+class PasswordChangeIn(BaseModel):
+    """
+    Changement de mot de passe depuis la page profil (bouton « paramètres »).
+
+    current_password est optionnel pour un seul cas : les comptes créés via
+    Google/Facebook n'ont pas de mot de passe (password_hash NULL). Ils peuvent
+    en définir un depuis le profil sans ancien mot de passe à fournir — la
+    session authentifiée fait foi. Pour tous les autres comptes, la route
+    l'exige et le vérifie.
+    """
+    current_password: str | None = Field(default=None, max_length=72)
+    new_password: str = Field(min_length=8, max_length=72)
+
+
 class ProfileUpdateIn(BaseModel):
     
     username: str | None = Field(default=None, min_length=1, max_length=64)
