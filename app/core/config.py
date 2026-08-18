@@ -18,10 +18,18 @@ API_BASE_URL = os.getenv("API_BASE_URL", "")
 # par un chemin relatif. API_BASE_URL prime ; à défaut, l'URL Render de prod.
 PUBLIC_API_URL = (API_BASE_URL or "https://navire-app-api.onrender.com").rstrip("/")
 
-# Logo NAVIRE des emails. Servi par app/routers/assets.py depuis le dossier
-# assets/ du dépôt ; surchargeable par EMAIL_LOGO_URL si un jour l'image est
-# hébergée ailleurs (CDN, Cloudinary…).
-EMAIL_LOGO_URL = os.getenv("EMAIL_LOGO_URL", f"{PUBLIC_API_URL}/assets/logoNAVIRE.png")
+# Logo NAVIRE des emails, servi directement depuis le dépôt GitHub.
+#
+# Deux raisons de ne pas passer par l'API : l'image reste joignable même
+# pendant un redéploiement ou un réveil de l'instance Render (un client mail
+# qui tombe sur une API endormie affiche une image cassée, définitivement en
+# cache chez certains), et GitHub répond sans authentification, ce dont un
+# client mail a besoin. Surchargeable par EMAIL_LOGO_URL.
+EMAIL_LOGO_URL = os.getenv(
+    "EMAIL_LOGO_URL",
+    "https://raw.githubusercontent.com/navire-JP/NAVIRE_APP_API"
+    "/refs/heads/main/assets/logoNAVIRE.png",
+)
 
 CORS_ORIGINS = _split_csv(os.getenv("CORS_ORIGINS", ""))
 
