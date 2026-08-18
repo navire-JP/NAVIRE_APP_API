@@ -31,7 +31,7 @@ from app.core.config import (
 )
 from app.core.security import hash_password, verify_password
 from app.db.models import EmailVerification
-from app.services.email import send_mail, mail_verification_code
+from app.services.email import send_mail_result, mail_verification_code
 
 EMAIL_TOKEN_SCOPE = "email_verify"
 EMAIL_TOKEN_TTL_MINUTES = 30
@@ -106,12 +106,35 @@ def request_code(db: Session, email: str, username: str = "") -> int:
     db.commit()
 
     subject, html = mail_verification_code(code, username, EMAIL_CODE_TTL_MINUTES)
-    sent = send_mail(to=email, subject=subject, html=html)
+    outcome = send_mail_result(to=email, subject=subject, html=html)
 
-    if not sent:
+    if not outcome["sent"]:
         # Sans email parti, l'utilisateur attendrait un code fantôme.
+        #
+        # Le message dépend de la nature de la panne : « réessaie dans un
+        # instant » sur une clé absente ou un expéditeur non validé fait
+        # réessayer quelqu'un pendant dix minutes pour rien, puis abandonner.
+        # Une panne de configuration ne se résout pas toute seule : il faut le
+        # dire, et donner une porte de sortie.
+        detail = outcome["detail"] or ""
+        configuration_cassee = (
+            "BREVO_API_KEY" in detail
+            or "sender" in detail.lower()
+            or "HTTP 400" in detail
+            or "HTTP 401" in detail
+        )
+        # Trace serveur explicite : c'est la seule alerte qui existe
+        # aujourd'hui quand l'envoi tombe.
+        print(f"[email-verification] échec envoi vers {email} — {detail}")
+
+        if configuration_cassee:
+            raise VerificationError(
+                "L'envoi d'emails est indisponible de notre côté (problème de "
+                "configuration, pas de ta faute). Écris-nous pour qu'on active "
+                "ton compte à la main."
+            )
         raise VerificationError(
-            "Impossible d'envoyer l'email pour le moment. Réessaie dans un instant."
+            "Impossible d'envoyer l'email pour le moment. Réessaie dans une minute."
         )
 
     return EMAIL_CODE_RESEND_COOLDOWN

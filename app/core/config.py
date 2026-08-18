@@ -104,7 +104,10 @@ STRIPE_CANCEL_URL = os.getenv(
 # Brevo (emails transactionnels)
 # ============================================================
 BREVO_API_KEY     = os.getenv("BREVO_API_KEY", "")
-BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "no-reply@navire.fr")
+# L'expéditeur était déjà pilotable par variable d'environnement ; seul le
+# défaut pointait vers navire.fr, un domaine non authentifié chez Brevo.
+# Défaut aligné sur le domaine réellement utilisé et en cours d'authentification.
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "no-reply@navire-ai.com")
 BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "NAVIRE")
 
 

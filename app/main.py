@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 import asyncio
+import logging
 import threading
 import os
 
@@ -74,6 +75,35 @@ def _purge_old_history() -> None:
 
 scheduler = BackgroundScheduler(timezone="UTC")
 scheduler.add_job(_purge_old_history, trigger="cron", hour=3, minute=0)
+
+
+def _daily_email_health() -> None:
+    """
+    Contrôle quotidien de la chaîne d'envoi.
+
+    Le signalement d'une panne d'email est venu d'une élève, vingt heures
+    après le début de l'incident. Ce job ne remplace pas une vraie alerte,
+    mais il inscrit chaque jour l'état réel dans les logs : une panne devient
+    datable au lieu d'être découverte par un prospect.
+    """
+    try:
+        from app.services.email import brevo_diagnostic
+
+        diag = brevo_diagnostic()
+        if diag.get("erreur"):
+            print(f"[email-health] ⚠️  {diag['erreur']}")
+        elif diag.get("sender_is_verified") is False:
+            print(
+                f"[email-health] ⚠️  Expéditeur {diag.get('sender_configured')} NON validé "
+                "chez Brevo — les emails ne partent pas."
+            )
+        else:
+            print(f"[email-health] ✅ Expéditeur {diag.get('sender_configured')} validé.")
+    except Exception as exc:
+        print(f"[email-health] ⚠️  Contrôle impossible : {exc}")
+
+
+scheduler.add_job(_daily_email_health, trigger="cron", hour=7, minute=30)
 scheduler.add_job(
     check_expired_subscriptions,
     trigger="interval",
@@ -146,8 +176,78 @@ def _start_discord_bot() -> None:
 # Lifespan (startup / shutdown)
 # ============================================================
 
+# ============================================================
+# Bruit des logs — /health toutes les 5 s noie tout le reste
+# ============================================================
+# Le probe de Render appelle /health en continu : sans ce filtre, retrouver
+# trois lignes utiles dans les logs demande de scroller des minutes. Seule la
+# ligne d'accès est masquée ; une erreur sur /health resterait visible.
+class _NoHealthAccessLog(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/health" not in record.getMessage()
+
+
+logging.getLogger("uvicorn.access").addFilter(_NoHealthAccessLog())
+
+
+# ============================================================
+# Variables d'environnement — contrôle au démarrage
+# ============================================================
+# BREVO_API_KEY a pu manquer plusieurs jours sans que rien ne le signale :
+# les inscriptions échouaient en silence. Le démarrage dit maintenant ce qui
+# manque, et n'empêche jamais le service de monter — une clé Stripe absente
+# ne doit pas priver tout le monde de l'application.
+REQUIRED_ENV = [
+    "DATABASE_URL",
+    "JWT_SECRET",
+    "BREVO_API_KEY",
+    "BREVO_SENDER_EMAIL",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "OPENAI_API_KEY",
+]
+
+
+def _check_env() -> None:
+    missing = [k for k in REQUIRED_ENV if not os.getenv(k)]
+    if missing:
+        print(f"[boot] ⚠️  VARIABLES MANQUANTES : {', '.join(missing)}")
+        if "BREVO_API_KEY" in missing:
+            print("[boot] ⚠️  Aucun email ne partira : inscription impossible.")
+    else:
+        print("[boot] ✅ Variables d'environnement : toutes présentes.")
+
+
+def _check_email_sender() -> None:
+    """
+    Vérifie auprès de Brevo que l'expéditeur configuré est bien validé.
+
+    C'est le piège silencieux : un expéditeur non validé fait accepter l'appel
+    par Brevo puis ne délivre rien. Sans ce contrôle, la panne ne se voit que
+    lorsqu'un élève signale qu'il n'a jamais reçu son code.
+    """
+    try:
+        from app.services.email import brevo_diagnostic
+
+        diag = brevo_diagnostic()
+        if diag.get("erreur"):
+            print(f"[boot] ⚠️  Email — {diag['erreur']}")
+        elif diag.get("sender_is_verified") is False:
+            print(
+                f"[boot] ⚠️  Email — expéditeur {diag.get('sender_configured')} "
+                "NON validé chez Brevo : les messages seront acceptés puis jamais délivrés."
+            )
+        elif diag.get("sender_is_verified") is True:
+            print(f"[boot] ✅ Email — expéditeur {diag.get('sender_configured')} validé.")
+    except Exception as exc:  # ne doit jamais empêcher le démarrage
+        print(f"[boot] ⚠️  Contrôle email impossible : {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _check_env()
+    _check_email_sender()
+
     print("🚀 Startup: ensuring storage dirs...")
     ensure_storage_dirs()
 

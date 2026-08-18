@@ -1,4 +1,6 @@
 import os
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Header, HTTPException, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
@@ -90,6 +92,108 @@ def get_all_users(
     return {
         "users": result,
         "total": len(result),
+    }
+
+
+@router.get("/users/{user_id}")
+def get_user_detail(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_code),
+):
+    """
+    Fiche d'un utilisateur. La console appelait déjà cette route sans qu'elle
+    existe : d'où les 404 sur /admin/users/{id} alors que /admin/users
+    répondait 200, et le bloc « Prépa temporaire » qui restait à « … ».
+    """
+    u = db.execute(
+        select(models.User).where(models.User.id == user_id)
+    ).scalar_one_or_none()
+
+    if not u:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    return {
+        "id": u.id,
+        "username": u.username,
+        "email": u.email,
+        "university": getattr(u, "university", None),
+        "study_level": getattr(u, "study_level", None),
+        "elo": u.elo or 0,
+        "plan": u.plan or "free",
+        "is_admin": bool(u.is_admin),
+        "created_at": u.created_at,
+        "last_login_at": u.last_login_at,
+        "email_verified": bool(u.email_verified),
+        "oauth_provider": u.oauth_provider,
+        "discord_id": u.discord_id,
+        "discord_linked": bool(u.discord_id),
+        "prepa_annee": getattr(u, "prepa_annee", None),
+        "prepa_expires_at": getattr(u, "prepa_expires_at", None),
+    }
+
+
+@router.get("/users/{user_id}/plan")
+def get_user_plan(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_code),
+):
+    """
+    État d'abonnement détaillé : ce que dit la base, et ce que dit Stripe.
+
+    Les deux peuvent diverger (paiement échoué, annulation en fin de période,
+    abonnement supprimé côté Stripe) ; les afficher côte à côte évite de
+    corriger un plan à la main sur une base qui n'était pas la bonne source.
+    L'appel Stripe ne fait jamais échouer la route : son erreur est rendue
+    dans le bloc `stripe`.
+    """
+    u = db.execute(
+        select(models.User).where(models.User.id == user_id)
+    ).scalar_one_or_none()
+
+    if not u:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    sub = db.execute(
+        select(models.Subscription).where(models.Subscription.user_id == u.id)
+    ).scalar_one_or_none()
+
+    plan = u.plan or "free"
+    stripe_sub_id = getattr(sub, "stripe_subscription_id", None) if sub else None
+
+    stripe_block = None
+    if stripe_sub_id:
+        try:
+            import stripe as stripe_sdk
+            from app.core.config import STRIPE_SECRET_KEY
+
+            stripe_sdk.api_key = STRIPE_SECRET_KEY
+            remote = stripe_sdk.Subscription.retrieve(stripe_sub_id)
+            period_end = remote.get("current_period_end")
+            stripe_block = {
+                "status": remote.get("status"),
+                "current_period_end": (
+                    datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat()
+                    if period_end
+                    else None
+                ),
+                "cancel_at_period_end": bool(remote.get("cancel_at_period_end")),
+            }
+        except Exception as exc:
+            stripe_block = {"error": str(exc)[:200]}
+
+    return {
+        "plan": plan,
+        "billing_cycle": getattr(sub, "billing_cycle", None) if sub else None,
+        "status": getattr(sub, "status", None) if sub else "none",
+        # Manuel = un plan payant sans abonnement Stripe derrière, donc posé
+        # à la main depuis cette console.
+        "is_manual": bool(plan != "free" and not stripe_sub_id),
+        "current_period_end": getattr(sub, "current_period_end", None) if sub else None,
+        "stripe_subscription_id": stripe_sub_id,
+        "stripe_customer_id": getattr(sub, "stripe_customer_id", None) if sub else None,
+        "stripe": stripe_block,
     }
 
 
