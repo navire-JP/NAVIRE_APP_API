@@ -5,7 +5,8 @@ Deep work — sessions de travail dans le salon vocal dédié.
 Entrer dans le vocal ouvre une session : le membre reçoit un MP avec un
 chronomètre qui se réécrit tout seul et choisit un objectif de durée
 (20 min, 1 h, 1 h 30, 2 h — ou session libre). Quitter le vocal clôt la
-session et le MP devient un bilan : objectif atteint ou non, durée, totaux.
+session et le MP devient un bilan : objectif atteint ou non, durée, totaux,
+et les Elo gagnés — le temps travaillé compte pour le classement NAVIRE.
 
 Le bot ne tient pas le temps lui-même : chaque rafraîchissement demande à
 l'API le temps écoulé réel (`/discord/deepwork/tick`), calculé depuis le
@@ -53,6 +54,11 @@ GOAL_OPTIONS: list[tuple[int, str]] = [
     (120, "2 h"),
 ]
 
+# Barème de classement, tenu par l'API (`ELO_PER_HOUR`) : la valeur est
+# renvoyée à chaque appel, celle-ci ne sert que de repli d'affichage si la
+# réponse ne la porte pas.
+ELO_PER_HOUR_FALLBACK = 30
+
 PROGRESS_BLOCKS = 12
 
 # Nombre d'essais de la purge au démarrage (délais 5, 10, 20, 40, 60 s) : le
@@ -88,6 +94,11 @@ def _goal_text(goal_minutes: int | None) -> str:
     return dict(GOAL_OPTIONS).get(goal_minutes, _human(goal_minutes * 60))
 
 
+def _elo_for_seconds(seconds: int, per_hour: int = ELO_PER_HOUR_FALLBACK) -> int:
+    """Même prorata que l'API : 1 h = per_hour Elo, arrondi à l'inférieur."""
+    return max(0, int(seconds) * int(per_hour) // 3600)
+
+
 def _progress_bar(elapsed: int, target: int) -> str:
     if target <= 0:
         return ""
@@ -112,6 +123,8 @@ class LiveSession:
     goal_reached: bool = False
     elapsed: int = 0
     stats: dict = field(default_factory=dict)
+    # Bloc "elo" de la dernière réponse API : barème, points acquis, total.
+    elo: dict = field(default_factory=dict)
     # Suivi affiché dans le salon vocal au lieu des MP (repli quand les MP
     # du membre sont fermés).
     in_channel: bool = False
@@ -119,6 +132,24 @@ class LiveSession:
     @property
     def discord_id(self) -> str:
         return str(self.member.id)
+
+    @property
+    def elo_per_hour(self) -> int:
+        return int(self.elo.get("per_hour") or ELO_PER_HOUR_FALLBACK)
+
+    @property
+    def elo_pending(self) -> int:
+        """Elo acquis à cet instant — recalculés en local entre deux ticks."""
+        return _elo_for_seconds(self.elapsed, self.elo_per_hour)
+
+    def goal_reward(self, minutes: int) -> int:
+        """Ce que rapporte un objectif, tel qu'annoncé par l'API."""
+        rewards = self.elo.get("goal_rewards") or {}
+        # JSON : les clés du dict reviennent en texte.
+        value = rewards.get(str(minutes), rewards.get(minutes))
+        if value is None:
+            return _elo_for_seconds(minutes * 60, self.elo_per_hour)
+        return int(value)
 
 
 # ============================================================
@@ -138,7 +169,9 @@ class GoalView(discord.ui.View):
         self.live = live
 
         for minutes, label in GOAL_OPTIONS:
-            self.add_item(_GoalButton(minutes, label))
+            # « 1 h · +30 » — le barème est visible au moment du choix, pas
+            # seulement dans le bilan de fin.
+            self.add_item(_GoalButton(minutes, f"{label} · +{live.goal_reward(minutes)}"))
         self.add_item(_FreeButton())
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -174,6 +207,7 @@ class GoalView(discord.ui.View):
         live.goal_reached = bool(session.get("goal_reached"))
         live.elapsed = int(data.get("elapsed_seconds") or live.elapsed)
         live.stats = data.get("stats") or live.stats
+        live.elo = data.get("elo") or live.elo
 
         await interaction.response.edit_message(embed=self.cog.running_embed(live), view=self)
 
@@ -235,6 +269,11 @@ class DeepWorkCog(commands.Cog):
 
         embed.add_field(name="⏱️ Temps de travail", value=f"**{_chrono(live.elapsed)}**", inline=True)
         embed.add_field(name="🎯 Objectif", value=goal_field, inline=True)
+        embed.add_field(
+            name="🏅 Elo acquis",
+            value=f"**+{live.elo_pending}**",
+            inline=True,
+        )
         embed.add_field(name="🚀 Démarrée", value=f"<t:{started_ts}:R>", inline=True)
 
         if live.goal_minutes:
@@ -261,11 +300,14 @@ class DeepWorkCog(commands.Cog):
         elif not live.goal_chosen:
             embed.description = (
                 "Choisis ton objectif de session ci-dessous. "
-                "Le chronomètre tourne déjà — il s'arrêtera quand tu quitteras le vocal."
+                "Le chronomètre tourne déjà — il s'arrêtera quand tu quitteras le vocal.\n"
+                f"Le temps travaillé rapporte **{live.elo_per_hour} Elo par heure**, "
+                "au prorata, quel que soit l'objectif choisi."
             )
         else:
             embed.description = (
-                "Session libre : aucun objectif à tenir, le temps est simplement compté."
+                "Session libre : aucun objectif à tenir, le temps est simplement compté — "
+                f"et rapporte **{live.elo_per_hour} Elo par heure** au prorata."
             )
 
         stats = live.stats or {}
@@ -287,6 +329,7 @@ class DeepWorkCog(commands.Cog):
     def final_embed(self, live: LiveSession, data: dict) -> discord.Embed:
         session = data.get("session") or {}
         stats = data.get("stats") or {}
+        elo = data.get("elo") or {}
         duration = int(session.get("duration_seconds") or 0)
         goal_minutes = session.get("goal_minutes")
         reached = bool(session.get("goal_reached"))
@@ -317,10 +360,22 @@ class DeepWorkCog(commands.Cog):
             title, color = "⏹️ Session libre terminée", COLOR_DEEPWORK
             verdict = "Aucun objectif n'était fixé : le temps travaillé est enregistré."
 
+        gained = int(data.get("elo_gained") or elo.get("credited") or 0)
+        new_elo = int(data.get("new_elo") or elo.get("elo") or 0)
+
         embed = discord.Embed(title=title, description=verdict, color=color)
         embed.add_field(name="⏱️ Durée", value=f"**{_chrono(duration)}**", inline=True)
         embed.add_field(name="🎯 Objectif", value=_goal_text(goal_minutes), inline=True)
         embed.add_field(name="🔥 Série", value=f"{stats.get('current_streak', 0)} jour(s)", inline=True)
+        embed.add_field(
+            name="🏅 Classement",
+            value=(
+                f"**+{gained} Elo** pour cette session\n"
+                f"Nouveau total : **{new_elo} Elo** "
+                f"(dont **{int(elo.get('total') or 0)}** gagnés en deep work)"
+            ),
+            inline=False,
+        )
         embed.add_field(
             name="Tes statistiques deep work",
             value=(
@@ -356,11 +411,23 @@ class DeepWorkCog(commands.Cog):
         embed.add_field(name="Record", value=stats.get("longest_label", "0 min"), inline=True)
         embed.add_field(name="Meilleure série", value=f"{stats.get('best_streak', 0)} j", inline=True)
 
+        elo = data.get("elo") or {}
+        embed.add_field(
+            name="🏅 Elo gagnés en deep work",
+            value=(
+                f"**+{int(elo.get('total') or stats.get('elo_earned') or 0)}** "
+                f"· classement global **{int(elo.get('elo') or 0)} Elo**\n"
+                f"Barème : {int(elo.get('per_hour') or ELO_PER_HOUR_FALLBACK)} Elo par heure travaillée, au prorata."
+            ),
+            inline=False,
+        )
+
         active = data.get("active")
         if active:
             embed.description = (
                 f"⏱️ Session en cours : **{_chrono(int(data.get('active_elapsed_seconds') or 0))}** "
-                f"· objectif {_goal_text(active.get('goal_minutes'))}"
+                f"· objectif {_goal_text(active.get('goal_minutes'))} "
+                f"· **+{int((data.get('elo') or {}).get('pending') or 0)} Elo** acquis"
             )
 
         recent = data.get("recent") or []
@@ -437,6 +504,8 @@ class DeepWorkCog(commands.Cog):
             started_at=started_at,
             channel_name=channel.name,
             stats=data.get("stats") or {},
+            # Renseigné avant la GoalView : les boutons affichent le barème.
+            elo=data.get("elo") or {},
         )
         self.live[member.id] = live
 
@@ -511,9 +580,10 @@ class DeepWorkCog(commands.Cog):
         if data.get("too_short"):
             await self._log(f"⏹️ {member.mention} — passage deep work trop court, non compté")
         else:
+            gained = int(data.get("elo_gained") or 0)
             await self._log(
                 f"⏹️ {member.mention} a terminé sa session deep work — **{duration}** ({verdict}) "
-                f"· total **{stats.get('total_label', '0 min')}**"
+                f"· **+{gained} Elo** · total **{stats.get('total_label', '0 min')}**"
             )
 
     # ── Événements ───────────────────────────────────────────────────────────
@@ -607,6 +677,7 @@ class DeepWorkCog(commands.Cog):
             live.elapsed = int(data.get("elapsed_seconds") or 0)
             live.goal_minutes = session.get("goal_minutes")
             live.goal_reached = bool(session.get("goal_reached"))
+            live.elo = data.get("elo") or live.elo
 
             if not live.message:
                 continue
@@ -622,8 +693,9 @@ class DeepWorkCog(commands.Cog):
             if data.get("goal_just_reached") and not live.in_channel:
                 try:
                     await live.member.send(
-                        f"🎉 **Objectif atteint** — {_goal_text(live.goal_minutes)} de deep work. "
-                        "Tu peux t'arrêter ou continuer sur ta lancée : le temps supplémentaire est compté."
+                        f"🎉 **Objectif atteint** — {_goal_text(live.goal_minutes)} de deep work, "
+                        f"**+{live.elo_pending} Elo** acquis. Tu peux t'arrêter ou continuer sur ta "
+                        "lancée : le temps supplémentaire compte aussi au classement."
                     )
                 except discord.HTTPException:
                     pass

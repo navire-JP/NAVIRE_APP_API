@@ -315,12 +315,33 @@ def discord_leaderboard(limit: int = 20, db: Session = Depends(get_db)):
 # routeur, les cas attendus (compte non lié, session inconnue) répondent 200
 # avec {"ok": false, ...} pour que le bot les affiche tels quels.
 
+def _deepwork_elo(db: Session, session, user: User) -> dict:
+    """
+    Bloc de classement joint à chaque réponse deep work.
+
+      credited — Elo déjà crédités pour cette session (0 tant qu'elle tourne)
+      pending  — Elo qu'elle vaut à l'instant, crédités à la clôture
+      total    — Elo gagnés en deep work depuis toujours
+      elo      — classement global du membre, toutes sources confondues
+    """
+    credited = deepwork_service.awarded_elo(db, session.id)
+    return {
+        "per_hour":  deepwork_service.ELO_PER_HOUR,
+        "credited":  credited,
+        "pending":   0 if credited else deepwork_service.session_elo(session),
+        "total":     deepwork_service.total_elo_earned(db, user.id),
+        "elo":       int(user.elo or 0),
+        "goal_rewards": deepwork_service.goal_rewards(),
+    }
+
+
 def _deepwork_payload(db: Session, session, user: User) -> dict:
     return {
         "ok":      True,
         "session": deepwork_service.serialize_session(session),
         "user":    {"user_id": user.id, "username": user.username, "plan": user.plan or "free"},
         "stats":   deepwork_service.compute_stats(db, user.id),
+        "elo":     _deepwork_elo(db, session, user),
     }
 
 
@@ -362,6 +383,8 @@ def deepwork_start(body: DeepWorkStartIn, db: Session = Depends(get_db)):
     )
     payload = _deepwork_payload(db, session, user)
     payload["goal_choices"] = deepwork_service.GOAL_CHOICES
+    # Ce que rapporte chaque objectif, pour que le MP l'affiche sur les boutons.
+    payload["goal_rewards"] = deepwork_service.goal_rewards()
     return payload
 
 
@@ -402,6 +425,7 @@ def deepwork_tick(body: DeepWorkSessionIn, db: Session = Depends(get_db)):
         "elapsed_seconds": deepwork_service.elapsed_seconds(session),
         "goal_just_reached": bool(session.goal_reached) and not was_reached,
         "still_active":    session.status == deepwork_service.STATUS_ACTIVE,
+        "elo":             _deepwork_elo(db, session, user),
     }
 
 
@@ -424,9 +448,13 @@ def deepwork_stop(body: DeepWorkSessionIn, db: Session = Depends(get_db)):
         return {"ok": False, "code": "NOT_FOUND", "message": "Session introuvable."}
 
     session = deepwork_service.stop_session(db, session)
+    db.refresh(user)   # l'Elo du membre vient d'être crédité
     payload = _deepwork_payload(db, session, user)
     payload["too_short"] = session.status == deepwork_service.STATUS_DISCARDED
     payload["min_seconds"] = deepwork_service.MIN_SESSION_SECONDS
+    # Raccourci de lecture pour le bilan affiché en MP.
+    payload["elo_gained"] = payload["elo"]["credited"]
+    payload["new_elo"] = payload["elo"]["elo"]
     return payload
 
 
@@ -457,4 +485,11 @@ def deepwork_stats(discord_id: str, db: Session = Depends(get_db)):
         "recent":   deepwork_service.recent_sessions(db, user.id, limit=5),
         "active":   deepwork_service.serialize_session(active) if active else None,
         "active_elapsed_seconds": deepwork_service.elapsed_seconds(active) if active else 0,
+        "elo": {
+            "per_hour":     deepwork_service.ELO_PER_HOUR,
+            "total":        deepwork_service.total_elo_earned(db, user.id),
+            "elo":          int(user.elo or 0),
+            "pending":      deepwork_service.session_elo(active) if active else 0,
+            "goal_rewards": deepwork_service.goal_rewards(),
+        },
     }

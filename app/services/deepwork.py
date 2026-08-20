@@ -6,10 +6,14 @@ Le bot ne fait que signaler les entrées/sorties du vocal : toute la mesure du
 temps est faite ici, à partir de `started_at` posé en base au démarrage. Une
 horloge côté bot pourrait dériver ou être rejouée, celle-ci non.
 
+Le temps travaillé alimente le classement : une session rapporte des Elo au
+prorata de sa durée réelle (ELO_PER_HOUR par heure), crédités à la clôture.
+
 Vocabulaire :
   session   — un passage dans le vocal deep work (une ligne DeepWorkSession)
   objectif  — durée visée choisie dans le MP (20 min, 1 h, 1 h 30, 2 h)
   atteint   — la session a duré au moins l'objectif choisi
+  Elo       — points de classement gagnés, au prorata du temps travaillé
 """
 
 from __future__ import annotations
@@ -20,7 +24,8 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import DeepWorkSession, User
+from app.db.models import DeepWorkSession, EloEvent, User
+from app.services.elo import apply_elo_delta
 
 # Objectifs proposés dans le MP, en minutes. L'ordre est celui des boutons.
 GOAL_CHOICES: list[int] = [20, 60, 90, 120]
@@ -38,6 +43,16 @@ STATUS_ACTIVE    = "active"
 STATUS_COMPLETED = "completed"
 STATUS_DISCARDED = "discarded"
 STATUS_STALE     = "stale"
+
+# Barème de classement : une heure de deep work vaut ELO_PER_HOUR points, et
+# toute autre durée vaut son prorata. C'est le seul chiffre à changer pour
+# revaloriser le deep work — les objectifs proposés en héritent sans être
+# écrits en dur (20 min → 10, 1 h → 30, 1 h 30 → 45, 2 h → 60).
+ELO_PER_HOUR = 30
+
+# `source` des EloEvent produits ici : sépare les points de deep work de ceux
+# du QCM ou de la participation Discord dans l'historique de classement.
+ELO_SOURCE = "deepwork"
 
 
 # ============================================================
@@ -162,6 +177,13 @@ def start_session(
     db.add(session)
     db.commit()
     db.refresh(session)
+
+    # Une session close ici l'est aussi pour de bon : elle doit rapporter ses
+    # Elo comme si le membre avait quitté le vocal, sinon un aller-retour
+    # rapide effacerait le temps déjà travaillé du classement.
+    for row in previous:
+        award_session_elo(db, row)
+
     return session
 
 
@@ -235,10 +257,15 @@ def _finalize(session: DeepWorkSession) -> None:
 
 
 def stop_session(db: Session, session: DeepWorkSession) -> DeepWorkSession:
-    """Clôture la session (quitte le vocal). Idempotent."""
+    """
+    Clôture la session (quitte le vocal) et crédite les Elo du temps travaillé.
+    Idempotent : un second appel ne re-clôture ni ne re-crédite rien.
+    """
     if session.status == STATUS_ACTIVE:
         _finalize(session)
         db.commit()
+        db.refresh(session)
+        award_session_elo(db, session)
         db.refresh(session)
     return session
 
@@ -254,6 +281,104 @@ def get_active_session(db: Session, user_id: int) -> Optional[DeepWorkSession]:
 
 def get_session(db: Session, session_id: int) -> Optional[DeepWorkSession]:
     return db.query(DeepWorkSession).filter(DeepWorkSession.id == session_id).first()
+
+
+# ============================================================
+# Classement — Elo gagné par le temps travaillé
+# ============================================================
+# Le barème est un simple prorata : ELO_PER_HOUR points pour une heure, donc
+# ELO_PER_HOUR / 60 par minute. Les objectifs proposés valent ce que vaut leur
+# durée, pas un forfait à part — travailler 1 h en session libre rapporte
+# autant que tenir un objectif d'1 h, et dépasser son objectif rapporte le
+# temps en plus. L'arrondi se fait à l'entier inférieur pour ne jamais créditer
+# un objectif qui n'a pas été tenu jusqu'au bout.
+
+
+def elo_for_seconds(seconds: int) -> int:
+    """1 800 s → 15 Elo (barème 30/h). Arrondi à l'entier inférieur."""
+    return max(0, int(seconds) * ELO_PER_HOUR // 3600)
+
+
+def elo_for_goal(goal_minutes: int | None) -> int:
+    """Ce que rapporte un objectif mené à son terme. `None` (libre) → 0."""
+    if not goal_minutes:
+        return 0
+    return elo_for_seconds(int(goal_minutes) * 60)
+
+
+def goal_rewards() -> dict[int, int]:
+    """{20: 10, 60: 30, 90: 45, 120: 60} — affiché sur les boutons du MP."""
+    return {minutes: elo_for_goal(minutes) for minutes in GOAL_CHOICES}
+
+
+def session_elo(session: DeepWorkSession) -> int:
+    """
+    Elo que vaut la session à cet instant. Une session trop courte ou périmée
+    ne vaut rien : sa durée n'est pas fiable, elle est déjà hors statistiques.
+    """
+    if session.status in (STATUS_DISCARDED, STATUS_STALE):
+        return 0
+    elapsed = elapsed_seconds(session)
+    if elapsed < MIN_SESSION_SECONDS:
+        return 0
+    return elo_for_seconds(elapsed)
+
+
+def awarded_elo(db: Session, session_id: int) -> int:
+    """Elo déjà crédité pour cette session (0 si la clôture n'a pas eu lieu)."""
+    total = db.execute(
+        select(func.coalesce(func.sum(EloEvent.delta), 0)).where(
+            EloEvent.source == ELO_SOURCE,
+            EloEvent.session_id == str(session_id),
+        )
+    ).scalar_one()
+    return int(total or 0)
+
+
+def total_elo_earned(db: Session, user_id: int) -> int:
+    """Somme des Elo gagnés en deep work — part du classement due au travail."""
+    total = db.execute(
+        select(func.coalesce(func.sum(EloEvent.delta), 0)).where(
+            EloEvent.user_id == user_id,
+            EloEvent.source == ELO_SOURCE,
+        )
+    ).scalar_one()
+    return int(total or 0)
+
+
+def award_session_elo(db: Session, session: DeepWorkSession) -> int:
+    """
+    Crédite les Elo d'une session close. Renvoie ce qui vient d'être crédité.
+
+    Appelé à chaque clôture : seules les sessions `completed` rapportent, et
+    l'EloEvent porte `session_id` = l'id de la session, ce qui rend l'appel
+    idempotent (une clôture rejouée, un `stop` reçu deux fois, ne crédite pas
+    deux fois la même session).
+    """
+    if session.status != STATUS_COMPLETED:
+        return 0
+
+    gained = elo_for_seconds(int(session.duration_seconds or 0))
+    if gained <= 0:
+        return 0
+    if awarded_elo(db, session.id):
+        return 0
+
+    apply_elo_delta(
+        db,
+        user_id=session.user_id,
+        delta=gained,
+        source=ELO_SOURCE,
+        session_id=str(session.id),
+        question_index=0,   # une seule ligne par session : garde d'idempotence
+        meta={
+            "duration_seconds": int(session.duration_seconds or 0),
+            "goal_minutes":     session.goal_minutes,
+            "goal_reached":     bool(session.goal_reached),
+            "elo_per_hour":     ELO_PER_HOUR,
+        },
+    )
+    return gained
 
 
 # ============================================================
@@ -341,6 +466,8 @@ def compute_stats(db: Session, user_id: int) -> dict:
     current_streak, best_streak = _streak_days(days)
 
     return {
+        "elo_earned":         total_elo_earned(db, user_id),
+        "elo_per_hour":       ELO_PER_HOUR,
         "total_sessions":     total_sessions,
         "total_seconds":      total_seconds,
         "total_minutes":      total_seconds // 60,
@@ -374,6 +501,9 @@ def serialize_session(session: DeepWorkSession) -> dict:
         "goal_label":       goal_label(session.goal_minutes),
         "goal_reached":     bool(session.goal_reached),
         "status":           session.status,
+        # Session close : Elo crédités. Session en cours : Elo acquis à
+        # l'instant, qui continuent de monter tant que le membre reste.
+        "elo":              session_elo(session),
     }
 
 
