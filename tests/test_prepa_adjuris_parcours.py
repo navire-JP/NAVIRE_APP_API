@@ -246,3 +246,47 @@ def test_parcours_complet(env):
     assert params["metadata"]["inscription_deja_payee"] == "1"
     assert r.json()["inscription"]["total_cents"] == 0
     assert sum(p["seances"] for p in r.json()["prelevements"]) == 8   # 9 prévues - 1 prépayée
+
+
+def test_recurrence(env):
+    c = env.client
+    now = datetime.now(timezone.utc)
+    debut = (now + timedelta(days=1)).date()
+    fin = (now + timedelta(days=28)).date()
+    # L2, lundi 21 h, les 3 matières du niveau
+    r = c.post("/prepa/adjuris/admin/agenda/serie", headers=ADMIN, json={
+        "niveau": "L2", "jour_semaine": 0, "heure": "21:00",
+        "du": debut.isoformat(), "au": fin.isoformat(),
+    })
+    assert r.status_code == 200, r.text
+    items = c.get("/prepa/adjuris/admin/agenda?niveau=L2", headers=ADMIN).json()["items"]
+    penal = [s for s in items if s["matiere_key"] == "L2_droit_penal"]
+    assert len(penal) == 4
+    ref = penal[1]
+    ref_local = datetime.fromisoformat(ref["date_debut"]).astimezone(PARIS)
+    cible = (ref_local + timedelta(days=1)).replace(hour=20, minute=0, tzinfo=None)
+
+    corps = {"action": "deplacer", "portee": "suivantes", "nouvelle_date": cible.isoformat()}
+    url = f"/prepa/adjuris/admin/agenda/seances/{ref['id']}/recurrence"
+    r = c.post(url + "?simulation=true", headers=ADMIN, json=corps)
+    assert r.status_code == 200, r.text
+    assert r.json()["concernees"] == 3 and r.json()["simulation"] is True
+    avant = c.get("/prepa/adjuris/admin/agenda?matiere=L2_droit_penal", headers=ADMIN).json()["items"]
+    assert [s["date_debut"] for s in avant] == [s["date_debut"] for s in penal]  # rien écrit
+
+    r = c.post(url, headers=ADMIN, json=corps)
+    assert r.json()["concernees"] == 3
+    apres = c.get("/prepa/adjuris/admin/agenda?matiere=L2_droit_penal", headers=ADMIN).json()["items"]
+    locales = [datetime.fromisoformat(s["date_debut"]).astimezone(PARIS) for s in apres]
+    assert (locales[0].weekday(), locales[0].hour) == (0, 21)            # la première ne bouge pas
+    assert all((d.weekday(), d.hour) == (1, 20) for d in locales[1:])     # les suivantes : mardi 20 h
+    # Les autres matières du niveau n'ont pas bougé
+    admin_ = c.get("/prepa/adjuris/admin/agenda?matiere=L2_droit_administratif", headers=ADMIN).json()["items"]
+    assert all(datetime.fromisoformat(s["date_debut"]).astimezone(PARIS).weekday() == 0 for s in admin_)
+
+    # Annuler toute la récurrence du niveau (lundi 21 h) depuis une séance d'une autre matière
+    r = c.post(f"/prepa/adjuris/admin/agenda/seances/{admin_[0]['id']}/recurrence", headers=ADMIN,
+               json={"action": "annuler", "portee": "toutes", "tout_le_niveau": True})
+    assert r.json()["concernees"] == 4 * 2 + 1   # administratif + obligations (4 chacun) + 1ère de pénal
+    admin_ = c.get("/prepa/adjuris/admin/agenda?matiere=L2_droit_administratif", headers=ADMIN).json()["items"]
+    assert all(s["statut"] == "annulee" for s in admin_)

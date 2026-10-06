@@ -18,6 +18,9 @@ Admin (header X-Admin-Code, comme le reste de la console AdJuris) :
   POST   /prepa/adjuris/admin/agenda/seances/{id}/annuler
   POST   /prepa/adjuris/admin/agenda/seances/{id}/retablir
   DELETE /prepa/adjuris/admin/agenda/seances/{id}
+  POST   /prepa/adjuris/admin/agenda/seances/{id}/recurrence
+         déplacer / annuler / rétablir / supprimer une séance, les suivantes
+         de la même récurrence, ou toute la récurrence (option : tout le niveau)
   GET    /prepa/adjuris/admin/facturation                 échéanciers des élèves
   POST   /prepa/adjuris/admin/facturation/{id}/resynchroniser
   GET    /prepa/adjuris/admin/alertes
@@ -27,6 +30,7 @@ Admin (header X-Admin-Code, comme le reste de la console AdJuris) :
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -93,6 +97,26 @@ class SeanceModifIn(BaseModel):
     duree_minutes: int | None = None
     lien: str | None = None
     statut: str | None = None           # prevue | annulee
+
+
+class RecurrenceIn(BaseModel):
+    """
+    Action sur une récurrence : les séances au même jour de la semaine et à
+    la même heure (Paris) que la séance de référence.
+
+    portee : "une" (cette séance), "suivantes" (celle-ci et les suivantes),
+             "toutes" (toute la récurrence, passées comprises).
+    tout_le_niveau : étend aux autres matières du niveau sur ce créneau
+             (les 3 matières d'un niveau ont cours en même temps).
+    nouvelle_date : pour "deplacer", nouveau début de LA SÉANCE DE
+             RÉFÉRENCE ; les autres sont décalées du même nombre de jours
+             et prennent la même heure. Sans fuseau = heure de Paris.
+    """
+    action: Literal["deplacer", "annuler", "retablir", "supprimer"]
+    portee: Literal["une", "suivantes", "toutes"] = "suivantes"
+    tout_le_niveau: bool = False
+    nouvelle_date: datetime | None = None
+    duree_minutes: int | None = None
 
 
 class LienPaiementIn(BaseModel):
@@ -366,6 +390,85 @@ def supprimer_seance(seance_id: int, simulation: bool = Query(False), db: Sessio
     key = s.matiere_key
     db.delete(s)
     return _enregistrer(db, [key], simulation, lambda: {"deleted_id": seance_id})
+
+
+def _local(dt: datetime) -> datetime:
+    return facturation._aware(dt).astimezone(TZ)
+
+
+def _seances_recurrence(
+    db: Session, ref: PrepaAdjurisSeance, portee: str, tout_le_niveau: bool
+) -> list[PrepaAdjurisSeance]:
+    """Séances de la même récurrence que `ref` (même jour, même heure de
+    Paris), de la même matière ou de tout le niveau."""
+    if portee == "une":
+        return [ref]
+    ref_local = _local(ref.date_debut)
+    lignes = db.execute(
+        select(PrepaAdjurisSeance).where(PrepaAdjurisSeance.niveau == ref.niveau)
+    ).scalars().all()
+
+    def meme_serie(s: PrepaAdjurisSeance) -> bool:
+        if ref.matiere_key is None:
+            if s.matiere_key is not None:
+                return False
+        elif tout_le_niveau:
+            if s.matiere_key is None:
+                return False
+        elif s.matiere_key != ref.matiere_key:
+            return False
+        local = _local(s.date_debut)
+        return (local.weekday(), local.hour, local.minute) == (
+            ref_local.weekday(), ref_local.hour, ref_local.minute,
+        )
+
+    serie = [s for s in lignes if meme_serie(s)]
+    if portee == "suivantes":
+        serie = [s for s in serie if _local(s.date_debut).date() >= ref_local.date()]
+    return sorted(serie, key=lambda s: facturation._aware(s.date_debut))
+
+
+@router.post("/agenda/seances/{seance_id}/recurrence")
+def agir_sur_recurrence(
+    seance_id: int,
+    payload: RecurrenceIn,
+    simulation: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    """
+    Déplace, annule, rétablit ou supprime une séance, les suivantes de sa
+    récurrence, ou toute la récurrence. La facturation des élèves des
+    matières touchées est recalculée (aperçu avec ?simulation=true).
+    """
+    ref = _seance_ou_404(db, seance_id)
+    serie = _seances_recurrence(db, ref, payload.portee, payload.tout_le_niveau)
+    matieres = {s.matiere_key for s in serie}
+
+    if payload.action == "deplacer":
+        if not payload.nouvelle_date:
+            raise HTTPException(400, detail="Nouvelle date requise pour un déplacement.")
+        cible = _utc(payload.nouvelle_date).astimezone(TZ)
+        decalage = (cible.date() - _local(ref.date_debut).date()).days
+        for s in serie:
+            jour = _local(s.date_debut).date() + timedelta(days=decalage)
+            s.date_debut = datetime(
+                jour.year, jour.month, jour.day, cible.hour, cible.minute, tzinfo=TZ
+            ).astimezone(timezone.utc)
+            if payload.duree_minutes:
+                s.duree_minutes = payload.duree_minutes
+    elif payload.action in ("annuler", "retablir"):
+        for s in serie:
+            s.statut = "annulee" if payload.action == "annuler" else "prevue"
+    else:
+        for s in serie:
+            db.delete(s)
+
+    def rendu() -> dict:
+        if payload.action == "supprimer":
+            return {"concernees": len(serie), "seances": []}
+        return {"concernees": len(serie), "seances": [_serialize_seance(s) for s in serie]}
+
+    return _enregistrer(db, list(matieres), simulation, rendu)
 
 
 # ============================================================
