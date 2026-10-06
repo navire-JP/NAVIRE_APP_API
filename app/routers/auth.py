@@ -149,6 +149,7 @@ def activate_pending_prepa_adjuris(db: Session, user: User) -> int:
     from app.db.models import PrepaAdjurisEnrollment
     from app.core.prepa_adjuris_config import matiere_niveau
     from app.routers.subscriptions import send_adjuris_discord_invite
+    from app.services.prepa_adjuris_facturation import attribuer_grade, echeancier_de
 
     orphelines = db.execute(
         _select(PrepaAdjurisEnrollment).where(
@@ -170,11 +171,17 @@ def activate_pending_prepa_adjuris(db: Session, user: User) -> int:
     # ce chemin ne fait que rattraper un paiement fait avant la création du
     # compte, le résultat doit être identique.
     if actives:
-        today = datetime.now(timezone.utc)
-        expiry = datetime(today.year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
-        user.plan = "prepa"
-        user.prepa_annee = matiere_niveau(actives[0])
-        user.prepa_expires_at = expiry
+        echeanciers = [
+            x for x in (echeancier_de(e) for e in orphelines if e.status == "active") if x
+        ]
+        if echeanciers:
+            attribuer_grade(user, actives, echeanciers)
+        else:
+            # Inscription antérieure à la facturation par séance.
+            today = datetime.now(timezone.utc)
+            user.plan = "prepa"
+            user.prepa_annee = matiere_niveau(actives[0])
+            user.prepa_expires_at = datetime(today.year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
         db.commit()
 
     try:

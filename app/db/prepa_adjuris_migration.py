@@ -49,6 +49,12 @@ _STATEMENTS: list[str] = [
     # paiement) : ajoutés après coup, la table existait déjà en prod.
     "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS source VARCHAR(10)",
     "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ",
+    # Facturation au prorata des séances (octobre 2026).
+    "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS inscrit_le TIMESTAMPTZ",
+    "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS echeancier JSON",
+    "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS echeancier_statut VARCHAR(20)",
+    "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS impaye_depuis TIMESTAMPTZ",
+    "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS impaye_relance_le TIMESTAMPTZ",
 
     # ── prepa_adjuris_ressources (PDF matières + méthodo) ────
     """

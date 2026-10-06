@@ -1336,15 +1336,31 @@ class PrepaAdjurisEnrollment(Base):
     # Email du payeur — sert à rattacher la ligne au compte NAVIRE créé après coup.
 
     matiere_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    # une des clés de PREPA_PRICES / PREPA_MONTHLY_QUANTITIES
+    # une des clés de PREPA_PRICES
 
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     stripe_schedule_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    # ID du Subscription Schedule une fois converti (phases oct/nov/déc)
+    # ID du Subscription Schedule (une phase par mois facturé)
 
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
-    # active | cancelled | payment_failed | expired
+    # active | payment_failed (impayé, accès conservé 7 jours) |
+    # suspendu (impayé > 7 jours, accès retiré) | cancelled | expired
+
+    # ── Facturation au prorata des séances (voir prepa_adjuris_billing.py) ──
+    inscrit_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Instant de l'inscription : base de tous les recalculs. NULL = inscription
+    # antérieure à la facturation par séance (« historique », non recalculée).
+
+    echeancier: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Echeancier.to_dict() : séance prépayée, séances par mois, crédits.
+
+    echeancier_statut: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # ok | erreur (échéancier Stripe non créé) | a_resynchroniser
+
+    impaye_depuis: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    impaye_relance_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Premier échec de paiement non régularisé, et date de la relance J+5.
 
     source: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # "stripe" (paiement) | "admin" (accès accordé à la main) | NULL (legacy)

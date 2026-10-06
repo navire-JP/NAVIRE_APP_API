@@ -41,6 +41,8 @@ from app.routers.prepa_adjuris_espace import (
     router as prepa_adjuris_espace_router,
     expirer_acces_adjuris,
 )
+from app.routers.prepa_adjuris_agenda import router as prepa_adjuris_agenda_router
+from app.services.prepa_adjuris_facturation import job_facturation_adjuris
 from app.routers.navire import router as navire_router
 # ============================================================
 # MEOLES — import isolé
@@ -118,6 +120,16 @@ scheduler.add_job(
     hours=1,
     args=[SessionLocal],
     id="expirer_acces_adjuris",
+    replace_existing=True,
+)
+# Prép'AdJuris : reprise des échéanciers Stripe en échec, impayés (relance
+# J+5, suspension J+7). Voir app/services/prepa_adjuris_facturation.py.
+scheduler.add_job(
+    job_facturation_adjuris,
+    trigger="interval",
+    hours=1,
+    args=[SessionLocal],
+    id="job_facturation_adjuris",
     replace_existing=True,
 )
 
@@ -326,6 +338,7 @@ app.include_router(discord_bot_router)
 app.include_router(prepa_router)
 app.include_router(prepa_adjuris_router)
 app.include_router(prepa_adjuris_espace_router)
+app.include_router(prepa_adjuris_agenda_router)
 app.include_router(navire_router)
 
 # ============================================================

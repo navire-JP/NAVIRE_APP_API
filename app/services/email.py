@@ -398,6 +398,80 @@ def mail_prepa_adjuris_link_code(
     return subject, html
 
 # ============================================================
+# Prép'AdJuris — impayés
+# ============================================================
+
+def mail_prepa_adjuris_impaye(
+    etape: str,
+    matieres: str,
+    url_paiement: str | None = None,
+    date_retrait: str = "",
+) -> tuple[str, str]:
+    """
+    Retourne (subject, html) pour un prélèvement Prép'AdJuris refusé.
+
+    etape : "echec"    — le jour du refus ;
+            "relance"  — J+5, l'accès sera retiré dans 2 jours ;
+            "suspendu" — J+7, accès retiré.
+    url_paiement : page Stripe de la facture impayée, où l'élève peut payer
+    avec une autre carte. Le grade revient tout seul dès le paiement.
+    """
+    bouton = ""
+    if url_paiement:
+        bouton = f"""
+    <a href="{url_paiement}"
+       style="display: inline-block; background: #e63946; color: #fff;
+              padding: 12px 24px; border-radius: 8px; text-decoration: none;
+              font-weight: bold; margin: 16px 0;">
+      Régler le paiement
+    </a>"""
+
+    if etape == "suspendu":
+        subject = "Prép'AdJuris : ton accès est suspendu"
+        corps = f"""
+    <p>
+      Le prélèvement de ta participation à <strong>Prép'AdJuris — {matieres}</strong>
+      n'a toujours pas pu être effectué. Ton accès (grade et salons Discord) est
+      donc suspendu.
+    </p>
+    <p>Il est rétabli automatiquement dès que le paiement est réglé.</p>"""
+        preheader = "Ton accès Prép'AdJuris est suspendu jusqu'au paiement."
+    elif etape == "relance":
+        subject = "Prép'AdJuris : ton accès sera suspendu dans 2 jours"
+        corps = f"""
+    <p>
+      Le prélèvement de ta participation à <strong>Prép'AdJuris — {matieres}</strong>
+      n'a pas encore pu être effectué.
+    </p>
+    <p>
+      Sans paiement, ton accès (grade et salons Discord) sera suspendu
+      <strong>{date_retrait or "dans 2 jours"}</strong>.
+    </p>"""
+        preheader = "Dernier rappel avant suspension de ton accès."
+    else:
+        subject = "Prép'AdJuris : ton prélèvement n'a pas pu être effectué"
+        corps = f"""
+    <p>
+      Le prélèvement mensuel de ta participation à
+      <strong>Prép'AdJuris — {matieres}</strong> a été refusé par ta banque.
+    </p>
+    <p>
+      Ton accès est conservé pendant 7 jours. Tu peux régler dès maintenant,
+      par exemple avec une autre carte ; Stripe fera aussi de nouvelles
+      tentatives automatiquement.
+    </p>"""
+        preheader = "Ton accès est conservé 7 jours, le temps de régulariser."
+
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour,</p>{corps}{bouton}
+    <p style="font-size: 0.85em; color: #888;">
+      Une question ? Réponds sur le Discord NAVIRE ou contacte l'équipe.
+    </p>
+""", preheader=preheader)
+    return subject, html
+
+
+# ============================================================
 # Liaison Discord — code d'authentification et confirmation
 # ============================================================
 
@@ -595,6 +669,28 @@ EMAIL_CATALOG: dict[str, dict] = {
         "trigger": "Achat Prép'AdJuris",
         "render": lambda: mail_prepa_adjuris_link_code(
             "eleve@example.com", "A7K2P9", "L2 — Droit administratif", user_id=42
+        ),
+    },
+    "prepa_adjuris_impaye": {
+        "label": "Prép'AdJuris — prélèvement refusé (J0)",
+        "trigger": "Webhook Stripe invoice.payment_failed",
+        "render": lambda: mail_prepa_adjuris_impaye(
+            "echec", "L2 – Droit administratif", "https://invoice.stripe.com/exemple"
+        ),
+    },
+    "prepa_adjuris_impaye_relance": {
+        "label": "Prép'AdJuris — relance impayé (J+5)",
+        "trigger": "Job horaire, 5 jours après le refus",
+        "render": lambda: mail_prepa_adjuris_impaye(
+            "relance", "L2 – Droit administratif", "https://invoice.stripe.com/exemple",
+            date_retrait="le 9 novembre",
+        ),
+    },
+    "prepa_adjuris_suspendu": {
+        "label": "Prép'AdJuris — accès suspendu (J+7)",
+        "trigger": "Job horaire, 7 jours après le refus",
+        "render": lambda: mail_prepa_adjuris_impaye(
+            "suspendu", "L2 – Droit administratif", "https://invoice.stripe.com/exemple"
         ),
     },
     "discord_linked": {

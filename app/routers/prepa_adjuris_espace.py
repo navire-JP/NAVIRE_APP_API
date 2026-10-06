@@ -21,6 +21,9 @@ Admin (header X-Admin-Code) :
   POST   /prepa/adjuris/admin/seances
   PATCH  /prepa/adjuris/admin/seances/{id}
   DELETE /prepa/adjuris/admin/seances/{id}
+         (l'agenda de la console passe par prepa_adjuris_agenda.py, qui ajoute
+          les séries et l'aperçu de l'impact ; ces quatre routes restent pour
+          compatibilité et déclenchent le même recalcul de facturation)
   POST   /prepa/adjuris/admin/acces               (accès sans paiement, limité)
   POST   /prepa/adjuris/admin/acces/revoquer
   GET    /prepa/adjuris/admin/promo                (codes promo inscription)
@@ -67,10 +70,12 @@ from app.core.prepa_storage import (
 )
 from app.core.config import DISCORD_GUILD_ID, DISCORD_PREPA_ADJURIS_CHANNEL_ID
 from app.core.prepa_adjuris_config import (
+    PREPA_NIVEAUX,
     PREPA_PRICES,
     PREPA_MATIERE_NAMES,
     matiere_niveau,
 )
+from app.services.prepa_adjuris_facturation import resynchroniser_matieres
 from app.routers.auth import get_current_user
 from app.routers.admin import verify_admin_code
 from app.bot_discord.role_sync import (
@@ -82,7 +87,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/prepa/adjuris", tags=["prepa-adjuris-espace"])
 
-VALID_NIVEAUX = {"L1", "L2", "L3"}
+VALID_NIVEAUX = set(PREPA_NIVEAUX)
 
 
 def _discord_url() -> str | None:
@@ -172,7 +177,12 @@ def _serialize_seance(s: PrepaAdjurisSeance) -> dict:
             if s.matiere_key else "Séance commune"
         ),
         "titre": s.titre,
-        "date_debut": s.date_debut.isoformat() if s.date_debut else None,
+        # Une date sans fuseau (SQLite en dev) est en UTC : on le dit au front,
+        # sinon le navigateur la lirait comme une heure locale.
+        "date_debut": (
+            (s.date_debut if s.date_debut.tzinfo else s.date_debut.replace(tzinfo=timezone.utc)).isoformat()
+            if s.date_debut else None
+        ),
         "duree_minutes": s.duree_minutes,
         "lien": s.lien,
         "statut": s.statut,
@@ -200,7 +210,7 @@ def mon_espace_adjuris(
     enrollments = db.execute(
         select(PrepaAdjurisEnrollment).where(
             PrepaAdjurisEnrollment.user_id == user.id,
-            PrepaAdjurisEnrollment.status.in_(("active", "payment_failed")),
+            PrepaAdjurisEnrollment.status.in_(("active", "payment_failed", "suspendu")),
         )
     ).scalars().all()
 
@@ -401,7 +411,7 @@ async def admin_upload_ressource(
     """
     niveau = niveau.strip().upper()
     if niveau not in VALID_NIVEAUX:
-        raise HTTPException(status_code=400, detail="Niveau invalide (L1, L2 ou L3).")
+        raise HTTPException(status_code=400, detail=f"Niveau invalide ({', '.join(PREPA_NIVEAUX)}).")
 
     key = matiere_key.strip() or None
     if key:
@@ -503,7 +513,7 @@ def admin_create_seance(payload: SeanceIn, db: Session = Depends(get_db)):
     """
     niveau = payload.niveau.strip().upper()
     if niveau not in VALID_NIVEAUX:
-        raise HTTPException(status_code=400, detail="Niveau invalide (L1, L2 ou L3).")
+        raise HTTPException(status_code=400, detail=f"Niveau invalide ({', '.join(PREPA_NIVEAUX)}).")
 
     key = (payload.matiere_key or "").strip() or None
     if key:
@@ -527,7 +537,8 @@ def admin_create_seance(payload: SeanceIn, db: Session = Depends(get_db)):
     db.add(row)
     db.commit()
     db.refresh(row)
-    return {"ok": True, **_serialize_seance(row)}
+    impacts = resynchroniser_matieres(db, [key]) if key else []
+    return {"ok": True, **_serialize_seance(row), "impacts_facturation": impacts}
 
 
 @router.patch("/admin/seances/{seance_id}", dependencies=[Depends(verify_admin_code)])
@@ -537,8 +548,8 @@ def admin_update_seance(
     db: Session = Depends(get_db),
 ):
     """
-    Modifie ou annule une séance. Annuler ne change PAS la facturation :
-    les quantités Stripe restent celles de PREPA_MONTHLY_QUANTITIES.
+    Modifie ou annule une séance. La facturation des élèves de la matière est
+    recalculée (voir prepa_adjuris_facturation.resynchroniser_matieres).
     """
     s = db.execute(
         select(PrepaAdjurisSeance).where(PrepaAdjurisSeance.id == seance_id)
@@ -560,7 +571,8 @@ def admin_update_seance(
         s.statut = payload.statut
     db.commit()
     db.refresh(s)
-    return {"ok": True, **_serialize_seance(s)}
+    impacts = resynchroniser_matieres(db, [s.matiere_key]) if s.matiere_key else []
+    return {"ok": True, **_serialize_seance(s), "impacts_facturation": impacts}
 
 
 @router.delete("/admin/seances/{seance_id}", dependencies=[Depends(verify_admin_code)])
@@ -570,9 +582,11 @@ def admin_delete_seance(seance_id: int, db: Session = Depends(get_db)):
     ).scalar_one_or_none()
     if not s:
         raise HTTPException(status_code=404, detail="Séance introuvable.")
+    key = s.matiere_key
     db.delete(s)
     db.commit()
-    return {"ok": True, "deleted_id": seance_id}
+    impacts = resynchroniser_matieres(db, [key]) if key else []
+    return {"ok": True, "deleted_id": seance_id, "impacts_facturation": impacts}
 
 
 # ============================================================
@@ -895,7 +909,7 @@ def admin_list_etudiants(db: Session = Depends(get_db)):
             "niveau": sorted(f["niveaux"])[0] if len(f["niveaux"]) == 1 else "mixte",
             "matieres": f["matieres"],
             "nb_actives": len(actives),
-            "a_un_impaye": any(m["status"] == "payment_failed" for m in f["matieres"]),
+            "a_un_impaye": any(m["status"] in ("payment_failed", "suspendu") for m in f["matieres"]),
             "premiere_inscription": (
                 f["premiere_inscription"].isoformat() if f["premiere_inscription"] else None
             ),

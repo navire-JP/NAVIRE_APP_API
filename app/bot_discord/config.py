@@ -77,6 +77,9 @@ PREPA_ADJURIS_ROLE_IDS: dict[str, int] = {
     "L3_droit_des_suretes":           1533851629277810860,
     "L3_droit_des_societes":          1533851695271116891,
     "L3_droit_des_contrats_speciaux": 1533851742372888727,
+    # M1 : rôle à créer sur le serveur, puis ID à renseigner (variable
+    # d'environnement ou ici). Tant qu'il vaut 0, l'attribution est ignorée.
+    "M1_distribution": int(os.getenv("DISCORD_ROLE_ADJURIS_M1_DISTRIBUTION", "0")),
 }
 
 # ============================================================
