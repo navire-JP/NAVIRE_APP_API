@@ -1,36 +1,59 @@
 """
 app/core/prepa_adjuris_config.py
 =================================
-Données Stripe statiques du programme Prép'AdJuris : 9 matières (3 par
-niveau L1/L2/L3), 2 Prices Stripe par matière (recurring + one_time) déjà
-créés dans le dashboard, et le nombre de séances payantes par mois.
+Données statiques du programme Prép'AdJuris : matières (3 par niveau de
+licence + Distribution en M1), 2 Prices Stripe par matière (recurring +
+one_time) et réglages de la facturation.
 
-Règles métier (voir spec) :
-  - 10 septembre : séance commune gratuite, hors décompte, jamais facturée.
-  - L'inscription paie le one_time (une des séances de septembre).
-  - PREPA_MONTHLY_QUANTITIES donne le nombre BRUT de séances par mois
-    [septembre, octobre, novembre, décembre]. Le -1 de septembre (car le
-    one_time en couvre déjà une) est appliqué au moment de l'utilisation,
-    pas stocké ici.
+Règles de facturation (cahier des charges) :
+  - L'inscription paie 20 € par matière : c'est le paiement d'avance de la
+    PROCHAINE séance de la matière, pas un essai gratuit.
+  - Seules les séances qui commencent après l'inscription sont dues.
+  - Le reste est prélevé à terme échu, le dernier jour de chaque mois à
+    PREPA_HEURE_PRELEVEMENT (heure de Paris) : 20 € × séances du mois.
+  - Le calendrier des séances (table prepa_adjuris_seances) est la seule
+    source du calcul. Voir app/services/prepa_adjuris_billing.py.
 """
 
 from __future__ import annotations
 
 import os
 
-# Date du PREMIER prélèvement mensuel (fin septembre).
-#
-# À l'inscription, l'étudiant ne paie que les 20 € du one_time — ils valent
-# pour une séance de septembre (la séance commune du 10 septembre, elle, est
-# offerte et n'est jamais facturée). Le reste des séances de septembre est
-# prélevé à cette date, puis chaque mois suivant selon
-# PREPA_MONTHLY_QUANTITIES.
-#
-# Concrètement : l'abonnement Stripe est créé avec un trial jusqu'à cette date,
-# ce qui empêche le récurrent d'être facturé au moment du checkout.
-# Surchargeable par variable d'environnement, au format AAAA-MM-JJ (UTC).
-PREPA_FIRST_BILLING_DATE = os.getenv("PREPA_ADJURIS_FIRST_BILLING", "2026-09-30")
+# ── Facturation ───────────────────────────────────────────────
+PREPA_TZ = "Europe/Paris"
 
+# Prix d'une séance, en centimes. Doit correspondre aux Prices Stripe
+# (recurring et one_time) de chaque matière.
+PREPA_PRIX_SEANCE_CENTS = 2000
+
+# Heure du prélèvement mensuel, le dernier jour du mois, heure de Paris.
+# Le dernier cours d'une journée se termine au plus tard à 23 h : tout cours
+# du dernier jour est donc passé au moment du prélèvement.
+PREPA_HEURE_PRELEVEMENT = os.getenv("PREPA_ADJURIS_HEURE_PRELEVEMENT", "23:30")
+
+# Dernier mois facturé (AAAA-MM). Plus aucun prélèvement ensuite.
+PREPA_FIN_PROGRAMME = os.getenv("PREPA_ADJURIS_FIN_PROGRAMME", "2026-12")
+
+# Impayé : délai de grâce avant retrait du grade et des rôles Discord, et
+# jour de la relance par email (« accès retiré dans 2 jours »).
+PREPA_DELAI_IMPAYE_JOURS = 7
+PREPA_RELANCE_IMPAYE_JOURS = 5
+
+# ── Niveaux et créneaux ───────────────────────────────────────
+PREPA_NIVEAUX: tuple[str, ...] = ("L1", "L2", "L3", "M1")
+
+# Créneau habituel par niveau : (jour de la semaine, heure de Paris, durée en
+# minutes). Lundi = 0 … dimanche = 6. Sert à pré-remplir la création de séries
+# dans l'agenda de la console ; la facturation, elle, ne lit que les séances
+# réellement saisies.
+PREPA_CRENEAUX: dict[str, tuple[int, str, int]] = {
+    "L1": (3, "21:00", 60),   # jeudi
+    "L2": (0, "21:00", 60),   # lundi
+    "L3": (1, "21:00", 60),   # mardi
+    "M1": (5, "15:30", 60),   # samedi
+}
+
+# ── Prices Stripe ─────────────────────────────────────────────
 PREPA_PRICES: dict[str, dict[str, str]] = {
     "L1_droit_constit": {
         "recurring": "price_1U0Mp3LeRHpDiZMsi6n48xTM",
@@ -68,22 +91,15 @@ PREPA_PRICES: dict[str, dict[str, str]] = {
         "recurring": "price_1U0NAVLeRHpDiZMssxngPXGN",
         "one_time":  "price_1U0NAnLeRHpDiZMsvoglijia",
     },
+    # M1 — Prices à créer dans le dashboard Stripe (produit « Prép'AdJuris -
+    # M1 DISTRIBUTION by NAVIRE », 20 € mensuel + 20 € one_time), puis à
+    # renseigner ici ou par variable d'environnement. Tant qu'ils sont vides,
+    # le paiement de cette matière est refusé avec un message explicite.
+    "M1_distribution": {
+        "recurring": os.getenv("STRIPE_PRICE_ADJURIS_M1_DISTRIBUTION_RECURRING", ""),
+        "one_time":  os.getenv("STRIPE_PRICE_ADJURIS_M1_DISTRIBUTION_ONE_TIME", ""),
+    },
 }
-
-# Ordre : [septembre, octobre, novembre, décembre] — nombre BRUT de séances,
-# AVANT l'ajustement -1 de septembre (le one_time du checkout en couvre une).
-PREPA_MONTHLY_QUANTITIES: dict[str, list[int]] = {
-    "L1_droit_constit":               [3, 5, 4, 4],
-    "L1_intro_au_droit":              [3, 5, 4, 4],
-    "L1_droit_ijae":                  [3, 5, 4, 4],
-    "L2_droit_administratif":         [4, 4, 4, 5],
-    "L2_droit_des_obligations":       [4, 4, 4, 5],
-    "L2_droit_penal":                 [4, 4, 4, 5],
-    "L3_droit_des_societes":          [4, 4, 4, 5],
-    "L3_droit_des_suretes":           [4, 4, 4, 5],
-    "L3_droit_des_contrats_speciaux": [4, 4, 4, 5],
-}
-
 
 # Libellés d'affichage (emails, export CSV, formulaire public). Séparé des
 # clés techniques : celles-ci sont figées côté Stripe et ne doivent pas bouger.
@@ -97,6 +113,7 @@ PREPA_MATIERE_NAMES: dict[str, str] = {
     "L3_droit_des_societes":          "Droit des sociétés",
     "L3_droit_des_suretes":           "Droit des sûretés",
     "L3_droit_des_contrats_speciaux": "Droit des contrats spéciaux",
+    "M1_distribution":                "Distribution",
 }
 
 
@@ -110,3 +127,14 @@ def matiere_label(matiere_key: str) -> str:
     niveau, _, rest = matiere_key.partition("_")
     nom = PREPA_MATIERE_NAMES.get(matiere_key) or rest.replace("_", " ").capitalize()
     return f"{niveau} – {nom}"
+
+
+def matieres_du_niveau(niveau: str) -> list[str]:
+    """Clés des matières d'un niveau, dans l'ordre de la config."""
+    return [k for k in PREPA_PRICES if matiere_niveau(k) == niveau]
+
+
+def prices_configures(matiere_key: str) -> bool:
+    """Les deux Prices Stripe de la matière sont-ils renseignés ?"""
+    p = PREPA_PRICES.get(matiere_key) or {}
+    return bool(p.get("recurring")) and bool(p.get("one_time"))

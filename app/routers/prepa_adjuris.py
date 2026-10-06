@@ -11,8 +11,10 @@ Endpoint bot Discord (header x-bot-secret) :
   POST /prepa/adjuris/link-discord      → valide un code, lie discord_id,
                                            attribue les rôles des matières actives
 
-Endpoint public (aucune auth — formulaire embarqué sur le site) :
+Endpoints publics (aucune auth — formulaire embarqué sur le site) :
   POST /prepa/adjuris/inscription       → pré-inscription (manifestation d'intérêt)
+  POST /prepa/adjuris/checkout          → pré-inscription + Checkout Stripe
+  GET  /prepa/adjuris/echeancier        → devis : ce qui sera prélevé et quand
 
 Endpoints admin (header X-Admin-Code) :
   GET  /prepa/adjuris/admin/inscriptions      → liste JSON
@@ -32,7 +34,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select, desc
 from sqlalchemy.orm import Session
@@ -55,20 +57,30 @@ from app.core.config import (
     DISCORD_PREPA_ADJURIS_CHANNEL_ID,
 )
 from app.core.prepa_adjuris_config import (
+    PREPA_NIVEAUX,
     PREPA_PRICES,
-    PREPA_MONTHLY_QUANTITIES,
     PREPA_MATIERE_NAMES,
-    PREPA_FIRST_BILLING_DATE,
+    PREPA_PRIX_SEANCE_CENTS,
     matiere_label,
     matiere_niveau,
+    prices_configures,
 )
 from app.bot_discord.role_sync import assign_adjuris_role_sync
+from app.services.prepa_adjuris_billing import (
+    Echeancier,
+    date_prelevement,
+    devis_vers_metadata,
+    parse_mois,
+    prelevements,
+    texte_recap,
+)
+from app.services.prepa_adjuris_facturation import calculer_devis
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/prepa/adjuris", tags=["prepa-adjuris"])
 
-VALID_NIVEAUX = {"L1", "L2", "L3"}
+VALID_NIVEAUX = set(PREPA_NIVEAUX)
 
 
 # ============================================================
@@ -96,7 +108,7 @@ class PrepaAdjurisInscriptionIn(BaseModel):
     nom: str = Field(..., min_length=1, max_length=80)
     email: EmailStr
     niveau: str = Field(..., max_length=4)
-    matieres: list[str] = Field(..., min_length=1, max_length=9)
+    matieres: list[str] = Field(..., min_length=1, max_length=len(PREPA_PRICES))
 
     # Honeypot : champ invisible pour un humain, rempli par la plupart des bots.
     # S'il est non vide, on répond OK sans rien enregistrer.
@@ -125,7 +137,7 @@ def my_adjuris_enrollments(
     rows = db.execute(
         select(PrepaAdjurisEnrollment).where(
             PrepaAdjurisEnrollment.user_id == user.id,
-            PrepaAdjurisEnrollment.status.in_(("active", "payment_failed")),
+            PrepaAdjurisEnrollment.status.in_(("active", "payment_failed", "suspendu")),
         )
     ).scalars().all()
 
@@ -191,33 +203,76 @@ def _adjuris_stripe_product_id(matiere_key: str) -> str:
     return _ADJURIS_PRODUCT_ID_CACHE[matiere_key]
 
 
+def _devis_ou_erreur(
+    db: Session,
+    matieres: list[str],
+    inscrit_le: datetime,
+    maintenant: datetime,
+) -> list[Echeancier]:
+    """
+    Devis de l'inscription, ou HTTP 400 si une matière ne peut plus être
+    souscrite (Prices Stripe absents, plus aucune séance à venir, programme
+    terminé).
+    """
+    sans_prix = [m for m in matieres if not prices_configures(m)]
+    if sans_prix:
+        raise HTTPException(status_code=400, detail={
+            "code": "MATIERE_NON_OUVERTE",
+            "message": f"Le paiement de {matiere_label(sans_prix[0])} n'est pas encore ouvert.",
+        })
+
+    # Marge de 2 h : si le prélèvement du mois tombe dans moins de 2 h (dernier
+    # jour du mois, tard le soir), on démarre au mois suivant. Stripe exige une
+    # date de premier prélèvement encore future au moment où l'élève paie.
+    devis = calculer_devis(
+        db, matieres, inscrit_le, facturable_apres=maintenant + timedelta(hours=2)
+    )
+
+    terminees = [e.matiere_key for e in devis if e.seance_prepayee is None]
+    if terminees:
+        raise HTTPException(status_code=400, detail={
+            "code": "PLUS_DE_SEANCE",
+            "message": f"Plus aucune séance à venir pour {matiere_label(terminees[0])}.",
+        })
+    if not devis or not devis[0].mois:
+        raise HTTPException(status_code=400, detail={
+            "code": "PROGRAMME_TERMINE",
+            "message": "Le programme Prép'AdJuris est terminé pour cette période.",
+        })
+    return devis
+
+
 def _creer_checkout_session(
+    db: Session,
     matieres: list[str],
     email: str,
     user: User | None = None,
     metadata_extra: dict | None = None,
     override_price_cents: int | None = None,
     success_path: str = "/prepa-merci",
+    inscrit_le: datetime | None = None,
+    inscription_deja_payee: bool = False,
 ):
     """
-    Construit et crée la Checkout Session. Partagé par les deux points d'entrée
-    (formulaire public et espace connecté) : c'est ce qui garantit qu'ils
-    facturent à l'identique — seuls les 20 € par matière sont encaissés, le
-    récurrent étant différé au premier prélèvement.
+    Construit et crée la Checkout Session. Partagé par tous les points
+    d'entrée (formulaire public, espace connecté, lien de paiement admin) :
+    c'est ce qui garantit qu'ils facturent à l'identique.
 
-    Toutes les matières doivent être du même niveau : les phases du Subscription
-    Schedule appliquent une quantité unique par mois à tous les items.
+    Ce qui est encaissé au paiement : 20 € par matière (le one_time), qui
+    règlent d'avance la prochaine séance. Rien d'autre : l'abonnement démarre
+    avec billing_cycle_anchor = date du premier prélèvement (fin du mois) et
+    proration_behavior="none", donc aucun prorata d'ici là. Il n'y a plus
+    d'essai gratuit, ni de règle des 48 h.
 
-    override_price_cents (code promo validé en amont) remplace le Price
-    one_time fixe par un price_data au montant exact, matière par matière.
-    Le récurrent n'est jamais concerné par la promo — seule l'inscription
-    (séance de septembre) l'est.
+    Le devis (séances par mois) est figé dans la metadata : le webhook crée
+    l'échéancier Stripe avec exactement ce que l'élève a vu.
 
-    success_path : destination après paiement. Le checkout authentifié
-    (compte créé avant paiement) redirige vers /login pour que l'élève voie
-    son grade tout de suite ; le formulaire public, resté possible pour
-    compatibilité, garde /prepa-merci — une simple page de remerciement,
-    puisqu'il n'y a pas encore de session à reprendre.
+    override_price_cents : code promo validé en amont, remplace le prix
+    d'inscription matière par matière. Le mensuel n'est jamais concerné.
+
+    inscrit_le / inscription_deja_payee : lien de paiement créé par un admin
+    pour un élève qui a déjà réglé ses 20 € autrement (inscription antidatée,
+    pas de one_time). Les mois déjà passés ne sont jamais facturés.
     """
     niveaux = {matiere_niveau(m) for m in matieres}
     if len(niveaux) > 1:
@@ -226,32 +281,63 @@ def _creer_checkout_session(
             detail="Les matières d'un même paiement doivent appartenir au même niveau.",
         )
 
+    maintenant = datetime.now(timezone.utc)
+    inscrit_le = inscrit_le or maintenant
+    devis = _devis_ou_erreur(db, matieres, inscrit_le, maintenant)
+
+    premier_mois = devis[0].depuis
+    premier_prelevement = date_prelevement(parse_mois(premier_mois))
+
     _stripe()  # force la clé NAVIRE
 
-    # Le one_time couvre une séance de septembre → -1 sur le recurring.
-    septembre_recurring_qty = PREPA_MONTHLY_QUANTITIES[matieres[0]][0] - 1
-
     line_items = []
-    for key in matieres:
-        if override_price_cents is not None:
-            line_items.append({
-                "price_data": {
-                    "currency": "eur",
-                    "product": _adjuris_stripe_product_id(key),
-                    "unit_amount": override_price_cents,
-                },
-                "quantity": 1,
-            })
-        else:
-            line_items.append({"price": PREPA_PRICES[key]["one_time"], "quantity": 1})
-        if septembre_recurring_qty > 0:
-            line_items.append({
-                "price": PREPA_PRICES[key]["recurring"],
-                "quantity": septembre_recurring_qty,
-            })
+    for e in devis:
+        key = e.matiere_key
+        if not inscription_deja_payee:
+            if override_price_cents is not None:
+                line_items.append({
+                    "price_data": {
+                        "currency": "eur",
+                        "product": _adjuris_stripe_product_id(key),
+                        "unit_amount": override_price_cents,
+                    },
+                    "quantity": 1,
+                })
+            else:
+                line_items.append({"price": PREPA_PRICES[key]["one_time"], "quantity": 1})
+        # Quantité du premier mois : n'est pas prélevée maintenant (pas de
+        # prorata), elle sert seulement à l'affichage Stripe « puis X € ».
+        # Les vraies quantités sont posées par l'échéancier (webhook).
+        line_items.append({
+            "price": PREPA_PRICES[key]["recurring"],
+            "quantity": max(1, e.mois.get(premier_mois, 0)),
+        })
 
-    metadata = {"matiere_keys": ",".join(matieres), "email": email}
+    inscrit_iso = inscrit_le.isoformat()
+    metadata = {
+        "matiere_keys": ",".join(matieres),
+        "email": email,
+        "inscrit_le": inscrit_iso,
+        "echeancier": devis_vers_metadata(devis),
+    }
+    if inscription_deja_payee:
+        metadata["inscription_deja_payee"] = "1"
     metadata.update(metadata_extra or {})
+
+    # Le devis ne doit pas pouvoir devenir faux entre l'ouverture du lien et
+    # le paiement : le lien expire avant la prochaine séance (Stripe impose
+    # entre 30 minutes et 24 heures, bornes exclues).
+    # Lien admin (inscription antidatée) : le devis ne dépend pas du moment
+    # du paiement, 24 h de validité.
+    expire = maintenant + timedelta(hours=23, minutes=55)
+    if not inscription_deja_payee:
+        prochaine = min(e.seance_prepayee for e in devis if e.seance_prepayee)
+        expire = max(min(expire, prochaine), maintenant + timedelta(minutes=31))
+
+    inscription_cents = (
+        None if inscription_deja_payee
+        else (override_price_cents if override_price_cents is not None else PREPA_PRIX_SEANCE_CENTS)
+    )
 
     params = {
         "mode": "subscription",
@@ -260,25 +346,58 @@ def _creer_checkout_session(
         "success_url": f"{FRONTEND_URL}{success_path}?session_id={{CHECKOUT_SESSION_ID}}",
         "cancel_url": f"{FRONTEND_URL}/prepa-adjuris",
         "metadata": metadata,
+        "expires_at": int(expire.timestamp()),
+        "subscription_data": {
+            "billing_cycle_anchor": int(premier_prelevement.timestamp()),
+            "proration_behavior": "none",
+            "metadata": {"matiere_keys": ",".join(matieres), "inscrit_le": inscrit_iso},
+        },
+        "custom_text": {
+            "submit": {"message": texte_recap(devis, inscription_cents=inscription_cents)}
+        },
     }
     if user:
         params["client_reference_id"] = str(user.id)
 
-    # Trial jusqu'au premier prélèvement : sans lui, Stripe facturerait le
-    # récurrent dès le checkout (60 € en L1 au lieu des 20 € d'inscription).
-    trial_end = _first_billing_timestamp()
-    if trial_end:
-        params["subscription_data"] = {"trial_end": trial_end}
-        # Stripe affiche « Puis X € par mois » d'après la quantité du checkout :
-        # on détaille le vrai échéancier juste au-dessus du bouton de paiement.
-        params["custom_text"] = {
-            "submit": {"message": _recap_prelevements(matieres[0], len(matieres))}
-        }
-
     try:
         return stripe.checkout.Session.create(**params)
+    except stripe.InvalidRequestError as e:
+        # Repli : si Stripe refusait la date d'ancrage, on obtient le même
+        # résultat (20 € seulement aujourd'hui, premier prélèvement à la même
+        # date) avec un essai jusqu'à cette date. Stripe exige un essai d'au
+        # moins 48 h : en deçà, on laisse l'erreur remonter plutôt que de
+        # facturer le mois d'un coup.
+        ancre = params["subscription_data"]["billing_cycle_anchor"]
+        if ancre - maintenant.timestamp() < 49 * 3600:
+            raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
+        logger.error("Checkout Adjuris : ancrage refusé par Stripe (%s), repli sur trial_end.", e)
+        params["subscription_data"] = {
+            "trial_end": ancre,
+            "metadata": params["subscription_data"]["metadata"],
+        }
+        try:
+            return stripe.checkout.Session.create(**params)
+        except stripe.StripeError as e2:
+            raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e2)}")
     except stripe.StripeError as e:
         raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
+
+
+def _devis_public(devis: list[Echeancier], inscription_cents: int | None) -> dict:
+    """Devis sérialisé pour le site et la console."""
+    return {
+        "inscription": {
+            "par_matiere_cents": inscription_cents,
+            "total_cents": (inscription_cents or 0) * len(devis),
+            "seances_prepayees": {
+                e.matiere_key: e.seance_prepayee.isoformat() if e.seance_prepayee else None
+                for e in devis
+            },
+        },
+        "prelevements": prelevements(devis),
+        "total_mensuel_cents": sum(p["montant_cents"] for p in prelevements(devis)),
+        "texte": texte_recap(devis, inscription_cents=inscription_cents),
+    }
 
 
 @router.post("/checkout-session")
@@ -300,10 +419,12 @@ def create_prepa_adjuris_checkout(
     if inconnues:
         raise HTTPException(status_code=400, detail=f"Matière inconnue : {inconnues[0]}")
 
+    # Une matière en impayé n'est pas « libre » : l'élève doit régler la
+    # facture ouverte, pas créer un second abonnement.
     deja = set(db.execute(
         select(PrepaAdjurisEnrollment.matiere_key).where(
             PrepaAdjurisEnrollment.user_id == user.id,
-            PrepaAdjurisEnrollment.status == "active",
+            PrepaAdjurisEnrollment.status.in_(("active", "payment_failed", "suspendu")),
         )
     ).scalars().all())
     a_payer = [m for m in matieres if m not in deja]
@@ -320,7 +441,7 @@ def create_prepa_adjuris_checkout(
         override_price_cents = promo.override_price_cents
 
     session = _creer_checkout_session(
-        a_payer, user.email, user=user,
+        db, a_payer, user.email, user=user,
         override_price_cents=override_price_cents,
         success_path="/login",
     )
@@ -391,71 +512,11 @@ def link_discord_adjuris(payload: LinkDiscordAdjurisIn, db: Session = Depends(ge
 # Formulaire public du site (pré-inscription, sans paiement)
 # ============================================================
 
-def _first_billing_timestamp() -> int | None:
-    """
-    Timestamp du premier prélèvement mensuel, passé à Stripe en trial_end.
-    Tant que ce trial court, seul le paiement d'inscription (20 €) est encaissé.
-
-    Retourne None si la date est passée ou trop proche : Stripe exige un
-    trial_end à plus de 48 h, et un étudiant qui s'inscrit après cette date doit
-    de toute façon être facturé immédiatement.
-    """
-    try:
-        jour = datetime.strptime(PREPA_FIRST_BILLING_DATE, "%Y-%m-%d")
-    except ValueError:
-        logger.error(
-            "PREPA_ADJURIS_FIRST_BILLING invalide (%s) — attendu AAAA-MM-JJ. "
-            "Trial désactivé : le récurrent sera facturé dès le checkout.",
-            PREPA_FIRST_BILLING_DATE,
-        )
-        return None
-
-    # Fin de journée, pour que le prélèvement tombe bien le jour dit.
-    echeance = jour.replace(hour=22, minute=0, tzinfo=timezone.utc)
-    if echeance < datetime.now(timezone.utc) + timedelta(hours=49):
-        return None
-    return int(echeance.timestamp())
-
-
-_MOIS_SUIVANTS = ("octobre", "novembre", "décembre")
-
-
-def _recap_prelevements(matiere_key: str, nb_matieres: int) -> str:
-    """
-    Message affiché sur la page Stripe, au-dessus du bouton de paiement.
-
-    Stripe résume l'abonnement par « Puis X € par mois », calculé sur la
-    quantité du checkout — trompeur ici, puisque le nombre de séances (donc le
-    montant) change chaque mois. Ce texte donne le détail réel.
-    """
-    quantites = PREPA_MONTHLY_QUANTITIES[matiere_key]
-    prix = lambda seances: seances * 20 * nb_matieres  # noqa: E731
-
-    try:
-        jour = datetime.strptime(PREPA_FIRST_BILLING_DATE, "%Y-%m-%d")
-        date_1 = f"le {jour.day} septembre"
-    except ValueError:
-        date_1 = "fin septembre"
-
-    lignes = [f"{prix(quantites[0] - 1)} € {date_1}"]
-    lignes += [
-        f"{prix(q)} € en {mois}"
-        for q, mois in zip(quantites[1:], _MOIS_SUIVANTS)
-    ]
-
-    return (
-        "Le montant prélevé chaque mois correspond au total des séances "
-        "facturées ce mois-là (20 € la séance), il n'est donc pas fixe : "
-        + ", ".join(lignes[:-1]) + " et " + lignes[-1] + ". "
-        "L'abonnement prend fin automatiquement après décembre."
-    )
-
-
 def _validate_inscription(payload: PrepaAdjurisInscriptionIn) -> tuple[str, list[str]]:
     """Valide niveau + matières. Retourne (niveau, matieres dédoublonnées)."""
     niveau = payload.niveau.strip().upper()
     if niveau not in VALID_NIVEAUX:
-        raise HTTPException(status_code=400, detail="Niveau invalide (L1, L2 ou L3).")
+        raise HTTPException(status_code=400, detail=f"Niveau invalide ({', '.join(PREPA_NIVEAUX)}).")
 
     # Dédoublonne en gardant l'ordre de sélection.
     matieres = list(dict.fromkeys(payload.matieres))
@@ -557,7 +618,7 @@ def create_prepa_adjuris_public_checkout(
     deja_payees = set(db.execute(
         select(PrepaAdjurisEnrollment.matiere_key).where(
             PrepaAdjurisEnrollment.email == email,
-            PrepaAdjurisEnrollment.status == "active",
+            PrepaAdjurisEnrollment.status.in_(("active", "payment_failed", "suspendu")),
         )
     ).scalars().all())
     a_payer = [m for m in matieres if m not in deja_payees]
@@ -579,7 +640,7 @@ def create_prepa_adjuris_public_checkout(
         override_price_cents = promo.override_price_cents
 
     session = _creer_checkout_session(
-        a_payer, email, user=user,
+        db, a_payer, email, user=user,
         metadata_extra={
             "niveau": niveau,
             "prenom": payload.prenom.strip()[:80],
@@ -593,6 +654,31 @@ def create_prepa_adjuris_public_checkout(
         db.commit()
 
     return {"checkout_url": session.url, "matieres": a_payer}
+
+
+@router.get("/echeancier")
+def devis_inscription(
+    matieres: str = Query(..., description="Clés séparées par des virgules"),
+    promo_code: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Ce qui serait encaissé et prélevé pour une inscription maintenant :
+    affiché par le site avant le paiement. Public, sans effet de bord (un
+    code promo est vérifié mais pas consommé).
+    """
+    keys = list(dict.fromkeys(m.strip() for m in matieres.split(",") if m.strip()))
+    inconnues = [m for m in keys if m not in PREPA_PRICES]
+    if not keys or inconnues:
+        raise HTTPException(status_code=400, detail=f"Matière inconnue : {inconnues[0] if inconnues else '—'}")
+
+    inscription_cents = PREPA_PRIX_SEANCE_CENTS
+    if promo_code:
+        inscription_cents = _validate_adjuris_promo(db, promo_code).override_price_cents
+
+    maintenant = datetime.now(timezone.utc)
+    devis = _devis_ou_erreur(db, keys, maintenant, maintenant)
+    return {"matieres": keys, **_devis_public(devis, inscription_cents)}
 
 
 # ============================================================

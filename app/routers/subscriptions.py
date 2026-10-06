@@ -44,7 +44,7 @@ import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc, update, and_, or_
+from sqlalchemy import select, desc, and_, or_
 
 from app.db.database import get_db
 from app.db.models import (
@@ -68,9 +68,7 @@ from app.core.config import (
 )
 from app.core.prepa_adjuris_config import (
     PREPA_PRICES,
-    PREPA_MONTHLY_QUANTITIES,
     matiere_label,
-    matiere_niveau,
 )
 from app.core.navire_plans import (
     PriceUnavailable,
@@ -91,7 +89,9 @@ from app.services.discord_link import (
     active_codes,
     issue_code,
 )
-from app.bot_discord.role_sync import assign_adjuris_role_sync, remove_adjuris_role_sync
+from app.bot_discord.role_sync import assign_adjuris_role_sync
+from app.services.prepa_adjuris_billing import devis_depuis_metadata
+from app.services import prepa_adjuris_facturation as facturation_adjuris
 
 logger = logging.getLogger(__name__)
 
@@ -755,14 +755,16 @@ def send_adjuris_discord_invite(db: Session, user: User, matieres: list[str]) ->
 def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: list[str]) -> None:
     """
     Traite un checkout.session.completed Prép'AdJuris : enregistre une ligne par
-    matière, convertit l'abonnement en Subscription Schedule pour les mois
-    suivants (quantités oct/nov/déc, arrêt automatique après décembre), puis
-    ouvre l'accès Discord.
+    matière avec son échéancier, crée l'échéancier Stripe (une phase par mois
+    facturé), attribue le grade, puis ouvre l'accès Discord.
+
+    Le devis vient de la metadata de la Checkout Session (figé au moment où
+    l'élève a vu les montants). À défaut (session créée avant cette version),
+    il est recalculé depuis la date de création de la session.
 
     Un Checkout Session ne crée qu'UN abonnement : si plusieurs matières ont été
     payées, toutes les lignes partagent le même stripe_subscription_id, et
-    l'abonnement porte un item recurring par matière. Comme le formulaire impose
-    un niveau unique, toutes partagent aussi le même calendrier de quantités.
+    l'abonnement porte un item recurring par matière, chacun avec ses quantités.
 
     Le paiement peut venir d'un email sans compte NAVIRE : dans ce cas les
     lignes sont créées sans user_id et rattachées à l'inscription (auth.py).
@@ -803,7 +805,18 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
         logger.error("Adjuris : paiement %s sans email ni compte — impossible à rattacher.", sub_id)
         return
 
+    # ── Devis ─────────────────────────────────────────────────
+    try:
+        inscrit_le = datetime.fromisoformat(meta["inscrit_le"])
+    except (KeyError, ValueError):
+        inscrit_le = datetime.fromtimestamp(session.get("created") or utcnow().timestamp(), timezone.utc)
+    devis = devis_depuis_metadata(meta.get("echeancier", ""), inscrit_le)
+    if not devis:
+        devis = facturation_adjuris.calculer_devis(db, matiere_keys, inscrit_le, facturable_apres=utcnow())
+    par_matiere = {e.matiere_key: e for e in devis}
+
     for key in matiere_keys:
+        ech = par_matiere.get(key)
         db.add(PrepaAdjurisEnrollment(
             user_id=user.id if user else None,
             email=email or (user.email if user else None),
@@ -812,52 +825,26 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
             stripe_customer_id=session.get("customer"),
             status="active",
             source="stripe",
+            inscrit_le=inscrit_le,
+            echeancier=ech.to_dict() if ech else None,
+            echeancier_statut="erreur",  # passe à "ok" une fois l'échéancier Stripe créé
         ))
     db.commit()
 
-    # ── Conversion en Subscription Schedule (oct/nov/déc) ──────
-    # Engagement 4 mois (sept → déc) : end_behavior="cancel" pour que
-    # l'abonnement s'arrête automatiquement après la phase de décembre —
-    # pas de reconduction implicite, l'étudiant se réinscrit ensuite.
-    prochains_mois = PREPA_MONTHLY_QUANTITIES[matiere_keys[0]][1:]  # oct, nov, déc
-
+    # ── Échéancier Stripe : une phase par mois facturé ────────
+    # En cas d'échec, le statut reste "erreur" : la console l'affiche et le
+    # job horaire réessaie (facturation_adjuris.job_facturation_adjuris).
+    # Toute exception est absorbée : faire échouer le webhook ferait relivrer
+    # l'event, qui serait alors ignoré (idempotence) sans grade ni Discord.
     try:
-        schedule = stripe.SubscriptionSchedule.create(from_subscription=sub_id)
-        future_phases = [
-            {
-                "items": [
-                    {"price": PREPA_PRICES[k]["recurring"], "quantity": q}
-                    for k in matiere_keys
-                ],
-                "iterations": 1,
-            }
-            for q in prochains_mois
-        ]
-        stripe.SubscriptionSchedule.modify(
-            schedule["id"],
-            phases=[schedule["phases"][0]] + future_phases,
-            end_behavior="cancel",
-        )
-        db.execute(
-            update(PrepaAdjurisEnrollment)
-            .where(PrepaAdjurisEnrollment.stripe_subscription_id == sub_id)
-            .values(stripe_schedule_id=schedule["id"])
-        )
-        db.commit()
-    except stripe.StripeError as e:
-        logger.error("Adjuris : échec création Subscription Schedule pour %s : %s", sub_id, e)
+        facturation_adjuris.pousser_echeancier_stripe(db, sub_id)
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        logger.error("Adjuris : échec création de l'échéancier Stripe pour %s : %s", sub_id, e)
 
-    # ── Grade NAVIRE ─────────────────────────────────────────
-    # Sans ça le badge PREPA n'apparaissait jamais sur le profil après un
-    # vrai paiement — seul un grant admin manuel le posait. L'engagement
-    # Stripe s'arrête après la phase de décembre (end_behavior="cancel" plus
-    # haut) : même échéance ici, pas de renouvellement implicite.
+    # ── Grade NAVIRE : conservé tant que l'abonnement est actif ──
     if user:
-        today = datetime.now(timezone.utc)
-        expiry = datetime(today.year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
-        user.plan = "prepa"
-        user.prepa_annee = matiere_niveau(matiere_keys[0])
-        user.prepa_expires_at = expiry
+        facturation_adjuris.attribuer_grade(user, matiere_keys, devis)
         db.commit()
 
     # ── Accès Discord ──────────────────────────────────────────
@@ -868,34 +855,6 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
         # sera ouvert au moment de l'inscription (auth.py).
         subject, html = mail_pending_subscription(email, "prepa-adjuris", FRONTEND_URL)
         send_mail(email, subject, html)
-
-
-def _handle_adjuris_subscription_event(db: Session, stripe_sub_id: str, status: str) -> None:
-    """
-    Symétrique de l'attribution : passe les inscriptions concernées dans l'état
-    donné et retire les rôles Discord. Boucle sur toutes les lignes, car un
-    abonnement peut porter plusieurs matières.
-    """
-    enrollments = db.execute(
-        select(PrepaAdjurisEnrollment).where(
-            PrepaAdjurisEnrollment.stripe_subscription_id == stripe_sub_id
-        )
-    ).scalars().all()
-    if not enrollments:
-        return
-
-    for enrollment in enrollments:
-        enrollment.status = status
-    db.commit()
-
-    for enrollment in enrollments:
-        if not enrollment.user_id:
-            continue
-        user = db.execute(
-            select(User).where(User.id == enrollment.user_id)
-        ).scalar_one_or_none()
-        if user and user.discord_id:
-            remove_adjuris_role_sync(user.discord_id, enrollment.matiere_key)
 
 
 # ============================================================
@@ -910,7 +869,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     Events gérés :
       checkout.session.completed      → activer le plan après paiement
       invoice.payment_succeeded       → renouvellement → prolonger la période
+                                        (Prép'AdJuris : régularise un impayé)
       invoice.payment_failed          → passer en past_due
+                                        (Prép'AdJuris : 7 jours de grâce)
       customer.subscription.deleted   → résiliation effective → downgrade free
       customer.subscription.updated   → mise à jour dates/statut
     """
@@ -1067,6 +1028,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     elif event_type == "invoice.payment_succeeded":
         stripe_sub_id = data.get("subscription")
         if stripe_sub_id:
+            # Prép'AdJuris : un impayé réglé rend l'accès (grade et rôles).
+            facturation_adjuris.regulariser(db, stripe_sub_id)
+
             sub = db.execute(
                 select(Subscription).where(Subscription.stripe_subscription_id == stripe_sub_id)
             ).scalar_one_or_none()
@@ -1103,7 +1067,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 sub.status = "past_due"
                 db.commit()
 
-            _handle_adjuris_subscription_event(db, stripe_sub_id, "payment_failed")
+            # Prép'AdJuris : accès conservé 7 jours, retiré ensuite par le
+            # job horaire si rien n'est réglé (facturation_adjuris).
+            facturation_adjuris.marquer_impaye(db, stripe_sub_id, data)
 
     # ── customer.subscription.deleted ─────────────────────
     elif event_type == "customer.subscription.deleted":
@@ -1117,7 +1083,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             if user:
                 _downgrade_to_free(db, user, sub, status="expired")
 
-        _handle_adjuris_subscription_event(db, stripe_sub_id, "cancelled")
+        facturation_adjuris.terminer_abonnement(db, stripe_sub_id)
 
     # ── customer.subscription.updated ─────────────────────
     elif event_type == "customer.subscription.updated":

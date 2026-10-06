@@ -1,0 +1,3 @@
+# Outils de développement (non installés en production)
+-r requirements.txt
+pytest>=8
