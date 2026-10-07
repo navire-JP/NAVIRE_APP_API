@@ -1425,6 +1425,15 @@ class PrepaAdjurisSeance(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+    # Colonne présente en prod depuis une version antérieure (NOT NULL) :
+    # sans elle dans le modèle, tout INSERT de séance échouait.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )
 
 
 class AdjurisPromoCode(Base):
