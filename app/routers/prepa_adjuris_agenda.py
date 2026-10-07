@@ -52,7 +52,7 @@ from app.core.prepa_adjuris_config import (
 from app.db.database import get_db
 from app.db.models import PrepaAdjurisEnrollment, PrepaAdjurisSeance, User
 from app.routers.admin import verify_admin_code
-from app.routers.prepa_adjuris import _creer_checkout_session, _devis_public
+from app.routers.prepa_adjuris import _creer_checkout_session, _dates_devis, _devis_public
 from app.routers.prepa_adjuris_espace import _serialize_seance
 from app.services import prepa_adjuris_facturation as facturation
 from app.services.prepa_adjuris_billing import TZ
@@ -583,5 +583,9 @@ def lien_paiement(payload: LienPaiementIn, db: Session = Depends(get_db)):
         "expire_le": datetime.fromtimestamp(session.expires_at, timezone.utc).isoformat()
         if getattr(session, "expires_at", None) else None,
         "matieres": a_payer,
-        **_devis_public(devis, None if payload.inscription_deja_payee else PREPA_PRIX_SEANCE_CENTS),
+        **_devis_public(
+            devis,
+            None if payload.inscription_deja_payee else PREPA_PRIX_SEANCE_CENTS,
+            _dates_devis(db, devis),
+        ),
     }
