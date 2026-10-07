@@ -74,6 +74,7 @@ from app.services.prepa_adjuris_billing import (
     prelevements,
     texte_recap,
     textes_stripe,
+    total_du_jour_cents,
 )
 from app.services.prepa_adjuris_facturation import calculer_devis, dates_seances
 
@@ -210,6 +211,7 @@ def _devis_ou_erreur(
     matieres: list[str],
     inscrit_le: datetime,
     maintenant: datetime,
+    seances_suivies: dict[str, list[datetime]] | None = None,
 ) -> list[Echeancier]:
     """
     Devis de l'inscription, ou HTTP 400 si une matière ne peut plus être
@@ -227,10 +229,13 @@ def _devis_ou_erreur(
     # jour du mois, tard le soir), on démarre au mois suivant. Stripe exige une
     # date de premier prélèvement encore future au moment où l'élève paie.
     devis = calculer_devis(
-        db, matieres, inscrit_le, facturable_apres=maintenant + timedelta(hours=2)
+        db, matieres, inscrit_le, facturable_apres=maintenant + timedelta(hours=2),
+        seances_suivies=seances_suivies,
     )
 
-    terminees = [e.matiere_key for e in devis if e.seance_prepayee is None]
+    terminees = [
+        e.matiere_key for e in devis if e.seance_prepayee is None and not e.seances_suivies
+    ]
     if terminees:
         raise HTTPException(status_code=400, detail={
             "code": "PLUS_DE_SEANCE",
@@ -288,6 +293,7 @@ def _creer_checkout_session(
     success_path: str = "/prepa-merci",
     inscrit_le: datetime | None = None,
     inscription_deja_payee: bool = False,
+    seances_suivies: dict[str, list[datetime]] | None = None,
 ):
     """
     Construit et crée la Checkout Session. Partagé par tous les points
@@ -310,6 +316,9 @@ def _creer_checkout_session(
     inscrit_le / inscription_deja_payee : lien de paiement créé par un admin
     pour un élève qui a déjà réglé ses 20 € autrement (inscription antidatée,
     pas de one_time). Les mois déjà passés ne sont jamais facturés.
+    seances_suivies : inscription en cours de route (lien admin) : les cours
+    déjà suivis sont réglés au paiement (20 € chacun) à la place des frais
+    d'inscription, et tous les cours à venir sont prélevés en fin de mois.
     Rien à encaisser (inscription déjà réglée, promo à 0 €) : mode "setup",
     la page enregistre seulement la carte.
     """
@@ -322,7 +331,7 @@ def _creer_checkout_session(
 
     maintenant = datetime.now(timezone.utc)
     inscrit_le = inscrit_le or maintenant
-    devis = _devis_ou_erreur(db, matieres, inscrit_le, maintenant)
+    devis = _devis_ou_erreur(db, matieres, inscrit_le, maintenant, seances_suivies)
 
     premier_mois = devis[0].depuis
     premier_prelevement = date_prelevement(parse_mois(premier_mois))
@@ -340,10 +349,13 @@ def _creer_checkout_session(
                         "product": _adjuris_stripe_product_id(key),
                         "unit_amount": override_price_cents,
                     },
-                    "quantity": 1,
+                    "quantity": e.nb_reglees_inscription,
                 })
             else:
-                line_items.append({"price": PREPA_PRICES[key]["one_time"], "quantity": 1})
+                line_items.append({
+                    "price": PREPA_PRICES[key]["one_time"],
+                    "quantity": e.nb_reglees_inscription,
+                })
 
     inscrit_iso = inscrit_le.isoformat()
     metadata = {
@@ -352,6 +364,8 @@ def _creer_checkout_session(
         "inscrit_le": inscrit_iso,
         "echeancier": devis_vers_metadata(devis),
     }
+    if len(metadata["echeancier"]) > 500:   # limite Stripe par valeur de metadata
+        raise HTTPException(status_code=400, detail="Trop de séances sélectionnées pour un seul lien.")
     if inscription_deja_payee:
         metadata["inscription_deja_payee"] = "1"
     metadata.update(metadata_extra or {})
@@ -366,9 +380,9 @@ def _creer_checkout_session(
         maintenant + timedelta(hours=23, minutes=55),
         premier_prelevement - timedelta(minutes=15),
     )
-    if not inscription_deja_payee:
-        prochaine = min(e.seance_prepayee for e in devis if e.seance_prepayee)
-        expire = min(expire, prochaine)
+    prochaines = [e.seance_prepayee for e in devis if e.seance_prepayee]
+    if not inscription_deja_payee and prochaines:
+        expire = min(expire, min(prochaines))
     expire = max(expire, maintenant + timedelta(minutes=31))
 
     inscription_cents = (
@@ -444,7 +458,11 @@ def _devis_public(
     return {
         "inscription": {
             "par_matiere_cents": inscription_cents,
-            "total_cents": (inscription_cents or 0) * len(devis),
+            "total_cents": total_du_jour_cents(devis, inscription_cents),
+            "seances_suivies": {
+                e.matiere_key: [d.isoformat() for d in e.seances_suivies]
+                for e in devis if e.seances_suivies
+            },
             "seances_prepayees": {
                 e.matiere_key: e.seance_prepayee.isoformat() if e.seance_prepayee else None
                 for e in devis

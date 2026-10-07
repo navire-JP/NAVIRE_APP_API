@@ -52,7 +52,12 @@ from app.core.prepa_adjuris_config import (
 from app.db.database import get_db
 from app.db.models import PrepaAdjurisEnrollment, PrepaAdjurisSeance, User
 from app.routers.admin import verify_admin_code
-from app.routers.prepa_adjuris import _creer_checkout_session, _dates_devis, _devis_public
+from app.routers.prepa_adjuris import (
+    _creer_checkout_session,
+    _dates_devis,
+    _devis_ou_erreur,
+    _devis_public,
+)
 from app.routers.prepa_adjuris_espace import _serialize_seance
 from app.services import prepa_adjuris_facturation as facturation
 from app.services.prepa_adjuris_billing import TZ
@@ -126,6 +131,10 @@ class LienPaiementIn(BaseModel):
     # autrement. Laisser vide pour une inscription « maintenant ».
     inscrit_le: datetime | None = None
     inscription_deja_payee: bool = False
+    # Inscription en cours de route : ids des cours passés que l'élève a
+    # suivis. Ils sont réglés au paiement (20 € chacun) à la place des frais
+    # d'inscription ; tous les cours à venir sont prélevés en fin de mois.
+    seances_suivies: list[int] = []
 
 
 # ============================================================
@@ -540,9 +549,19 @@ def alertes(db: Session = Depends(get_db)):
 # ============================================================
 
 @router.post("/lien-paiement")
-def lien_paiement(payload: LienPaiementIn, db: Session = Depends(get_db)):
+def lien_paiement(
+    payload: LienPaiementIn,
+    apercu: bool = Query(False),
+    db: Session = Depends(get_db),
+):
     """
     Crée un lien de paiement Stripe pour un élève, à lui transmettre.
+    apercu=true : renvoie seulement le devis (rien n'est créé chez Stripe).
+
+    Inscription en cours de route : seances_suivies = cours déjà suivis
+    (passés, de ces matières). Ils sont réglés au paiement à la place des
+    frais d'inscription, sans les doubler ; avec inscription_deja_payee, ils
+    sont considérés comme déjà réglés et rien n'est encaissé.
 
     Cas d'usage : un élève a déjà réglé ses 20 € autrement (ex. M1, cours
     du 3 octobre). inscrit_le = juste avant ce cours et
@@ -567,25 +586,48 @@ def lien_paiement(payload: LienPaiementIn, db: Session = Depends(get_db)):
     if not a_payer:
         raise HTTPException(400, detail="Cet élève a déjà un abonnement pour ces matières.")
 
-    inscrit_le = _utc(payload.inscrit_le) if payload.inscrit_le else None
+    maintenant = facturation.utcnow()
+    suivies: dict[str, list[datetime]] = {}
+    if payload.seances_suivies:
+        rows = db.execute(
+            select(PrepaAdjurisSeance).where(PrepaAdjurisSeance.id.in_(set(payload.seances_suivies)))
+        ).scalars().all()
+        if len(rows) != len(set(payload.seances_suivies)):
+            raise HTTPException(400, detail="Cours introuvable dans l'agenda.")
+        for s in rows:
+            debut = facturation._aware(s.date_debut)
+            if s.matiere_key not in a_payer:
+                raise HTTPException(400, detail="Un cours sélectionné ne correspond à aucune matière du lien.")
+            if debut > maintenant:
+                raise HTTPException(400, detail="Seuls les cours déjà passés peuvent être cochés comme suivis.")
+            if s.statut != "prevue":
+                raise HTTPException(400, detail="Un cours annulé ne peut pas être coché comme suivi.")
+            suivies.setdefault(s.matiere_key, []).append(debut)
+
+    # Cours suivis : l'inscription date de maintenant (seuls les cours à venir
+    # sont prélevés). Sinon, inscription antidatée éventuelle (ancien usage).
+    inscrit_le = None if suivies else (_utc(payload.inscrit_le) if payload.inscrit_le else None)
+    inscription_cents = None if payload.inscription_deja_payee else PREPA_PRIX_SEANCE_CENTS
+    devis = _devis_ou_erreur(db, a_payer, inscrit_le or maintenant, maintenant, suivies)
+    reponse = {
+        "matieres": a_payer,
+        **_devis_public(devis, inscription_cents, _dates_devis(db, devis)),
+    }
+    if apercu:
+        return {"apercu": True, "checkout_url": None, "expire_le": None, **reponse}
+
     user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
     session = _creer_checkout_session(
         db, a_payer, email, user=user,
         inscrit_le=inscrit_le,
         inscription_deja_payee=payload.inscription_deja_payee,
         metadata_extra={"origine": "lien_admin"},
+        seances_suivies=suivies,
     )
-
-    maintenant = facturation.utcnow()
-    devis = facturation.calculer_devis(db, a_payer, inscrit_le or maintenant, facturable_apres=maintenant)
     return {
+        "apercu": False,
         "checkout_url": session.url,
         "expire_le": datetime.fromtimestamp(session.expires_at, timezone.utc).isoformat()
         if getattr(session, "expires_at", None) else None,
-        "matieres": a_payer,
-        **_devis_public(
-            devis,
-            None if payload.inscription_deja_payee else PREPA_PRIX_SEANCE_CENTS,
-            _dates_devis(db, devis),
-        ),
+        **reponse,
     }
