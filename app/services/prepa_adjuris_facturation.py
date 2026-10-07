@@ -116,10 +116,17 @@ def calculer_devis(
     matieres: list[str],
     inscrit_le: datetime,
     facturable_apres: datetime | None = None,
+    seances_suivies: dict[str, list[datetime]] | None = None,
 ) -> list[Echeancier]:
-    """Un échéancier par matière, pour une inscription à `inscrit_le`."""
+    """Un échéancier par matière, pour une inscription à `inscrit_le`.
+    seances_suivies : inscription en cours de route, cours déjà suivis par
+    matière (réglés au paiement à la place des frais d'inscription)."""
+    suivies = seances_suivies or {}
     return [
-        calculer_echeancier(k, dates_seances(db, k), inscrit_le, facturable_apres)
+        calculer_echeancier(
+            k, dates_seances(db, k), inscrit_le, facturable_apres,
+            seances_suivies=suivies.get(k),
+        )
         for k in matieres
     ]
 

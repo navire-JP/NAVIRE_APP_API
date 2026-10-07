@@ -254,15 +254,15 @@ def test_prelevements_et_texte():
     assert "20 €" in texte and "mardi 13 octobre" in texte
     assert "40 € le 31 octobre" in texte and "100 € le 31 décembre" in texte
     assert len(texte) <= 1200
-    assert texte_recap([e], inscription_cents=None).startswith("Inscription déjà réglée")
+    assert texte_recap([e], inscription_cents=None).startswith("Aucun montant n'est débité ce jour")
 
 
 def test_texte_detaille():
     """Chaque mois liste ses séances une par une, puis son total."""
     e = calculer_echeancier("L3_droit_des_societes", L3, paris(2026, 10, 10, 11, 0), fin=FIN)
     texte = texte_recap([e], dates={"L3_droit_des_societes": L3})
-    assert texte.startswith("Montant débité ce jour : 20 €. Ce montant correspond au règlement "
-                            "anticipé de la prochaine séance, le mardi 13 octobre à 21 h.")
+    assert texte.startswith("Montant débité ce jour : 20 €, en règlement anticipé de la "
+                            "prochaine séance, le mardi 13 octobre à 21 h.")
     assert "nombre de semaines" in texte
     assert ("OCTOBRE : 2 séances\n▪ Mardi 20 octobre à 21 h\n▪ Mardi 27 octobre à 21 h\n"
             "Total : 2 × 20 € = 40 €, prélevé le 31 octobre.") in texte
@@ -351,3 +351,47 @@ def test_textes_stripe_format():
     ct3 = textes_stripe([e], None, {"L3_droit_des_societes": L3})
     assert ct3["submit"]["message"].startswith("**Aucun montant n'est débité ce jour**")
     assert "en sus" not in ct3["after_submit"]["message"]
+
+
+# ── Inscription en cours de route (cours déjà suivis) ────────
+
+def test_cours_deja_suivis_regles_a_la_place_de_l_inscription():
+    """Élève qui a suivi les cours des 6 et 13 octobre, inscrit le 14 :
+    40 € au paiement (les 2 cours suivis, pas de frais d'inscription en plus),
+    puis TOUS les cours à venir prélevés en fin de mois (aucun prépayé)."""
+    suivis = [paris(2026, 10, 6, 21, 0), paris(2026, 10, 13, 21, 0)]
+    e = calculer_echeancier("L3_droit_des_societes", L3, paris(2026, 10, 14, 10, 0),
+                            fin=FIN, seances_suivies=suivis)
+    assert e.seance_prepayee is None
+    assert e.nb_reglees_inscription == 2
+    assert e.mois == {"2026-10": 2, "2026-11": 4, "2026-12": 5}   # 20, 27 oct. ; tous les mardis ensuite
+
+    # Persistance, metadata Stripe et recalcul conservent les cours suivis
+    assert Echeancier.from_dict(e.to_dict()) == e
+    relu = devis_depuis_metadata(devis_vers_metadata([e]), e.inscrit_le)[0]
+    assert relu.seances_suivies == suivis and relu.seance_prepayee is None
+    sans_27 = [d for d in L3 if d != paris(2026, 10, 27, 21, 0)]
+    r = recalculer(e, sans_27)
+    assert r.seances_suivies == suivis and r.seance_prepayee is None
+    assert r.mois["2026-10"] == 1
+
+    from app.services.prepa_adjuris_billing import total_du_jour_cents
+    assert total_du_jour_cents([e], 2000) == 4000
+    assert total_du_jour_cents([e], None) == 0
+
+    texte = texte_recap([e], dates={"L3_droit_des_societes": L3})
+    assert texte.startswith(
+        "Montant débité ce jour : 40 € (20 € × 2 séances), en règlement des séances déjà "
+        "suivies, le mardi 6 octobre à 21 h et le mardi 13 octobre à 21 h."
+    )
+    assert "en sus des 40 € réglés ce jour" in texte
+    assert "OCTOBRE : 2 séances\n▪ Mardi 20 octobre à 21 h\n▪ Mardi 27 octobre à 21 h" in texte
+
+    ct = textes_stripe([e], 2000, {"L3_droit_des_societes": L3})
+    assert ct["submit"]["message"].startswith("**Montant débité ce jour : 40 €** (20 € × 2 séances)")
+
+    # Déjà réglés (ex. espèces) : rien n'est encaissé
+    assert texte_recap([e], inscription_cents=None, dates={"L3_droit_des_societes": L3}).startswith(
+        "Aucun montant n'est débité ce jour : le règlement des séances déjà suivies, "
+        "le mardi 6 octobre à 21 h et le mardi 13 octobre à 21 h a déjà été effectué."
+    )

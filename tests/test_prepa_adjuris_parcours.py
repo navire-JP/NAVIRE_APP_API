@@ -486,3 +486,77 @@ def test_checkout_sans_champs_identite_si_stripe_refuse(env, monkeypatch):
     assert r.status_code == 200, r.text
     assert len(appels) == 2 and "custom_fields" not in appels[1]
     assert appels[1]["mode"] == "payment"
+
+
+def test_lien_paiement_cours_deja_suivis(env):
+    """Console, Factu. : un élève a suivi 2 cours sans avoir payé. Le lien lui
+    fait régler ces 2 cours (pas de frais d'inscription en plus) ; tous les
+    cours à venir sont prélevés en fin de mois."""
+    from app.db.models import PrepaAdjurisEnrollment
+    from app.services.prepa_adjuris_billing import Echeancier
+    from app.services import prepa_adjuris_facturation as fa
+    from sqlalchemy import select
+
+    c, faux = env.client, env.faux
+    now = datetime.now(timezone.utc)
+    cle = "L2_droit_des_obligations"
+    passes = []
+    for jours in (14, 7):
+        r = c.post("/prepa/adjuris/admin/agenda/seances", headers=ADMIN, json={
+            "niveau": "L2", "matiere_key": cle,
+            "date_debut": (now - timedelta(days=jours)).isoformat(),
+        })
+        assert r.status_code == 200, r.text
+        passes.append(r.json()["seance"]["id"])
+    futur = c.post("/prepa/adjuris/admin/agenda/seances", headers=ADMIN, json={
+        "niveau": "L2", "matiere_key": cle, "date_debut": (now + timedelta(days=3)).isoformat(),
+    }).json()["seance"]["id"]
+
+    corps = {"email": "zoe@example.com", "matieres": [cle], "seances_suivies": passes}
+    # Un cours à venir ne peut pas être coché comme suivi
+    r = c.post("/prepa/adjuris/admin/lien-paiement?apercu=true", headers=ADMIN,
+               json={**corps, "seances_suivies": passes + [futur]})
+    assert r.status_code == 400
+
+    # Aperçu : rien n'est créé chez Stripe
+    nb_sessions = len(faux.sessions)
+    r = c.post("/prepa/adjuris/admin/lien-paiement?apercu=true", headers=ADMIN, json=corps)
+    assert r.status_code == 200, r.text
+    ap = r.json()
+    assert ap["apercu"] is True and ap["checkout_url"] is None
+    assert len(faux.sessions) == nb_sessions
+    assert ap["inscription"]["total_cents"] == 4000
+    assert ap["inscription"]["seances_prepayees"][cle] is None
+    db = env.Session()
+    a_venir = [d for d in fa.dates_seances(db, cle) if fa._aware(d) > datetime.now(timezone.utc)]
+    db.close()
+    assert sum(p["seances"] for p in ap["prelevements"]) == len(a_venir)   # aucun cours prépayé
+    assert "séances déjà suivies" in ap["texte"]
+
+    # Lien réel : 2 × 20 € en paiement simple
+    r = c.post("/prepa/adjuris/admin/lien-paiement", headers=ADMIN, json=corps)
+    assert r.status_code == 200, r.text
+    params = faux.sessions[-1]
+    assert params["mode"] == "payment"
+    assert [li["quantity"] for li in params["line_items"]] == [2]
+    assert params["custom_text"]["submit"]["message"].startswith("**Montant débité ce jour : 40 €**")
+
+    # Webhook : l'échéancier garde les cours suivis, sans séance prépayée
+    env.subs._handle_prepa_adjuris_checkout(db := env.Session(), {
+        "id": "cs_zoe", "mode": "payment", "payment_intent": "pi_z", "subscription": None,
+        "customer": "cus_zoe", "metadata": params["metadata"],
+        "customer_email": "zoe@example.com", "created": int(now.timestamp()),
+    }, [cle])
+    e = db.execute(select(PrepaAdjurisEnrollment).where(
+        PrepaAdjurisEnrollment.stripe_customer_id == "cus_zoe")).scalar_one()
+    ech = Echeancier.from_dict(e.echeancier)
+    assert len(ech.seances_suivies) == 2 and ech.seance_prepayee is None
+    assert ech.total_seances == len(a_venir)
+    db.close()
+
+    # Déjà réglés : rien n'est encaissé (page Stripe en mode setup)
+    r = c.post("/prepa/adjuris/admin/lien-paiement", headers=ADMIN, json={
+        **corps, "email": "yan@example.com", "inscription_deja_payee": True})
+    assert r.status_code == 200, r.text
+    assert faux.sessions[-1]["mode"] == "setup"
+    assert r.json()["inscription"]["total_cents"] == 0

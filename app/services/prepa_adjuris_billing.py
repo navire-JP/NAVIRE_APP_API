@@ -138,6 +138,11 @@ class Echeancier:
     depuis  : premier mois facturable (sert de borne aux recalculs).
     credits : {"2026-10": 1, ...} séances déjà remboursées (crédit Stripe)
               sur un mois prélevé, après annulation d'un cours.
+    seances_suivies : inscription en cours de route (lien de paiement de la
+              console) : cours déjà suivis, réglés au paiement à la place des
+              frais d'inscription. Il n'y a alors pas de séance prépayée :
+              tous les cours postérieurs à l'inscription sont prélevés en fin
+              de mois.
     """
     matiere_key: str
     inscrit_le: datetime
@@ -145,6 +150,13 @@ class Echeancier:
     mois: dict[str, int]
     depuis: str
     credits: dict[str, int] = field(default_factory=dict)
+    seances_suivies: list[datetime] = field(default_factory=list)
+
+    @property
+    def nb_reglees_inscription(self) -> int:
+        """Séances réglées au paiement : les cours déjà suivis, sinon la
+        prochaine séance (frais d'inscription)."""
+        return len(self.seances_suivies) or 1
 
     @property
     def total_seances(self) -> int:
@@ -163,6 +175,7 @@ class Echeancier:
             "mois": dict(self.mois),
             "depuis": self.depuis,
             "credits": dict(self.credits),
+            "seances_suivies": [_aware(d).isoformat() for d in self.seances_suivies],
         }
 
     @classmethod
@@ -174,6 +187,7 @@ class Echeancier:
             mois={k: int(v) for k, v in (d.get("mois") or {}).items()},
             depuis=d.get("depuis") or next(iter(d.get("mois") or {}), ""),
             credits={k: int(v) for k, v in (d.get("credits") or {}).items()},
+            seances_suivies=[_parse_dt(x) for x in (d.get("seances_suivies") or [])],
         )
 
 
@@ -187,9 +201,14 @@ def calculer_echeancier(
     inscrit_le: datetime,
     facturable_apres: datetime | None = None,
     fin: Mois | None = None,
+    seances_suivies: list[datetime] | None = None,
 ) -> Echeancier:
     """
     Échéancier d'une matière pour une inscription à `inscrit_le`.
+
+    seances_suivies : inscription en cours de route ; ces cours passés sont
+                       réglés au paiement, et aucune séance future n'est
+                       prépayée (toutes sont prélevées en fin de mois).
 
     dates_seances    : début des séances PRÉVUES de la matière (pas les
                        annulées, pas les séances communes).
@@ -201,9 +220,13 @@ def calculer_echeancier(
     inscrit_le = _aware(inscrit_le)
     reference = max(inscrit_le, _aware(facturable_apres)) if facturable_apres else inscrit_le
 
+    suivies = sorted(_aware(d) for d in (seances_suivies or []))
     a_venir = sorted(_aware(d) for d in dates_seances if _aware(d) > inscrit_le)
-    prepayee = a_venir[0] if a_venir else None
-    facturables = a_venir[1:]
+    if suivies:
+        prepayee, facturables = None, a_venir
+    else:
+        prepayee = a_venir[0] if a_venir else None
+        facturables = a_venir[1:]
 
     debut = premier_mois_facturable(reference)
     fin = fin or fin_programme()
@@ -225,6 +248,7 @@ def calculer_echeancier(
         seance_prepayee=prepayee,
         mois=mois,
         depuis=cle_mois(debut),
+        seances_suivies=suivies,
     )
 
 
@@ -239,6 +263,7 @@ def recalculer(ancien: Echeancier, dates_seances: list[datetime]) -> Echeancier:
         ancien.matiere_key, dates_seances, ancien.inscrit_le,
         facturable_apres=max(reference, ancien.inscrit_le),
         fin=parse_mois(max(ancien.mois)) if ancien.mois else None,
+        seances_suivies=ancien.seances_suivies,
     )
     nouveau.credits = dict(ancien.credits)
     return nouveau
@@ -301,6 +326,7 @@ def fusionner(ancien: Echeancier, nouveau: Echeancier, maintenant: datetime) -> 
         mois=dict(nouveau.mois),
         depuis=ancien.depuis,
         credits=dict(ancien.credits),
+        seances_suivies=list(ancien.seances_suivies),
     )
     for ecart in comparer(ancien, nouveau, maintenant):
         if not ecart.deja_preleve:
@@ -397,6 +423,8 @@ def devis_vers_metadata(echeanciers: list[Echeancier]) -> str:
             e.matiere_key: {
                 "p": _aware(e.seance_prepayee).isoformat() if e.seance_prepayee else None,
                 "q": list(e.mois.values()),
+                **({"s": [int(_aware(d).timestamp()) for d in e.seances_suivies]}
+                   if e.seances_suivies else {}),
             }
             for e in echeanciers
         },
@@ -424,6 +452,9 @@ def devis_depuis_metadata(brut: str, inscrit_le: datetime) -> list[Echeancier] |
                 seance_prepayee=_parse_dt(v["p"]) if v.get("p") else None,
                 mois=mois,
                 depuis=depuis,
+                seances_suivies=[
+                    datetime.fromtimestamp(int(x), timezone.utc) for x in (v.get("s") or [])
+                ],
             ))
         return echeanciers
     except (KeyError, ValueError, TypeError, AttributeError):
@@ -491,31 +522,69 @@ def _jour_seance(d: datetime) -> str:
     return texte[0].upper() + texte[1:]
 
 
-def _bloc_inscription(echeanciers: list[Echeancier], inscription_cents: int | None) -> str:
+def total_du_jour_cents(echeanciers: list[Echeancier], inscription_cents: int | None) -> int:
+    """Encaissé au paiement : une séance par matière (la prochaine), ou les
+    cours déjà suivis pour une inscription en cours de route."""
+    if not inscription_cents:
+        return 0
+    return inscription_cents * sum(e.nb_reglees_inscription for e in echeanciers)
+
+
+def _seances_txt(dates: list[datetime]) -> str:
+    return _enumerer([f"le {date_fr(d, avec_jour=True, avec_heure=True)}" for d in sorted(dates)])
+
+
+def _reglement_du_jour(
+    echeanciers: list[Echeancier], inscription_cents: int | None, gras: bool = False
+) -> str:
+    """Première phrase du récapitulatif : ce qui est débité ce jour et ce
+    que ce montant règle (prochaine séance, ou cours déjà suivis)."""
+    b = (lambda s: f"**{s}**") if gras else (lambda s: s)
     plusieurs = len(echeanciers) > 1
+    suivis = [e for e in echeanciers if e.seances_suivies]
+    normaux = [e for e in echeanciers if not e.seances_suivies]
+
+    def _groupes(liste: list[Echeancier], attr) -> str:
+        valeurs = [attr(e) for e in liste]
+        if len(liste) == 1 or all(v == valeurs[0] for v in valeurs):
+            return (" de chaque matière" if len(liste) > 1 else "") + ", " + valeurs[0]
+        return " : " + " ; ".join(f"{_nom(e.matiere_key)}, {v}" for e, v in zip(liste, valeurs))
+
+    morceaux = []
+    if suivis:
+        morceaux.append("des séances déjà suivies" + _groupes(suivis, lambda e: _seances_txt(e.seances_suivies)))
+    prochaines = [e for e in normaux if e.seance_prepayee]
+    if prochaines:
+        morceaux.append("de la prochaine séance" + _groupes(
+            prochaines, lambda e: f"le {date_fr(e.seance_prepayee, avec_jour=True, avec_heure=True)}"))
+
     if inscription_cents is None:
-        return (
-            "Aucun montant n'est débité ce jour : les frais d'inscription ont déjà "
-            "été réglés. Le moyen de paiement est enregistré pour les prélèvements "
-            "ci-dessous."
-        )
-    total = inscription_cents * len(echeanciers)
-    texte = f"Montant débité ce jour : {euros(total)}"
-    if plusieurs:
-        texte += f" ({euros(inscription_cents)} × {len(echeanciers)} matières)"
-    texte += ". Ce montant correspond au règlement anticipé de la prochaine séance"
-    jours = {e.seance_prepayee for e in echeanciers if e.seance_prepayee}
-    if len(jours) == 1 and all(e.seance_prepayee for e in echeanciers):
-        d = next(iter(jours))
-        texte += (" de chaque matière" if plusieurs else "") + f", le {date_fr(d, avec_jour=True, avec_heure=True)}."
-    elif jours:
-        texte += " de chaque matière : " + " ; ".join(
-            f"{_nom(e.matiere_key)}, le {date_fr(e.seance_prepayee, avec_jour=True, avec_heure=True)}"
-            for e in echeanciers if e.seance_prepayee
+        texte = b("Aucun montant n'est débité ce jour")
+        if suivis:
+            texte += " : le règlement " + " et ".join(morceaux) + " a déjà été effectué."
+        else:
+            texte += " : les frais d'inscription ont déjà été réglés."
+        return texte + " Le moyen de paiement est enregistré pour les prélèvements ci-dessous."
+
+    total = total_du_jour_cents(echeanciers, inscription_cents)
+    texte = b(f"Montant débité ce jour : {euros(total)}")
+    nb = sum(e.nb_reglees_inscription for e in echeanciers)
+    if nb > 1:
+        detail = f"{euros(inscription_cents)} × {nb} séance{'s' if nb > 1 else ''}"
+        if plusieurs and not suivis:
+            detail = f"{euros(inscription_cents)} × {len(echeanciers)} matières"
+        texte += f" ({detail})"
+    if morceaux:
+        texte += ", en règlement " + " et ".join(
+            ("anticipé " + m) if m.startswith("de la prochaine") else m for m in morceaux
         ) + "."
     else:
         texte += "."
     return texte
+
+
+def _bloc_inscription(echeanciers: list[Echeancier], inscription_cents: int | None) -> str:
+    return _reglement_du_jour(echeanciers, inscription_cents)
 
 
 def _bloc_regle(plusieurs: bool) -> str:
@@ -569,7 +638,7 @@ def _bloc_fin(echeanciers: list[Echeancier], inscription_cents: int | None) -> s
     total = sum(p["montant_cents"] for p in lignes)
     texte = f"Montant total des prélèvements à venir : {euros(total)}"
     if inscription_cents:
-        texte += f", en sus des {euros(inscription_cents * len(echeanciers))} réglés ce jour"
+        texte += f", en sus des {euros(total_du_jour_cents(echeanciers, inscription_cents))} réglés ce jour"
     texte += "."
     if lignes:
         dernier = _MOIS_FR[parse_mois(lignes[-1]["mois"])[1] - 1]
@@ -592,18 +661,7 @@ def blocs_recap(
 
 
 def _debut_compact(echeanciers: list[Echeancier], inscription_cents: int | None) -> str:
-    if inscription_cents is None:
-        return "Inscription déjà réglée."
-    plusieurs = len(echeanciers) > 1
-    total = inscription_cents * len(echeanciers)
-    prepayees = [
-        f"{_nom(e.matiere_key)} : {date_fr(e.seance_prepayee, avec_jour=True)}"
-        for e in echeanciers if e.seance_prepayee
-    ]
-    debut = f"Aujourd'hui : {euros(total)}, qui règle{'nt' if plusieurs else ''} d'avance la prochaine séance"
-    if prepayees:
-        debut += " (" + " ; ".join(prepayees) + ")"
-    return debut + "."
+    return _reglement_du_jour(echeanciers, inscription_cents)
 
 
 def texte_recap(
@@ -677,29 +735,7 @@ def _mois_stripe(echeanciers: list[Echeancier], p: dict, dates: dict[str, list[d
 
 
 def _inscription_stripe(echeanciers: list[Echeancier], inscription_cents: int | None) -> str:
-    if inscription_cents is None:
-        return (
-            "**Aucun montant n'est débité ce jour** : les frais d'inscription ont déjà "
-            "été réglés. Le moyen de paiement est enregistré pour les prélèvements ci-dessous."
-        )
-    plusieurs = len(echeanciers) > 1
-    total = inscription_cents * len(echeanciers)
-    texte = f"**Montant débité ce jour : {euros(total)}**"
-    if plusieurs:
-        texte += f" ({euros(inscription_cents)} × {len(echeanciers)} matières)"
-    texte += ", en règlement anticipé de la prochaine séance"
-    jours = {e.seance_prepayee for e in echeanciers if e.seance_prepayee}
-    if len(jours) == 1 and all(e.seance_prepayee for e in echeanciers):
-        d = next(iter(jours))
-        texte += (" de chaque matière" if plusieurs else "") + f", le {date_fr(d, avec_jour=True, avec_heure=True)}."
-    elif jours:
-        texte += " de chaque matière : " + " ; ".join(
-            f"{_nom(e.matiere_key)}, le {date_fr(e.seance_prepayee, avec_jour=True, avec_heure=True)}"
-            for e in echeanciers if e.seance_prepayee
-        ) + "."
-    else:
-        texte += "."
-    return texte
+    return _reglement_du_jour(echeanciers, inscription_cents, gras=True)
 
 
 def textes_stripe(
@@ -725,7 +761,7 @@ def textes_stripe(
     total = sum(p["montant_cents"] for p in lignes)
     fin = f"**Total des prélèvements à venir : {euros(total)}**"
     if inscription_cents:
-        fin += f", en sus des {euros(inscription_cents * len(echeanciers))} réglés ce jour"
+        fin += f", en sus des {euros(total_du_jour_cents(echeanciers, inscription_cents))} réglés ce jour"
     fin += "."
     if lignes:
         fin += f" Aucun prélèvement n'interviendra après {_MOIS_FR[parse_mois(lignes[-1]['mois'])[1] - 1]}."
