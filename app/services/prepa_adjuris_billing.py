@@ -628,28 +628,128 @@ def texte_recap(
     return "\n\n".join(blocs_recap(echeanciers, inscription_cents, dates))
 
 
+# ── Version Stripe ──────────────────────────────────────────
+# Le texte personnalisé de Checkout ignore les retours à la ligne mais
+# accepte le gras Markdown (**…**). Chaque zone est donc un seul paragraphe,
+# structuré par des intitulés en gras et des « ▪ » entre les mois.
+
+def _dates_compactes(dates: list[datetime]) -> str:
+    """« les mardis 20 et 27 à 21 h », ou « le lundi 5 à 21 h et le mardi
+    13 à 20 h » si les jours ou les heures diffèrent (cours déplacé)."""
+    locales = [_aware(d).astimezone(TZ) for d in dates]
+
+    def heure(d: datetime) -> str:
+        return f"{d.hour} h {d.minute:02d}" if d.minute else f"{d.hour} h"
+
+    def jour(d: datetime) -> str:
+        return "1er" if d.day == 1 else str(d.day)
+
+    if len({(d.weekday(), d.hour, d.minute) for d in locales}) == 1:
+        nom = _JOURS_FR[locales[0].weekday()]
+        if len(locales) == 1:
+            return f"le {nom} {jour(locales[0])} à {heure(locales[0])}"
+        return f"les {nom}s " + _enumerer([jour(d) for d in locales]) + f" à {heure(locales[0])}"
+    return _enumerer([f"le {_JOURS_FR[d.weekday()]} {jour(d)} à {heure(d)}" for d in locales])
+
+
+def _mois_stripe(echeanciers: list[Echeancier], p: dict, dates: dict[str, list[datetime]]) -> str:
+    mois = p["mois"]
+    nom = _MOIS_FR[parse_mois(mois)[1] - 1].capitalize()
+    n = p["seances"]
+    if n == 0:
+        return f"▪ **{nom} : 0 €**, aucune séance."
+    prelev = date_fr(datetime.fromisoformat(p["date"]))
+    prix = euros(PREPA_PRIX_SEANCE_CENTS)
+    plusieurs = len(echeanciers) > 1
+    listes = [_seances_facturees(e, dates.get(e.matiere_key, []), mois) for e in echeanciers]
+    texte = f"▪ **{nom} : {euros(p['montant_cents'])}**, prélevé le {prelev}"
+    if all(x is not None for x in listes) and all(x == listes[0] for x in listes):
+        n1 = len(listes[0])
+        calcul = f"{n1} séance{'s' if n1 > 1 else ''}"
+        calcul += f" × {len(echeanciers)} matières" if plusieurs else ""
+        return f"{texte} ({calcul} × {prix}) : {_dates_compactes(listes[0])}."
+    texte += f" ({n} séance{'s' if n > 1 else ''} × {prix})"
+    if all(x is not None for x in listes):
+        texte += " : " + " ; ".join(
+            f"{_nom(e.matiere_key)} {_dates_compactes(x)}" for e, x in zip(echeanciers, listes) if x
+        )
+    return texte + "."
+
+
+def _inscription_stripe(echeanciers: list[Echeancier], inscription_cents: int | None) -> str:
+    if inscription_cents is None:
+        return (
+            "**Aucun montant n'est débité ce jour** : les frais d'inscription ont déjà "
+            "été réglés. Le moyen de paiement est enregistré pour les prélèvements ci-dessous."
+        )
+    plusieurs = len(echeanciers) > 1
+    total = inscription_cents * len(echeanciers)
+    texte = f"**Montant débité ce jour : {euros(total)}**"
+    if plusieurs:
+        texte += f" ({euros(inscription_cents)} × {len(echeanciers)} matières)"
+    texte += ", en règlement anticipé de la prochaine séance"
+    jours = {e.seance_prepayee for e in echeanciers if e.seance_prepayee}
+    if len(jours) == 1 and all(e.seance_prepayee for e in echeanciers):
+        d = next(iter(jours))
+        texte += (" de chaque matière" if plusieurs else "") + f", le {date_fr(d, avec_jour=True, avec_heure=True)}."
+    elif jours:
+        texte += " de chaque matière : " + " ; ".join(
+            f"{_nom(e.matiere_key)}, le {date_fr(e.seance_prepayee, avec_jour=True, avec_heure=True)}"
+            for e in echeanciers if e.seance_prepayee
+        ) + "."
+    else:
+        texte += "."
+    return texte
+
+
 def textes_stripe(
     echeanciers: list[Echeancier],
     inscription_cents: int | None,
     dates: dict[str, list[datetime]],
 ) -> dict:
     """
-    custom_text de la Checkout Session. Stripe limite chaque texte à 1 200
-    caractères : le récapitulatif détaillé commence au-dessus du bouton de
-    paiement (submit) et continue en dessous (after_submit) si besoin, en
-    coupant entre deux paragraphes. S'il ne tient pas, version courte.
+    custom_text de la Checkout Session, 1 200 caractères maximum par zone.
+
+    Au-dessus du bouton (submit) : ce qui est débité ce jour, puis
+    l'échéancier, mois par mois, avec les jours de séance et le calcul.
+    En dessous (after_submit) : les modalités de facturation et le total.
+    Si l'échéancier ne tient pas au-dessus, la fin passe en dessous ; s'il
+    ne tient nulle part, version courte.
     """
-    blocs = blocs_recap(echeanciers, inscription_cents, dates)
-    parties: list[list[str]] = [[], []]
-    i = 0
-    for b in blocs:
-        while i < 2 and len("\n\n".join(parties[i] + [b])) > STRIPE_TEXTE_MAX:
-            i += 1
-        if i == 2:
+    plusieurs = len(echeanciers) > 1
+    lignes = prelevements(echeanciers)
+    mois = [_mois_stripe(echeanciers, p, dates) for p in lignes]
+    if mois:
+        mois[0] = "**Échéancier des prélèvements :** " + mois[0]
+
+    total = sum(p["montant_cents"] for p in lignes)
+    fin = f"**Total des prélèvements à venir : {euros(total)}**"
+    if inscription_cents:
+        fin += f", en sus des {euros(inscription_cents * len(echeanciers))} réglés ce jour"
+    fin += "."
+    if lignes:
+        fin += f" Aucun prélèvement n'interviendra après {_MOIS_FR[parse_mois(lignes[-1]['mois'])[1] - 1]}."
+    modalites = (
+        f"**Modalités de facturation :** chaque séance est facturée "
+        f"{euros(PREPA_PRIX_SEANCE_CENTS)}, à raison d'une séance par semaine"
+        + (" et par matière" if plusieurs else "")
+        + ". Le montant mensuel varie donc selon le nombre de semaines de cours "
+        "dans le mois. Il est prélevé automatiquement sur le moyen de paiement "
+        "enregistré, le dernier jour de chaque mois, au titre des séances de ce mois."
+    )
+
+    haut = [_inscription_stripe(echeanciers, inscription_cents)]
+    bas = [modalites, fin]
+    reste = list(mois)
+    while reste and len(" ".join(haut + [reste[0]])) <= STRIPE_TEXTE_MAX:
+        haut.append(reste.pop(0))
+    bas = reste + bas
+
+    submit, after = " ".join(haut), " ".join(bas)
+    if len(submit) > STRIPE_TEXTE_MAX or len(after) > STRIPE_TEXTE_MAX:
+        # Sans les modalités, puis version courte.
+        after = " ".join(reste + [fin])
+        if len(after) > STRIPE_TEXTE_MAX:
             compact = _texte_compact(echeanciers, _debut_compact(echeanciers, inscription_cents))
             return {"submit": {"message": compact[:STRIPE_TEXTE_MAX]}}
-        parties[i].append(b)
-    out = {"submit": {"message": "\n\n".join(parties[0])}}
-    if parties[1]:
-        out["after_submit"] = {"message": "\n\n".join(parties[1])}
-    return out
+    return {"submit": {"message": submit}, "after_submit": {"message": after}}
