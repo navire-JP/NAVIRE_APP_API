@@ -90,7 +90,12 @@ from app.services.discord_link import (
     issue_code,
 )
 from app.bot_discord.role_sync import assign_adjuris_role_sync
-from app.services.prepa_adjuris_billing import devis_depuis_metadata
+from app.services.prepa_adjuris_billing import (
+    date_prelevement,
+    devis_depuis_metadata,
+    parse_mois,
+    recalculer,
+)
 from app.services import prepa_adjuris_facturation as facturation_adjuris
 
 logger = logging.getLogger(__name__)
@@ -752,6 +757,93 @@ def send_adjuris_discord_invite(db: Session, user: User, matieres: list[str]) ->
     send_mail(user.email, subject, html)
 
 
+def _moyen_de_paiement_checkout(session: dict) -> str | None:
+    """Carte enregistrée par une Checkout Session en mode payment ou setup."""
+    if session.get("mode") == "setup":
+        intent_id = session.get("setup_intent")
+        intent = stripe.SetupIntent.retrieve(intent_id) if intent_id else None
+    else:
+        intent_id = session.get("payment_intent")
+        intent = stripe.PaymentIntent.retrieve(intent_id) if intent_id else None
+    if not intent:
+        return None
+    pm = intent.get("payment_method")
+    return pm if isinstance(pm, str) or pm is None else pm["id"]
+
+
+def _creer_abonnement_adjuris(session: dict, devis: list, meta: dict) -> str:
+    """
+    Crée l'abonnement Stripe d'un paiement Prép'AdJuris (Checkout en mode
+    payment ou setup) sur la carte enregistrée, et renvoie son id.
+
+    Même abonnement que celui que Checkout créait en mode "subscription" :
+    un item recurring par matière, premier prélèvement à la fin du premier
+    mois facturé (billing_cycle_anchor), aucun prorata d'ici là. L'échéancier
+    mois par mois est posé ensuite par pousser_echeancier_stripe.
+
+    La clé d'idempotence (id de la session) garantit qu'une relivraison du
+    webhook ne crée pas un second abonnement.
+    """
+    customer = session.get("customer")
+    if not customer:
+        raise ValueError("Checkout Prép'AdJuris sans client Stripe.")
+    pm = _moyen_de_paiement_checkout(session)
+    if not pm:
+        raise ValueError("Checkout Prép'AdJuris sans carte enregistrée.")
+
+    # Carte par défaut du client (neuf, propre à ce paiement) : c'est elle
+    # que Stripe utilise pour les factures de l'échéancier.
+    stripe.Customer.modify(customer, invoice_settings={"default_payment_method": pm})
+
+    # Premier prélèvement : fin du premier mois facturé. Le lien expire avant
+    # cette date ; si le webhook arrive malgré tout après (relivraison
+    # tardive), on démarre au mois suivant plutôt que d'échouer : le mois
+    # manqué n'est pas prélevé, et c'est journalisé.
+    limite = utcnow() + timedelta(minutes=10)
+    mois_possibles = [
+        m for m in sorted(set().union(*(e.mois for e in devis)))
+        if date_prelevement(parse_mois(m)) > limite
+    ]
+    if not mois_possibles:
+        raise ValueError("Plus aucun prélèvement à venir pour ce paiement.")
+    premier_mois = mois_possibles[0]
+    if premier_mois != devis[0].depuis:
+        logger.error(
+            "Adjuris : session %s traitée après le prélèvement de %s — ce mois ne sera pas prélevé.",
+            session.get("id"), devis[0].depuis,
+        )
+    ancre = int(date_prelevement(parse_mois(premier_mois)).timestamp())
+    params = {
+        "customer": customer,
+        "items": [
+            {
+                "price": PREPA_PRICES[e.matiere_key]["recurring"],
+                "quantity": max(1, e.mois.get(premier_mois, 0)),
+            }
+            for e in devis
+        ],
+        "default_payment_method": pm,
+        "proration_behavior": "none",
+        "metadata": {
+            "matiere_keys": meta.get("matiere_keys", ""),
+            "inscrit_le": meta.get("inscrit_le", ""),
+        },
+    }
+    cle = f"adjuris-abonnement-{session.get('id')}"
+    try:
+        sub = stripe.Subscription.create(
+            **params, billing_cycle_anchor=ancre, idempotency_key=cle
+        )
+    except stripe.InvalidRequestError as e:
+        # Repli : un essai jusqu'à la même date donne le même résultat (rien
+        # de prélevé avant la fin du mois).
+        logger.error("Adjuris : ancrage refusé par Stripe (%s), repli sur trial_end.", e)
+        sub = stripe.Subscription.create(
+            **params, trial_end=ancre, idempotency_key=cle + "-essai"
+        )
+    return sub["id"]
+
+
 def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: list[str]) -> None:
     """
     Traite un checkout.session.completed Prép'AdJuris : enregistre une ligne par
@@ -773,20 +865,22 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
     if not matiere_keys:
         return
 
-    sub_id = session.get("subscription")
-    if not sub_id:
-        return
-
-    # Idempotence : Stripe relivre le même event en cas de timeout.
-    already = db.execute(
-        select(PrepaAdjurisEnrollment).where(
-            PrepaAdjurisEnrollment.stripe_subscription_id == sub_id
-        )
-    ).first()
-    if already:
-        return
-
     meta = session.get("metadata") or {}
+    sub_id = session.get("subscription")
+    customer_id = session.get("customer")
+    if not sub_id and session.get("mode") not in ("payment", "setup"):
+        return
+
+    # Idempotence : Stripe relivre le même event en cas de timeout. Depuis le
+    # paiement simple, chaque Checkout a son propre client Stripe.
+    if sub_id:
+        cle = PrepaAdjurisEnrollment.stripe_subscription_id == sub_id
+    elif customer_id:
+        cle = PrepaAdjurisEnrollment.stripe_customer_id == customer_id
+    else:
+        cle = None
+    if cle is not None and db.execute(select(PrepaAdjurisEnrollment).where(cle)).first():
+        return
     email = (
         meta.get("email")
         or (session.get("customer_details") or {}).get("email")
@@ -813,7 +907,23 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
     devis = devis_depuis_metadata(meta.get("echeancier", ""), inscrit_le)
     if not devis:
         devis = facturation_adjuris.calculer_devis(db, matiere_keys, inscrit_le, facturable_apres=utcnow())
+    else:
+        # Agenda modifié entre l'ouverture du lien et le paiement (cours
+        # déplacé, annulé…) : on facture l'agenda réel, comme pour un élève
+        # déjà inscrit. Les mois couverts restent ceux du devis.
+        devis = [recalculer(e, facturation_adjuris.dates_seances(db, e.matiere_key)) for e in devis]
     par_matiere = {e.matiere_key: e for e in devis}
+
+    # ── Abonnement (paiement simple : créé ici, sur la carte enregistrée) ──
+    # En cas d'échec, l'exception remonte : le webhook répond 500 et Stripe
+    # relivre l'event. Rien n'a encore été écrit en base, et la clé
+    # d'idempotence empêche un second abonnement.
+    if not sub_id:
+        devis_abonnement = [par_matiere[k] for k in matiere_keys if k in par_matiere and par_matiere[k].mois]
+        if not devis_abonnement:
+            logger.error("Adjuris : paiement %s sans mois à facturer — abonnement non créé.", session.get("id"))
+            return
+        sub_id = _creer_abonnement_adjuris(session, devis_abonnement, meta)
 
     for key in matiere_keys:
         ech = par_matiere.get(key)
