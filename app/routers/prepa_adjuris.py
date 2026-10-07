@@ -110,6 +110,7 @@ class PrepaAdjurisInscriptionIn(BaseModel):
     email: EmailStr
     niveau: str = Field(..., max_length=4)
     matieres: list[str] = Field(..., min_length=1, max_length=len(PREPA_PRICES))
+    telephone: str | None = Field(None, max_length=30)
 
     # Honeypot : champ invisible pour un humain, rempli par la plupart des bots.
     # S'il est non vide, on répond OK sans rien enregistrer.
@@ -249,6 +250,34 @@ def _dates_devis(db: Session, devis: list[Echeancier]) -> dict[str, list[datetim
     return {e.matiere_key: dates_seances(db, e.matiere_key) for e in devis}
 
 
+def _champs_identite(db: Session, email: str, metadata_extra: dict | None) -> list[dict]:
+    """
+    Prénom et nom demandés sur la page Stripe, pré-remplis quand on les
+    connaît (formulaire du site, inscription précédente). Le lien de paiement
+    manuel et l'espace connecté ne passent pas par le formulaire : c'est le
+    seul endroit où ils sont saisis.
+    """
+    connus = {k: (metadata_extra or {}).get(k, "") for k in ("prenom", "nom")}
+    if not all(connus.values()):
+        fiche = db.execute(
+            select(PrepaAdjurisInscription).where(PrepaAdjurisInscription.email == email)
+        ).scalar_one_or_none()
+        if fiche:
+            connus = {"prenom": connus["prenom"] or fiche.prenom, "nom": connus["nom"] or fiche.nom}
+    champs = []
+    for cle, libelle in (("prenom", "Prénom"), ("nom", "Nom")):
+        texte = {"maximum_length": 80}
+        if (connus.get(cle) or "").strip():
+            texte["default_value"] = connus[cle].strip()[:80]
+        champs.append({
+            "key": cle,
+            "label": {"type": "custom", "custom": libelle},
+            "type": "text",
+            "text": texte,
+        })
+    return champs
+
+
 def _creer_checkout_session(
     db: Session,
     matieres: list[str],
@@ -360,6 +389,13 @@ def _creer_checkout_session(
     if user:
         params["client_reference_id"] = str(user.id)
 
+    # Identité de l'élève : prénom, nom (champs obligatoires) et téléphone,
+    # enregistrés par le webhook dans la fiche d'inscription.
+    identite = {
+        "custom_fields": _champs_identite(db, email, metadata_extra),
+        "phone_number_collection": {"enabled": True},
+    }
+
     try:
         if inscription_cents:
             params.update({
@@ -388,7 +424,13 @@ def _creer_checkout_session(
                     "metadata": {"matiere_keys": ",".join(matieres), "inscrit_le": inscrit_iso},
                 },
             })
-        return stripe.checkout.Session.create(**params)
+        try:
+            return stripe.checkout.Session.create(**params, **identite)
+        except stripe.InvalidRequestError as e:
+            # Le paiement ne doit jamais dépendre de ces champs : si Stripe
+            # les refusait, on ouvre la page sans eux.
+            logger.error("Checkout Adjuris : champs identité refusés par Stripe (%s), page sans eux.", e)
+            return stripe.checkout.Session.create(**params)
     except stripe.StripeError as e:
         raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
 
@@ -565,9 +607,13 @@ def _upsert_inscription(
         select(PrepaAdjurisInscription).where(PrepaAdjurisInscription.email == email)
     ).scalar_one_or_none()
 
+    telephone = (payload.telephone or "").strip() or None
+
     if existing:
         existing.prenom = prenom
         existing.nom = nom
+        if telephone:
+            existing.telephone = telephone
         # Un changement de niveau repart des seules matières du nouveau niveau ;
         # sinon on fusionne avec ce qui avait déjà été demandé.
         if existing.niveau == niveau:
@@ -579,6 +625,7 @@ def _upsert_inscription(
 
     db.add(PrepaAdjurisInscription(
         prenom=prenom, nom=nom, email=email, niveau=niveau, matieres=matieres,
+        telephone=telephone,
     ))
     db.commit()
     return matieres
@@ -717,6 +764,7 @@ def admin_list_inscriptions(db: Session = Depends(get_db)):
                 "prenom": r.prenom,
                 "nom": r.nom,
                 "email": r.email,
+                "telephone": r.telephone,
                 "niveau": r.niveau,
                 "matieres": r.matieres,
                 "matieres_labels": [matiere_label(m) for m in (r.matieres or [])],
@@ -737,7 +785,7 @@ def admin_export_inscriptions_csv(db: Session = Depends(get_db)):
     """
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter=";")
-    writer.writerow(["Date", "Prénom", "Nom", "Email", "Niveau", "Nb matières", "Matières"])
+    writer.writerow(["Date", "Prénom", "Nom", "Email", "Téléphone", "Niveau", "Nb matières", "Matières"])
 
     for r in _all_inscriptions(db):
         labels = [matiere_label(m) for m in (r.matieres or [])]
@@ -746,6 +794,7 @@ def admin_export_inscriptions_csv(db: Session = Depends(get_db)):
             r.prenom,
             r.nom,
             r.email,
+            r.telephone or "",
             r.niveau,
             len(labels),
             " | ".join(labels),

@@ -890,18 +890,19 @@ def admin_list_etudiants(db: Session = Depends(get_db)):
 
     # Complète prénom/nom depuis le formulaire d'inscription quand il existe.
     identites = {
-        i.email: (i.prenom, i.nom)
+        i.email: (i.prenom, i.nom, i.telephone)
         for i in db.execute(select(PrepaAdjurisInscription)).scalars().all()
     }
 
     items = []
     for email, f in par_email.items():
-        prenom, nom = identites.get(email, ("", ""))
+        prenom, nom, telephone = identites.get(email, ("", "", None))
         actives = [m for m in f["matieres"] if m["status"] == "active"]
         items.append({
             "email": email,
             "prenom": prenom,
             "nom": nom,
+            "telephone": telephone,
             "user_id": f["user_id"],
             "username": f["username"],
             "compte_cree": f["compte_cree"],

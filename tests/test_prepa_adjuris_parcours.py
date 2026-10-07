@@ -193,12 +193,20 @@ def test_parcours_complet(env):
     assert params["customer_creation"] == "always"
     assert params["metadata"]["echeancier"]
     assert len(params["custom_text"]["submit"]["message"]) <= 1200
+    # Identité : prénom et nom pré-remplis depuis le formulaire, téléphone demandé
+    champs = {c["key"]: c for c in params["custom_fields"]}
+    assert champs["prenom"]["text"]["default_value"] == "Ada"
+    assert champs["nom"]["text"]["default_value"] == "L"
+    assert params["phone_number_collection"] == {"enabled": True}
 
     # 4. Webhook checkout.session.completed : crée l'abonnement sur la carte
     session = {
         "id": "cs_ada", "mode": "payment", "payment_intent": "pi_1",
         "metadata": params["metadata"], "subscription": None, "customer": "cus_1",
         "customer_email": "ada@example.com", "created": int(now.timestamp()),
+        "customer_details": {"email": "ada@example.com", "phone": "+33612345678"},
+        "custom_fields": [{"key": "prenom", "text": {"value": "Ada"}},
+                          {"key": "nom", "text": {"value": "Lovelace"}}],
     }
     env.subs._handle_prepa_adjuris_checkout(
         db := env.Session(), session, ["L3_droit_des_societes"]
@@ -212,6 +220,9 @@ def test_parcours_complet(env):
     assert sub["billing_cycle_anchor"] > now.timestamp()
     assert "trial_end" not in sub
     assert faux.modifs, "l'échéancier Stripe doit être créé"
+    fiche = next(i for i in c.get("/prepa/adjuris/admin/inscriptions", headers=ADMIN).json()["items"]
+                 if i["email"] == "ada@example.com")
+    assert (fiche["prenom"], fiche["nom"], fiche["telephone"]) == ("Ada", "Lovelace", "+33612345678")
 
     # Relivraison du même event : ni second abonnement, ni doublon en base
     nb_modifs = len(faux.modifs)
@@ -279,6 +290,9 @@ def test_parcours_complet(env):
     assert r.status_code == 200, r.text
     params = faux.sessions[-1]
     assert params["mode"] == "setup"                          # rien encaissé, carte enregistrée
+    # Lien manuel : pas de formulaire avant, prénom et nom à saisir sur Stripe
+    assert all("default_value" not in c["text"] for c in params["custom_fields"])
+    assert params["phone_number_collection"] == {"enabled": True}
     assert "line_items" not in params and "customer_email" not in params
     assert params["customer"] == "cus_setup_1" and params["currency"] == "eur"
     assert params["metadata"]["inscription_deja_payee"] == "1"
@@ -290,6 +304,9 @@ def test_parcours_complet(env):
         "id": "cs_bob", "mode": "setup", "setup_intent": "seti_1", "subscription": None,
         "customer": "cus_setup_1", "metadata": params["metadata"],
         "customer_email": None, "created": int(now.timestamp()),
+        "customer_details": {"email": "bob@example.com", "phone": "+33700000000"},
+        "custom_fields": [{"key": "prenom", "text": {"value": "Bob"}},
+                          {"key": "nom", "text": {"value": "Martin"}}],
     }, ["L3_droit_des_societes"])
     db.close()
     sub = faux.abonnements[-1]
@@ -297,6 +314,10 @@ def test_parcours_complet(env):
     fact = c.get("/prepa/adjuris/admin/facturation", headers=ADMIN).json()
     bob = [i for i in fact["items"] if i["email"] == "bob@example.com"]
     assert len(bob) == 1 and bob[0]["echeancier_statut"] == "ok"
+    # La fiche est créée depuis la page Stripe : la console affiche son nom
+    etu = c.get("/prepa/adjuris/admin/etudiants", headers=ADMIN).json()["items"]
+    b = next(e for e in etu if e["email"] == "bob@example.com")
+    assert (b["prenom"], b["nom"], b["telephone"]) == ("Bob", "Martin", "+33700000000")
 
 
 def test_recurrence(env):
@@ -443,3 +464,25 @@ def test_agenda_et_paiement_simple(env):
     assert r.status_code == 200, r.text
     assert par_mois(sched)[m] == devis.mois[m]
     assert par_mois(sched)[suivant] == devis.mois[suivant]
+
+
+def test_checkout_sans_champs_identite_si_stripe_refuse(env, monkeypatch):
+    """Si Stripe refusait les champs prénom/nom/téléphone, la page de paiement
+    s'ouvre quand même, sans eux."""
+    import stripe
+    appels = []
+
+    def creer(**params):
+        appels.append(params)
+        if "custom_fields" in params:
+            raise stripe.InvalidRequestError("custom_fields refusé", "custom_fields")
+        return env.faux.creer_session(**params)
+
+    monkeypatch.setattr(stripe.checkout.Session, "create", staticmethod(creer))
+    r = env.client.post("/prepa/adjuris/checkout", json={
+        "prenom": "Eve", "nom": "R", "email": "eve@example.com",
+        "niveau": "L3", "matieres": ["L3_droit_des_suretes"],
+    })
+    assert r.status_code == 200, r.text
+    assert len(appels) == 2 and "custom_fields" not in appels[1]
+    assert appels[1]["mode"] == "payment"

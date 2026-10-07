@@ -1539,6 +1539,9 @@ class PrepaAdjurisInscription(Base):
     matieres: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     # liste de matiere_key (mêmes clés que PREPA_PRICES)
 
+    # Saisi sur la page de paiement Stripe (ou le formulaire du site).
+    telephone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
     )

@@ -54,6 +54,7 @@ from app.db.models import (
     PromoRedemption,
     PendingSubscription,
     PrepaAdjurisEnrollment,
+    PrepaAdjurisInscription,
     DiscordLinkCode,
 )
 from app.routers.auth import get_current_user
@@ -69,6 +70,7 @@ from app.core.config import (
 from app.core.prepa_adjuris_config import (
     PREPA_PRICES,
     matiere_label,
+    matiere_niveau,
 )
 from app.core.navire_plans import (
     PriceUnavailable,
@@ -844,6 +846,43 @@ def _creer_abonnement_adjuris(session: dict, devis: list, meta: dict) -> str:
     return sub["id"]
 
 
+def _champ_checkout(session: dict, cle: str) -> str:
+    for champ in session.get("custom_fields") or []:
+        if champ.get("key") == cle:
+            return ((champ.get("text") or {}).get("value") or "").strip()
+    return ""
+
+
+def _enregistrer_identite_adjuris(db: Session, session: dict, email: str, matiere_keys: list[str]) -> None:
+    """
+    Prénom, nom et téléphone saisis sur la page Stripe → fiche d'inscription
+    (celle qu'affiche la console). Crée la fiche si l'élève n'est pas passé
+    par le formulaire du site (lien manuel, espace connecté). Ne remplace
+    jamais une valeur connue par du vide.
+    """
+    if not email:
+        return
+    prenom = _champ_checkout(session, "prenom")[:80]
+    nom = _champ_checkout(session, "nom")[:80]
+    telephone = ((session.get("customer_details") or {}).get("phone") or "").strip()[:30]
+    fiche = db.execute(
+        select(PrepaAdjurisInscription).where(PrepaAdjurisInscription.email == email)
+    ).scalar_one_or_none()
+    if fiche is None:
+        fiche = PrepaAdjurisInscription(
+            prenom=prenom, nom=nom, email=email,
+            niveau=matiere_niveau(matiere_keys[0]), matieres=list(matiere_keys),
+        )
+        db.add(fiche)
+    else:
+        fiche.prenom = prenom or fiche.prenom
+        fiche.nom = nom or fiche.nom
+        fiche.matieres = list(dict.fromkeys(list(fiche.matieres or []) + list(matiere_keys)))
+    if telephone:
+        fiche.telephone = telephone
+    db.commit()
+
+
 def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: list[str]) -> None:
     """
     Traite un checkout.session.completed Prép'AdJuris : enregistre une ligne par
@@ -940,6 +979,14 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
             echeancier_statut="erreur",  # passe à "ok" une fois l'échéancier Stripe créé
         ))
     db.commit()
+
+    # ── Identité (prénom, nom, téléphone saisis sur la page Stripe) ──
+    # Jamais bloquant : le paiement est déjà enregistré.
+    try:
+        _enregistrer_identite_adjuris(db, session, email or (user.email if user else ""), matiere_keys)
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        logger.error("Adjuris : identité non enregistrée pour %s : %s", sub_id, e)
 
     # ── Échéancier Stripe : une phase par mois facturé ────────
     # En cas d'échec, le statut reste "erreur" : la console l'affiche et le

@@ -151,6 +151,8 @@ _STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_email ON prepa_adjuris_inscriptions (email)",
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_niveau ON prepa_adjuris_inscriptions (niveau)",
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_created_at ON prepa_adjuris_inscriptions (created_at)",
+    # Téléphone, saisi sur la page de paiement Stripe (octobre 2026).
+    "ALTER TABLE prepa_adjuris_inscriptions ADD COLUMN IF NOT EXISTS telephone VARCHAR(30)",
 ]
 
 
