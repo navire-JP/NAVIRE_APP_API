@@ -21,6 +21,7 @@ from app.services.prepa_adjuris_billing import (
     prelevements,
     recalculer,
     texte_recap,
+    textes_stripe,
 )
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -254,6 +255,53 @@ def test_prelevements_et_texte():
     assert "40 € le 31 octobre" in texte and "100 € le 31 décembre" in texte
     assert len(texte) <= 1200
     assert texte_recap([e], inscription_cents=None).startswith("Inscription déjà réglée")
+
+
+def test_texte_detaille():
+    """Chaque mois liste ses séances une par une, puis son total."""
+    e = calculer_echeancier("L3_droit_des_societes", L3, paris(2026, 10, 10, 11, 0), fin=FIN)
+    texte = texte_recap([e], dates={"L3_droit_des_societes": L3})
+    assert texte.startswith("Montant débité ce jour : 20 €. Ce montant correspond au règlement "
+                            "anticipé de la prochaine séance, le mardi 13 octobre à 21 h.")
+    assert "nombre de semaines" in texte
+    assert ("OCTOBRE : 2 séances\n▪ Mardi 20 octobre à 21 h\n▪ Mardi 27 octobre à 21 h\n"
+            "Total : 2 × 20 € = 40 €, prélevé le 31 octobre.") in texte
+    assert "Total : 5 × 20 € = 100 €, prélevé le 31 décembre." in texte
+    assert "Montant total des prélèvements à venir : 220 €, en sus des 20 € réglés ce jour." in texte
+    assert texte.endswith("Aucun prélèvement n'interviendra après décembre.")
+    assert not any(ord(c) > 0x1F000 for c in texte)   # pas d'emoji
+
+    # Plusieurs matières du même niveau, mêmes jours : « × 3 matières »
+    cles = ("L3_droit_des_societes", "L3_droit_des_suretes", "L3_droit_des_contrats_speciaux")
+    autres = [calculer_echeancier(k, L3, paris(2026, 10, 10, 11, 0), fin=FIN) for k in cles]
+    texte3 = texte_recap(autres, dates={k: L3 for k in cles})
+    assert "Montant débité ce jour : 60 € (20 € × 3 matières)" in texte3
+    assert "Total : 2 séances × 3 matières × 20 € = 120 €" in texte3
+
+    # Dates incohérentes avec l'échéancier : seulement le nombre, jamais une liste fausse
+    faux = texte_recap([e], dates={"L3_droit_des_societes": L3[:3]})
+    assert "OCTOBRE : 2 séances\nTotal : 2 × 20 € = 40 €" in faux
+
+
+def test_textes_stripe_limite_1200():
+    """Stripe : 1 200 caractères au-dessus du bouton, 1 200 en dessous."""
+    debut = paris(2026, 10, 1, 12, 0)
+    e = calculer_echeancier("L3_droit_des_societes", L3, debut, fin=FIN)
+    cles = ("L3_droit_des_societes", "L3_droit_des_suretes", "L3_droit_des_contrats_speciaux")
+    for devis in ([e], [calculer_echeancier(k, L3, debut, fin=FIN) for k in cles]):
+        ct = textes_stripe(devis, 2000, {x.matiere_key: L3 for x in devis})
+        assert len(ct["submit"]["message"]) <= 1200
+        assert len(ct.get("after_submit", {}).get("message", "")) <= 1200
+        tout = ct["submit"]["message"] + ct.get("after_submit", {}).get("message", "")
+        assert "▪ Mardi 29 décembre à 21 h" in tout   # rien n'est perdu
+        assert "▪ Mardi 1er décembre à 21 h" in tout
+
+    # Matières à des jours différents, beaucoup de lignes : jamais au-delà de la limite
+    autre = [d.replace(day=d.day) for d in M1]
+    devis = [calculer_echeancier("L3_droit_des_societes", L3, debut, fin=FIN),
+             calculer_echeancier("L3_droit_des_suretes", autre, debut, fin=FIN)]
+    ct = textes_stripe(devis, 2000, {"L3_droit_des_societes": L3, "L3_droit_des_suretes": autre})
+    assert all(len(v["message"]) <= 1200 for v in ct.values())
 
 
 def test_serialisation():

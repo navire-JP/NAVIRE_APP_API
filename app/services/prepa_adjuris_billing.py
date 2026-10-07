@@ -436,7 +436,8 @@ def devis_depuis_metadata(brut: str, inscrit_le: datetime) -> list[Echeancier] |
 
 def date_fr(dt: datetime, avec_jour: bool = False, avec_heure: bool = False) -> str:
     local = _aware(dt).astimezone(TZ)
-    texte = f"{local.day} {_MOIS_FR[local.month - 1]}"
+    jour = "1er" if local.day == 1 else str(local.day)
+    texte = f"{jour} {_MOIS_FR[local.month - 1]}"
     if avec_jour:
         texte = f"{_JOURS_FR[local.weekday()]} {texte}"
     if avec_heure:
@@ -448,42 +449,207 @@ def euros(cents: int) -> str:
     return f"{cents // 100} €" if cents % 100 == 0 else f"{cents / 100:.2f} €".replace(".", ",")
 
 
-def texte_recap(
-    echeanciers: list[Echeancier],
-    inscription_cents: int | None = PREPA_PRIX_SEANCE_CENTS,
-) -> str:
-    """
-    Explication du paiement, affichée au-dessus du bouton Stripe et sur le
-    site. inscription_cents=None : inscription déjà réglée (lien admin).
-    Stripe limite ce texte à 1 200 caractères.
-    """
-    if not echeanciers:
-        return ""
+def _enumerer(mots: list[str]) -> str:
+    return mots[0] if len(mots) == 1 else ", ".join(mots[:-1]) + " et " + mots[-1]
 
-    morceaux = []
-    if inscription_cents is None:
-        morceaux.append("Inscription déjà réglée.")
-    else:
-        total = inscription_cents * len(echeanciers)
-        prepayees = [
-            f"{PREPA_MATIERE_NAMES.get(e.matiere_key, e.matiere_key)} : "
-            f"{date_fr(e.seance_prepayee, avec_jour=True)}"
-            for e in echeanciers if e.seance_prepayee
-        ]
-        phrase = f"Aujourd'hui : {euros(total)}, qui règle{'nt' if len(echeanciers) > 1 else ''} d'avance la prochaine séance"
-        if prepayees:
-            phrase += " (" + " ; ".join(prepayees) + ")"
-        morceaux.append(phrase + ".")
 
+def _seances_facturees(e: Echeancier, dates: list[datetime], mois: str) -> list[datetime] | None:
+    """Dates des séances de `e` prélevées pour `mois`, ou None si elles ne
+    correspondent pas au nombre de l'échéancier (on n'affiche alors que le
+    nombre, jamais une liste fausse)."""
+    apres = e.seance_prepayee or e.inscrit_le
+    liste = sorted(
+        d for d in (_aware(x) for x in dates)
+        if d > _aware(apres) and cle_mois(mois_de(d)) == mois
+    )
+    return liste if len(liste) == e.mois.get(mois, 0) else None
+
+
+def _texte_compact(echeanciers: list[Echeancier], debut: str) -> str:
     lignes = [
         f"{euros(p['montant_cents'])} le {date_fr(datetime.fromisoformat(p['date']))}"
         for p in prelevements(echeanciers)
     ]
-    if lignes:
-        enum = lignes[0] if len(lignes) == 1 else ", ".join(lignes[:-1]) + " et " + lignes[-1]
-        morceaux.append(
-            "Ensuite, les séances suivantes sont prélevées à la fin de chaque mois "
-            f"(20 € la séance) : {enum}. Aucun prélèvement après."
+    if not lignes:
+        return debut
+    return (
+        f"{debut} Ensuite, les séances suivantes sont prélevées à la fin de chaque "
+        f"mois (20 € la séance) : {_enumerer(lignes)}. Aucun prélèvement après."
+    )
+
+
+STRIPE_TEXTE_MAX = 1200
+
+
+def _nom(matiere_key: str) -> str:
+    return PREPA_MATIERE_NAMES.get(matiere_key, matiere_key)
+
+
+def _jour_seance(d: datetime) -> str:
+    """« Mardi 20 octobre à 21 h »."""
+    texte = date_fr(d, avec_jour=True, avec_heure=True)
+    return texte[0].upper() + texte[1:]
+
+
+def _bloc_inscription(echeanciers: list[Echeancier], inscription_cents: int | None) -> str:
+    plusieurs = len(echeanciers) > 1
+    if inscription_cents is None:
+        return (
+            "Aucun montant n'est débité ce jour : les frais d'inscription ont déjà "
+            "été réglés. Le moyen de paiement est enregistré pour les prélèvements "
+            "ci-dessous."
         )
-    texte = " ".join(morceaux)
-    return texte[:1200]
+    total = inscription_cents * len(echeanciers)
+    texte = f"Montant débité ce jour : {euros(total)}"
+    if plusieurs:
+        texte += f" ({euros(inscription_cents)} × {len(echeanciers)} matières)"
+    texte += ". Ce montant correspond au règlement anticipé de la prochaine séance"
+    jours = {e.seance_prepayee for e in echeanciers if e.seance_prepayee}
+    if len(jours) == 1 and all(e.seance_prepayee for e in echeanciers):
+        d = next(iter(jours))
+        texte += (" de chaque matière" if plusieurs else "") + f", le {date_fr(d, avec_jour=True, avec_heure=True)}."
+    elif jours:
+        texte += " de chaque matière : " + " ; ".join(
+            f"{_nom(e.matiere_key)}, le {date_fr(e.seance_prepayee, avec_jour=True, avec_heure=True)}"
+            for e in echeanciers if e.seance_prepayee
+        ) + "."
+    else:
+        texte += "."
+    return texte
+
+
+def _bloc_regle(plusieurs: bool) -> str:
+    prix = euros(PREPA_PRIX_SEANCE_CENTS)
+    return (
+        f"Modalités de facturation : chaque séance est facturée {prix}, à raison "
+        "d'une séance par semaine" + (" et par matière" if plusieurs else "") + ". "
+        "Le montant mensuel varie donc selon le nombre de semaines de cours dans "
+        "le mois. Il est prélevé automatiquement sur le moyen de paiement "
+        "enregistré, le dernier jour de chaque mois, au titre des séances de ce mois."
+    )
+
+
+def _bloc_mois(echeanciers: list[Echeancier], p: dict, dates: dict[str, list[datetime]]) -> str:
+    mois = p["mois"]
+    nom = _MOIS_FR[parse_mois(mois)[1] - 1].upper()
+    prelev = date_fr(datetime.fromisoformat(p["date"]))
+    n = p["seances"]
+    if n == 0:
+        return f"{nom} : aucune séance, aucun prélèvement."
+
+    plusieurs = len(echeanciers) > 1
+    prix = euros(PREPA_PRIX_SEANCE_CENTS)
+    listes = [_seances_facturees(e, dates.get(e.matiere_key, []), mois) for e in echeanciers]
+    memes = all(x is not None for x in listes) and all(x == listes[0] for x in listes)
+
+    if memes:
+        n1 = len(listes[0])
+        lignes = [f"{nom} : {n1} séance{'s' if n1 > 1 else ''}"]
+        lignes += [f"▪ {_jour_seance(d)}" for d in listes[0]]
+        calcul = f"{n1} × {prix}"
+        if plusieurs:
+            calcul = f"{n1} séance{'s' if n1 > 1 else ''} × {len(echeanciers)} matières × {prix}"
+    else:
+        lignes = [f"{nom} : {n} séance{'s' if n > 1 else ''}"]
+        if all(x is not None for x in listes):
+            lignes += [
+                f"▪ {_jour_seance(d)} ({_nom(e.matiere_key)})"
+                for d, e in sorted(
+                    ((d, e) for e, x in zip(echeanciers, listes) for d in x),
+                    key=lambda c: c[0],
+                )
+            ]
+        calcul = f"{n} × {prix}"
+    lignes.append(f"Total : {calcul} = {euros(p['montant_cents'])}, prélevé le {prelev}.")
+    return "\n".join(lignes)
+
+
+def _bloc_fin(echeanciers: list[Echeancier], inscription_cents: int | None) -> str:
+    lignes = prelevements(echeanciers)
+    total = sum(p["montant_cents"] for p in lignes)
+    texte = f"Montant total des prélèvements à venir : {euros(total)}"
+    if inscription_cents:
+        texte += f", en sus des {euros(inscription_cents * len(echeanciers))} réglés ce jour"
+    texte += "."
+    if lignes:
+        dernier = _MOIS_FR[parse_mois(lignes[-1]["mois"])[1] - 1]
+        texte += f" Aucun prélèvement n'interviendra après {dernier}."
+    return texte
+
+
+def blocs_recap(
+    echeanciers: list[Echeancier],
+    inscription_cents: int | None,
+    dates: dict[str, list[datetime]],
+) -> list[str]:
+    """Paragraphes du récapitulatif détaillé : inscription, règle de calcul,
+    un bloc par mois (chaque séance listée, puis le total), total."""
+    return (
+        [_bloc_inscription(echeanciers, inscription_cents), _bloc_regle(len(echeanciers) > 1)]
+        + [_bloc_mois(echeanciers, p, dates) for p in prelevements(echeanciers)]
+        + [_bloc_fin(echeanciers, inscription_cents)]
+    )
+
+
+def _debut_compact(echeanciers: list[Echeancier], inscription_cents: int | None) -> str:
+    if inscription_cents is None:
+        return "Inscription déjà réglée."
+    plusieurs = len(echeanciers) > 1
+    total = inscription_cents * len(echeanciers)
+    prepayees = [
+        f"{_nom(e.matiere_key)} : {date_fr(e.seance_prepayee, avec_jour=True)}"
+        for e in echeanciers if e.seance_prepayee
+    ]
+    debut = f"Aujourd'hui : {euros(total)}, qui règle{'nt' if plusieurs else ''} d'avance la prochaine séance"
+    if prepayees:
+        debut += " (" + " ; ".join(prepayees) + ")"
+    return debut + "."
+
+
+def texte_recap(
+    echeanciers: list[Echeancier],
+    inscription_cents: int | None = PREPA_PRIX_SEANCE_CENTS,
+    dates: dict[str, list[datetime]] | None = None,
+) -> str:
+    """
+    Explication du paiement (site, console). inscription_cents=None :
+    inscription déjà réglée (lien admin).
+
+    dates : séances prévues de chaque matière (agenda). Si elles sont
+    fournies, le texte est détaillé : chaque mois liste ses séances une par
+    une, puis son total, pour que l'élève comprenne pourquoi un mois coûte
+    40 € et un autre 100 €. Sinon, version courte (montant et date de chaque
+    prélèvement), limitée à 1 200 caractères.
+    """
+    if not echeanciers:
+        return ""
+    if dates is None:
+        return _texte_compact(echeanciers, _debut_compact(echeanciers, inscription_cents))[:STRIPE_TEXTE_MAX]
+    return "\n\n".join(blocs_recap(echeanciers, inscription_cents, dates))
+
+
+def textes_stripe(
+    echeanciers: list[Echeancier],
+    inscription_cents: int | None,
+    dates: dict[str, list[datetime]],
+) -> dict:
+    """
+    custom_text de la Checkout Session. Stripe limite chaque texte à 1 200
+    caractères : le récapitulatif détaillé commence au-dessus du bouton de
+    paiement (submit) et continue en dessous (after_submit) si besoin, en
+    coupant entre deux paragraphes. S'il ne tient pas, version courte.
+    """
+    blocs = blocs_recap(echeanciers, inscription_cents, dates)
+    parties: list[list[str]] = [[], []]
+    i = 0
+    for b in blocs:
+        while i < 2 and len("\n\n".join(parties[i] + [b])) > STRIPE_TEXTE_MAX:
+            i += 1
+        if i == 2:
+            compact = _texte_compact(echeanciers, _debut_compact(echeanciers, inscription_cents))
+            return {"submit": {"message": compact[:STRIPE_TEXTE_MAX]}}
+        parties[i].append(b)
+    out = {"submit": {"message": "\n\n".join(parties[0])}}
+    if parties[1]:
+        out["after_submit"] = {"message": "\n\n".join(parties[1])}
+    return out

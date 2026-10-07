@@ -73,8 +73,9 @@ from app.services.prepa_adjuris_billing import (
     parse_mois,
     prelevements,
     texte_recap,
+    textes_stripe,
 )
-from app.services.prepa_adjuris_facturation import calculer_devis
+from app.services.prepa_adjuris_facturation import calculer_devis, dates_seances
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +243,12 @@ def _devis_ou_erreur(
     return devis
 
 
+def _dates_devis(db: Session, devis: list[Echeancier]) -> dict[str, list[datetime]]:
+    """Séances prévues de chaque matière du devis, pour lister les jours de
+    séance dans le texte de paiement."""
+    return {e.matiere_key: dates_seances(db, e.matiere_key) for e in devis}
+
+
 def _creer_checkout_session(
     db: Session,
     matieres: list[str],
@@ -346,9 +353,9 @@ def _creer_checkout_session(
         "cancel_url": f"{FRONTEND_URL}/prepa-adjuris",
         "metadata": metadata,
         "expires_at": int(expire.timestamp()),
-        "custom_text": {
-            "submit": {"message": texte_recap(devis, inscription_cents=inscription_cents)}
-        },
+        # Récapitulatif détaillé (chaque séance, le total de chaque mois),
+        # au-dessus du bouton et, s'il est long, en dessous.
+        "custom_text": textes_stripe(devis, inscription_cents, _dates_devis(db, devis)),
     }
     if user:
         params["client_reference_id"] = str(user.id)
@@ -386,7 +393,11 @@ def _creer_checkout_session(
         raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
 
 
-def _devis_public(devis: list[Echeancier], inscription_cents: int | None) -> dict:
+def _devis_public(
+    devis: list[Echeancier],
+    inscription_cents: int | None,
+    dates: dict[str, list[datetime]] | None = None,
+) -> dict:
     """Devis sérialisé pour le site et la console."""
     return {
         "inscription": {
@@ -399,7 +410,7 @@ def _devis_public(devis: list[Echeancier], inscription_cents: int | None) -> dic
         },
         "prelevements": prelevements(devis),
         "total_mensuel_cents": sum(p["montant_cents"] for p in prelevements(devis)),
-        "texte": texte_recap(devis, inscription_cents=inscription_cents),
+        "texte": texte_recap(devis, inscription_cents=inscription_cents, dates=dates),
     }
 
 
@@ -681,7 +692,7 @@ def devis_inscription(
 
     maintenant = datetime.now(timezone.utc)
     devis = _devis_ou_erreur(db, keys, maintenant, maintenant)
-    return {"matieres": keys, **_devis_public(devis, inscription_cents)}
+    return {"matieres": keys, **_devis_public(devis, inscription_cents, _dates_devis(db, devis))}
 
 
 # ============================================================
