@@ -293,8 +293,9 @@ def test_textes_stripe_limite_1200():
         assert len(ct["submit"]["message"]) <= 1200
         assert len(ct.get("after_submit", {}).get("message", "")) <= 1200
         tout = ct["submit"]["message"] + ct.get("after_submit", {}).get("message", "")
-        assert "▪ Mardi 29 décembre à 21 h" in tout   # rien n'est perdu
-        assert "▪ Mardi 1er décembre à 21 h" in tout
+        assert "les mardis 1er, 8, 15, 22 et 29 à 21 h" in tout   # rien n'est perdu
+        assert "\n" not in tout                                  # Stripe ignore les retours à la ligne
+        assert "**Échéancier des prélèvements :** ▪ **Octobre : " in ct["submit"]["message"]
 
     # Matières à des jours différents, beaucoup de lignes : jamais au-delà de la limite
     autre = [d.replace(day=d.day) for d in M1]
@@ -322,3 +323,31 @@ def test_seances_hebdomadaires_creneau_l1():
     e = calculer_echeancier("L1_x", dates, paris(2026, 10, 6, 10, 0), fin=FIN)
     assert e.seance_prepayee == paris(2026, 10, 8, 21, 0)
     assert e.mois == {"2026-10": 3, "2026-11": 4, "2026-12": 5}
+
+
+def test_textes_stripe_format():
+    e = calculer_echeancier("L3_droit_des_societes", L3, paris(2026, 10, 10, 11, 0), fin=FIN)
+    ct = textes_stripe([e], 2000, {"L3_droit_des_societes": L3})
+    assert ct["submit"]["message"] == (
+        "**Montant débité ce jour : 20 €**, en règlement anticipé de la prochaine séance, "
+        "le mardi 13 octobre à 21 h. **Échéancier des prélèvements :** "
+        "▪ **Octobre : 40 €**, prélevé le 31 octobre (2 séances × 20 €) : les mardis 20 et 27 à 21 h. "
+        "▪ **Novembre : 80 €**, prélevé le 30 novembre (4 séances × 20 €) : les mardis 3, 10, 17 et 24 à 21 h. "
+        "▪ **Décembre : 100 €**, prélevé le 31 décembre (5 séances × 20 €) : les mardis 1er, 8, 15, 22 et 29 à 21 h."
+    )
+    assert ct["after_submit"]["message"].startswith("**Modalités de facturation :**")
+    assert ct["after_submit"]["message"].endswith(
+        "**Total des prélèvements à venir : 220 €**, en sus des 20 € réglés ce jour. "
+        "Aucun prélèvement n'interviendra après décembre."
+    )
+
+    # Cours déplacé : jours différents, chacun avec son heure
+    deplace = [d for d in L3 if d != paris(2026, 10, 27, 21, 0)] + [paris(2026, 10, 29, 20, 0)]
+    e2 = calculer_echeancier("L3_droit_des_societes", deplace, paris(2026, 10, 10, 11, 0), fin=FIN)
+    ct2 = textes_stripe([e2], 2000, {"L3_droit_des_societes": deplace})
+    assert "le mardi 20 à 21 h et le jeudi 29 à 20 h" in ct2["submit"]["message"]
+
+    # Lien manuel : rien n'est débité
+    ct3 = textes_stripe([e], None, {"L3_droit_des_societes": L3})
+    assert ct3["submit"]["message"].startswith("**Aucun montant n'est débité ce jour**")
+    assert "en sus" not in ct3["after_submit"]["message"]
