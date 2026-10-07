@@ -93,6 +93,10 @@ _STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_seances_niveau ON prepa_adjuris_seances (niveau)",
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_seances_matiere_key ON prepa_adjuris_seances (matiere_key)",
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_seances_date_debut ON prepa_adjuris_seances (date_debut)",
+    # updated_at : créée NOT NULL sans défaut par une version antérieure du
+    # modèle (prod). On garantit la colonne et un défaut côté base.
+    "ALTER TABLE prepa_adjuris_seances ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+    "ALTER TABLE prepa_adjuris_seances ALTER COLUMN updated_at SET DEFAULT now()",
 
     # ── adjuris_promo_codes (codes promo — prix d'inscription) ──
     """
