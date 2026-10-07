@@ -37,6 +37,9 @@ class FauxStripe:
         self.modifs = []
         self.credits = []
         self.factures_ouvertes = []
+        self.abonnements = []
+        self.clients = []
+        self.cles = {}
 
     # checkout.Session.create
     def creer_session(self, **params):
@@ -44,18 +47,26 @@ class FauxStripe:
         return SimpleNamespace(url="https://checkout.stripe.test/s", id="cs_1",
                                expires_at=params.get("expires_at"))
 
+    # Subscription.create : même clé d'idempotence → même abonnement
+    def creer_abonnement(self, idempotency_key=None, **params):
+        if idempotency_key in self.cles:
+            return self.cles[idempotency_key]
+        sub = {"id": f"sub_{len(self.abonnements) + 1}", **params}
+        self.abonnements.append(sub)
+        self.cles[idempotency_key] = sub
+        return sub
+
     # SubscriptionSchedule
     def creer_schedule(self, from_subscription):
-        params = self.sessions[-1]
-        anchor = params["subscription_data"]["billing_cycle_anchor"]
+        sub = next(s for s in self.abonnements if s["id"] == from_subscription)
+        anchor = sub["billing_cycle_anchor"]
         debut = int(datetime.now(timezone.utc).timestamp())
         sched = {
-            "id": "sub_sched_1", "status": "active",
+            "id": f"sub_sched_{len(self.schedules) + 1}", "status": "active",
             "current_phase": {"start_date": debut, "end_date": anchor},
             "phases": [{
                 "start_date": debut, "end_date": anchor,
-                "items": [{"price": i["price"], "quantity": i["quantity"]}
-                          for i in params["line_items"][1::2]],
+                "items": [{"price": i["price"], "quantity": i["quantity"]} for i in sub["items"]],
                 "billing_cycle_anchor": None,
             }],
         }
@@ -99,6 +110,12 @@ def env(tmp_path_factory):
     mp.setattr(stripe.SubscriptionSchedule, "retrieve", staticmethod(faux.retrieve_schedule))
     mp.setattr(stripe.SubscriptionSchedule, "modify", staticmethod(faux.modify_schedule))
     mp.setattr(stripe.Subscription, "retrieve", staticmethod(faux.retrieve_subscription))
+    mp.setattr(stripe.Subscription, "create", staticmethod(faux.creer_abonnement))
+    mp.setattr(stripe.Customer, "create",
+               staticmethod(lambda **kw: faux.clients.append(kw) or {"id": f"cus_setup_{len(faux.clients)}"}))
+    mp.setattr(stripe.Customer, "modify", staticmethod(lambda cid, **kw: {"id": cid, **kw}))
+    mp.setattr(stripe.PaymentIntent, "retrieve", staticmethod(lambda i: {"id": i, "payment_method": "pm_carte"}))
+    mp.setattr(stripe.SetupIntent, "retrieve", staticmethod(lambda i: {"id": i, "payment_method": "pm_setup"}))
     mp.setattr(stripe.Customer, "create_balance_transaction",
                staticmethod(lambda cid, **kw: faux.credits.append((cid, kw))))
     mp.setattr(stripe.Invoice, "list",
@@ -168,22 +185,41 @@ def test_parcours_complet(env):
     })
     assert r.status_code == 200, r.text
     params = faux.sessions[-1]
-    assert params["subscription_data"]["proration_behavior"] == "none"
-    assert "trial_end" not in params["subscription_data"]
-    assert len(params["line_items"]) == 2  # inscription (20 €) + mensuel
+    # Paiement simple : 20 €, carte enregistrée, pas de « puis X € par mois »
+    assert params["mode"] == "payment"
+    assert "subscription_data" not in params
+    assert params["line_items"] == [{"price": params["line_items"][0]["price"], "quantity": 1}]
+    assert params["payment_intent_data"]["setup_future_usage"] == "off_session"
+    assert params["customer_creation"] == "always"
     assert params["metadata"]["echeancier"]
     assert len(params["custom_text"]["submit"]["message"]) <= 1200
 
-    # 4. Webhook checkout.session.completed
+    # 4. Webhook checkout.session.completed : crée l'abonnement sur la carte
     session = {
-        "metadata": params["metadata"], "subscription": "sub_1", "customer": "cus_1",
+        "id": "cs_ada", "mode": "payment", "payment_intent": "pi_1",
+        "metadata": params["metadata"], "subscription": None, "customer": "cus_1",
         "customer_email": "ada@example.com", "created": int(now.timestamp()),
     }
     env.subs._handle_prepa_adjuris_checkout(
         db := env.Session(), session, ["L3_droit_des_societes"]
     )
     db.close()
+    assert len(faux.abonnements) == 1
+    sub = faux.abonnements[0]
+    assert sub["id"] == "sub_1" and sub["customer"] == "cus_1"
+    assert sub["default_payment_method"] == "pm_carte"
+    assert sub["proration_behavior"] == "none"
+    assert sub["billing_cycle_anchor"] > now.timestamp()
+    assert "trial_end" not in sub
     assert faux.modifs, "l'échéancier Stripe doit être créé"
+
+    # Relivraison du même event : ni second abonnement, ni doublon en base
+    nb_modifs = len(faux.modifs)
+    env.subs._handle_prepa_adjuris_checkout(
+        db := env.Session(), dict(session), ["L3_droit_des_societes"]
+    )
+    db.close()
+    assert len(faux.abonnements) == 1 and len(faux.modifs) == nb_modifs
     phases = faux.modifs[-1]["phases"]
     assert faux.modifs[-1]["end_behavior"] == "cancel"
     assert all(p.get("billing_cycle_anchor") == "phase_start" for p in phases[1:])
@@ -242,10 +278,25 @@ def test_parcours_complet(env):
     })
     assert r.status_code == 200, r.text
     params = faux.sessions[-1]
-    assert len(params["line_items"]) == 1                     # mensuel seulement
+    assert params["mode"] == "setup"                          # rien encaissé, carte enregistrée
+    assert "line_items" not in params and "customer_email" not in params
+    assert params["customer"] == "cus_setup_1" and params["currency"] == "eur"
     assert params["metadata"]["inscription_deja_payee"] == "1"
     assert r.json()["inscription"]["total_cents"] == 0
     assert sum(p["seances"] for p in r.json()["prelevements"]) == 8   # 9 prévues - 1 prépayée
+
+    # Webhook du lien manuel : abonnement sur la carte du SetupIntent
+    env.subs._handle_prepa_adjuris_checkout(db := env.Session(), {
+        "id": "cs_bob", "mode": "setup", "setup_intent": "seti_1", "subscription": None,
+        "customer": "cus_setup_1", "metadata": params["metadata"],
+        "customer_email": None, "created": int(now.timestamp()),
+    }, ["L3_droit_des_societes"])
+    db.close()
+    sub = faux.abonnements[-1]
+    assert sub["customer"] == "cus_setup_1" and sub["default_payment_method"] == "pm_setup"
+    fact = c.get("/prepa/adjuris/admin/facturation", headers=ADMIN).json()
+    bob = [i for i in fact["items"] if i["email"] == "bob@example.com"]
+    assert len(bob) == 1 and bob[0]["echeancier_statut"] == "ok"
 
 
 def test_recurrence(env):
@@ -290,3 +341,105 @@ def test_recurrence(env):
     assert r.json()["concernees"] == 4 * 2 + 1   # administratif + obligations (4 chacun) + 1ère de pénal
     admin_ = c.get("/prepa/adjuris/admin/agenda?matiere=L2_droit_administratif", headers=ADMIN).json()["items"]
     assert all(s["statut"] == "annulee" for s in admin_)
+
+
+def test_webhook_tardif(env, monkeypatch):
+    """Webhook relivré après le prélèvement du premier mois : l'abonnement
+    démarre au mois suivant au lieu d'échouer (date d'ancrage passée)."""
+    from app.services import prepa_adjuris_facturation as fa
+    from app.services.prepa_adjuris_billing import date_prelevement, parse_mois
+
+    now = datetime.now(timezone.utc)
+    db = env.Session()
+    devis = fa.calculer_devis(db, ["L3_droit_des_societes"], now, facturable_apres=now)
+    db.close()
+    mois = sorted(devis[0].mois)
+    assert len(mois) >= 2
+    apres_premier = date_prelevement(parse_mois(mois[0])) + timedelta(minutes=1)
+    monkeypatch.setattr(env.subs, "utcnow", lambda: apres_premier)
+
+    sub_id = env.subs._creer_abonnement_adjuris(
+        {"id": "cs_tard", "mode": "payment", "payment_intent": "pi_t", "customer": "cus_t"},
+        devis, {"matiere_keys": "L3_droit_des_societes"},
+    )
+    sub = next(s for s in env.faux.abonnements if s["id"] == sub_id)
+    assert sub["billing_cycle_anchor"] == int(date_prelevement(parse_mois(mois[1])).timestamp())
+    assert sub["items"][0]["quantity"] == max(1, devis[0].mois[mois[1]])
+
+
+def test_agenda_et_paiement_simple(env):
+    """Un cours déplacé d'un mois à l'autre :
+      1. pendant que le lien de paiement est ouvert → le webhook facture
+         l'agenda réel, pas le devis affiché ;
+      2. après l'inscription → l'échéancier Stripe est mis à jour."""
+    from app.db.models import PrepaAdjurisEnrollment
+    from app.services.prepa_adjuris_billing import Echeancier, date_prelevement, parse_mois
+    from sqlalchemy import select
+
+    c, faux = env.client, env.faux
+    now = datetime.now(timezone.utc)
+    cle = "L1_droit_ijae"
+    r = c.post("/prepa/adjuris/admin/agenda/serie", headers=ADMIN, json={
+        "niveau": "L1", "jour_semaine": 3, "heure": "21:00",
+        "du": (now + timedelta(days=1)).date().isoformat(),
+        "au": (now + timedelta(days=100)).date().isoformat(), "matieres": [cle],
+    })
+    assert r.status_code == 200, r.text
+
+    r = c.post("/prepa/adjuris/checkout", json={
+        "prenom": "Carl", "nom": "D", "email": "carl@example.com",
+        "niveau": "L1", "matieres": [cle],
+    })
+    assert r.status_code == 200, r.text
+    params = faux.sessions[-1]
+    assert params["mode"] == "payment"
+    from app.services.prepa_adjuris_billing import devis_depuis_metadata
+    devis = devis_depuis_metadata(params["metadata"]["echeancier"],
+                                  datetime.fromisoformat(params["metadata"]["inscrit_le"]))[0]
+
+    # Un mois avec des séances, suivi d'un autre mois couvert
+    mois = sorted(devis.mois)
+    m = next(k for k, suiv in zip(mois, mois[1:]) if devis.mois[k] > 0)
+    suivant = mois[mois.index(m) + 1]
+    seances = c.get(f"/prepa/adjuris/admin/agenda?matiere={cle}", headers=ADMIN).json()["items"]
+    dans_m = [s for s in seances
+              if datetime.fromisoformat(s["date_debut"]).astimezone(PARIS).strftime("%Y-%m") == m
+              and datetime.fromisoformat(s["date_debut"]) > devis.seance_prepayee]
+    cours = dans_m[-1]
+    a, mo = parse_mois(suivant)
+    nouvelle = datetime(a, mo, 1, 21, 0)  # heure de Paris
+
+    # 1. Déplacé pendant que le lien est ouvert
+    r = c.patch(f"/prepa/adjuris/admin/agenda/seances/{cours['id']}", headers=ADMIN,
+                json={"date_debut": nouvelle.isoformat()})
+    assert r.status_code == 200, r.text
+    env.subs._handle_prepa_adjuris_checkout(db := env.Session(), {
+        "id": "cs_carl", "mode": "payment", "payment_intent": "pi_c", "subscription": None,
+        "customer": "cus_carl", "metadata": params["metadata"],
+        "customer_email": "carl@example.com", "created": int(now.timestamp()),
+    }, [cle])
+    e = db.execute(select(PrepaAdjurisEnrollment).where(
+        PrepaAdjurisEnrollment.stripe_customer_id == "cus_carl")).scalar_one()
+    stocke = Echeancier.from_dict(e.echeancier)
+    assert stocke.mois[m] == devis.mois[m] - 1
+    assert stocke.mois[suivant] == devis.mois[suivant] + 1
+    assert e.echeancier_statut == "ok"
+    sched = faux.schedules[e.stripe_schedule_id]
+    db.close()
+
+    # Échéancier Stripe poussé : la phase ouverte à la fin de m porte m.
+    def par_mois(sched):
+        out = {}
+        for p in sched["phases"][1:]:
+            for k in mois:
+                if int(date_prelevement(parse_mois(k)).timestamp()) == p["start_date"]:
+                    out[k] = p["items"][0]["quantity"]
+        return out
+    assert par_mois(sched)[m] == devis.mois[m] - 1
+
+    # 2. Remis à sa place après l'inscription : Stripe suit
+    r = c.patch(f"/prepa/adjuris/admin/agenda/seances/{cours['id']}", headers=ADMIN,
+                json={"date_debut": cours["date_debut"]})
+    assert r.status_code == 200, r.text
+    assert par_mois(sched)[m] == devis.mois[m]
+    assert par_mois(sched)[suivant] == devis.mois[suivant]

@@ -258,14 +258,15 @@ def _creer_checkout_session(
     d'entrée (formulaire public, espace connecté, lien de paiement admin) :
     c'est ce qui garantit qu'ils facturent à l'identique.
 
-    Ce qui est encaissé au paiement : 20 € par matière (le one_time), qui
-    règlent d'avance la prochaine séance. Rien d'autre : l'abonnement démarre
-    avec billing_cycle_anchor = date du premier prélèvement (fin du mois) et
-    proration_behavior="none", donc aucun prorata d'ici là. Il n'y a plus
-    d'essai gratuit, ni de règle des 48 h.
+    La page Stripe est un paiement simple : 20 € par matière (le one_time),
+    qui règlent d'avance la prochaine séance, et la carte est enregistrée
+    pour les prélèvements de fin de mois (setup_future_usage). Pas de mode
+    "subscription" : Stripe y afficherait « puis X € par mois », alors que
+    le montant varie chaque mois avec le nombre de séances.
 
-    Le devis (séances par mois) est figé dans la metadata : le webhook crée
-    l'échéancier Stripe avec exactement ce que l'élève a vu.
+    L'abonnement et son échéancier mois par mois sont créés par le webhook
+    (subscriptions._creer_abonnement_adjuris), avec le devis figé dans la
+    metadata : exactement ce que l'élève a vu.
 
     override_price_cents : code promo validé en amont, remplace le prix
     d'inscription matière par matière. Le mensuel n'est jamais concerné.
@@ -273,6 +274,8 @@ def _creer_checkout_session(
     inscrit_le / inscription_deja_payee : lien de paiement créé par un admin
     pour un élève qui a déjà réglé ses 20 € autrement (inscription antidatée,
     pas de one_time). Les mois déjà passés ne sont jamais facturés.
+    Rien à encaisser (inscription déjà réglée, promo à 0 €) : mode "setup",
+    la page enregistre seulement la carte.
     """
     niveaux = {matiere_niveau(m) for m in matieres}
     if len(niveaux) > 1:
@@ -291,9 +294,9 @@ def _creer_checkout_session(
     _stripe()  # force la clé NAVIRE
 
     line_items = []
-    for e in devis:
-        key = e.matiere_key
-        if not inscription_deja_payee:
+    if not inscription_deja_payee:
+        for e in devis:
+            key = e.matiere_key
             if override_price_cents is not None:
                 line_items.append({
                     "price_data": {
@@ -305,13 +308,6 @@ def _creer_checkout_session(
                 })
             else:
                 line_items.append({"price": PREPA_PRICES[key]["one_time"], "quantity": 1})
-        # Quantité du premier mois : n'est pas prélevée maintenant (pas de
-        # prorata), elle sert seulement à l'affichage Stripe « puis X € ».
-        # Les vraies quantités sont posées par l'échéancier (webhook).
-        line_items.append({
-            "price": PREPA_PRICES[key]["recurring"],
-            "quantity": max(1, e.mois.get(premier_mois, 0)),
-        })
 
     inscrit_iso = inscrit_le.isoformat()
     metadata = {
@@ -325,14 +321,19 @@ def _creer_checkout_session(
     metadata.update(metadata_extra or {})
 
     # Le devis ne doit pas pouvoir devenir faux entre l'ouverture du lien et
-    # le paiement : le lien expire avant la prochaine séance (Stripe impose
-    # entre 30 minutes et 24 heures, bornes exclues).
-    # Lien admin (inscription antidatée) : le devis ne dépend pas du moment
-    # du paiement, 24 h de validité.
-    expire = maintenant + timedelta(hours=23, minutes=55)
+    # le paiement : le lien expire avant la prochaine séance, et avant le
+    # premier prélèvement (le webhook crée l'abonnement avec cette date, qui
+    # doit encore être future). Stripe impose entre 30 minutes et 24 heures,
+    # bornes exclues. Lien admin (inscription antidatée) : le devis ne dépend
+    # pas du moment du paiement.
+    expire = min(
+        maintenant + timedelta(hours=23, minutes=55),
+        premier_prelevement - timedelta(minutes=15),
+    )
     if not inscription_deja_payee:
         prochaine = min(e.seance_prepayee for e in devis if e.seance_prepayee)
-        expire = max(min(expire, prochaine), maintenant + timedelta(minutes=31))
+        expire = min(expire, prochaine)
+    expire = max(expire, maintenant + timedelta(minutes=31))
 
     inscription_cents = (
         None if inscription_deja_payee
@@ -340,18 +341,11 @@ def _creer_checkout_session(
     )
 
     params = {
-        "mode": "subscription",
         "customer_email": email,
-        "line_items": line_items,
         "success_url": f"{FRONTEND_URL}{success_path}?session_id={{CHECKOUT_SESSION_ID}}",
         "cancel_url": f"{FRONTEND_URL}/prepa-adjuris",
         "metadata": metadata,
         "expires_at": int(expire.timestamp()),
-        "subscription_data": {
-            "billing_cycle_anchor": int(premier_prelevement.timestamp()),
-            "proration_behavior": "none",
-            "metadata": {"matiere_keys": ",".join(matieres), "inscrit_le": inscrit_iso},
-        },
         "custom_text": {
             "submit": {"message": texte_recap(devis, inscription_cents=inscription_cents)}
         },
@@ -360,25 +354,34 @@ def _creer_checkout_session(
         params["client_reference_id"] = str(user.id)
 
     try:
+        if inscription_cents:
+            params.update({
+                "mode": "payment",
+                "line_items": line_items,
+                # Un client Stripe neuf par paiement, comme avant en mode
+                # abonnement : la carte y est enregistrée et devient son moyen
+                # de paiement par défaut sans toucher à un autre abonnement.
+                "customer_creation": "always",
+                "payment_intent_data": {
+                    "setup_future_usage": "off_session",
+                    "metadata": {"matiere_keys": ",".join(matieres), "inscrit_le": inscrit_iso},
+                },
+            })
+        else:
+            # Mode setup : Checkout ne crée pas de client, on le crée ici.
+            client = stripe.Customer.create(
+                email=email, metadata={"origine": "prepa_adjuris"}
+            )
+            params.pop("customer_email")
+            params.update({
+                "mode": "setup",
+                "customer": client["id"],
+                "currency": "eur",
+                "setup_intent_data": {
+                    "metadata": {"matiere_keys": ",".join(matieres), "inscrit_le": inscrit_iso},
+                },
+            })
         return stripe.checkout.Session.create(**params)
-    except stripe.InvalidRequestError as e:
-        # Repli : si Stripe refusait la date d'ancrage, on obtient le même
-        # résultat (20 € seulement aujourd'hui, premier prélèvement à la même
-        # date) avec un essai jusqu'à cette date. Stripe exige un essai d'au
-        # moins 48 h : en deçà, on laisse l'erreur remonter plutôt que de
-        # facturer le mois d'un coup.
-        ancre = params["subscription_data"]["billing_cycle_anchor"]
-        if ancre - maintenant.timestamp() < 49 * 3600:
-            raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
-        logger.error("Checkout Adjuris : ancrage refusé par Stripe (%s), repli sur trial_end.", e)
-        params["subscription_data"] = {
-            "trial_end": ancre,
-            "metadata": params["subscription_data"]["metadata"],
-        }
-        try:
-            return stripe.checkout.Session.create(**params)
-        except stripe.StripeError as e2:
-            raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e2)}")
     except stripe.StripeError as e:
         raise HTTPException(status_code=502, detail=f"Erreur Stripe : {str(e)}")
 
