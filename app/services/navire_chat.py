@@ -356,6 +356,29 @@ def send_message(
     file_ids : sous-ensemble des PDF perso à utiliser (None = tous).
     """
     conv = get_or_create_conversation(db, user, conversation_id, mode)
+    is_new = not conv.messages
+    try:
+        return _answer(db, user, conv, user_message, use_navire_docs, use_my_docs, file_ids)
+    except Exception:
+        # La conversation est enregistrée avant l'appel au modèle : si la
+        # réponse échoue (crédit OpenAI épuisé, panne…), on ne laisse pas
+        # traîner une conversation vide dans l'historique.
+        if is_new:
+            db.rollback()
+            db.delete(conv)
+            db.commit()
+        raise
+
+
+def _answer(
+    db: Session,
+    user: User,
+    conv: NavireConversation,
+    user_message: str,
+    use_navire_docs: bool,
+    use_my_docs: bool,
+    file_ids: list[int] | None,
+) -> dict:
     search_opts = {
         "use_navire_docs": use_navire_docs,
         "use_my_docs": use_my_docs,
