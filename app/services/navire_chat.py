@@ -279,6 +279,24 @@ def _run_tool(db: Session, user: User, name: str, arguments: dict, search_opts: 
         return {"error": f"Erreur lors de l'exécution de {name}."}
 
 
+def _user_context(user: User) -> str:
+    """
+    Qui est l'utilisateur, pour que NAVIRE l'appelle par son pseudo et
+    adapte le niveau de ses explications à son année d'études.
+    """
+    lines = [f"- Pseudo : {user.username}"]
+    if user.study_level:
+        lines.append(f"- Niveau d'études : {user.study_level}")
+    if user.university:
+        lines.append(f"- Université : {user.university}")
+    return (
+        "\n\nUTILISATEUR (tu lui parles directement) :\n"
+        + "\n".join(lines)
+        + "\nAppelle-le par son pseudo quand c'est naturel (salutations, encouragements), "
+        "sans le répéter à chaque message. Adapte le niveau de tes explications à son année."
+    )
+
+
 # ============================================================
 # CONVERSATIONS — rétention + accès
 # ============================================================
@@ -351,7 +369,7 @@ def send_message(
         for m in (conv.messages or [])[-10:]
     ]
 
-    system_prompt = SYSTEM_PROMPT
+    system_prompt = SYSTEM_PROMPT + _user_context(user)
     if not use_navire_docs or not use_my_docs:
         actives = []
         if use_navire_docs:
