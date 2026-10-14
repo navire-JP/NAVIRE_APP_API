@@ -7,6 +7,8 @@ ingestion (admin) des sources.
 
 from __future__ import annotations
 
+import traceback
+
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -58,16 +60,33 @@ def chat(
     if payload.mode not in ("chat", "cas_pratique", "note_synthese"):
         raise HTTPException(status_code=400, detail="Mode invalide.")
 
-    result = send_message(
-        db=db,
-        user=user,
-        conversation_id=payload.conversation_id,
-        user_message=payload.message,
-        mode=payload.mode,
-        use_navire_docs=payload.use_navire_docs,
-        use_my_docs=payload.use_my_docs,
-        file_ids=payload.file_ids,
-    )
+    # Une exception non gérée donne un 500 sans en-têtes CORS : le navigateur
+    # l'affiche alors comme une coupure réseau. On renvoie une vraie erreur
+    # JSON (avec CORS) et on garde la trace complète dans les logs Render.
+    try:
+        result = send_message(
+            db=db,
+            user=user,
+            conversation_id=payload.conversation_id,
+            user_message=payload.message,
+            mode=payload.mode,
+            use_navire_docs=payload.use_navire_docs,
+            use_my_docs=payload.use_my_docs,
+            file_ids=payload.file_ids,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"⚠️ NAVIRE chat error (user {user.id}): {e!r}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "NAVIRE_ERROR",
+                "message": "NAVIRE a rencontré une erreur. Réessaie dans un instant.",
+            },
+        )
     return result
 
 
