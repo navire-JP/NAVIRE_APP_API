@@ -11,13 +11,14 @@ router = APIRouter(prefix="/assets", tags=["assets"])
 # Dossier assets/ à la racine du dépôt (app/routers/assets.py → ../../assets).
 ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
 
-# Liste blanche d'un seul fichier : le logo NAVIRE des emails, et rien d'autre.
+# Liste blanche des images de marque NAVIRE, et rien d'autre.
 # Le dossier assets/ contient aussi des documents (assets/DOCS), des photos de
 # profil et les visuels MEOLES — rien de tout cela ne doit être joignable par
 # cette route. Le nom exposé est stable : les templates d'email pointent
 # dessus, ils ne doivent pas casser si le fichier source est renommé.
 BRAND_FILES: dict[str, str] = {
     "logo-navire.png": "LOGO SEUL (3).png",   # logo NAVIRE, blanc sur transparent
+    "logo-navire-app.png": "logoNAVIRE.png",   # icône d'app (carré arrondi blanc), interface NAVIRE AI
 }
 
 # Une semaine : ces fichiers ne changent qu'à un changement d'identité visuelle,
