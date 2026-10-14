@@ -8,6 +8,7 @@ ingestion (admin) des sources.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, Field
@@ -188,9 +189,22 @@ def list_conversations(
         db.query(NavireConversation)
         .filter(NavireConversation.user_id == user.id)  # cloisonnement
         .order_by(NavireConversation.updated_at.desc())
-        .limit(10)
         .all()
     )
+
+    # Conversations vides : restes d'une réponse qui a échoué avant le
+    # correctif. On les supprime (après 5 min, pour ne pas toucher à une
+    # conversation en cours de création) et on ne les affiche jamais.
+    stale_before = datetime.now(timezone.utc) - timedelta(minutes=5)
+    empty = [c for c in conversations if not c.messages]
+    for c in empty:
+        updated = c.updated_at if c.updated_at.tzinfo else c.updated_at.replace(tzinfo=timezone.utc)
+        if updated < stale_before:
+            db.delete(c)
+    if empty:
+        db.commit()
+    conversations = [c for c in conversations if c.messages][:10]
+
     return [
         {
             "id": c.id,
