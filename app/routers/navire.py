@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.models import User, NavireConversation, NavireChunk, File
 from app.routers.auth import get_current_user
-from app.core.limits import check_navire_daily_limit
+from app.core.limits import check_navire_daily_limit, navire_daily_usage
 from app.services.navire_chat import send_message
 from app.services.navire_ingest import ingest_all_prepa_courses, ingest_all_veille_items, ingest_user_file
 
@@ -31,6 +31,10 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
     conversation_id: int | None = None
     mode: str = "chat"  # chat | cas_pratique | note_synthese
+    # Sources interrogées par la recherche juridique (onglet Sources du front)
+    use_navire_docs: bool = True          # cours + actus de la base NAVIRE
+    use_my_docs: bool = True              # PDF perso de l'utilisateur
+    file_ids: list[int] | None = Field(default=None, max_length=200)  # None = tous les PDF perso
 
 
 class ChatResponse(BaseModel):
@@ -60,8 +64,92 @@ def chat(
         conversation_id=payload.conversation_id,
         user_message=payload.message,
         mode=payload.mode,
+        use_navire_docs=payload.use_navire_docs,
+        use_my_docs=payload.use_my_docs,
+        file_ids=payload.file_ids,
     )
     return result
+
+
+@router.get("/quota")
+def get_quota(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Questions NAVIRE utilisées aujourd'hui (limit None = illimité)."""
+    used, limit = navire_daily_usage(user, db)
+    return {
+        "plan": user.plan,
+        "used": used,
+        "limit": limit,
+        "remaining": None if limit is None else max(0, limit - used),
+    }
+
+
+# ============================================================
+# Documents perso — état d'indexation pour l'onglet Sources / Fichiers
+# ============================================================
+
+def _owned_file(db: Session, user: User, file_id: int) -> File:
+    f = db.query(File).filter(File.id == file_id, File.user_id == user.id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="Fichier introuvable.")
+    return f
+
+
+@router.get("/documents")
+def list_documents(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    PDF perso de l'utilisateur avec le nombre de chunks indexés : 0 = pas
+    lisible par NAVIRE (PDF scanné sans texte, ou indexation échouée).
+    """
+    from sqlalchemy import func as sa_func
+
+    files = (
+        db.query(File)
+        .filter(File.user_id == user.id)
+        .order_by(File.created_at.desc())
+        .all()
+    )
+    counts = dict(
+        db.query(NavireChunk.source_id, sa_func.count(NavireChunk.id))
+        .filter(
+            NavireChunk.source_type == "pdf_user",
+            NavireChunk.owner_user_id == user.id,
+        )
+        .group_by(NavireChunk.source_id)
+        .all()
+    )
+    return [
+        {
+            "id": f.id,
+            "filename": f.filename_original,
+            "size_bytes": f.size_bytes,
+            "created_at": f.created_at,
+            "expires_at": f.expires_at,
+            "chunks": counts.get(f.id, 0),
+        }
+        for f in files
+    ]
+
+
+@router.post("/documents/{file_id}/reindex")
+def reindex_document(
+    file_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Relance l'indexation d'un PDF perso (après un échec à l'import)."""
+    f = _owned_file(db, user, file_id)
+    try:
+        created = ingest_user_file(db, f)
+    except Exception as e:
+        print(f"⚠️ Réindexation NAVIRE échouée pour file {f.id}: {e}")
+        raise HTTPException(status_code=502, detail="Indexation impossible pour le moment.")
+    return {"id": f.id, "chunks": created}
 
 
 # ============================================================

@@ -211,7 +211,32 @@ def _tool_get_latest_actus(db: Session, category: str | None = None, limit: int 
     }
 
 
-def _tool_search_legal_base(db: Session, user: User, query: str) -> dict:
+def _source_types(use_navire_docs: bool, use_my_docs: bool) -> list[str]:
+    types: list[str] = []
+    if use_navire_docs:
+        types += ["cours", "actu"]
+    if use_my_docs:
+        types.append("pdf_user")
+    return types
+
+
+def _tool_search_legal_base(
+    db: Session,
+    user: User,
+    query: str,
+    use_navire_docs: bool = True,
+    use_my_docs: bool = True,
+    file_ids: list[int] | None = None,
+) -> dict:
+    source_types = _source_types(use_navire_docs, use_my_docs)
+    if not source_types:
+        return {
+            "found": False,
+            "extraits": [],
+            "note": "L'utilisateur a déconnecté toutes les sources (base NAVIRE et documents perso). "
+                    "Invite-le à en réactiver une dans l'onglet Sources.",
+        }
+
     query_embedding = embed_text(query)
     annee_filter = getattr(user, "prepa_annee", None)
     chunks = search_chunks(
@@ -219,7 +244,9 @@ def _tool_search_legal_base(db: Session, user: User, query: str) -> dict:
         query_embedding=query_embedding,
         user_id=user.id,
         top_k=TOP_K_CHUNKS,
+        source_types=source_types,
         annee_filter=annee_filter,
+        user_file_ids=file_ids if use_my_docs else None,
     )
     if not chunks:
         return {"found": False, "extraits": [], "note": "Aucun extrait pertinent. La base est peut-être vide ou la question hors périmètre."}
@@ -231,12 +258,12 @@ def _tool_search_legal_base(db: Session, user: User, query: str) -> dict:
             "actu": f"Actualité — {c.extra.get('titre', '')} ({c.extra.get('source_name', '')})",
             "pdf_user": f"Votre document — {c.extra.get('filename', '')}",
         }.get(c.source_type, "Source")
-        extraits.append({"source": label, "contenu": c.content})
+        extraits.append({"source": label, "kind": c.source_type, "contenu": c.content})
 
     return {"found": True, "extraits": extraits}
 
 
-def _run_tool(db: Session, user: User, name: str, arguments: dict) -> dict:
+def _run_tool(db: Session, user: User, name: str, arguments: dict, search_opts: dict | None = None) -> dict:
     try:
         if name == "get_user_stats":
             return _tool_get_user_stats(db, user)
@@ -245,7 +272,7 @@ def _run_tool(db: Session, user: User, name: str, arguments: dict) -> dict:
         if name == "get_latest_actus":
             return _tool_get_latest_actus(db, arguments.get("category"), arguments.get("limit", 5))
         if name == "search_legal_base":
-            return _tool_search_legal_base(db, user, arguments.get("query", ""))
+            return _tool_search_legal_base(db, user, arguments.get("query", ""), **(search_opts or {}))
         return {"error": f"Outil inconnu : {name}"}
     except Exception as e:
         print(f"⚠️ NAVIRE tool {name} error: {e}")
@@ -301,8 +328,21 @@ def send_message(
     conversation_id: int | None,
     user_message: str,
     mode: str = "chat",
+    use_navire_docs: bool = True,
+    use_my_docs: bool = True,
+    file_ids: list[int] | None = None,
 ) -> dict:
+    """
+    use_navire_docs / use_my_docs : sources que search_legal_base a le droit
+    d'interroger (réglées par l'utilisateur dans l'onglet Sources).
+    file_ids : sous-ensemble des PDF perso à utiliser (None = tous).
+    """
     conv = get_or_create_conversation(db, user, conversation_id, mode)
+    search_opts = {
+        "use_navire_docs": use_navire_docs,
+        "use_my_docs": use_my_docs,
+        "file_ids": file_ids,
+    }
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # Historique de CETTE conversation (mémoire courte)
@@ -311,8 +351,21 @@ def send_message(
         for m in (conv.messages or [])[-10:]
     ]
 
+    system_prompt = SYSTEM_PROMPT
+    if not use_navire_docs or not use_my_docs:
+        actives = []
+        if use_navire_docs:
+            actives.append("la base NAVIRE (cours et actus)")
+        if use_my_docs:
+            actives.append("les documents personnels de l'utilisateur")
+        system_prompt += (
+            "\n\nSOURCES ACTIVES : l'utilisateur a limité la recherche à "
+            + (" et ".join(actives) if actives else "aucune source")
+            + ". search_legal_base n'interroge que ces sources."
+        )
+
     messages = (
-        [{"role": "system", "content": SYSTEM_PROMPT}]
+        [{"role": "system", "content": system_prompt}]
         + history_messages
         + [{"role": "user", "content": user_message}]
     )
@@ -355,12 +408,16 @@ def send_message(
                 args = json.loads(tc.function.arguments or "{}")
             except Exception:
                 args = {}
-            result = _run_tool(db, user, tc.function.name, args)
+            result = _run_tool(db, user, tc.function.name, args, search_opts)
 
             # Tracer les sources RAG pour l'affichage front
             if tc.function.name == "search_legal_base" and result.get("found"):
                 for ex in result.get("extraits", []):
-                    sources_cited.append({"type": "rag", "label": ex.get("source", "")})
+                    sources_cited.append({
+                        "type": "rag",
+                        "kind": ex.get("kind", ""),
+                        "label": ex.get("source", ""),
+                    })
 
             messages.append({
                 "role": "tool",
@@ -373,10 +430,24 @@ def send_message(
     if not assistant_reply:
         assistant_reply = "Je n'ai pas de réponse à te donner sur ce point."
 
-    # Sauvegarde de la conversation
+    # Dédupliquer les sources
+    seen = set()
+    unique_sources = []
+    for s in sources_cited:
+        if s["label"] and s["label"] not in seen:
+            seen.add(s["label"])
+            unique_sources.append(s)
+
+    # Sauvegarde de la conversation (les sources sont gardées pour que
+    # l'historique les réaffiche sous chaque réponse)
     conv.messages = (conv.messages or []) + [
         {"role": "user", "content": user_message, "at": now_iso},
-        {"role": "assistant", "content": assistant_reply, "at": datetime.now(timezone.utc).isoformat()},
+        {
+            "role": "assistant",
+            "content": assistant_reply,
+            "at": datetime.now(timezone.utc).isoformat(),
+            "sources": unique_sources,
+        },
     ]
     if not conv.title:
         conv.title = user_message[:80]
@@ -385,14 +456,6 @@ def send_message(
     db.refresh(conv)
 
     _enforce_conversation_retention(db, user.id)
-
-    # Dédupliquer les sources
-    seen = set()
-    unique_sources = []
-    for s in sources_cited:
-        if s["label"] and s["label"] not in seen:
-            seen.add(s["label"])
-            unique_sources.append(s)
 
     return {
         "conversation_id": conv.id,
