@@ -27,6 +27,7 @@ def search_chunks(
     top_k: int = 8,
     source_types: Optional[list[str]] = None,
     annee_filter: Optional[str] = None,
+    user_file_ids: Optional[list[int]] = None,
 ) -> list[NavireChunk]:
     """
     Retourne les top_k chunks les plus proches semantiquement, cloisonnes
@@ -45,6 +46,14 @@ def search_chunks(
 
     if source_types:
         query = query.filter(NavireChunk.source_type.in_(source_types))
+
+    if user_file_ids is not None:
+        query = query.filter(
+            or_(
+                NavireChunk.source_type != "pdf_user",
+                NavireChunk.source_id.in_(user_file_ids or [-1]),
+            )
+        )
 
     if annee_filter:
         query = query.filter(

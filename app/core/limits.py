@@ -126,16 +126,14 @@ def check_qcm_daily_limit(user: User, db: Session) -> None:
         )
 
 
-def check_navire_daily_limit(user: User, db: Session) -> None:
+def navire_daily_usage(user: User, db: Session) -> tuple[int, int | None]:
     """
-    Limite le nombre de messages envoyes a NAVIRE par jour calendaire (UTC).
-    Compte les messages "user" sur les conversations mises a jour aujourd'hui.
-
-    Utilise dans : routers/navire.py -> POST /navire/chat
+    Retourne (questions envoyées aujourd'hui, limite du plan) pour NAVIRE.
+    Jour calendaire UTC ; limite None = illimité (le compte n'est alors pas fait).
     """
     limit = get_limit(user.plan, "navire_per_day")
     if limit is None:
-        return
+        return 0, None
 
     from app.db.models import NavireConversation
 
@@ -155,6 +153,19 @@ def check_navire_daily_limit(user: User, db: Session) -> None:
         for msg in (conv.messages or []):
             if msg.get("role") == "user" and msg.get("at", "") >= today_start.isoformat():
                 used += 1
+    return used, limit
+
+
+def check_navire_daily_limit(user: User, db: Session) -> None:
+    """
+    Limite le nombre de messages envoyes a NAVIRE par jour calendaire (UTC).
+    Compte les messages "user" sur les conversations mises a jour aujourd'hui.
+
+    Utilise dans : routers/navire.py -> POST /navire/chat
+    """
+    used, limit = navire_daily_usage(user, db)
+    if limit is None:
+        return
 
     if used >= limit:
         raise HTTPException(

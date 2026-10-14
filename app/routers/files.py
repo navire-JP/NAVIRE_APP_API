@@ -6,6 +6,8 @@ from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 
@@ -254,3 +256,58 @@ def delete_file(
     db.commit()
 
     return {"ok": True}
+
+class RenamePayload(BaseModel):
+    filename: str = Field(..., min_length=1, max_length=200)
+
+
+def _get_owned_file(db: Session, user: User, file_id: int) -> FileModel:
+    row = db.execute(
+        select(FileModel).where(FileModel.id == file_id)
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Fichier introuvable.")
+    if row.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Accès interdit.")
+    return row
+
+
+@router.patch("/{file_id}")
+def rename_file(
+    file_id: int,
+    payload: RenamePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Renomme le fichier (nom affiché uniquement, le fichier stocké ne bouge pas)."""
+    row = _get_owned_file(db, current_user, file_id)
+
+    name = payload.filename.strip().replace("/", "-").replace("\\", "-")
+    if not name:
+        raise HTTPException(status_code=400, detail="Nom invalide.")
+    if not name.lower().endswith(".pdf"):
+        name += ".pdf"
+    row.filename_original = name
+
+    # NAVIRE cite le nom du fichier : on le tient à jour dans les chunks.
+    for chunk in db.query(NavireChunk).filter(
+        NavireChunk.source_type == "pdf_user",
+        NavireChunk.source_id == row.id,
+    ):
+        chunk.extra = {**(chunk.extra or {}), "filename": name}
+
+    db.commit()
+    return {"id": row.id, "filename_original": row.filename_original}
+
+
+@router.get("/{file_id}/download")
+def download_file(
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = _get_owned_file(db, current_user, file_id)
+    p = Path(row.path)
+    if not p.is_file():
+        raise HTTPException(status_code=404, detail="Fichier absent du serveur.")
+    return FileResponse(p, media_type="application/pdf", filename=row.filename_original)
