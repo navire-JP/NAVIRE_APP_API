@@ -12,8 +12,9 @@ from sqlalchemy import (
     Text,
     JSON,
     Float,
-    Date, 
+    Date,
     func,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -807,6 +808,34 @@ class VeilleDailyState(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class VeilleBookmark(Base):
+    """
+    Actu mise de côté par un utilisateur (« À relire » dans l'embed Actualités).
+    Une ligne par couple (user, actu) : enregistrer deux fois ne crée pas de doublon.
+    """
+    __tablename__ = "veille_bookmarks"
+    __table_args__ = (UniqueConstraint("user_id", "item_id", name="uq_veille_bookmark_user_item"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("veille_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
 
