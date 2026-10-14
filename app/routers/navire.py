@@ -7,7 +7,7 @@ ingestion (admin) des sources.
 
 from __future__ import annotations
 
-import traceback
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, Field
@@ -21,6 +21,10 @@ from app.services.navire_chat import send_message
 from app.services.navire_ingest import ingest_all_prepa_courses, ingest_all_veille_items, ingest_user_file
 
 router = APIRouter(prefix="/navire", tags=["navire"])
+
+# Logger d'uvicorn : écrit sur stderr sans tampon, donc visible tout de suite
+# dans les logs Render (un print() peut rester bloqué dans le tampon de stdout).
+logger = logging.getLogger("uvicorn.error")
 
 ADMIN_CODE = "THORKISHERE"  # même convention que le reste de l'admin console
 
@@ -78,14 +82,14 @@ def chat(
         raise
     except Exception as e:
         db.rollback()
-        print(f"⚠️ NAVIRE chat error (user {user.id}): {e!r}")
-        traceback.print_exc()
+        logger.exception("NAVIRE chat error (user %s)", user.id)
+        message = "NAVIRE a rencontré une erreur. Réessaie dans un instant."
+        if user.is_admin:
+            # Diagnostic direct dans le chat, réservé aux admins
+            message += f"\n\n[admin] {type(e).__name__} : {str(e)[:400]}"
         raise HTTPException(
             status_code=502,
-            detail={
-                "code": "NAVIRE_ERROR",
-                "message": "NAVIRE a rencontré une erreur. Réessaie dans un instant.",
-            },
+            detail={"code": "NAVIRE_ERROR", "message": message},
         )
     return result
 
