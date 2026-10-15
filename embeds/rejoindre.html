@@ -324,16 +324,38 @@
   }
 
 
-  // Hauteur de l'embed → page Framer (composant NavireEmbed), qui ajuste
-  // l'iframe : pas de double barre de défilement.
+  // Hauteur : l'iframe suit le contenu, sans double barre de défilement.
+  //  - Embed HTML Framer (comme NAVIRE AI) : on agrandit directement l'iframe
+  //    et ses blocs parents qui ne contiennent qu'elle ;
+  //  - page servie par l'API dans le composant NavireEmbed : on lui envoie
+  //    la hauteur par message.
   (function () {
     if (window.parent === window) return;
+    var frameEl = null, wrappers = [];
+    try {
+      if (window.frameElement && window.parent.document) {
+        frameEl = window.frameElement;
+        for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== window.parent.document.body; i++, n = n.parentElement) wrappers.push(n);
+        var s = document.createElement("style");
+        s.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}";
+        document.head.appendChild(s);
+      }
+    } catch (e) { frameEl = null; }
     var last = 0;
     function report() {
       var h = Math.ceil(root.getBoundingClientRect().height);
-      if (h && h !== last) { last = h; try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {} }
+      if (!h || h === last) return;
+      last = h;
+      if (frameEl) {
+        frameEl.style.height = h + "px";
+        frameEl.style.minHeight = h + "px";
+        wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+      } else {
+        try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+      }
     }
     try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+    window.addEventListener("load", report);
   })();
 
   // ── Démarrage ───────────────────────────────────────────

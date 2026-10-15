@@ -4,7 +4,7 @@
 |---|---|---|
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
-| `framer/NavireEmbed.tsx` | `/rejoindre`, `/ambassadeur` | Composant Framer qui affiche les deux pages ci-dessus |
+| `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les deux pages servies par l'API |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par `Navire_AdminConsole.tsx` |
 
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
@@ -14,16 +14,14 @@ design tokens de la console.
 
 ## `/rejoindre` et `/ambassadeur`
 
-Les pages sont servies par l'API (`GET /ambassadors/embed/{rejoindre|ambassadeur}`)
-et affichées par le composant `NavireEmbed`, qui leur transmet le `?ref=CODE`
-de l'adresse et ajuste la hauteur.
+**Embed HTML, comme NAVIRE AI.** Coller `rejoindre.html` dans un Embed HTML
+de la page `/rejoindre`, et `ambassadeur.html` dans celui de `/ambassadeur`.
+L'embed lit le `?ref=CODE` de la page, reprend la connexion du site
+(`navire_token`) et agrandit lui-même son iframe à la hauteur du contenu.
 
-1. Framer → Assets → Code → *New Code File* `NavireEmbed`, coller `framer/NavireEmbed.tsx`.
-2. Sur chaque page, glisser le composant, choisir la page dans le panneau.
-   Largeur *Fill*, hauteur *Fit*.
-
-Une modification de `rejoindre.html` / `ambassadeur.html` est en ligne dès le
-redéploiement de l'API : rien à recoller dans Framer.
+Si un jour l'embed ne voit plus le `?ref=` (iframe cloisonnée), le composant
+`framer/NavireEmbed.tsx` sert de solution de repli : il affiche les mêmes
+pages servies par l'API (`GET /ambassadors/embed/{rejoindre|ambassadeur}`).
 
 ## `/console`
 
