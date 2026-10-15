@@ -5,7 +5,8 @@
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les deux pages servies par l'API |
-| `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par `Navire_AdminConsole.tsx` |
+| `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
+| `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
 
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
 panneaux blancs translucides, bouton principal blanc, états vert / jaune /
@@ -25,26 +26,13 @@ pages servies par l'API (`GET /ambassadors/embed/{rejoindre|ambassadeur}`).
 
 ## `/console`
 
-1. Framer → Assets → Code → *New Code File* `Navire_Ambassadeurs`, coller
-   `framer/Navire_Ambassadeurs.tsx`.
-2. Dans `Navire_AdminConsole.tsx` :
+Deux Code Files Framer, à coller tels quels :
 
-```tsx
-// en haut, sous `import * as React from "react"`
-import { AmbassadeursSection } from "./Navire_Ambassadeurs.tsx"
-
-// type Section : ajouter
-    | "ambassadeurs"
-
-// SECTIONS : ajouter après AdJuris
-    { id: "ambassadeurs", label: "Amb." },
-
-// ConsoleUI, à côté des autres sections
-{section === "ambassadeurs" && <AmbassadeursSection />}
-
-// ConsoleUI, barre d'onglets (div height: 42) : ajouter dans son style
-    overflowX: "auto",
-```
+1. `framer/Navire_Ambassadeurs.tsx` → Code File nommé `Navire_Ambassadeurs`
+   (section « Ambassadeurs »).
+2. `framer/Navire_AdminConsole.tsx` → remplace le Code File existant
+   `Navire_AdminConsole`. Il importe la section ci-dessus, ajoute l'onglet
+   « Amb. » et rend la barre d'onglets défilante (8 onglets dans 583 px).
 
 ## Côté Stripe
 
