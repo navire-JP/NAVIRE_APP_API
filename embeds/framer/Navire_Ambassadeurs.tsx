@@ -51,15 +51,16 @@ async function api(path: string, method = "GET", body?: any) {
     return data
 }
 
-// ── Design tokens (identiques à la console) ──
-const mono = "'IBM Plex Mono', monospace"
+// ── Design tokens (identiques à la console, charte NAVIRE AI) ──
+const mono = "'Inter', system-ui, sans-serif"
+const code = "'IBM Plex Mono', monospace"
 const b0 = "rgba(255,255,255,0.07)"
 const b1 = "rgba(255,255,255,0.14)"
-const b2 = "rgba(255,255,255,0.28)"
-const t0 = "#f0f0f0"
-const t1 = "#777"
-const t2 = "#333"
-const s0 = "rgba(255,255,255,0.03)"
+const b2 = "rgba(255,255,255,0.22)"
+const t0 = "#ffffff"
+const t1 = "rgba(255,255,255,0.55)"
+const t2 = "rgba(255,255,255,0.32)"
+const s0 = "rgba(255,255,255,0.035)"
 const sH = "rgba(255,255,255,0.06)"
 const sA = "rgba(255,255,255,0.10)"
 
@@ -163,14 +164,14 @@ function Btn({ onClick, disabled, danger, primary, children, style }: any) {
         bdr = b1
     if (primary) {
         bg = "#fff"
-        bgH = "#ddd"
-        clr = "#000"
+        bgH = "#e8e8ee"
+        clr = "#0a0a12"
         bdr = "#fff"
     } else if (danger) {
-        bg = "rgba(120,0,0,0.08)"
-        bgH = "rgba(150,0,0,0.14)"
-        clr = "#c55"
-        bdr = "rgba(120,0,0,0.3)"
+        bg = "rgba(255,107,107,0.08)"
+        bgH = "rgba(255,107,107,0.14)"
+        clr = "#FF6B6B"
+        bdr = "rgba(255,107,107,0.3)"
     }
     return (
         <button
@@ -180,7 +181,7 @@ function Btn({ onClick, disabled, danger, primary, children, style }: any) {
             onMouseLeave={() => setH(false)}
             style={{
                 padding: "5px 10px",
-                borderRadius: 4,
+                borderRadius: 10,
                 border: `1px solid ${bdr}`,
                 background: h ? bgH : bg,
                 color: clr,
@@ -206,7 +207,7 @@ function MiniBtn({ actif, onClick, children }: any) {
                 fontSize: 10,
                 fontFamily: mono,
                 padding: "3px 8px",
-                borderRadius: 3,
+                borderRadius: 99,
                 border: `1px solid ${actif ? b2 : b0}`,
                 background: actif ? sA : "transparent",
                 color: actif ? t0 : t1,
@@ -224,11 +225,12 @@ function Tag({ children, color, border }: any) {
     return (
         <span
             style={{
-                fontSize: 9,
-                fontFamily: mono,
-                letterSpacing: 0.6,
-                padding: "2px 7px",
-                borderRadius: 3,
+                fontSize: 9.5,
+                fontFamily: code,
+                fontWeight: 600,
+                letterSpacing: 0.4,
+                padding: "2px 8px",
+                borderRadius: 99,
                 border: `1px solid ${border}`,
                 color,
                 whiteSpace: "nowrap" as const,
@@ -240,9 +242,9 @@ function Tag({ children, color, border }: any) {
     )
 }
 
-const VERT = { color: "#4ECDC4", border: "rgba(78,205,196,0.4)" }
+const VERT = { color: "#5BE3A3", border: "rgba(91,227,163,0.4)" }
 const JAUNE = { color: "#FFD166", border: "rgba(255,209,102,0.35)" }
-const ROUGE = { color: "#c55", border: "rgba(120,0,0,0.4)" }
+const ROUGE = { color: "#FF6B6B", border: "rgba(255,107,107,0.4)" }
 const GRIS = { color: t1, border: b0 }
 
 function StatutTag({ s }: { s: Statut | EtatCommission }) {
@@ -271,7 +273,7 @@ function Msg({ text }: { text: string }) {
             style={{
                 fontSize: 10,
                 fontFamily: mono,
-                color: err ? "#c55" : "#5a5",
+                color: err ? "#FF6B6B" : "#5BE3A3",
                 padding: "6px 14px",
                 borderBottom: `1px solid ${b0}`,
             }}
@@ -287,14 +289,15 @@ function Case({ l, v }: { l: string; v: React.ReactNode }) {
             style={{
                 padding: "5px 7px",
                 border: `1px solid ${b0}`,
-                borderRadius: 4,
+                borderRadius: 10,
                 minWidth: 0,
             }}
         >
             <div
                 style={{
-                    fontSize: 8,
-                    fontFamily: mono,
+                    fontSize: 8.5,
+                    fontFamily: code,
+                    fontWeight: 600,
                     color: t2,
                     textTransform: "uppercase" as const,
                     letterSpacing: 0.8,
@@ -325,8 +328,9 @@ function Bloc({ l, children }: { l: string; children: React.ReactNode }) {
         <div>
             <div
                 style={{
-                    fontSize: 8,
-                    fontFamily: mono,
+                    fontSize: 8.5,
+                    fontFamily: code,
+                    fontWeight: 600,
                     color: t2,
                     textTransform: "uppercase" as const,
                     letterSpacing: 0.8,
@@ -343,7 +347,7 @@ function Bloc({ l, children }: { l: string; children: React.ReactNode }) {
                     whiteSpace: "pre-wrap" as const,
                     padding: "6px 8px",
                     border: `1px solid ${b0}`,
-                    borderRadius: 4,
+                    borderRadius: 10,
                 }}
             >
                 {children}
@@ -365,7 +369,7 @@ const INPUT: React.CSSProperties = {
     padding: "0 8px",
     background: s0,
     border: `1px solid ${b0}`,
-    borderRadius: 4,
+    borderRadius: 10,
     color: t0,
     fontSize: 10,
     fontFamily: mono,
@@ -577,7 +581,7 @@ function AmbassadeurRow({
                             <div
                                 style={{
                                     border: `1px solid ${b0}`,
-                                    borderRadius: 4,
+                                    borderRadius: 10,
                                     maxHeight: 150,
                                     overflowY: "auto",
                                 }}
@@ -1116,7 +1120,7 @@ export function AmbassadeursSection() {
             >
                 <span>{resume?.ambassadors?.approved ?? "…"} actif(s)</span>
                 <span>{resume?.referrals ?? "…"} filleul(s)</span>
-                <span style={{ color: (c.available_cents || 0) > 0 ? "#4ECDC4" : t1 }}>
+                <span style={{ color: (c.available_cents || 0) > 0 ? "#5BE3A3" : t1 }}>
                     à verser {euros(c.available_cents || 0)}
                 </span>
                 <span>14 j : {euros(c.pending_cents || 0)}</span>

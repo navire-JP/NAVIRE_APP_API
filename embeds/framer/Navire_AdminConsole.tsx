@@ -12,6 +12,10 @@
 //
 // Ambassadeurs : onglet « Amb. » (candidatures, ambassadeurs, commissions à
 // verser). Le code de la section est dans Navire_Ambassadeurs.tsx.
+//
+// Charte NAVIRE AI : Inter (IBM Plex Mono pour les petits libellés),
+// panneaux blancs translucides, pastilles, vert / jaune / rouge d'état.
+// L'onglet Carts (paniers MEOLES) est retiré.
 
 import type { Override } from "framer"
 import * as React from "react"
@@ -22,6 +26,14 @@ if (typeof document !== "undefined") {
     const _s = document.createElement("style")
     _s.textContent = `* { scrollbar-width: none !important; } *::-webkit-scrollbar { display: none !important; }`
     document.head.appendChild(_s)
+    if (!document.getElementById("navire-fonts")) {
+        const _f = document.createElement("link")
+        _f.id = "navire-fonts"
+        _f.rel = "stylesheet"
+        _f.href =
+            "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap"
+        document.head.appendChild(_f)
+    }
 }
 
 const API_BASE = "https://navire-app-api.onrender.com"
@@ -113,9 +125,6 @@ function fmtSize(b: number): string {
     if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} Ko`
     return `${(b / 1024 / 1024).toFixed(1)} Mo`
 }
-function fmtPrice(cents: number): string {
-    return `${(cents / 100).toFixed(2)} €`
-}
 function fmtDateTime(s: string | null): string {
     if (!s) return "—"
     return new Date(s).toLocaleString("fr-FR", {
@@ -142,7 +151,6 @@ type Section =
     | "users"
     | "promos"
     | "actus"
-    | "carts"
     | "prepa"
     | "terminal"
     | "adjuris"
@@ -212,18 +220,6 @@ interface PlanView {
         cancel_at_period_end?: boolean
         error?: string
     } | null
-}
-interface CartItemRow {
-    product_key: string
-    quantity: number
-}
-interface CartRow {
-    session_id: string
-    status: string
-    created_at: string
-    updated_at: string
-    items: CartItemRow[]
-    total_cents: number
 }
 
 interface MatiereRow {
@@ -322,17 +318,24 @@ const MATIERES_FLAT: { key: string; label: string }[] = Object.entries(
     list.map((m) => ({ key: m.key, label: `${niveau} — ${m.label}` }))
 )
 
-// ── Design tokens ──
-const mono = "'IBM Plex Mono', monospace"
+// ── Design tokens (charte NAVIRE AI) ──
+// `mono` reste le nom historique de la police d'interface : c'est désormais
+// Inter. IBM Plex Mono (`code`) est réservée aux petits libellés et tags.
+const mono = "'Inter', system-ui, sans-serif"
+const code = "'IBM Plex Mono', monospace"
 const b0 = "rgba(255,255,255,0.07)"
 const b1 = "rgba(255,255,255,0.14)"
-const b2 = "rgba(255,255,255,0.28)"
-const t0 = "#f0f0f0"
-const t1 = "#777"
-const t2 = "#333"
-const s0 = "rgba(255,255,255,0.03)"
+const b2 = "rgba(255,255,255,0.22)"
+const t0 = "#ffffff"
+const t1 = "rgba(255,255,255,0.55)"
+const t2 = "rgba(255,255,255,0.32)"
+const s0 = "rgba(255,255,255,0.035)"
 const sH = "rgba(255,255,255,0.06)"
 const sA = "rgba(255,255,255,0.10)"
+const OK = "#5BE3A3"
+const WARN = "#FFD166"
+const BAD = "#FF6B6B"
+const FIELD = "#101018"
 
 // ── Helpers pour diffuser la sélection ──
 function broadcastSelectedUser(user: User | null) {
@@ -364,7 +367,8 @@ function FL({ children }: { children: React.ReactNode }) {
         <div
             style={{
                 fontSize: 10,
-                fontFamily: mono,
+                fontFamily: code,
+                fontWeight: 600,
                 color: t2,
                 textTransform: "uppercase" as const,
                 letterSpacing: 1.1,
@@ -407,10 +411,11 @@ function PlanBadge({
         <span
             style={{
                 fontSize: 10,
-                fontFamily: mono,
-                letterSpacing: 0.7,
-                padding: "2px 7px",
-                borderRadius: 3,
+                fontFamily: code,
+                fontWeight: 600,
+                letterSpacing: 0.4,
+                padding: "2px 8px",
+                borderRadius: 99,
                 border: `1px solid ${border}`,
                 color,
                 whiteSpace: "nowrap" as const,
@@ -418,32 +423,6 @@ function PlanBadge({
             }}
         >
             {label}
-        </span>
-    )
-}
-
-function StatusBadge({ status }: { status: string }) {
-    const colors: Record<string, { color: string; border: string }> = {
-        active: { color: "#f0f0f0", border: "rgba(255,255,255,0.28)" },
-        converted: { color: "#5a5", border: "rgba(0,120,0,0.4)" },
-        abandoned: { color: "#777", border: "rgba(255,255,255,0.07)" },
-    }
-    const s = colors[status] || colors.active
-    return (
-        <span
-            style={{
-                fontSize: 9,
-                fontFamily: mono,
-                letterSpacing: 0.7,
-                padding: "2px 7px",
-                borderRadius: 3,
-                border: `1px solid ${s.border}`,
-                color: s.color,
-                whiteSpace: "nowrap" as const,
-                flexShrink: 0,
-            }}
-        >
-            {status.toUpperCase()}
         </span>
     )
 }
@@ -459,9 +438,9 @@ function TI({ value, onChange, placeholder, type = "text", style }: any) {
                 width: "100%",
                 height: 32,
                 padding: "0 10px",
-                background: type === "datetime-local" ? "#060606" : s0,
+                background: type === "datetime-local" ? FIELD : s0,
                 border: `1px solid ${b0}`,
-                borderRadius: 4,
+                borderRadius: 10,
                 color: t0,
                 fontSize: 12,
                 fontFamily: mono,
@@ -482,9 +461,9 @@ function SI({ value, onChange, children, style }: any) {
                 width: "100%",
                 height: 34,
                 padding: "0 10px",
-                background: "#060606",
+                background: FIELD,
                 border: `1px solid ${b0}`,
-                borderRadius: 4,
+                borderRadius: 10,
                 color: t0,
                 fontSize: 12,
                 fontFamily: mono,
@@ -510,7 +489,7 @@ function TAI({ value, onChange, placeholder, rows = 3 }: any) {
                 padding: "8px 10px",
                 background: s0,
                 border: `1px solid ${b0}`,
-                borderRadius: 4,
+                borderRadius: 10,
                 color: t0,
                 fontSize: 12,
                 fontFamily: mono,
@@ -531,14 +510,14 @@ function Btn({ onClick, disabled, danger, primary, children, style }: any) {
         bdr = b1
     if (primary) {
         bg = "#fff"
-        bgH = "#ddd"
-        clr = "#000"
+        bgH = "#e8e8ee"
+        clr = "#0a0a12"
         bdr = "#fff"
     } else if (danger) {
-        bg = "rgba(120,0,0,0.08)"
-        bgH = "rgba(150,0,0,0.14)"
-        clr = "#c55"
-        bdr = "rgba(120,0,0,0.3)"
+        bg = "rgba(255,107,107,0.08)"
+        bgH = "rgba(255,107,107,0.14)"
+        clr = BAD
+        bdr = "rgba(255,107,107,0.3)"
     }
     return (
         <button
@@ -548,7 +527,7 @@ function Btn({ onClick, disabled, danger, primary, children, style }: any) {
             onMouseLeave={() => setH(false)}
             style={{
                 padding: "7px 14px",
-                borderRadius: 4,
+                borderRadius: 99,
                 border: `1px solid ${bdr}`,
                 background: h ? bgH : bg,
                 color: clr,
@@ -575,10 +554,11 @@ function SM({ text }: { text: string }) {
             style={{
                 fontSize: 11,
                 fontFamily: mono,
-                color: err ? "#c55" : "#5a5",
-                padding: "7px 10px",
-                border: `1px solid ${err ? "rgba(120,0,0,0.3)" : "rgba(0,100,0,0.3)"}`,
-                borderRadius: 4,
+                color: err ? BAD : OK,
+                padding: "8px 12px",
+                background: err ? "rgba(255,107,107,0.08)" : "rgba(91,227,163,0.08)",
+                border: `1px solid ${err ? "rgba(255,107,107,0.2)" : "rgba(91,227,163,0.2)"}`,
+                borderRadius: 10,
             }}
         >
             {text}
@@ -623,11 +603,12 @@ function Tag({
     return (
         <span
             style={{
-                fontSize: 9,
-                fontFamily: mono,
-                letterSpacing: 0.6,
-                padding: "2px 7px",
-                borderRadius: 3,
+                fontSize: 9.5,
+                fontFamily: code,
+                fontWeight: 600,
+                letterSpacing: 0.4,
+                padding: "2px 8px",
+                borderRadius: 99,
                 border: `1px solid ${border}`,
                 color,
                 whiteSpace: "nowrap" as const,
@@ -642,19 +623,19 @@ function Tag({
 function StatusTag({ status }: { status: string }) {
     if (status === "active")
         return (
-            <Tag color="#4ECDC4" border="rgba(78,205,196,0.4)">
+            <Tag color={OK} border="rgba(91,227,163,0.4)">
                 ACTIVE
             </Tag>
         )
     if (status === "payment_failed")
         return (
-            <Tag color="#c55" border="rgba(120,0,0,0.4)">
+            <Tag color={BAD} border="rgba(255,107,107,0.4)">
                 IMPAYÉ
             </Tag>
         )
     if (status === "suspendu")
         return (
-            <Tag color="#c55" border="rgba(120,0,0,0.6)">
+            <Tag color={BAD} border="rgba(255,107,107,0.6)">
                 SUSPENDU
             </Tag>
         )
@@ -730,8 +711,8 @@ function AuthGate({ onSuccess }: { onSuccess: () => void }) {
                     width: 240,
                     height: 42,
                     background: "transparent",
-                    border: `1px solid ${error ? "#700" : b1}`,
-                    borderRadius: 5,
+                    border: `1px solid ${error ? BAD : b1}`,
+                    borderRadius: 12,
                     color: t0,
                     fontSize: 18,
                     fontFamily: mono,
@@ -741,7 +722,7 @@ function AuthGate({ onSuccess }: { onSuccess: () => void }) {
                 }}
             />
             {error && (
-                <span style={{ fontSize: 11, fontFamily: mono, color: "#c55" }}>
+                <span style={{ fontSize: 11, fontFamily: mono, color: BAD }}>
                     Code invalide
                 </span>
             )}
@@ -752,12 +733,12 @@ function AuthGate({ onSuccess }: { onSuccess: () => void }) {
                     height: 38,
                     background: "#fff",
                     border: "1px solid #fff",
-                    borderRadius: 5,
-                    color: "#000",
-                    fontSize: 12,
+                    borderRadius: 99,
+                    color: "#0a0a12",
+                    fontSize: 13,
                     fontFamily: mono,
-                    fontWeight: 700,
-                    letterSpacing: 1,
+                    fontWeight: 600,
+                    letterSpacing: 0.2,
                     cursor: "pointer",
                 }}
             >
@@ -1274,7 +1255,7 @@ function PromosSection() {
                                         color: t1,
                                         padding: "2px 6px",
                                         border: `1px solid ${b0}`,
-                                        borderRadius: 3,
+                                        borderRadius: 99,
                                     }}
                                 >
                                     {p.discount_type === "percent"
@@ -1288,7 +1269,7 @@ function PromosSection() {
                                         color: t1,
                                         padding: "2px 6px",
                                         border: `1px solid ${b0}`,
-                                        borderRadius: 3,
+                                        borderRadius: 99,
                                     }}
                                 >
                                     {p.applies_to || "both"}
@@ -1568,7 +1549,7 @@ function ActusSection() {
                                     color: t1,
                                     padding: "2px 6px",
                                     border: `1px solid ${b0}`,
-                                    borderRadius: 3,
+                                    borderRadius: 99,
                                     whiteSpace: "nowrap" as const,
                                     marginTop: 2,
                                 }}
@@ -1696,317 +1677,6 @@ function ActusSection() {
     )
 }
 
-// ── Carts ──
-
-function CartsSection() {
-    const [carts, setCarts] = React.useState<CartRow[]>([])
-    const [loading, setLoading] = React.useState(true)
-    const [filter, setFilter] = React.useState<
-        "all" | "active" | "converted" | "abandoned"
-    >("all")
-    const [expanded, setExpanded] = React.useState<string | null>(null)
-
-    function load() {
-        setLoading(true)
-        apiFetch("/meoles/admin/carts")
-            .then((d) => setCarts(d?.sessions || []))
-            .catch(() => {})
-            .finally(() => setLoading(false))
-    }
-    React.useEffect(() => {
-        load()
-    }, [])
-
-    const filtered =
-        filter === "all" ? carts : carts.filter((c) => c.status === filter)
-    const counts = {
-        active: carts.filter((c) => c.status === "active").length,
-        converted: carts.filter((c) => c.status === "converted").length,
-        abandoned: carts.filter((c) => c.status === "abandoned").length,
-    }
-
-    return (
-        <div>
-            <SBar
-                left={`${filtered.length} session(s) · ${counts.active} actives · ${counts.converted} conv. · ${counts.abandoned} aband.`}
-                right={
-                    <Btn
-                        onClick={load}
-                        style={{ fontSize: 10, padding: "4px 10px" }}
-                    >
-                        ↻ Actualiser
-                    </Btn>
-                }
-            />
-            <div
-                style={{
-                    display: "flex",
-                    gap: 6,
-                    padding: "8px 14px",
-                    borderBottom: `1px solid ${b0}`,
-                }}
-            >
-                {(["all", "active", "converted", "abandoned"] as const).map(
-                    (s) => (
-                        <button
-                            key={s}
-                            onClick={() => setFilter(s)}
-                            style={{
-                                fontSize: 10,
-                                fontFamily: mono,
-                                padding: "3px 10px",
-                                borderRadius: 3,
-                                border: `1px solid ${filter === s ? b2 : b0}`,
-                                background: filter === s ? sA : "transparent",
-                                color: filter === s ? t0 : t1,
-                                cursor: "pointer",
-                            }}
-                        >
-                            {s === "all"
-                                ? "Tous"
-                                : s.charAt(0).toUpperCase() + s.slice(1)}
-                        </button>
-                    )
-                )}
-            </div>
-            {loading ? (
-                <div
-                    style={{
-                        padding: "32px 14px",
-                        textAlign: "center",
-                        fontFamily: mono,
-                        fontSize: 12,
-                        color: t2,
-                    }}
-                >
-                    Chargement…
-                </div>
-            ) : filtered.length === 0 ? (
-                <div
-                    style={{
-                        padding: "32px 14px",
-                        textAlign: "center",
-                        fontFamily: mono,
-                        fontSize: 12,
-                        color: t2,
-                    }}
-                >
-                    Aucune session.
-                </div>
-            ) : (
-                filtered.map((c) => (
-                    <div key={c.session_id}>
-                        <div
-                            onClick={() =>
-                                setExpanded(
-                                    expanded === c.session_id
-                                        ? null
-                                        : c.session_id
-                                )
-                            }
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 10,
-                                padding: "9px 14px",
-                                borderBottom: `1px solid rgba(255,255,255,0.04)`,
-                                cursor: "pointer",
-                                background:
-                                    expanded === c.session_id
-                                        ? sA
-                                        : "transparent",
-                                borderLeft: `2px solid ${expanded === c.session_id ? b2 : "transparent"}`,
-                                minWidth: 0,
-                            }}
-                        >
-                            <StatusBadge status={c.status} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div
-                                    style={{
-                                        fontSize: 11,
-                                        fontFamily: mono,
-                                        color: t0,
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap" as const,
-                                    }}
-                                >
-                                    {c.session_id.slice(0, 8).toUpperCase()}
-                                    <span style={{ color: t2 }}>
-                                        …{c.session_id.slice(-4).toUpperCase()}
-                                    </span>
-                                </div>
-                                <div
-                                    style={{
-                                        fontSize: 10,
-                                        fontFamily: mono,
-                                        color: t2,
-                                        marginTop: 1,
-                                    }}
-                                >
-                                    {c.items.length} produit(s) · créé{" "}
-                                    {fmtDate(c.created_at)}
-                                </div>
-                            </div>
-                            <span
-                                style={{
-                                    fontSize: 12,
-                                    fontFamily: mono,
-                                    fontWeight: 700,
-                                    color: t0,
-                                    flexShrink: 0,
-                                }}
-                            >
-                                {fmtPrice(c.total_cents)}
-                            </span>
-                            <span
-                                style={{
-                                    fontSize: 11,
-                                    color: expanded === c.session_id ? t0 : t2,
-                                    flexShrink: 0,
-                                }}
-                            >
-                                ›
-                            </span>
-                        </div>
-                        {expanded === c.session_id && (
-                            <div
-                                style={{
-                                    padding: "12px 16px 16px",
-                                    borderBottom: `1px solid ${b0}`,
-                                    background: "rgba(255,255,255,0.015)",
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gridTemplateColumns: "1fr 1fr",
-                                        gap: 8,
-                                        marginBottom: 12,
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            padding: "8px 10px",
-                                            border: `1px solid ${b0}`,
-                                            borderRadius: 4,
-                                        }}
-                                    >
-                                        <FL>Créé</FL>
-                                        <span
-                                            style={{
-                                                fontSize: 11,
-                                                fontFamily: mono,
-                                                color: t0,
-                                            }}
-                                        >
-                                            {fmtDateLong(c.created_at)}
-                                        </span>
-                                    </div>
-                                    <div
-                                        style={{
-                                            padding: "8px 10px",
-                                            border: `1px solid ${b0}`,
-                                            borderRadius: 4,
-                                        }}
-                                    >
-                                        <FL>Mis à jour</FL>
-                                        <span
-                                            style={{
-                                                fontSize: 11,
-                                                fontFamily: mono,
-                                                color: t0,
-                                            }}
-                                        >
-                                            {fmtDateLong(c.updated_at)}
-                                        </span>
-                                    </div>
-                                    <div
-                                        style={{
-                                            gridColumn: "1/-1",
-                                            padding: "8px 10px",
-                                            border: `1px solid ${b0}`,
-                                            borderRadius: 4,
-                                        }}
-                                    >
-                                        <FL>Session ID</FL>
-                                        <span
-                                            style={{
-                                                fontSize: 10,
-                                                fontFamily: mono,
-                                                color: t1,
-                                            }}
-                                        >
-                                            {c.session_id}
-                                        </span>
-                                    </div>
-                                </div>
-                                <FL>Produits</FL>
-                                <div
-                                    style={{
-                                        border: `1px solid ${b0}`,
-                                        borderRadius: 4,
-                                        overflow: "hidden",
-                                    }}
-                                >
-                                    {c.items.length === 0 ? (
-                                        <div
-                                            style={{
-                                                padding: "10px 12px",
-                                                fontSize: 11,
-                                                fontFamily: mono,
-                                                color: t2,
-                                            }}
-                                        >
-                                            Panier vide
-                                        </div>
-                                    ) : (
-                                        c.items.map((item, i) => (
-                                            <div
-                                                key={item.product_key}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 10,
-                                                    padding: "8px 12px",
-                                                    borderBottom:
-                                                        i < c.items.length - 1
-                                                            ? `1px solid rgba(255,255,255,0.04)`
-                                                            : "none",
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        fontSize: 12,
-                                                        fontFamily: mono,
-                                                        color: t0,
-                                                        flex: 1,
-                                                    }}
-                                                >
-                                                    {item.product_key}
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        fontSize: 11,
-                                                        fontFamily: mono,
-                                                        color: t1,
-                                                    }}
-                                                >
-                                                    x{item.quantity}
-                                                </span>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                ))
-            )}
-        </div>
-    )
-}
-
 // ── Terminal ──
 
 async function runCmd(cmd: string): Promise<string> {
@@ -2021,30 +1691,10 @@ async function runCmd(cmd: string): Promise<string> {
             "  /user <id> delete",
             "  /plan <id> set <plan>  ← free | membre | membre+",
             "  /prepa <id>            ← active PREPASSERELLE (choix L1/L2/L3)",
-            "  /carts [active|converted|abandoned]",
             "  /mails                 ← liste les emails de l'app",
             "  /mails diag            ← clé Brevo + expéditeur validé ?",
             "  /mails test <clé|all> [email]",
         ].join("\n")
-    if (head === "/carts") {
-        const statusFilter = parts[1] || "all"
-        const d = await apiFetch("/meoles/admin/carts")
-        const sessions: CartRow[] = d?.sessions || []
-        const filtered =
-            statusFilter === "all"
-                ? sessions
-                : sessions.filter((s) => s.status === statusFilter)
-        if (filtered.length === 0)
-            return `Aucune session (filtre: ${statusFilter}).`
-        return [
-            `── Paniers MEOLES (${filtered.length}) ──`,
-            ...filtered.map(
-                (s) =>
-                    `[${s.status.toUpperCase().padEnd(9)}] ${s.session_id.slice(0, 8).toUpperCase()} · ${s.items.length} produit(s) · ${fmtPrice(s.total_cents)} · ${fmtDate(s.created_at)}`
-            ),
-        ].join("\n")
-    }
-
     // ── Emails : catalogue et envoi de test ──
     // /mails                          liste ce que l'API sait envoyer
     // /mails test <clé|all> [email]   envoie, données fictives, objet [TEST]
@@ -2363,7 +2013,7 @@ function TerminalSection() {
     }
 
     const lc = (kind: LogLine["kind"]) =>
-        kind === "err" ? "#c55" : kind === "sys" ? t1 : kind === "in" ? t2 : t0
+        kind === "err" ? BAD : kind === "sys" ? t1 : kind === "in" ? t2 : t0
 
     return (
         <div
@@ -2374,7 +2024,7 @@ function TerminalSection() {
                 ref={outRef}
                 style={{
                     padding: "14px 16px",
-                    fontFamily: mono,
+                    fontFamily: code,
                     fontSize: 12,
                     lineHeight: 1.75,
                     minHeight: 280,
@@ -2389,7 +2039,7 @@ function TerminalSection() {
                             <span style={{ color: t2, marginRight: 8 }}>›</span>
                         )}
                         {l.kind === "err" && (
-                            <span style={{ color: "#c55", marginRight: 8 }}>
+                            <span style={{ color: BAD, marginRight: 8 }}>
                                 !
                             </span>
                         )}
@@ -2414,7 +2064,7 @@ function TerminalSection() {
                     alignItems: "center",
                 }}
             >
-                <span style={{ fontSize: 14, fontFamily: mono, color: t1 }}>
+                <span style={{ fontSize: 14, fontFamily: code, color: t1 }}>
                     ›
                 </span>
                 <input
@@ -2433,10 +2083,10 @@ function TerminalSection() {
                         height: 34,
                         background: "transparent",
                         border: `1px solid ${b0}`,
-                        borderRadius: 4,
+                        borderRadius: 10,
                         color: t0,
                         fontSize: 12,
-                        fontFamily: mono,
+                        fontFamily: code,
                         padding: "0 10px",
                         outline: "none",
                     }}
@@ -2594,9 +2244,9 @@ function PrepaDossier({
                         fontFamily: mono,
                         letterSpacing: 0.5,
                         padding: "2px 7px",
-                        borderRadius: 3,
-                        border: `1px solid ${published ? "rgba(78,205,196,0.4)" : b0}`,
-                        color: published ? "#4ECDC4" : t2,
+                        borderRadius: 99,
+                        border: `1px solid ${published ? "rgba(91,227,163,0.4)" : b0}`,
+                        color: published ? OK : t2,
                         whiteSpace: "nowrap" as const,
                         flexShrink: 0,
                     }}
@@ -2654,7 +2304,7 @@ function PrepaDossier({
                         <div
                             style={{
                                 border: `1px solid ${b0}`,
-                                borderRadius: 4,
+                                borderRadius: 10,
                                 overflow: "hidden",
                             }}
                         >
@@ -2848,7 +2498,7 @@ function PrepaSubmissions({ exerciseId }: { exerciseId: number }) {
                         key={s.id}
                         style={{
                             border: `1px solid ${b0}`,
-                            borderRadius: 4,
+                            borderRadius: 10,
                             padding: "8px 10px",
                             display: "flex",
                             flexDirection: "column",
@@ -2946,8 +2596,8 @@ function PrepaSubmissions({ exerciseId }: { exerciseId: number }) {
                                     fontSize: 9,
                                     fontFamily: mono,
                                     color: g.msg.startsWith("ERR")
-                                        ? "#c55"
-                                        : "#5a5",
+                                        ? BAD
+                                        : OK,
                                 }}
                             >
                                 {g.msg}
@@ -3175,9 +2825,9 @@ function PrepaExoRow({
                                 fontSize: 9,
                                 fontFamily: mono,
                                 padding: "2px 7px",
-                                borderRadius: 3,
-                                border: `1px solid ${published ? "rgba(78,205,196,0.4)" : b0}`,
-                                color: published ? "#4ECDC4" : t2,
+                                borderRadius: 99,
+                                border: `1px solid ${published ? "rgba(91,227,163,0.4)" : b0}`,
+                                color: published ? OK : t2,
                                 whiteSpace: "nowrap" as const,
                                 flexShrink: 0,
                             }}
@@ -3250,9 +2900,9 @@ function PrepaExoRow({
                                     width: "100%",
                                     height: 34,
                                     padding: "0 10px",
-                                    background: "#060606",
+                                    background: FIELD,
                                     border: `1px solid ${b0}`,
-                                    borderRadius: 4,
+                                    borderRadius: 10,
                                     color: t0,
                                     fontSize: 12,
                                     fontFamily: mono,
@@ -3293,7 +2943,7 @@ function PrepaExoRow({
                     <div
                         style={{
                             border: `1px solid ${b0}`,
-                            borderRadius: 4,
+                            borderRadius: 10,
                             padding: "8px 10px",
                             display: "flex",
                             flexDirection: "column",
@@ -3353,7 +3003,7 @@ function PrepaExoRow({
                     <div
                         style={{
                             border: `1px solid ${b0}`,
-                            borderRadius: 4,
+                            borderRadius: 10,
                             padding: "8px 10px",
                             display: "flex",
                             flexDirection: "column",
@@ -3511,7 +3161,7 @@ function PrepaSection() {
                     fontSize: 10,
                     fontFamily: mono,
                     padding: "3px 11px",
-                    borderRadius: 3,
+                    borderRadius: 99,
                     border: `1px solid ${active ? b2 : b0}`,
                     background: active ? sA : "transparent",
                     color: active ? t0 : t1,
@@ -3565,7 +3215,7 @@ function PrepaSection() {
                             fontSize: 10,
                             fontFamily: mono,
                             padding: "3px 14px",
-                            borderRadius: 3,
+                            borderRadius: 99,
                             border: `1px solid ${annee === y ? b2 : b0}`,
                             background: annee === y ? sA : "transparent",
                             color: annee === y ? t0 : t1,
@@ -3730,7 +3380,7 @@ function EtudiantRow({ e }: { e: Etudiant }) {
                 </div>
 
                 {e.a_un_impaye && (
-                    <Tag color="#c55" border="rgba(120,0,0,0.4)">
+                    <Tag color={BAD} border="rgba(255,107,107,0.4)">
                         IMPAYÉ
                     </Tag>
                 )}
@@ -3799,7 +3449,7 @@ function EtudiantRow({ e }: { e: Etudiant }) {
                                 style={{
                                     padding: "6px 8px",
                                     border: `1px solid ${b0}`,
-                                    borderRadius: 4,
+                                    borderRadius: 10,
                                 }}
                             >
                                 <div
@@ -3831,7 +3481,7 @@ function EtudiantRow({ e }: { e: Etudiant }) {
                     <div
                         style={{
                             border: `1px solid ${b0}`,
-                            borderRadius: 4,
+                            borderRadius: 10,
                             overflow: "hidden",
                         }}
                     >
@@ -4078,7 +3728,7 @@ function RessourcesPanel({ niveau }: { niveau: Niveau }) {
                         style={{
                             fontSize: 10,
                             fontFamily: mono,
-                            color: msg.startsWith("ERR") ? "#c55" : "#5a5",
+                            color: msg.startsWith("ERR") ? BAD : OK,
                         }}
                     >
                         {msg}
@@ -4318,7 +3968,7 @@ function libelleCourt(label: string): string {
 
 // Une couleur par matière, stable (ordre de MATIERES).
 const COULEURS_MATIERES = [
-    "#4ECDC4",
+    OK,
     "#FFD166",
     "#EF476F",
     "#9B6FFF",
@@ -4417,9 +4067,9 @@ function Overlay({
                 style={{
                     width: "100%",
                     maxWidth: 500,
-                    background: "#0b0b0b",
+                    background: "#0f0f16",
                     border: `1px solid ${b1}`,
-                    borderRadius: 6,
+                    borderRadius: 14,
                     padding: 14,
                     display: "flex",
                     flexDirection: "column",
@@ -4490,7 +4140,7 @@ function MiniBtn({ actif, onClick, children }: any) {
                 fontSize: 10,
                 fontFamily: mono,
                 padding: "3px 9px",
-                borderRadius: 3,
+                borderRadius: 99,
                 border: `1px solid ${actif ? b2 : b0}`,
                 background: actif ? sA : "transparent",
                 color: actif ? t0 : t1,
@@ -4540,7 +4190,7 @@ function ImpactListe({ ecriture }: { ecriture: Ecriture }) {
             <div
                 style={{
                     border: `1px solid ${b0}`,
-                    borderRadius: 4,
+                    borderRadius: 10,
                     maxHeight: 180,
                     overflowY: "auto",
                 }}
@@ -4740,7 +4390,7 @@ export function AgendaPanel({ niveau }: { niveau: "tous" | Niveau }) {
                     borderBottom: `1px solid ${b0}`,
                     background:
                         survol === cle
-                            ? "rgba(78,205,196,0.12)"
+                            ? "rgba(91,227,163,0.12)"
                             : estAujourdhui
                               ? "rgba(255,255,255,0.04)"
                               : "transparent",
@@ -4945,7 +4595,7 @@ export function AgendaPanel({ niveau }: { niveau: "tous" | Niveau }) {
                                 {s.titre ? ` — ${s.titre}` : ""}
                             </span>
                             {annulee && (
-                                <Tag color="#c55" border="rgba(120,0,0,0.4)">
+                                <Tag color={BAD} border="rgba(255,107,107,0.4)">
                                     ANNULÉE
                                 </Tag>
                             )}
@@ -5247,7 +4897,7 @@ function PorteeChoix({
         <div
             style={{
                 border: `1px solid ${b0}`,
-                borderRadius: 4,
+                borderRadius: 10,
                 padding: "7px 9px",
                 display: "flex",
                 flexDirection: "column",
@@ -5513,7 +5163,7 @@ function SeanceModal({
                         type="date"
                         value={jour}
                         onChange={(e: any) => setJour(e.target.value)}
-                        style={{ background: "#060606" }}
+                        style={{ background: FIELD }}
                     />
                 </div>
                 <div>
@@ -5522,7 +5172,7 @@ function SeanceModal({
                         type="time"
                         value={heure}
                         onChange={(e: any) => setHeure(e.target.value)}
-                        style={{ background: "#060606" }}
+                        style={{ background: FIELD }}
                     />
                 </div>
                 <div>
@@ -5671,7 +5321,7 @@ function CreerSeanceModal({
                         type="date"
                         value={date}
                         onChange={(e: any) => setDate(e.target.value)}
-                        style={{ background: "#060606" }}
+                        style={{ background: FIELD }}
                     />
                 </div>
                 <div>
@@ -5680,7 +5330,7 @@ function CreerSeanceModal({
                         type="time"
                         value={heure}
                         onChange={(e: any) => setHeure(e.target.value)}
-                        style={{ background: "#060606" }}
+                        style={{ background: FIELD }}
                     />
                 </div>
                 <div>
@@ -5831,7 +5481,7 @@ function SerieModal({
                         type="time"
                         value={heure}
                         onChange={(e: any) => setHeure(e.target.value)}
-                        style={{ background: "#060606" }}
+                        style={{ background: FIELD }}
                     />
                 </div>
                 <div>
@@ -5888,7 +5538,7 @@ function SerieModal({
                         type="date"
                         value={du}
                         onChange={(e: any) => setDu(e.target.value)}
-                        style={{ background: "#060606" }}
+                        style={{ background: FIELD }}
                     />
                 </div>
                 <div>
@@ -5897,7 +5547,7 @@ function SerieModal({
                         type="date"
                         value={au}
                         onChange={(e: any) => setAu(e.target.value)}
-                        style={{ background: "#060606" }}
+                        style={{ background: FIELD }}
                     />
                 </div>
             </div>
@@ -5908,7 +5558,7 @@ function SerieModal({
                         type="date"
                         value={exclusion}
                         onChange={(e: any) => setExclusion(e.target.value)}
-                        style={{ background: "#060606" }}
+                        style={{ background: FIELD }}
                     />
                     <Btn
                         onClick={() => {
@@ -5944,7 +5594,7 @@ function SerieModal({
                                     color: t0,
                                     padding: "2px 6px",
                                     border: `1px solid ${b1}`,
-                                    borderRadius: 3,
+                                    borderRadius: 99,
                                     cursor: "pointer",
                                 }}
                             >
@@ -6019,7 +5669,7 @@ function EcheancierTag({ f }: { f: Facturation }) {
         )
     if (f.echeancier_statut === "erreur")
         return (
-            <Tag color="#c55" border="rgba(120,0,0,0.4)">
+            <Tag color={BAD} border="rgba(255,107,107,0.4)">
                 STRIPE ✕
             </Tag>
         )
@@ -6161,7 +5811,7 @@ function FacturationRow({
                                 style={{
                                     padding: "5px 7px",
                                     border: `1px solid ${b0}`,
-                                    borderRadius: 4,
+                                    borderRadius: 10,
                                 }}
                             >
                                 <div
@@ -6202,7 +5852,7 @@ function FacturationRow({
                         <div
                             style={{
                                 border: `1px solid ${b0}`,
-                                borderRadius: 4,
+                                borderRadius: 10,
                                 overflow: "hidden",
                             }}
                         >
@@ -6232,7 +5882,7 @@ function FacturationRow({
                                             color: m.credits
                                                 ? "#FFD166"
                                                 : m.preleve
-                                                  ? "#5a5"
+                                                  ? OK
                                                   : t1,
                                         }}
                                     >
@@ -6251,7 +5901,7 @@ function FacturationRow({
                             style={{
                                 fontSize: 10,
                                 fontFamily: mono,
-                                color: "#c55",
+                                color: BAD,
                             }}
                         >
                             Impayé depuis le{" "}
@@ -6742,7 +6392,7 @@ export function FacturationPanel({
             a.matiere_key.startsWith(niveau)
     )
     const couleurAlerte = (n: string) =>
-        n === "erreur" ? "#c55" : n === "alerte" ? "#FFD166" : t1
+        n === "erreur" ? BAD : n === "alerte" ? "#FFD166" : t1
 
     return (
         <div style={{ flex: 1, overflowY: "auto" }}>
@@ -6806,7 +6456,7 @@ export function FacturationPanel({
                                 style={{
                                     padding: "5px 9px",
                                     border: `1px solid ${b0}`,
-                                    borderRadius: 4,
+                                    borderRadius: 10,
                                 }}
                             >
                                 <div
@@ -7050,9 +6700,9 @@ function AdjurisPromoPanel() {
                                     width: "100%",
                                     height: 32,
                                     padding: "0 10px",
-                                    background: "#060606",
+                                    background: FIELD,
                                     border: `1px solid ${b0}`,
-                                    borderRadius: 4,
+                                    borderRadius: 10,
                                     color: t0,
                                     fontSize: 12,
                                     fontFamily: mono,
@@ -7136,7 +6786,7 @@ function AdjurisPromoPanel() {
                                         color: t1,
                                         padding: "2px 6px",
                                         border: `1px solid ${b0}`,
-                                        borderRadius: 3,
+                                        borderRadius: 99,
                                     }}
                                 >
                                     {p.prix_euros} €
@@ -7254,7 +6904,7 @@ export function AdjurisSection() {
                     fontSize: 10,
                     fontFamily: mono,
                     padding: "3px 8px",
-                    borderRadius: 3,
+                    borderRadius: 99,
                     border: `1px solid ${actif ? b2 : b0}`,
                     background: actif ? sA : "transparent",
                     color: actif ? t0 : t1,
@@ -7305,7 +6955,7 @@ export function AdjurisSection() {
                                 padding: "0 10px",
                                 background: s0,
                                 border: `1px solid ${b0}`,
-                                borderRadius: 4,
+                                borderRadius: 10,
                                 color: t0,
                                 fontSize: 12,
                                 fontFamily: mono,
@@ -7345,7 +6995,7 @@ export function AdjurisSection() {
                                 fontSize: 10,
                                 fontFamily: mono,
                                 padding: "3px 12px",
-                                borderRadius: 3,
+                                borderRadius: 99,
                                 border: `1px solid ${niveauActif === n ? b2 : b0}`,
                                 background:
                                     niveauActif === n ? sA : "transparent",
@@ -7366,7 +7016,7 @@ export function AdjurisSection() {
                             fontSize: 10,
                             fontFamily: mono,
                             padding: "3px 10px",
-                            borderRadius: 3,
+                            borderRadius: 99,
                             border: `1px solid ${discordSeul ? "rgba(88,101,242,0.6)" : b0}`,
                             background: discordSeul
                                 ? "rgba(88,101,242,0.18)"
@@ -7413,7 +7063,7 @@ export function AdjurisSection() {
                         padding: "10px 14px",
                         fontSize: 11,
                         fontFamily: mono,
-                        color: "#c55",
+                        color: BAD,
                         borderBottom: `1px solid ${b0}`,
                     }}
                 >
@@ -7498,7 +7148,6 @@ const SECTIONS: { id: Section; label: string }[] = [
     { id: "prepa", label: "Prepa" },
     { id: "adjuris", label: "AdJuris" },
     { id: "ambassadeurs", label: "Amb." },
-    { id: "carts", label: "Carts" },
     { id: "terminal", label: "Terminal" },
 ]
 
@@ -7543,28 +7192,35 @@ function ConsoleUI() {
                 style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
+                    gap: 4,
                     padding: "0 12px",
-                    height: 42,
+                    height: 48,
                     borderBottom: `1px solid ${b0}`,
                     flexShrink: 0,
-                    // 8 onglets : la barre défile plutôt que de déborder.
+                    // La barre défile plutôt que de déborder si elle manque de place.
                     overflowX: "auto",
                 }}
             >
                 <span
                     style={{
-                        fontSize: 9,
-                        fontFamily: mono,
-                        color: t2,
-                        letterSpacing: 2.5,
-                        textTransform: "uppercase" as const,
-                        marginRight: 10,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginRight: 6,
                         whiteSpace: "nowrap" as const,
                         flexShrink: 0,
                     }}
                 >
-                    NAVIRE · Admin
+                    <span
+                        style={{
+                            width: 22,
+                            height: 22,
+                            background: `url("${API_BASE}/assets/logo-navire-app.png") center/contain no-repeat`,
+                        }}
+                    />
+                    <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.5 }}>
+                        NAVIRE
+                    </span>
                 </span>
                 {SECTIONS.map((s) => {
                     const active = section === s.id
@@ -7573,17 +7229,18 @@ function ConsoleUI() {
                             key={s.id}
                             onClick={() => setSection(s.id)}
                             style={{
-                                height: 26,
-                                padding: "0 11px",
-                                borderRadius: 3,
-                                border: `1px solid ${active ? b2 : b0}`,
+                                height: 30,
+                                padding: "0 10px",
+                                borderRadius: 99,
+                                border: `1px solid ${active ? b1 : "transparent"}`,
                                 background: active ? sA : "transparent",
                                 color: active ? t0 : t1,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontFamily: mono,
-                                fontWeight: active ? 700 : 400,
+                                fontWeight: active ? 600 : 500,
                                 cursor: "pointer",
                                 flexShrink: 0,
+                                transition: "background .15s, color .15s",
                             }}
                         >
                             {s.label}
@@ -7601,7 +7258,6 @@ function ConsoleUI() {
                 {section === "promos" && <PromosSection />}
                 {section === "actus" && <ActusSection />}
                 {section === "prepa" && <PrepaSection />}
-                {section === "carts" && <CartsSection />}
                 {section === "terminal" && <TerminalSection />}
                 {section === "adjuris" && <AdjurisSection />}
                 {section === "ambassadeurs" && <AmbassadeursSection />}
@@ -7615,7 +7271,8 @@ const ROOT: React.CSSProperties = {
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontFamily: "'Inter', system-ui, sans-serif",
+    WebkitFontSmoothing: "antialiased",
     color: t0,
     background: "transparent",
     overflow: "hidden",
@@ -8013,10 +7670,10 @@ function UserPanelUI() {
                             fontSize: 9,
                             fontFamily: mono,
                             padding: "1px 5px",
-                            borderRadius: 3,
+                            borderRadius: 99,
                             border: `1px solid ${b0}`,
                             background: "transparent",
-                            color: copied ? "#5a5" : t2,
+                            color: copied ? OK : t2,
                             cursor: "pointer",
                             flexShrink: 0,
                         }}
@@ -8041,7 +7698,7 @@ function UserPanelUI() {
                             style={{
                                 padding: "5px 6px",
                                 border: `1px solid ${b0}`,
-                                borderRadius: 4,
+                                borderRadius: 10,
                             }}
                         >
                             <div
@@ -8132,7 +7789,7 @@ function UserPanelUI() {
                                     style={{
                                         padding: "4px 6px",
                                         border: `1px solid ${b0}`,
-                                        borderRadius: 3,
+                                        borderRadius: 99,
                                     }}
                                 >
                                     <div
@@ -8169,7 +7826,7 @@ function UserPanelUI() {
                                 style={{
                                     flex: 1,
                                     height: 24,
-                                    borderRadius: 3,
+                                    borderRadius: 99,
                                     border: `1px solid ${curTier === p ? b2 : b0}`,
                                     background: curTier === p ? sA : s0,
                                     color: curTier === p ? t0 : t2,
@@ -8197,8 +7854,8 @@ function UserPanelUI() {
                                 fontSize: 9,
                                 fontFamily: mono,
                                 color: planMsg.startsWith("ERR")
-                                    ? "#c55"
-                                    : "#5a5",
+                                    ? BAD
+                                    : OK,
                                 marginTop: 4,
                             }}
                         >
@@ -8245,9 +7902,9 @@ function UserPanelUI() {
                             style={{
                                 flex: 1,
                                 height: 24,
-                                borderRadius: 3,
+                                borderRadius: 99,
                                 border: `1px solid ${b0}`,
-                                background: "#060606",
+                                background: FIELD,
                                 color: t0,
                                 fontSize: 9,
                                 fontFamily: mono,
@@ -8269,7 +7926,7 @@ function UserPanelUI() {
                             style={{
                                 width: 46,
                                 height: 24,
-                                borderRadius: 3,
+                                borderRadius: 99,
                                 border: `1px solid ${b0}`,
                                 background: s0,
                                 color: t0,
@@ -8296,7 +7953,7 @@ function UserPanelUI() {
                             style={{
                                 flex: 1,
                                 height: 24,
-                                borderRadius: 3,
+                                borderRadius: 99,
                                 border: `1px solid ${b1}`,
                                 background: s0,
                                 color: t0,
@@ -8316,10 +7973,10 @@ function UserPanelUI() {
                                 style={{
                                     flex: 1,
                                     height: 24,
-                                    borderRadius: 3,
-                                    border: "1px solid rgba(120,0,0,0.3)",
-                                    background: "rgba(120,0,0,0.08)",
-                                    color: "#c55",
+                                    borderRadius: 99,
+                                    border: "1px solid rgba(255,107,107,0.3)",
+                                    background: "rgba(255,107,107,0.08)",
+                                    color: BAD,
                                     fontSize: 9,
                                     fontFamily: mono,
                                     fontWeight: 700,
@@ -8339,8 +7996,8 @@ function UserPanelUI() {
                                 fontSize: 9,
                                 fontFamily: mono,
                                 color: prepaMsg.startsWith("ERR")
-                                    ? "#c55"
-                                    : "#5a5",
+                                    ? BAD
+                                    : OK,
                                 marginTop: 4,
                             }}
                         >
@@ -8424,10 +8081,10 @@ function UserPanelUI() {
                                             fontSize: 8,
                                             fontFamily: mono,
                                             padding: "1px 5px",
-                                            borderRadius: 3,
-                                            border: "1px solid rgba(120,0,0,0.3)",
-                                            background: "rgba(120,0,0,0.08)",
-                                            color: "#c55",
+                                            borderRadius: 99,
+                                            border: "1px solid rgba(255,107,107,0.3)",
+                                            background: "rgba(255,107,107,0.08)",
+                                            color: BAD,
                                             cursor: adjurisBusy
                                                 ? "not-allowed"
                                                 : "pointer",
@@ -8447,9 +8104,9 @@ function UserPanelUI() {
                         style={{
                             width: "100%",
                             height: 24,
-                            borderRadius: 3,
+                            borderRadius: 99,
                             border: `1px solid ${b0}`,
-                            background: "#060606",
+                            background: FIELD,
                             color: t0,
                             fontSize: 9,
                             fontFamily: mono,
@@ -8482,7 +8139,7 @@ function UserPanelUI() {
                             style={{
                                 width: 46,
                                 height: 24,
-                                borderRadius: 3,
+                                borderRadius: 99,
                                 border: `1px solid ${b0}`,
                                 background: s0,
                                 color: t0,
@@ -8528,7 +8185,7 @@ function UserPanelUI() {
                         style={{
                             width: "100%",
                             height: 24,
-                            borderRadius: 3,
+                            borderRadius: 99,
                             border: `1px solid ${b1}`,
                             background: s0,
                             color: t0,
@@ -8547,8 +8204,8 @@ function UserPanelUI() {
                                 fontSize: 9,
                                 fontFamily: mono,
                                 color: adjurisMsg.startsWith("ERR")
-                                    ? "#c55"
-                                    : "#5a5",
+                                    ? BAD
+                                    : OK,
                                 marginTop: 4,
                             }}
                         >
@@ -8633,7 +8290,7 @@ function UserPanelUI() {
                             style={{
                                 padding: "5px 4px",
                                 border: `1px solid ${b0}`,
-                                borderRadius: 4,
+                                borderRadius: 10,
                                 textAlign: "center" as const,
                             }}
                         >
@@ -8666,7 +8323,7 @@ function UserPanelUI() {
                     <div
                         style={{
                             border: `1px solid ${b0}`,
-                            borderRadius: 4,
+                            borderRadius: 10,
                             overflow: "hidden",
                         }}
                     >
@@ -8728,7 +8385,7 @@ function UserPanelUI() {
                             fontSize: 9,
                             fontFamily: mono,
                             padding: "2px 6px",
-                            borderRadius: 3,
+                            borderRadius: 99,
                             border: `1px solid ${b0}`,
                             background: "transparent",
                             color: page === 0 ? t2 : t1,
@@ -8749,7 +8406,7 @@ function UserPanelUI() {
                             fontSize: 9,
                             fontFamily: mono,
                             padding: "2px 6px",
-                            borderRadius: 3,
+                            borderRadius: 99,
                             border: `1px solid ${b0}`,
                             background: "transparent",
                             color: page === total - 1 ? t2 : t1,
@@ -8818,7 +8475,7 @@ function UserPanelUI() {
                     style={{
                         flex: 1,
                         border: `1px solid ${b0}`,
-                        borderRadius: 4,
+                        borderRadius: 10,
                         overflow: "hidden",
                     }}
                 >
@@ -8889,7 +8546,7 @@ function UserPanelUI() {
                                 fontSize: 9,
                                 fontFamily: mono,
                                 padding: "2px 6px",
-                                borderRadius: 3,
+                                borderRadius: 99,
                                 border: `1px solid ${b0}`,
                                 background: "transparent",
                                 color: page === 0 ? t2 : t1,
@@ -8912,7 +8569,7 @@ function UserPanelUI() {
                                 fontSize: 9,
                                 fontFamily: mono,
                                 padding: "2px 6px",
-                                borderRadius: 3,
+                                borderRadius: 99,
                                 border: `1px solid ${b0}`,
                                 background: "transparent",
                                 color: page === total - 1 ? t2 : t1,
@@ -8953,7 +8610,7 @@ function UserPanelUI() {
                                 fontSize: 10,
                                 fontFamily: mono,
                                 padding: "3px 8px",
-                                borderRadius: 3,
+                                borderRadius: 99,
                                 border: `1px solid ${active ? b2 : "transparent"}`,
                                 background: active ? sA : "transparent",
                                 color: active ? t0 : t1,
@@ -8987,7 +8644,8 @@ const PANEL_ROOT: React.CSSProperties = {
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontFamily: "'Inter', system-ui, sans-serif",
+    WebkitFontSmoothing: "antialiased",
     color: t0,
     background: "transparent",
     overflow: "hidden",
