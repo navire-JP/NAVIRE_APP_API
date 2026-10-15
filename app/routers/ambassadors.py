@@ -165,7 +165,7 @@ def embed_page(page: str):
         '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f'<title>{titre}</title></head>'
-        f'<body style="margin:0;background:#0a0a0a">{contenu}</body></html>'
+        f'<body style="margin:0;background:transparent">{contenu}</body></html>'
     )
 
 

@@ -40,7 +40,7 @@ export default function NavireEmbed(props: { page: "rejoindre" | "ambassadeur" }
             src={src || undefined}
             title="NAVIRE"
             allow="clipboard-write"
-            style={{ width: "100%", height, border: 0, display: "block", background: "#0a0a0a" }}
+            style={{ width: "100%", height, border: 0, display: "block", background: "transparent", colorScheme: "normal" }}
         />
     )
 }

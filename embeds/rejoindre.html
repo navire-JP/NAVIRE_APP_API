@@ -12,45 +12,63 @@
   les autres embeds).
 -->
 <div id="nv-join"></div>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
   #nv-join {
-    --bg: #0a0a0a; --card: #141414; --field: #1f1f1f; --line: #2a2a2a;
-    --text: #f0f0f0; --muted: #888; --accent: #e63946; --ok: #2ecc71;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    color-scheme: dark; color: var(--text); background: var(--bg); padding: 24px 16px; box-sizing: border-box;
+    --panel: rgba(255,255,255,0.035); --panel-2: rgba(255,255,255,0.06); --panel-3: rgba(255,255,255,0.1);
+    --line: rgba(255,255,255,0.07); --line-2: rgba(255,255,255,0.14);
+    --text: #fff; --text-2: rgba(255,255,255,0.72); --text-3: rgba(255,255,255,0.45); --text-4: rgba(255,255,255,0.28);
+    --danger: #FF6B6B; --ok: #5BE3A3; --warn: #FFD166; --blue: #7AA7FF;
+    --radius: 14px; --ease: cubic-bezier(.2,.8,.2,1);
+    font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px;
+    color: var(--text); background: transparent; padding: 24px 16px; box-sizing: border-box;
   }
   #nv-join *, #nv-join *::before, #nv-join *::after { box-sizing: border-box; }
+  #nv-join ::selection { background: rgba(255,255,255,0.22); }
+  #nv-join .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 15px; letter-spacing: .6px; margin-bottom: 20px; }
+  #nv-join .brand::before { content: ''; width: 32px; height: 32px; background: url("https://navire-app-api.onrender.com/assets/logo-navire-app.png") center/contain no-repeat; flex-shrink: 0; }
+  #nv-join h1 { font-size: 26px; font-weight: 700; letter-spacing: -.5px; margin: 0 0 8px; line-height: 1.2; }
+  #nv-join h2 { font-size: 16px; font-weight: 700; letter-spacing: -.2px; margin: 0 0 14px; }
+  #nv-join p { margin: 0 0 10px; line-height: 1.6; }
+  #nv-join .muted { color: var(--text-3); font-size: 12.5px; }
+  #nv-join .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; margin-bottom: 14px; animation: nv-rise .4s var(--ease) both; }
+  #nv-join label { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin: 14px 0 6px; }
+  #nv-join input, #nv-join select, #nv-join textarea { width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 11px 14px; font: inherit; font-size: 14px; outline: none; transition: border-color .15s, background .15s; }
+  #nv-join input::placeholder, #nv-join textarea::placeholder { color: var(--text-4); }
+  #nv-join input:focus, #nv-join select:focus, #nv-join textarea:focus { border-color: rgba(255,255,255,0.22); background: var(--panel-2); }
+  #nv-join select option { background: #111118; color: #fff; }
+  #nv-join .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  #nv-join .row > * { flex: 1 1 200px; min-width: 0; }
+  #nv-join .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #fff; color: #0a0a12; border: 0; border-radius: 99px; padding: 12px 22px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: transform .15s, opacity .2s, background .2s; }
+  #nv-join .btn:hover:not(:disabled) { transform: translateY(-1px); }
+  #nv-join .btn:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; }
+  #nv-join .btn.ghost { background: transparent; color: var(--text-2); border: 1px solid var(--line-2); }
+  #nv-join .btn.ghost:hover { background: var(--panel-2); color: #fff; }
+  #nv-join .err { color: var(--danger); font-size: 12.5px; margin-top: 10px; min-height: 1em; }
+  #nv-join .ok { color: var(--ok); }
+  #nv-join .linkbtn { background: none; border: 0; color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font: inherit; font-size: 12.5px; padding: 0; }
+  #nv-join .linkbtn:hover { color: #fff; }
+  @keyframes nv-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { #nv-join *, #nv-join *::before, #nv-join *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
   #nv-join .wrap { max-width: 560px; margin: 0 auto; }
-  #nv-join .brand { text-align: center; font-weight: 700; letter-spacing: 5px; font-size: 15px; margin-bottom: 20px; }
-  #nv-join .invite { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px; text-align: center; margin-bottom: 16px; }
-  #nv-join .avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; margin-bottom: 10px; }
-  #nv-join h1 { font-size: 22px; margin: 0 0 6px; line-height: 1.3; }
-  #nv-join h2 { font-size: 17px; margin: 0 0 14px; }
-  #nv-join p { margin: 0 0 10px; line-height: 1.55; }
-  #nv-join .muted { color: var(--muted); font-size: 13px; }
-  #nv-join .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px; margin-bottom: 16px; }
-  #nv-join .steps { display: flex; gap: 8px; margin-bottom: 16px; }
-  #nv-join .step { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
-  #nv-join .step.on { background: var(--accent); }
-  #nv-join label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
-  #nv-join input, #nv-join select { width: 100%; background: var(--field); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 12px; font-size: 15px; font-family: inherit; }
-  #nv-join input:focus, #nv-join select:focus { outline: none; border-color: var(--accent); }
-  #nv-join .row { display: flex; gap: 10px; }
-  #nv-join .row > * { flex: 1; min-width: 0; }
-  #nv-join .btn { display: block; width: 100%; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 14px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 18px; font-family: inherit; }
-  #nv-join .btn:disabled { opacity: .5; cursor: default; }
-  #nv-join .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 600; }
-  #nv-join .tabs { display: flex; background: var(--field); border-radius: 8px; padding: 4px; margin-bottom: 6px; }
-  #nv-join .tabs button { flex: 1; background: transparent; border: 0; color: var(--muted); padding: 10px; border-radius: 6px; font-size: 14px; cursor: pointer; font-family: inherit; }
-  #nv-join .tabs button.on { background: var(--card); color: var(--text); font-weight: 600; }
-  #nv-join .err { color: #ff6b75; font-size: 13px; margin-top: 10px; min-height: 1em; }
-  #nv-join .sep { text-align: center; color: var(--muted); font-size: 12px; margin: 16px 0 0; }
-  #nv-join .mat { display: flex; align-items: center; gap: 12px; background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 10px; cursor: pointer; }
-  #nv-join .mat.on { border-color: var(--accent); }
-  #nv-join .mat input { width: auto; accent-color: var(--accent); }
-  #nv-join .recap { background: var(--field); border-radius: 8px; padding: 14px; margin-top: 14px; font-size: 13px; line-height: 1.6; white-space: pre-line; color: #ccc; }
-  #nv-join .total { display: flex; justify-content: space-between; font-weight: 700; margin-top: 14px; font-size: 16px; }
-  #nv-join .linkbtn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 13px; padding: 0; font-family: inherit; }
+  #nv-join .brand { justify-content: center; }
+  #nv-join .invite { text-align: center; padding: 26px 22px; margin-bottom: 14px; }
+  #nv-join .avatar { width: 58px; height: 58px; border-radius: 50%; background: var(--panel-3); border: 1px solid var(--line-2); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; margin-bottom: 12px; box-shadow: 0 20px 60px rgba(120,150,255,0.18); }
+  #nv-join .invite h1 { font-size: 23px; }
+  #nv-join .steps { display: flex; gap: 6px; margin: 0 2px 14px; }
+  #nv-join .step { flex: 1; height: 3px; border-radius: 9px; background: var(--panel-2); transition: background .3s; }
+  #nv-join .step.on { background: #fff; }
+  #nv-join .card .btn { width: 100%; margin-top: 18px; }
+  #nv-join .tabs { display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 99px; padding: 4px; margin-bottom: 4px; }
+  #nv-join .tabs button { flex: 1; background: transparent; border: 0; color: var(--text-3); padding: 9px; border-radius: 99px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .15s, color .15s; }
+  #nv-join .tabs button.on { background: var(--panel-3); color: #fff; }
+  #nv-join .sep { text-align: center; color: var(--text-4); font-size: 12px; margin: 16px 0 0; }
+  #nv-join .mat { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; margin: 8px 0 0; cursor: pointer; color: var(--text); font-size: 14px; transition: background .15s, border-color .15s; }
+  #nv-join .mat:hover { background: var(--panel-2); }
+  #nv-join .mat.on { border-color: rgba(255,255,255,0.3); background: var(--panel-2); }
+  #nv-join .mat input { width: 18px; height: 18px; padding: 0; accent-color: #fff; flex-shrink: 0; }
+  #nv-join .recap { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 12px; font-size: 12.5px; line-height: 1.65; white-space: pre-line; color: var(--text-2); }
+  #nv-join .total { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; margin-top: 18px; font-size: 16px; }
 </style>
 <script>
 (function () {

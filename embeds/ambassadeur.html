@@ -11,61 +11,80 @@
   Réglages : bloc CONFIG ci-dessous.
 -->
 <div id="nv-amb"></div>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
   #nv-amb {
-    --bg: #0a0a0a; --card: #141414; --field: #1f1f1f; --line: #2a2a2a;
-    --text: #f0f0f0; --muted: #888; --accent: #e63946; --ok: #2ecc71; --warn: #f4a261;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    color-scheme: dark; color: var(--text); background: var(--bg); padding: 24px 16px; box-sizing: border-box;
+    --panel: rgba(255,255,255,0.035); --panel-2: rgba(255,255,255,0.06); --panel-3: rgba(255,255,255,0.1);
+    --line: rgba(255,255,255,0.07); --line-2: rgba(255,255,255,0.14);
+    --text: #fff; --text-2: rgba(255,255,255,0.72); --text-3: rgba(255,255,255,0.45); --text-4: rgba(255,255,255,0.28);
+    --danger: #FF6B6B; --ok: #5BE3A3; --warn: #FFD166; --blue: #7AA7FF;
+    --radius: 14px; --ease: cubic-bezier(.2,.8,.2,1);
+    font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px;
+    color: var(--text); background: transparent; padding: 24px 16px; box-sizing: border-box;
   }
   #nv-amb *, #nv-amb *::before, #nv-amb *::after { box-sizing: border-box; }
-  #nv-amb .wrap { max-width: 880px; margin: 0 auto; }
-  #nv-amb .brand { font-weight: 700; letter-spacing: 5px; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-  #nv-amb h1 { font-size: 28px; margin: 0 0 8px; line-height: 1.2; }
-  #nv-amb h2 { font-size: 17px; margin: 0 0 14px; }
-  #nv-amb p { margin: 0 0 10px; line-height: 1.55; }
-  #nv-amb .muted { color: var(--muted); font-size: 13px; }
-  #nv-amb .accent { color: var(--accent); }
-  #nv-amb .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px; margin-bottom: 16px; }
-  #nv-amb .hero { padding: 30px 22px; }
-  #nv-amb .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom: 16px; }
-  #nv-amb .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
-  #nv-amb .tile .v { font-size: 26px; font-weight: 700; margin-top: 6px; }
-  #nv-amb .tile .l { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-  #nv-amb .points { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 18px; }
-  #nv-amb .point { background: var(--field); border-radius: 10px; padding: 16px; }
-  #nv-amb .point b { display: block; font-size: 20px; margin-bottom: 4px; }
-  #nv-amb label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
-  #nv-amb input, #nv-amb textarea, #nv-amb select { width: 100%; background: var(--field); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 12px; font-size: 15px; font-family: inherit; }
-  #nv-amb textarea { min-height: 96px; resize: vertical; }
-  #nv-amb input:focus, #nv-amb textarea:focus { outline: none; border-color: var(--accent); }
+  #nv-amb ::selection { background: rgba(255,255,255,0.22); }
+  #nv-amb .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 15px; letter-spacing: .6px; margin-bottom: 20px; }
+  #nv-amb .brand::before { content: ''; width: 32px; height: 32px; background: url("https://navire-app-api.onrender.com/assets/logo-navire-app.png") center/contain no-repeat; flex-shrink: 0; }
+  #nv-amb h1 { font-size: 26px; font-weight: 700; letter-spacing: -.5px; margin: 0 0 8px; line-height: 1.2; }
+  #nv-amb h2 { font-size: 16px; font-weight: 700; letter-spacing: -.2px; margin: 0 0 14px; }
+  #nv-amb p { margin: 0 0 10px; line-height: 1.6; }
+  #nv-amb .muted { color: var(--text-3); font-size: 12.5px; }
+  #nv-amb .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; margin-bottom: 14px; animation: nv-rise .4s var(--ease) both; }
+  #nv-amb label { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin: 14px 0 6px; }
+  #nv-amb input, #nv-amb select, #nv-amb textarea { width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 11px 14px; font: inherit; font-size: 14px; outline: none; transition: border-color .15s, background .15s; }
+  #nv-amb input::placeholder, #nv-amb textarea::placeholder { color: var(--text-4); }
+  #nv-amb input:focus, #nv-amb select:focus, #nv-amb textarea:focus { border-color: rgba(255,255,255,0.22); background: var(--panel-2); }
+  #nv-amb select option { background: #111118; color: #fff; }
   #nv-amb .row { display: flex; gap: 10px; flex-wrap: wrap; }
   #nv-amb .row > * { flex: 1 1 200px; min-width: 0; }
-  #nv-amb .btn { display: inline-block; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 13px 22px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; text-decoration: none; }
-  #nv-amb .btn:disabled { opacity: .5; cursor: default; }
-  #nv-amb .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 600; }
-  #nv-amb .btn.small { padding: 9px 14px; font-size: 13px; }
-  #nv-amb .terms { background: var(--field); border-radius: 8px; padding: 14px 14px 14px 32px; margin: 0; font-size: 13px; line-height: 1.6; color: #ccc; }
-  #nv-amb .terms li { margin-bottom: 6px; }
-  #nv-amb .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 14px; color: var(--text); }
-  #nv-amb .check input { width: auto; margin-top: 3px; accent-color: var(--accent); }
-  #nv-amb .err { color: #ff6b75; font-size: 13px; margin-top: 10px; min-height: 1em; }
+  #nv-amb .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #fff; color: #0a0a12; border: 0; border-radius: 99px; padding: 12px 22px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: transform .15s, opacity .2s, background .2s; }
+  #nv-amb .btn:hover:not(:disabled) { transform: translateY(-1px); }
+  #nv-amb .btn:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; }
+  #nv-amb .btn.ghost { background: transparent; color: var(--text-2); border: 1px solid var(--line-2); }
+  #nv-amb .btn.ghost:hover { background: var(--panel-2); color: #fff; }
+  #nv-amb .err { color: var(--danger); font-size: 12.5px; margin-top: 10px; min-height: 1em; }
   #nv-amb .ok { color: var(--ok); }
-  #nv-amb .badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 3px 8px; border-radius: 20px; background: var(--field); color: var(--muted); text-transform: uppercase; white-space: nowrap; }
-  #nv-amb .badge.paid { background: rgba(46, 204, 113, .15); color: var(--ok); }
-  #nv-amb .badge.signed_up { background: rgba(244, 162, 97, .15); color: var(--warn); }
-  #nv-amb .badge.refunded { background: rgba(230, 57, 70, .15); color: #ff6b75; }
-  #nv-amb .link { display: flex; gap: 8px; flex-wrap: wrap; }
-  #nv-amb .link input { flex: 1 1 260px; font-family: 'Courier New', monospace; font-size: 14px; }
-  #nv-amb table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  #nv-amb th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; padding: 8px 6px; border-bottom: 1px solid var(--line); }
-  #nv-amb td { padding: 12px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  #nv-amb .scroll { overflow-x: auto; }
-  #nv-amb input[type=range] { padding: 0; accent-color: var(--accent); background: transparent; border: 0; }
-  #nv-amb .sim { display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; }
-  #nv-amb .sim .v { font-size: 30px; font-weight: 700; color: var(--accent); }
+  #nv-amb .linkbtn { background: none; border: 0; color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font: inherit; font-size: 12.5px; padding: 0; }
+  #nv-amb .linkbtn:hover { color: #fff; }
+  @keyframes nv-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { #nv-amb *, #nv-amb *::before, #nv-amb *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+  #nv-amb .wrap { max-width: 880px; margin: 0 auto; }
+  #nv-amb .brand::after { content: 'Ambassadeurs'; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); padding: 3px 9px; border-radius: 99px; background: var(--panel-2); }
+  #nv-amb .accent { background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  #nv-amb .hero { padding: 30px 26px; }
   #nv-amb .center { text-align: center; }
-  #nv-amb .notice { border-left: 3px solid var(--warn); }
+  #nv-amb .notice { border-color: rgba(255,209,102,0.2); background: rgba(255,209,102,0.06); color: #ffe2a3; }
+  #nv-amb .points { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 20px; }
+  #nv-amb .point { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  #nv-amb .point b { display: block; font-size: 15px; margin-bottom: 4px; }
+  #nv-amb .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom: 14px; }
+  #nv-amb .tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; animation: nv-rise .4s var(--ease) both; }
+  #nv-amb .tile .l { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600; color: var(--text-4); text-transform: uppercase; letter-spacing: 1px; }
+  #nv-amb .tile .v { font-size: 26px; font-weight: 700; letter-spacing: -.5px; margin-top: 6px; }
+  #nv-amb textarea { min-height: 96px; resize: vertical; line-height: 1.55; }
+  #nv-amb .btn.small { padding: 9px 16px; font-size: 13px; }
+  #nv-amb .terms { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 14px 34px; margin: 0; font-size: 13px; line-height: 1.65; color: var(--text-2); }
+  #nv-amb .terms li { margin-bottom: 6px; }
+  #nv-amb .terms li::marker { color: var(--text-4); }
+  #nv-amb .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; font-size: 13.5px; color: var(--text-2); cursor: pointer; }
+  #nv-amb .check input { width: 18px; height: 18px; padding: 0; margin-top: 1px; accent-color: #fff; flex-shrink: 0; }
+  #nv-amb .badge { display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); white-space: nowrap; }
+  #nv-amb .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  #nv-amb .badge.paid { color: var(--ok); background: rgba(91,227,163,0.1); }
+  #nv-amb .badge.signed_up { color: var(--warn); background: rgba(255,209,102,0.1); }
+  #nv-amb .badge.refunded { color: var(--danger); background: rgba(255,107,107,0.1); }
+  #nv-amb .link { display: flex; gap: 8px; flex-wrap: wrap; }
+  #nv-amb .link input { flex: 1 1 260px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  #nv-amb .scroll { overflow-x: auto; }
+  #nv-amb table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #nv-amb th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; color: var(--text-4); text-transform: uppercase; letter-spacing: 1px; padding: 8px 8px; border-bottom: 1px solid var(--line); }
+  #nv-amb td { padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); }
+  #nv-amb td:first-child { color: #fff; font-weight: 500; }
+  #nv-amb tr:last-child td { border-bottom: none; }
+  #nv-amb input[type=range] { padding: 0; height: 22px; border: 0; background: transparent; accent-color: #fff; }
+  #nv-amb .sim { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; }
+  #nv-amb .sim .v { font-size: 30px; font-weight: 800; letter-spacing: -.8px; background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 </style>
 <script>
 (function () {
@@ -97,7 +116,7 @@
   function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; }
   function err(msg) { var e = document.getElementById("nv-err"); if (e) e.textContent = msg || ""; }
 
-  function page(inner) { root.innerHTML = '<div class="wrap"><div class="brand">NAVIRE · AMBASSADEURS</div>' + inner + '</div>'; }
+  function page(inner) { root.innerHTML = '<div class="wrap"><div class="brand">NAVIRE</div>' + inner + '</div>'; }
 
   function pitch() {
     var c = S.terms ? S.terms.commission_par_matiere_cents : 200;

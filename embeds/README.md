@@ -1,41 +1,55 @@
 # Embeds — programme ambassadeur
 
-| Fichier | Page du site | Rôle |
+| Fichier | Où | Rôle |
 |---|---|---|
-| `rejoindre.html` | `/rejoindre?ref=CODE` | « Julie t'invite » → création du compte NAVIRE → choix des matières → paiement Stripe |
-| `ambassadeur.html` | `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
-| `console_ambassadeurs.html` | `/console` | Onglet admin : candidatures, ambassadeurs, commissions à verser (export CSV, « marquer comme versées ») |
-| `framer/NavireEmbed.tsx` | `/rejoindre`, `/ambassadeur` | Composant Framer qui affiche les deux premiers embeds |
+| `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
+| `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
+| `framer/NavireEmbed.tsx` | `/rejoindre`, `/ambassadeur` | Composant Framer qui affiche les deux pages ci-dessus |
+| `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par `Navire_AdminConsole.tsx` |
 
-## Installation dans Framer
+Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
+panneaux blancs translucides, bouton principal blanc, états vert / jaune /
+rouge `#5BE3A3` / `#FFD166` / `#FF6B6B`). La section console reprend les
+design tokens de la console.
 
-**`/rejoindre` et `/ambassadeur` : utiliser le composant, pas un Embed HTML.**
-Un Embed HTML Framer est une iframe cloisonnée (origine `null`) : il ne voit pas
-le `?ref=CODE` de l'adresse et ne peut rien garder en mémoire. Le composant lit
-le code dans la page et affiche la page servie par l'API
-(`GET /ambassadors/embed/{rejoindre|ambassadeur}`).
+## `/rejoindre` et `/ambassadeur`
 
-1. Framer → Assets → Code → *New Code File* → nommer `NavireEmbed`, coller `framer/NavireEmbed.tsx`.
-2. Créer les pages `/rejoindre` et `/ambassadeur`, y glisser le composant et
-   choisir la page dans le panneau de droite. Largeur : *Fill* ; hauteur : *Fit*
-   (l'embed transmet sa hauteur, pas de double barre de défilement).
+Les pages sont servies par l'API (`GET /ambassadors/embed/{rejoindre|ambassadeur}`)
+et affichées par le composant `NavireEmbed`, qui leur transmet le `?ref=CODE`
+de l'adresse et ajuste la hauteur.
 
-Les modifications de `rejoindre.html` / `ambassadeur.html` sont en ligne dès
-que l'API est redéployée : rien à recoller dans Framer.
+1. Framer → Assets → Code → *New Code File* `NavireEmbed`, coller `framer/NavireEmbed.tsx`.
+2. Sur chaque page, glisser le composant, choisir la page dans le panneau.
+   Largeur *Fill*, hauteur *Fit*.
 
-**`/console` : Embed HTML classique.** Coller `console_ambassadeurs.html` dans
-un nouvel onglet de la console. Il lit le jeton admin sous la clé
-`navire_token` ; s'il ne le trouve pas, il affiche son propre formulaire de
-connexion (compte `is_admin`).
+Une modification de `rejoindre.html` / `ambassadeur.html` est en ligne dès le
+redéploiement de l'API : rien à recoller dans Framer.
 
-## Réglages
+## `/console`
 
-En tête de chaque fichier, bloc `CONFIG` : URL de l'API, clé du jeton
-(`navire_token`), URL d'inscription. Servis par l'API, les embeds appellent
-l'API en relatif (l'URL du bloc est ignorée).
+1. Framer → Assets → Code → *New Code File* `Navire_Ambassadeurs`, coller
+   `framer/Navire_Ambassadeurs.tsx`.
+2. Dans `Navire_AdminConsole.tsx` :
+
+```tsx
+// en haut, sous `import * as React from "react"`
+import { AmbassadeursSection } from "./Navire_Ambassadeurs.tsx"
+
+// type Section : ajouter
+    | "ambassadeurs"
+
+// SECTIONS : ajouter après AdJuris
+    { id: "ambassadeurs", label: "Amb." },
+
+// ConsoleUI, à côté des autres sections
+{section === "ambassadeurs" && <AmbassadeursSection />}
+
+// ConsoleUI, barre d'onglets (div height: 42) : ajouter dans son style
+    overflowX: "auto",
+```
 
 ## Côté Stripe
 
-Dans le dashboard Stripe, le webhook `/subscriptions/webhook` doit aussi
-recevoir `charge.refunded` et `charge.dispute.created` : c'est ce qui annule
-la commission d'un paiement remboursé ou contesté.
+Le webhook `/subscriptions/webhook` doit aussi recevoir `charge.refunded` et
+`charge.dispute.created` (annulation de la commission d'un paiement remboursé
+ou contesté).
