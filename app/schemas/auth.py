@@ -27,6 +27,10 @@ class RegisterIn(BaseModel):
     # variable REQUIRE_EMAIL_VERIFICATION.
     email_token: str | None = None
 
+    # Code du lien d'invitation d'un ambassadeur (/rejoindre?ref=CODE).
+    # Ignoré s'il est inconnu : l'inscription n'en dépend jamais.
+    referral_code: str | None = Field(default=None, max_length=40)
+
 
 class EmailCodeRequestIn(BaseModel):
     """Demande d'envoi du code à 6 chiffres."""
@@ -61,7 +65,11 @@ class OAuthIn(BaseModel):
 
     university: str | None = Field(default=None, max_length=120)
     study_level: str | None = Field(default=None, max_length=120)
+
     newsletter_opt_in: bool = False
+
+    # Code ambassadeur (/rejoindre?ref=CODE), appliqué à la création du compte.
+    referral_code: str | None = Field(default=None, max_length=40)
 
 
 class LoginIn(BaseModel):

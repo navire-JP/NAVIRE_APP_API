@@ -4,6 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime, timezone
+import logging
 
 from app.db.database import get_db
 from app.db.models import User, Subscription, PendingSubscription
@@ -42,6 +43,8 @@ from app.services.oauth import (
     exchange_google_code,
     exchange_facebook_code,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
@@ -193,6 +196,20 @@ def activate_pending_prepa_adjuris(db: Session, user: User) -> int:
     return len(orphelines)
 
 
+def attach_ambassador_referral(db: Session, user: User, code: str | None, source: str) -> None:
+    """
+    Programme ambassadeur : rattache le compte au code du lien /rejoindre, ou
+    à un parrainage déjà enregistré sur son email (paiement fait avant la
+    création du compte). Ne fait jamais échouer une inscription.
+    """
+    from app.services.ambassadors import attach_referral
+    try:
+        attach_referral(db, code, user=user, source=source)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("Parrainage non rattaché pour l'utilisateur %s", user.id)
+
+
 @router.get("/email-exists")
 def email_exists(email: str, db: Session = Depends(get_db)):
     """
@@ -265,6 +282,9 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
 
     # Rattacher les paiements Prép'AdJuris faits avant la création du compte
     activate_pending_prepa_adjuris(db, user)
+
+    # Lien d'invitation d'un ambassadeur (page /rejoindre)
+    attach_ambassador_referral(db, user, payload.referral_code, source="register")
 
     # Le code de vérification a rempli son office
     if verified:
@@ -480,6 +500,7 @@ def oauth_login(payload: OAuthIn, db: Session = Depends(get_db)):
         # avant la création du compte doit être appliqué ici aussi.
         activate_pending_subscription(db, user)
         activate_pending_prepa_adjuris(db, user)
+        attach_ambassador_referral(db, user, payload.referral_code, source="oauth")
 
     else:
         # Connexion d'un compte déjà existant

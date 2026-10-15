@@ -1,0 +1,396 @@
+<!--
+  NAVIRE — Embed page /rejoindre (invitation d'un ambassadeur)
+  ============================================================
+  Lien partagé par l'ambassadeur : https://navire-ai.com/rejoindre?ref=JULIE-7K2
+
+  1. Lit le code du lien (?ref=) et affiche « Julie t'invite » (GET /ambassadors/ref/{code}).
+  2. Création du compte NAVIRE complet (pseudo, email vérifié, université, niveau)
+     ou connexion à un compte existant. Le code part avec l'inscription.
+  3. Choix des matières Prép'AdJuris, récapitulatif, puis paiement Stripe.
+
+  Réglages : bloc CONFIG ci-dessous (URL de l'API, clé du jeton partagée avec
+  les autres embeds).
+-->
+<div id="nv-join"></div>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  #nv-join {
+    --panel: rgba(255,255,255,0.035); --panel-2: rgba(255,255,255,0.06); --panel-3: rgba(255,255,255,0.1);
+    --line: rgba(255,255,255,0.07); --line-2: rgba(255,255,255,0.14);
+    --text: #fff; --text-2: rgba(255,255,255,0.72); --text-3: rgba(255,255,255,0.45); --text-4: rgba(255,255,255,0.28);
+    --danger: #FF6B6B; --ok: #5BE3A3; --warn: #FFD166; --blue: #7AA7FF;
+    --radius: 14px; --ease: cubic-bezier(.2,.8,.2,1);
+    font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px;
+    color: var(--text); background: transparent; padding: 24px 16px; box-sizing: border-box;
+  }
+  #nv-join *, #nv-join *::before, #nv-join *::after { box-sizing: border-box; }
+  #nv-join ::selection { background: rgba(255,255,255,0.22); }
+  #nv-join .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 15px; letter-spacing: .6px; margin-bottom: 20px; }
+  #nv-join .brand::before { content: ''; width: 32px; height: 32px; background: url("https://navire-app-api.onrender.com/assets/logo-navire-app.png") center/contain no-repeat; flex-shrink: 0; }
+  #nv-join h1 { font-size: 26px; font-weight: 700; letter-spacing: -.5px; margin: 0 0 8px; line-height: 1.2; }
+  #nv-join h2 { font-size: 16px; font-weight: 700; letter-spacing: -.2px; margin: 0 0 14px; }
+  #nv-join p { margin: 0 0 10px; line-height: 1.6; }
+  #nv-join .muted { color: var(--text-3); font-size: 12.5px; }
+  #nv-join .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; margin-bottom: 14px; animation: nv-rise .4s var(--ease) both; }
+  #nv-join label { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin: 14px 0 6px; }
+  #nv-join input, #nv-join select, #nv-join textarea { width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 11px 14px; font: inherit; font-size: 14px; outline: none; transition: border-color .15s, background .15s; }
+  #nv-join input::placeholder, #nv-join textarea::placeholder { color: var(--text-4); }
+  #nv-join input:focus, #nv-join select:focus, #nv-join textarea:focus { border-color: rgba(255,255,255,0.22); background: var(--panel-2); }
+  #nv-join select option { background: #111118; color: #fff; }
+  #nv-join .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  #nv-join .row > * { flex: 1 1 200px; min-width: 0; }
+  #nv-join .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #fff; color: #0a0a12; border: 0; border-radius: 99px; padding: 12px 22px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: transform .15s, opacity .2s, background .2s; }
+  #nv-join .btn:hover:not(:disabled) { transform: translateY(-1px); }
+  #nv-join .btn:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; }
+  #nv-join .btn.ghost { background: transparent; color: var(--text-2); border: 1px solid var(--line-2); }
+  #nv-join .btn.ghost:hover { background: var(--panel-2); color: #fff; }
+  #nv-join .err { color: var(--danger); font-size: 12.5px; margin-top: 10px; min-height: 1em; }
+  #nv-join .ok { color: var(--ok); }
+  #nv-join .linkbtn { background: none; border: 0; color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font: inherit; font-size: 12.5px; padding: 0; }
+  #nv-join .linkbtn:hover { color: #fff; }
+  @keyframes nv-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { #nv-join *, #nv-join *::before, #nv-join *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+  #nv-join .wrap { max-width: 560px; margin: 0 auto; }
+  #nv-join .brand { justify-content: center; }
+  @keyframes nv-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  @keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+  #nv-join .invite { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10px 10px 22px; gap: 6px; }
+  #nv-join .hero-logo { width: 64px; height: 64px; border-radius: 15px; background: url("https://navire-app-api.onrender.com/assets/logo-navire-app.png") center/contain no-repeat; box-shadow: 0 20px 60px rgba(120,150,255,0.18); animation: nv-float 6s ease-in-out infinite; margin-bottom: 14px; }
+  #nv-join .hero-pair { position: relative; margin-bottom: 14px; }
+  #nv-join .hero-pair .hero-logo { margin: 0; }
+  #nv-join .avatar { position: absolute; right: -14px; bottom: -8px; width: 34px; height: 34px; border-radius: 50%; background: #16161f; border: 2px solid rgba(255,255,255,0.14); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+  #nv-join .invite h1 { font-size: 24px; letter-spacing: -.5px; }
+  #nv-join .invite .muted { font-size: 13.5px; max-width: 420px; line-height: 1.55; }
+  #nv-join .grad { background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  #nv-join .steps { display: flex; gap: 6px; margin: 0 2px 14px; }
+  #nv-join .step { flex: 1; height: 3px; border-radius: 9px; background: var(--panel-2); transition: background .3s; }
+  #nv-join .step.on { background: #fff; }
+  #nv-join .card .btn { width: 100%; margin-top: 18px; height: 44px; }
+  #nv-join .tabs { display: flex; gap: 6px; margin-bottom: 4px; }
+  #nv-join .tabs button { flex: 1; height: 34px; background: transparent; border: 1px solid var(--line); color: var(--text-2); border-radius: 99px; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: background .15s, color .15s; }
+  #nv-join .tabs button:hover { background: var(--panel-2); color: #fff; }
+  #nv-join .tabs button.on { background: var(--panel-3); color: #fff; border-color: rgba(255,255,255,0.14); }
+  #nv-join .sep { display: flex; align-items: center; gap: 10px; color: var(--text-4); font-size: 11.5px; margin: 16px 0 0; }
+  #nv-join .sep::before, #nv-join .sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  #nv-join .mat { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); margin-top: 6px; cursor: pointer; font-size: 13.5px; color: var(--text-2); transition: background .15s, border-color .15s, color .15s; outline: none; }
+  #nv-join .mat:hover, #nv-join .mat:focus-visible { background: var(--panel-2); }
+  #nv-join .mat.on { border-color: rgba(255,255,255,0.14); background: var(--panel-2); color: #fff; }
+  #nv-join .mat-name { flex: 1; font-weight: 500; }
+  #nv-join .mat-price { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); }
+  #nv-join .check { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s, border-color .15s; }
+  #nv-join .check svg { width: 12px; height: 12px; color: #0a0a12; opacity: 0; transform: scale(.5); transition: opacity .15s, transform .2s var(--ease); }
+  #nv-join .mat.on .check { background: #fff; border-color: #fff; }
+  #nv-join .mat.on .check svg { opacity: 1; transform: none; }
+  #nv-join .recap { background: rgba(0,0,0,0.25); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 12px; font-size: 12.5px; line-height: 1.65; white-space: pre-line; color: var(--text-2); }
+  #nv-join .total { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; margin-top: 18px; font-size: 15px; }
+  #nv-join .total span:last-child { font-size: 22px; letter-spacing: -.5px; }
+  @media (max-width: 480px) {
+    #nv-join .row > * { flex-basis: 100%; }
+    #nv-join input, #nv-join select { font-size: 16px; } /* évite le zoom auto d'iOS */
+    #nv-join .invite h1 { font-size: 21px; }
+  }
+</style>
+<script>
+(function () {
+  // ── CONFIG ──────────────────────────────────────────────
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    // Clé du jeton NAVIRE dans le stockage du navigateur : la même que celle
+    // des autres embeds, pour que l'élève reste connecté d'une page à l'autre.
+    TOKEN_KEY: "navire_token",
+    REF_KEY: "navire_ref",
+    SITE: "https://navire-ai.com",
+    INSCRIPTION_EUR: 20
+  };
+  var NIVEAUX = ["L1", "L2", "L3", "M1"];
+  var MATIERES = {
+    L1: [["L1_droit_constit", "Droit constitutionnel"], ["L1_intro_au_droit", "Introduction au droit"], ["L1_droit_ijae", "Droit IJAE"]],
+    L2: [["L2_droit_administratif", "Droit administratif"], ["L2_droit_des_obligations", "Droit des obligations"], ["L2_droit_penal", "Droit pénal"]],
+    L3: [["L3_droit_des_societes", "Droit des sociétés"], ["L3_droit_des_suretes", "Droit des sûretés"], ["L3_droit_des_contrats_speciaux", "Droit des contrats spéciaux"]],
+    M1: [["M1_distribution", "Distribution"]]
+  };
+
+  var root = document.getElementById("nv-join");
+  var state = { ref: null, amb: null, token: null, user: null, tab: "signup", step: 1,
+                email: "", emailToken: null, niveau: "", matieres: [] };
+
+  // ── Utilitaires ─────────────────────────────────────────
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return x.msg; }).join(" · "); return "Une erreur est survenue."; }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" };
+    if (state.token) h.Authorization = "Bearer " + state.token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(detail(j.detail)); return j; }); });
+  }
+  function go(url) { try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
+
+  // Le code du lien : adresse de l'embed, puis de la page parente quand le
+  // navigateur la laisse lire, puis le dernier code mémorisé.
+  function readRef() {
+    var sources = [];
+    try { sources.push(window.location.search); } catch (e) {}
+    try { sources.push(window.parent.location.search); } catch (e) {}
+    try { sources.push(window.top.location.search); } catch (e) {}
+    try { if (document.referrer) sources.push(new URL(document.referrer).search); } catch (e) {}
+    for (var i = 0; i < sources.length; i++) {
+      var m = /[?&]ref=([A-Za-z0-9-]{3,32})/.exec(sources[i] || "");
+      if (m) { store(CONFIG.REF_KEY, m[1].toUpperCase()); return m[1].toUpperCase(); }
+    }
+    return load(CONFIG.REF_KEY);
+  }
+
+  // ── Rendu ───────────────────────────────────────────────
+  function invite() {
+    if (!state.amb) {
+      return '<div class="invite"><div class="hero-logo"></div><h1>Rejoins Prép\'AdJuris</h1><p class="muted">Les séances de soutien en droit de NAVIRE, matière par matière.</p>' +
+        '<button class="linkbtn" id="nv-code-btn">Tu as un code d\'invitation ?</button></div>';
+    }
+    var n = state.amb.display_name;
+    return '<div class="invite"><div class="hero-pair"><div class="hero-logo"></div><div class="avatar">' + esc(n.charAt(0).toUpperCase()) + '</div></div>' +
+      '<h1>' + esc(n) + ' t\'invite sur <span class="grad">NAVIRE</span></h1>' +
+      '<p class="muted">Crée ton compte et rejoins Prép\'AdJuris' + (state.amb.university ? ' — ' + esc(state.amb.university) : '') + '.</p></div>';
+  }
+
+  function steps() {
+    return '<div class="steps"><div class="step on"></div><div class="step ' + (state.step >= 2 ? "on" : "") + '"></div></div>';
+  }
+
+  function render() {
+    var html = '<div class="wrap">' + invite() + steps();
+    html += state.step === 1 ? accountCard() : matieresCard();
+    root.innerHTML = html + '</div>';
+    bind();
+  }
+
+  function accountCard() {
+    var t = state.tab;
+    var h = '<div class="card"><h2>1. Ton compte NAVIRE</h2>' +
+      '<div class="tabs"><button data-tab="signup" class="' + (t === "signup" ? "on" : "") + '">Créer mon compte</button>' +
+      '<button data-tab="login" class="' + (t === "login" ? "on" : "") + '">J\'ai déjà un compte</button></div>';
+    if (t === "login") {
+      h += '<label>Email</label><input id="nv-l-email" type="email" autocomplete="email">' +
+        '<label>Mot de passe</label><input id="nv-l-pass" type="password" autocomplete="current-password">' +
+        '<button class="btn" id="nv-login">Me connecter</button>';
+    } else if (t === "code") {
+      h += '<p>Un code à 6 chiffres vient d\'être envoyé à <strong>' + esc(state.email) + '</strong>.</p>' +
+        '<label>Code reçu par email</label><input id="nv-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code">' +
+        '<button class="btn" id="nv-verify">Valider et créer mon compte</button>' +
+        '<p class="sep"><button class="linkbtn" data-tab="signup">Modifier mes informations</button></p>';
+    } else {
+      var f = state.form || {};
+      h += '<div class="row"><div><label>Pseudo</label><input id="nv-s-user" value="' + esc(f.username) + '" maxlength="64" autocomplete="nickname"></div>' +
+        '<div><label>Niveau</label><select id="nv-s-niveau"><option value="">—</option>' +
+        NIVEAUX.map(function (n) { return '<option' + (f.niveau === n ? " selected" : "") + '>' + n + '</option>'; }).join("") + '</select></div></div>' +
+        '<label>Université</label><input id="nv-s-univ" value="' + esc(f.university) + '" maxlength="120" placeholder="Ex. Université Paris-Panthéon-Assas">' +
+        '<label>Email</label><input id="nv-s-email" type="email" value="' + esc(f.email) + '" autocomplete="email">' +
+        '<label>Mot de passe (8 caractères minimum)</label><input id="nv-s-pass" type="password" autocomplete="new-password">' +
+        '<button class="btn" id="nv-signup">Recevoir mon code de vérification</button>' +
+        '<p class="sep">ou</p><button class="btn ghost" id="nv-google">Continuer avec Google</button>';
+    }
+    return h + '<div class="err" id="nv-err"></div></div>';
+  }
+
+  function matieresCard() {
+    var niveau = state.niveau;
+    var h = '<div class="card"><h2>2. Tes matières Prép\'AdJuris</h2>' +
+      '<p class="muted">Connecté en tant que <strong>' + esc(state.user ? state.user.username : "") + '</strong>. ' +
+      '<button class="linkbtn" id="nv-logout">Changer de compte</button></p>' +
+      '<label>Niveau</label><select id="nv-niveau"><option value="">Choisis ton niveau</option>' +
+      NIVEAUX.map(function (n) { return '<option' + (niveau === n ? " selected" : "") + '>' + n + '</option>'; }).join("") + '</select>';
+    if (niveau) {
+      h += (MATIERES[niveau] || []).map(function (m) {
+        var on = state.matieres.indexOf(m[0]) >= 0;
+        return '<div class="mat ' + (on ? "on" : "") + '" data-mat="' + m[0] + '" role="checkbox" aria-checked="' + on + '" tabindex="0">' +
+          '<span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="mat-name">' + esc(m[1]) + '</span>' +
+          '<span class="mat-price">' + CONFIG.INSCRIPTION_EUR + ' €</span></div>';
+      }).join("");
+    }
+    if (state.matieres.length) {
+      h += '<div class="total"><span>À payer aujourd\'hui</span><span>' + (state.recapTotal != null ? state.recapTotal : state.matieres.length * CONFIG.INSCRIPTION_EUR + ",00 €") + '</span></div>' +
+        '<div class="recap" id="nv-recap">' + esc(state.recap || "Calcul du récapitulatif…") + '</div>';
+    }
+    h += '<button class="btn" id="nv-pay"' + (state.matieres.length ? "" : " disabled") + '>Payer mon inscription</button>' +
+      '<p class="muted" style="margin-top:12px">Paiement sécurisé par Stripe. L\'inscription règle d\'avance ta prochaine séance ; les suivantes sont prélevées en fin de mois.</p>' +
+      '<div class="err" id="nv-err"></div></div>';
+    return h;
+  }
+
+  function err(msg) { var e = document.getElementById("nv-err"); if (e) e.textContent = msg || ""; }
+  function busy(btn, on, label) { if (!btn) return; btn.disabled = on; if (label) btn.textContent = label; }
+  function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; }
+
+  // ── Actions ─────────────────────────────────────────────
+  function bind() {
+    Array.prototype.forEach.call(root.querySelectorAll("[data-tab]"), function (b) {
+      b.onclick = function () { state.tab = b.getAttribute("data-tab"); render(); };
+    });
+    var el;
+    if ((el = document.getElementById("nv-code-btn"))) el.onclick = function () {
+      var c = window.prompt("Code d'invitation de ton ambassadeur :");
+      if (c) { state.ref = c.trim().toUpperCase(); store(CONFIG.REF_KEY, state.ref); resolveRef().then(render); }
+    };
+    if ((el = document.getElementById("nv-signup"))) el.onclick = signup;
+    if ((el = document.getElementById("nv-verify"))) el.onclick = verify;
+    if ((el = document.getElementById("nv-login"))) el.onclick = login;
+    if ((el = document.getElementById("nv-google"))) el.onclick = google;
+    if ((el = document.getElementById("nv-logout"))) el.onclick = function () { state.token = null; state.user = null; store(CONFIG.TOKEN_KEY, null); state.step = 1; render(); };
+    if ((el = document.getElementById("nv-niveau"))) el.onchange = function () { state.niveau = this.value; state.matieres = []; state.recap = null; render(); };
+    Array.prototype.forEach.call(root.querySelectorAll("[data-mat]"), function (row) {
+      function toggle() {
+        var k = row.getAttribute("data-mat"), i = state.matieres.indexOf(k);
+        if (i < 0) state.matieres.push(k); else state.matieres.splice(i, 1);
+        state.recap = null; state.recapTotal = null; render(); recap();
+      }
+      row.onclick = toggle;
+      row.onkeydown = function (e) { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } };
+    });
+    if ((el = document.getElementById("nv-pay"))) el.onclick = pay;
+  }
+
+  function signup() {
+    var f = { username: val("nv-s-user"), niveau: val("nv-s-niveau"), university: val("nv-s-univ"), email: val("nv-s-email").toLowerCase(), password: document.getElementById("nv-s-pass").value };
+    state.form = f;
+    if (f.username.length < 3) return err("Ton pseudo doit faire au moins 3 caractères.");
+    if (!f.niveau) return err("Indique ton niveau.");
+    if (!f.university) return err("Indique ton université.");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email)) return err("Adresse email invalide.");
+    if (f.password.length < 8) return err("Le mot de passe doit faire au moins 8 caractères.");
+    var b = document.getElementById("nv-signup"); busy(b, true, "Envoi du code…");
+    api("POST", "/auth/request-code", { email: f.email, username: f.username })
+      .then(function () { state.email = f.email; state.tab = "code"; render(); })
+      .catch(function (e) { busy(b, false, "Recevoir mon code de vérification"); err(e.message); });
+  }
+
+  function verify() {
+    var f = state.form, b = document.getElementById("nv-verify"); busy(b, true, "Création du compte…");
+    api("POST", "/auth/verify-code", { email: f.email, code: val("nv-code") })
+      .then(function (r) {
+        return api("POST", "/auth/register", {
+          username: f.username, email: f.email, password: f.password,
+          university: f.university, study_level: f.niveau,
+          email_token: r.email_token, referral_code: state.ref || null
+        });
+      })
+      .then(function (r) { state.niveau = f.niveau; loggedIn(r); })
+      .catch(function (e) { busy(b, false, "Valider et créer mon compte"); err(e.message); });
+  }
+
+  function login() {
+    var b = document.getElementById("nv-login"); busy(b, true, "Connexion…");
+    api("POST", "/auth/login", { email: val("nv-l-email").toLowerCase(), password: document.getElementById("nv-l-pass").value })
+      .then(function (r) { loggedIn(r, true); })
+      .catch(function (e) { busy(b, false, "Me connecter"); err(e.message); });
+  }
+
+  // Google : fenêtre sur l'API (l'iframe Framer ne peut pas parler à Google),
+  // qui renvoie un ticket par postMessage.
+  function google() {
+    var f = state.form || {};
+    var w = window.open(CONFIG.API + "/auth/google/start", "navire_oauth", "width=480,height=640");
+    if (!w) return err("Autorise les fenêtres pop-up pour continuer avec Google.");
+    function onMsg(ev) {
+      var d = ev.data || {};
+      if (d.type === "NAVIRE_OAUTH_ERROR") { window.removeEventListener("message", onMsg); err(d.message || "Connexion Google interrompue."); }
+      if (d.type !== "NAVIRE_OAUTH_TICKET") return;
+      window.removeEventListener("message", onMsg);
+      api("POST", "/auth/oauth", {
+        provider: "google", ticket: d.ticket, username: val("nv-s-user") || f.username || null,
+        university: val("nv-s-univ") || null, study_level: val("nv-s-niveau") || null,
+        referral_code: state.ref || null
+      }).then(function (r) { state.niveau = val("nv-s-niveau") || ""; loggedIn(r, true); })
+        .catch(function (e) { err(e.message); });
+    }
+    window.addEventListener("message", onMsg);
+  }
+
+  // Compte existant ou Google : le rattachement au code se fait ici (pour
+  // un compte neuf, /auth/register et /auth/oauth l'ont déjà fait).
+  function loggedIn(r, claim) {
+    state.token = r.access_token; state.user = r.user; store(CONFIG.TOKEN_KEY, r.access_token);
+    if (!state.niveau && r.user && NIVEAUX.indexOf(r.user.study_level) >= 0) state.niveau = r.user.study_level;
+    state.step = 2; render();
+    if (claim && state.ref) api("POST", "/ambassadors/claim", { code: state.ref }).catch(function () {});
+  }
+
+  function recap() {
+    if (!state.matieres.length) return;
+    var keys = state.matieres.slice();
+    api("GET", "/prepa/adjuris/echeancier?matieres=" + encodeURIComponent(keys.join(",")))
+      .then(function (r) {
+        if (keys.join() !== state.matieres.join()) return;
+        state.recap = r.texte;
+        state.recapTotal = (r.inscription.total_cents / 100).toFixed(2).replace(".", ",") + " €";
+        render();
+      })
+      .catch(function (e) { state.recap = e.message; render(); });
+  }
+
+  function pay() {
+    var b = document.getElementById("nv-pay"); busy(b, true, "Ouverture du paiement…");
+    api("POST", "/prepa/adjuris/checkout-session", { matieres: state.matieres, ref: state.ref || null })
+      .then(function (r) {
+        go(r.checkout_url);
+        // Navigateur qui refuse la redirection depuis une iframe : lien manuel.
+        b.outerHTML = '<a class="btn" style="text-align:center;text-decoration:none" target="_top" href="' + esc(r.checkout_url) + '">Ouvrir la page de paiement</a>';
+      })
+      .catch(function (e) { busy(b, false, "Payer mon inscription"); err(e.message); });
+  }
+
+  function resolveRef() {
+    if (!state.ref) return Promise.resolve();
+    return api("GET", "/ambassadors/ref/" + encodeURIComponent(state.ref))
+      .then(function (r) { state.amb = r.valid ? r : null; if (!r.valid) { state.ref = null; store(CONFIG.REF_KEY, null); } })
+      .catch(function () { state.amb = null; });
+  }
+
+
+  // Hauteur : l'iframe suit le contenu, sans double barre de défilement.
+  //  - Embed HTML Framer (comme NAVIRE AI) : on agrandit directement l'iframe
+  //    et ses blocs parents qui ne contiennent qu'elle ;
+  //  - page servie par l'API dans le composant NavireEmbed : on lui envoie
+  //    la hauteur par message.
+  (function () {
+    if (window.parent === window) return;
+    var frameEl = null, wrappers = [];
+    try {
+      if (window.frameElement && window.parent.document) {
+        frameEl = window.frameElement;
+        for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== window.parent.document.body; i++, n = n.parentElement) wrappers.push(n);
+        var s = document.createElement("style");
+        s.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}";
+        document.head.appendChild(s);
+      }
+    } catch (e) { frameEl = null; }
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height);
+      if (!h || h === last) return;
+      last = h;
+      if (frameEl) {
+        frameEl.style.height = h + "px";
+        frameEl.style.minHeight = h + "px";
+        wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+      } else {
+        try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+      }
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+    window.addEventListener("load", report);
+  })();
+
+  // ── Démarrage ───────────────────────────────────────────
+  state.ref = readRef();
+  state.token = load(CONFIG.TOKEN_KEY);
+  var boot = state.token
+    ? api("GET", "/auth/me").then(function (u) { state.user = u; state.step = 2;
+        if (NIVEAUX.indexOf(u.study_level) >= 0) state.niveau = u.study_level;
+        if (state.ref) api("POST", "/ambassadors/claim", { code: state.ref }).catch(function () {}); })
+      .catch(function () { state.token = null; store(CONFIG.TOKEN_KEY, null); })
+    : Promise.resolve();
+  Promise.all([boot, resolveRef()]).then(render);
+  root.innerHTML = '<div class="wrap"><div class="brand">NAVIRE</div><p class="muted" style="text-align:center">Chargement…</p></div>';
+})();
+</script>

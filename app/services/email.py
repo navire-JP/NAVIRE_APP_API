@@ -640,6 +640,97 @@ def mail_verification_code(code: str, username: str, ttl_minutes: int) -> tuple[
 # boîte (le logo, surtout, qui dépend d'une URL publique joignable depuis le
 # client mail). Les données sont fictives et n'écrivent rien en base.
 
+# ============================================================
+# Programme ambassadeur
+# ============================================================
+
+def _bouton(url: str, texte: str) -> str:
+    return (
+        f'<a href="{url}" style="display: inline-block; background: #e63946; color: #fff; '
+        'padding: 12px 24px; border-radius: 8px; text-decoration: none; '
+        f'font-weight: bold; margin: 16px 0;">{texte}</a>'
+    )
+
+
+def mail_ambassador_application(prenom: str) -> tuple[str, str]:
+    """(subject, html) accusant réception d'une candidature ambassadeur."""
+    from html import escape
+    subject = "Ta candidature d'ambassadeur NAVIRE est bien reçue"
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {escape(prenom)},</p>
+    <p>
+      Merci pour ta candidature au programme <strong>Ambassadeur NAVIRE</strong>.
+      L'équipe l'examine et te répond par email, en général sous quelques jours.
+    </p>
+    <p>
+      Tu peux suivre son état à tout moment sur ta page ambassadeur.
+    </p>
+    {_bouton(f"{FRONTEND_URL}/ambassadeur", "Ma page ambassadeur")}
+""", preheader="Ta candidature est en cours d'examen.")
+    return subject, html
+
+
+def mail_ambassador_approved(prenom: str, link: str, commission_eur: str) -> tuple[str, str]:
+    """(subject, html) envoyé quand la console valide une candidature."""
+    from html import escape
+    subject = "Bienvenue parmi les ambassadeurs NAVIRE"
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {escape(prenom)},</p>
+    <p>
+      Ta candidature est <strong>acceptée</strong> : tu es désormais ambassadeur NAVIRE.
+    </p>
+    <p>Voici ton lien d'invitation personnel :</p>
+    <div style="font-family: 'Courier New', monospace; font-size: 14px;
+                background: #1f1f1f; border-radius: 8px; padding: 16px; margin: 16px 0;
+                word-break: break-all;">{escape(link)}</div>
+    <p>
+      Chaque étudiant qui crée son compte avec ce lien puis paie son inscription
+      Prép'AdJuris te rapporte <strong>{commission_eur} par matière</strong>.
+      Tes filleuls, tes statistiques et tes gains sont sur ta page ambassadeur.
+    </p>
+    {_bouton(f"{FRONTEND_URL}/ambassadeur", "Mon tableau de bord")}
+""", preheader="Ton lien d'invitation est prêt.")
+    return subject, html
+
+
+def mail_ambassador_rejected(prenom: str, reason: str | None) -> tuple[str, str]:
+    """(subject, html) envoyé quand la console refuse une candidature."""
+    from html import escape
+    motif = (
+        f'<p style="background: #1f1f1f; border-radius: 8px; padding: 16px;">{escape(reason)}</p>'
+        if (reason or "").strip() else ""
+    )
+    subject = "Ta candidature d'ambassadeur NAVIRE"
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {escape(prenom)},</p>
+    <p>
+      Merci pour l'intérêt que tu portes à NAVIRE. Nous ne pouvons pas retenir
+      ta candidature au programme ambassadeur pour le moment.
+    </p>
+    {motif}
+    <p>Tu pourras candidater à nouveau depuis ta page ambassadeur.</p>
+""", preheader="Réponse à ta candidature d'ambassadeur.")
+    return subject, html
+
+
+def mail_ambassador_commission(prenom: str, filleul: str, montant_eur: str) -> tuple[str, str]:
+    """(subject, html) envoyé à l'ambassadeur quand un filleul paie son inscription."""
+    from html import escape
+    subject = f"+{montant_eur} : un de tes filleuls a rejoint Prép'AdJuris"
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {escape(prenom)},</p>
+    <p>
+      <strong>{escape(filleul)}</strong> vient de payer son inscription Prép'AdJuris
+      grâce à ton lien. Tu gagnes <strong>{montant_eur}</strong>.
+    </p>
+    <p style="font-size: 0.85em; color: #888;">
+      La commission devient versable après le délai de rétractation de 14 jours.
+    </p>
+    {_bouton(f"{FRONTEND_URL}/ambassadeur", "Voir mes gains")}
+""", preheader=f"Tu gagnes {montant_eur}.")
+    return subject, html
+
+
 EMAIL_CATALOG: dict[str, dict] = {
     "verification_code": {
         "label": "Code de confirmation (inscription)",
@@ -707,6 +798,28 @@ EMAIL_CATALOG: dict[str, dict] = {
         "label": "Mot de passe défini (compte Google/Facebook)",
         "trigger": "POST /users/me/password (compte sans mot de passe)",
         "render": lambda: mail_password_changed("Jean", was_set=True),
+    },
+    "ambassador_application": {
+        "label": "Ambassadeur : candidature reçue",
+        "trigger": "POST /ambassadors/apply",
+        "render": lambda: mail_ambassador_application("Julie"),
+    },
+    "ambassador_approved": {
+        "label": "Ambassadeur : candidature acceptée",
+        "trigger": "Console : POST /ambassadors/admin/{id}/approve",
+        "render": lambda: mail_ambassador_approved(
+            "Julie", f"{FRONTEND_URL}/rejoindre?ref=JULIE-7K2", "2,00 €"
+        ),
+    },
+    "ambassador_rejected": {
+        "label": "Ambassadeur : candidature refusée",
+        "trigger": "Console : POST /ambassadors/admin/{id}/reject",
+        "render": lambda: mail_ambassador_rejected("Julie", "Profil incomplet."),
+    },
+    "ambassador_commission": {
+        "label": "Ambassadeur : nouvelle commission",
+        "trigger": "Webhook Stripe : inscription Prép'AdJuris payée par un filleul",
+        "render": lambda: mail_ambassador_commission("Julie", "marc_l2", "4,00 €"),
     },
 }
 
