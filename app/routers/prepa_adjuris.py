@@ -95,6 +95,8 @@ class PrepaAdjurisCheckoutIn(BaseModel):
     matiere_key: str | None = None
     matieres: list[str] | None = None
     promo_code: str | None = None
+    # Code ambassadeur de la page /rejoindre (programme de parrainage).
+    ref: str | None = Field(None, max_length=40)
 
 
 class LinkDiscordAdjurisIn(BaseModel):
@@ -118,6 +120,9 @@ class PrepaAdjurisInscriptionIn(BaseModel):
     website: str = ""
 
     promo_code: str | None = None
+
+    # Code ambassadeur de la page /rejoindre (programme de parrainage).
+    ref: str | None = Field(None, max_length=40)
 
 
 # ============================================================
@@ -474,6 +479,29 @@ def _devis_public(
     }
 
 
+def _metadata_parrainage(db: Session, ref: str | None, user: User | None = None) -> dict:
+    """
+    Programme ambassadeur : code à porter dans la metadata du Checkout, lu par
+    le webhook pour créer la commission. Un compte connecté est rattaché tout
+    de suite (il apparaît comme filleul avant même de payer) ; un paiement
+    sans compte l'est par le webhook, sur son email. Jamais bloquant.
+    """
+    from app.services import ambassadors as parrainage
+    try:
+        if user is not None:
+            rattache = parrainage.attach_referral(db, ref, user=user, source="checkout")
+            if rattache is not None:
+                amb = db.get(parrainage.Ambassador, rattache.ambassador_id)
+                return {"ambassador_code": amb.code} if amb and amb.code else {}
+            return {}
+        amb = parrainage.find_active(db, ref)
+        return {"ambassador_code": amb.code} if amb else {}
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("Code ambassadeur ignoré au checkout")
+        return {}
+
+
 @router.post("/checkout-session")
 def create_prepa_adjuris_checkout(
     payload: PrepaAdjurisCheckoutIn,
@@ -516,6 +544,7 @@ def create_prepa_adjuris_checkout(
 
     session = _creer_checkout_session(
         db, a_payer, user.email, user=user,
+        metadata_extra=_metadata_parrainage(db, payload.ref, user=user),
         override_price_cents=override_price_cents,
         success_path="/login",
     )
@@ -724,6 +753,7 @@ def create_prepa_adjuris_public_checkout(
             "niveau": niveau,
             "prenom": payload.prenom.strip()[:80],
             "nom": payload.nom.strip()[:80],
+            **_metadata_parrainage(db, payload.ref),
         },
         override_price_cents=override_price_cents,
     )

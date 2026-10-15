@@ -1,0 +1,305 @@
+<!--
+  NAVIRE — Embed page /ambassadeur
+  =================================
+  Un seul embed, quatre états (GET /ambassadors/me) :
+    - non connecté      → présentation du programme + « Se connecter »
+    - connecté, sans candidature (ou refusée) → conditions + formulaire
+    - candidature en attente → message d'attente
+    - ambassadeur validé → tableau de bord : lien à partager, statistiques,
+      filleuls, gains et simulateur
+
+  Réglages : bloc CONFIG ci-dessous.
+-->
+<div id="nv-amb"></div>
+<style>
+  #nv-amb {
+    --bg: #0a0a0a; --card: #141414; --field: #1f1f1f; --line: #2a2a2a;
+    --text: #f0f0f0; --muted: #888; --accent: #e63946; --ok: #2ecc71; --warn: #f4a261;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color-scheme: dark; color: var(--text); background: var(--bg); padding: 24px 16px; box-sizing: border-box;
+  }
+  #nv-amb *, #nv-amb *::before, #nv-amb *::after { box-sizing: border-box; }
+  #nv-amb .wrap { max-width: 880px; margin: 0 auto; }
+  #nv-amb .brand { font-weight: 700; letter-spacing: 5px; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  #nv-amb h1 { font-size: 28px; margin: 0 0 8px; line-height: 1.2; }
+  #nv-amb h2 { font-size: 17px; margin: 0 0 14px; }
+  #nv-amb p { margin: 0 0 10px; line-height: 1.55; }
+  #nv-amb .muted { color: var(--muted); font-size: 13px; }
+  #nv-amb .accent { color: var(--accent); }
+  #nv-amb .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px; margin-bottom: 16px; }
+  #nv-amb .hero { padding: 30px 22px; }
+  #nv-amb .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom: 16px; }
+  #nv-amb .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  #nv-amb .tile .v { font-size: 26px; font-weight: 700; margin-top: 6px; }
+  #nv-amb .tile .l { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  #nv-amb .points { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 18px; }
+  #nv-amb .point { background: var(--field); border-radius: 10px; padding: 16px; }
+  #nv-amb .point b { display: block; font-size: 20px; margin-bottom: 4px; }
+  #nv-amb label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+  #nv-amb input, #nv-amb textarea, #nv-amb select { width: 100%; background: var(--field); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 12px; font-size: 15px; font-family: inherit; }
+  #nv-amb textarea { min-height: 96px; resize: vertical; }
+  #nv-amb input:focus, #nv-amb textarea:focus { outline: none; border-color: var(--accent); }
+  #nv-amb .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  #nv-amb .row > * { flex: 1 1 200px; min-width: 0; }
+  #nv-amb .btn { display: inline-block; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 13px 22px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; text-decoration: none; }
+  #nv-amb .btn:disabled { opacity: .5; cursor: default; }
+  #nv-amb .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+  #nv-amb .btn.small { padding: 9px 14px; font-size: 13px; }
+  #nv-amb .terms { background: var(--field); border-radius: 8px; padding: 14px 14px 14px 32px; margin: 0; font-size: 13px; line-height: 1.6; color: #ccc; }
+  #nv-amb .terms li { margin-bottom: 6px; }
+  #nv-amb .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 14px; color: var(--text); }
+  #nv-amb .check input { width: auto; margin-top: 3px; accent-color: var(--accent); }
+  #nv-amb .err { color: #ff6b75; font-size: 13px; margin-top: 10px; min-height: 1em; }
+  #nv-amb .ok { color: var(--ok); }
+  #nv-amb .badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 3px 8px; border-radius: 20px; background: var(--field); color: var(--muted); text-transform: uppercase; white-space: nowrap; }
+  #nv-amb .badge.paid { background: rgba(46, 204, 113, .15); color: var(--ok); }
+  #nv-amb .badge.signed_up { background: rgba(244, 162, 97, .15); color: var(--warn); }
+  #nv-amb .badge.refunded { background: rgba(230, 57, 70, .15); color: #ff6b75; }
+  #nv-amb .link { display: flex; gap: 8px; flex-wrap: wrap; }
+  #nv-amb .link input { flex: 1 1 260px; font-family: 'Courier New', monospace; font-size: 14px; }
+  #nv-amb table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  #nv-amb th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  #nv-amb td { padding: 12px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  #nv-amb .scroll { overflow-x: auto; }
+  #nv-amb input[type=range] { padding: 0; accent-color: var(--accent); background: transparent; border: 0; }
+  #nv-amb .sim { display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; }
+  #nv-amb .sim .v { font-size: 30px; font-weight: 700; color: var(--accent); }
+  #nv-amb .center { text-align: center; }
+  #nv-amb .notice { border-left: 3px solid var(--warn); }
+</style>
+<script>
+(function () {
+  // ── CONFIG ──────────────────────────────────────────────
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",           // même clé que les autres embeds
+    SIGNUP_URL: "https://navire-ai.com/register"
+  };
+  var NIVEAUX = ["L1", "L2", "L3", "M1"];
+
+  var root = document.getElementById("nv-amb");
+  var S = { token: null, me: null, terms: null, dash: null, sim: 10, simMat: 1, editing: false };
+
+  // ── Utilitaires ─────────────────────────────────────────
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function eur(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",") + " €"; }
+  function date(iso) { return iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : "—"; }
+  function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return String(x.msg || "").replace(/^Value error, /, ""); }).join(" · "); return "Une erreur est survenue."; }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" };
+    if (S.token) h.Authorization = "Bearer " + S.token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(detail(j.detail)); e.status = r.status; throw e; } return j; }); });
+  }
+  function go(url) { try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
+  function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; }
+  function err(msg) { var e = document.getElementById("nv-err"); if (e) e.textContent = msg || ""; }
+
+  function page(inner) { root.innerHTML = '<div class="wrap"><div class="brand">NAVIRE · AMBASSADEURS</div>' + inner + '</div>'; }
+
+  function pitch() {
+    var c = S.terms ? S.terms.commission_par_matiere_cents : 200;
+    return '<div class="points">' +
+      '<div class="point"><b>1. Candidate</b><span class="muted">Remplis le formulaire, l\'équipe valide ton profil.</span></div>' +
+      '<div class="point"><b>2. Partage ton lien</b><span class="muted">Une page d\'inscription à ton nom pour tes camarades.</span></div>' +
+      '<div class="point"><b>3. Gagne ' + eur(c) + '</b><span class="muted">Par matière dont l\'inscription Prép\'AdJuris est payée.</span></div></div>';
+  }
+
+  // ── États ───────────────────────────────────────────────
+  // Connexion dans l'embed même : il ne dépend pas d'un jeton posé par une
+  // autre page (une iframe cloisonnée n'a pas accès au stockage du site).
+  function viewLoggedOut() {
+    page('<div class="card hero"><h1>Deviens ambassadeur <span class="accent">NAVIRE</span></h1>' +
+      '<p>Fais découvrir Prép\'AdJuris à ta promo et touche une commission sur chaque inscription.</p>' + pitch() + '</div>' +
+      '<div class="card"><h2>Connecte-toi pour candidater</h2>' +
+      '<div class="row"><div><label>Email</label><input id="l-email" type="email" autocomplete="email"></div>' +
+      '<div><label>Mot de passe</label><input id="l-pass" type="password" autocomplete="current-password"></div></div>' +
+      '<p style="margin-top:16px" class="row"><button class="btn" id="nv-login">Me connecter</button>' +
+      '<button class="btn ghost" id="nv-google">Continuer avec Google</button></p>' +
+      '<div class="err" id="nv-err"></div>' +
+      '<p class="muted">Pas encore de compte NAVIRE ? <a href="#" id="nv-signup" style="color:inherit">Crée-le ici</a>, puis reviens sur cette page.</p></div>');
+    document.getElementById("nv-signup").onclick = function (e) { e.preventDefault(); go(CONFIG.SIGNUP_URL); };
+    var b = document.getElementById("nv-login");
+    b.onclick = function () {
+      b.disabled = true;
+      api("POST", "/auth/login", { email: val("l-email").toLowerCase(), password: document.getElementById("l-pass").value })
+        .then(loggedIn).catch(function (e) { b.disabled = false; err(e.message); });
+    };
+    document.getElementById("nv-google").onclick = function () {
+      var w = window.open(CONFIG.API + "/auth/google/start", "navire_oauth", "width=480,height=640");
+      if (!w) return err("Autorise les fenêtres pop-up pour continuer avec Google.");
+      function onMsg(ev) {
+        var d = ev.data || {};
+        if (d.type === "NAVIRE_OAUTH_ERROR") { window.removeEventListener("message", onMsg); err(d.message || "Connexion Google interrompue."); }
+        if (d.type !== "NAVIRE_OAUTH_TICKET") return;
+        window.removeEventListener("message", onMsg);
+        api("POST", "/auth/oauth", { provider: "google", ticket: d.ticket }).then(loggedIn).catch(function (e) { err(e.message); });
+      }
+      window.addEventListener("message", onMsg);
+    };
+  }
+
+  function loggedIn(r) { S.token = r.access_token; store(CONFIG.TOKEN_KEY, r.access_token); boot(); }
+
+  function viewApply() {
+    var me = S.me, t = S.terms || { conditions: [] };
+    var rejected = me.status === "rejected"
+      ? '<div class="card notice"><p><strong>Ta précédente candidature n\'a pas été retenue.</strong></p>' +
+        (me.rejection_reason ? '<p class="muted">' + esc(me.rejection_reason) + '</p>' : '') +
+        '<p class="muted">Tu peux en envoyer une nouvelle.</p></div>' : '';
+    var u = S.user || {};
+    page('<div class="card hero"><h1>Deviens ambassadeur <span class="accent">NAVIRE</span></h1>' +
+      '<p>Fais découvrir Prép\'AdJuris à ta promo et touche une commission sur chaque inscription.</p>' + pitch() + '</div>' + rejected +
+      '<div class="card"><h2>Conditions du programme</h2><ol class="terms">' +
+      t.conditions.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join("") + '</ol></div>' +
+      '<div class="card"><h2>Ta candidature</h2>' +
+      '<div class="row"><div><label>Prénom</label><input id="f-prenom" maxlength="80" value="' + esc(me.prenom) + '"></div>' +
+      '<div><label>Nom</label><input id="f-nom" maxlength="80" value="' + esc(me.nom) + '"></div></div>' +
+      '<label>Nom affiché sur ta page d\'invitation</label><input id="f-display" maxlength="40" placeholder="Ex. Julie ou Julie M." value="' + esc(me.display_name) + '">' +
+      '<p class="muted" style="margin-top:6px">C\'est ce que verront les étudiants : « Julie t\'invite sur NAVIRE ».</p>' +
+      '<div class="row"><div><label>Université</label><input id="f-univ" maxlength="120" value="' + esc(me.university || u.university) + '"></div>' +
+      '<div><label>Niveau</label><select id="f-niveau"><option value="">—</option>' +
+      NIVEAUX.concat(["M2", "Autre"]).map(function (n) { var cur = me.study_level || u.study_level; return '<option' + (cur === n ? " selected" : "") + '>' + n + '</option>'; }).join("") +
+      '</select></div></div>' +
+      '<label>Téléphone (facultatif)</label><input id="f-tel" maxlength="30" value="' + esc(me.telephone) + '">' +
+      '<label>Pourquoi veux-tu devenir ambassadeur ?</label><textarea id="f-motivation" maxlength="2000"></textarea>' +
+      '<label>Où comptes-tu partager ton lien ? (réseaux, groupes de promo, asso…)</label><textarea id="f-reseaux" maxlength="1000"></textarea>' +
+      '<label>IBAN pour le versement de tes commissions (facultatif maintenant)</label><input id="f-iban" maxlength="50" placeholder="FR76 …">' +
+      '<label class="check"><input type="checkbox" id="f-cgu"><span>J\'ai lu et j\'accepte les conditions du programme ambassadeur.</span></label>' +
+      '<p style="margin-top:18px"><button class="btn" id="nv-apply">Envoyer ma candidature</button></p><div class="err" id="nv-err"></div></div>');
+    document.getElementById("nv-apply").onclick = apply;
+  }
+
+  function apply() {
+    if (!document.getElementById("f-cgu").checked) return err("Accepte les conditions pour envoyer ta candidature.");
+    if (val("f-motivation").length < 10) return err("Dis-nous en quelques mots pourquoi tu veux devenir ambassadeur.");
+    var b = document.getElementById("nv-apply"); b.disabled = true; b.textContent = "Envoi…";
+    api("POST", "/ambassadors/apply", {
+      prenom: val("f-prenom"), nom: val("f-nom"), display_name: val("f-display"),
+      university: val("f-univ") || null, study_level: val("f-niveau") || null, telephone: val("f-tel") || null,
+      motivation: val("f-motivation"), reseaux: val("f-reseaux"), iban: val("f-iban") || null,
+      accept_terms: true, terms_version: S.terms && S.terms.version
+    }).then(function (me) { S.me = me; route(); })
+      .catch(function (e) { b.disabled = false; b.textContent = "Envoyer ma candidature"; err(e.message); });
+  }
+
+  function viewPending() {
+    page('<div class="card hero center"><h1>Candidature envoyée ✓</h1>' +
+      '<p>Merci ' + esc(S.me.prenom) + ' ! L\'équipe NAVIRE examine ta candidature.</p>' +
+      '<p class="muted">Tu recevras un email dès qu\'elle sera validée. Ton lien d\'invitation apparaîtra alors ici.</p>' +
+      '<p class="muted">Envoyée le ' + date(S.me.applied_at) + '</p></div>');
+  }
+
+  function viewDashboard() {
+    var d = S.dash, me = d.ambassador, st = d.stats, g = d.earnings, c = d.commission_par_matiere_cents;
+    var suspended = me.status === "suspended";
+    var html = '<div class="card"><h1 style="font-size:24px">Bonjour ' + esc(me.prenom) + ' 👋</h1>' +
+      (suspended
+        ? '<p class="accent">Ton lien est suspendu : il n\'enregistre plus de nouveaux filleuls. Contacte l\'équipe NAVIRE. Tes commissions acquises restent dues.</p>'
+        : '<p class="muted">Partage ton lien : chaque étudiant qui crée son compte avec ce lien et paie son inscription Prép\'AdJuris te rapporte ' + eur(c) + ' par matière.</p>' +
+          '<div class="link"><input id="nv-link" readonly value="' + esc(me.link) + '">' +
+          '<button class="btn small" id="nv-copy">Copier</button>' +
+          '<a class="btn small ghost" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent("Rejoins-moi sur Prép'AdJuris by NAVIRE : " + me.link) + '">WhatsApp</a></div>' +
+          '<p class="muted" style="margin-top:8px">Ton code : <strong>' + esc(me.code) + '</strong></p>') + '</div>';
+
+    html += '<div class="grid">' +
+      tile("Visites de ta page", st.clicks) + tile("Comptes créés", st.signups) +
+      tile("Inscriptions payées", st.paying) +
+      tile("Conversion", Math.round((st.conversion_rate || 0) * 100) + " %") + '</div>';
+
+    html += '<div class="grid">' +
+      tile("Total gagné", eur(g.total_earned_cents)) +
+      tile("En attente (14 j)", eur(g.pending_cents)) +
+      tile("Disponible", eur(g.available_cents)) +
+      tile("Déjà versé", eur(g.paid_cents)) + '</div>';
+
+    html += '<div class="card"><h2>Simulateur de gains</h2>' +
+      '<label>Filleuls qui s\'inscrivent : <strong id="sim-n">' + S.sim + '</strong></label><input type="range" id="sim" min="1" max="100" value="' + S.sim + '">' +
+      '<label>Matières par filleul : <strong id="sim-m">' + S.simMat + '</strong></label><input type="range" id="simm" min="1" max="3" value="' + S.simMat + '">' +
+      '<div class="sim"><span class="muted">Tu gagnerais</span><span class="v" id="sim-v">' + eur(S.sim * S.simMat * c) + '</span></div>' +
+      '<p class="muted">' + eur(c) + ' par matière sur les ' + eur(d.prix_inscription_cents) + ' d\'inscription. Commission unique, versée par virement.</p></div>';
+
+    html += '<div class="card"><h2>Tes filleuls</h2>';
+    if (!d.referrals.length) {
+      html += '<p class="muted">Personne pour l\'instant. Partage ton lien dans tes groupes de promo !</p>';
+    } else {
+      var lab = { paid: "Inscrit·e", signed_up: "Compte créé", refunded: "Remboursé" };
+      html += '<div class="scroll"><table><thead><tr><th>Étudiant</th><th>Arrivé le</th><th>Statut</th><th>Matières</th><th>Commission</th></tr></thead><tbody>' +
+        d.referrals.map(function (r) {
+          return '<tr><td>' + esc(r.username || "Étudiant sans compte") + '</td><td>' + date(r.joined_at) + '</td>' +
+            '<td><span class="badge ' + r.status + '">' + lab[r.status] + '</span></td>' +
+            '<td>' + (r.matieres.length || "—") + '</td>' +
+            '<td>' + (r.commission_cents ? eur(r.commission_cents) + ' <span class="muted">' + ({ pending: "en attente", available: "disponible", paid: "versée" }[r.commission_status] || "") + '</span>' : "—") + '</td></tr>';
+        }).join("") + '</tbody></table></div>';
+    }
+    html += '</div>';
+
+    html += '<div class="card"><h2>Mes informations de versement</h2>' +
+      '<p class="muted">IBAN enregistré : <strong>' + esc(me.iban_masked || "aucun") + '</strong></p>' +
+      '<div class="row"><div><label>Nouvel IBAN</label><input id="u-iban" maxlength="50" placeholder="FR76 …"></div>' +
+      '<div><label>Nom affiché</label><input id="u-display" maxlength="40" value="' + esc(me.display_name) + '"></div></div>' +
+      '<p style="margin-top:14px"><button class="btn small" id="nv-save">Enregistrer</button></p><div class="err" id="nv-err"></div></div>';
+
+    page(html);
+
+    var copy = document.getElementById("nv-copy");
+    if (copy) copy.onclick = function () {
+      var i = document.getElementById("nv-link"); i.select();
+      var done = function () { copy.textContent = "Copié ✓"; setTimeout(function () { copy.textContent = "Copier"; }, 1800); };
+      try { navigator.clipboard.writeText(i.value).then(done, function () { document.execCommand("copy"); done(); }); }
+      catch (e) { document.execCommand("copy"); done(); }
+    };
+    var sim = document.getElementById("sim"), simm = document.getElementById("simm");
+    function upd() { S.sim = +sim.value; S.simMat = +simm.value;
+      document.getElementById("sim-n").textContent = S.sim; document.getElementById("sim-m").textContent = S.simMat;
+      document.getElementById("sim-v").textContent = eur(S.sim * S.simMat * c); }
+    sim.oninput = upd; simm.oninput = upd;
+    document.getElementById("nv-save").onclick = function () {
+      var body = { display_name: val("u-display") };
+      if (val("u-iban")) body.iban = val("u-iban");
+      api("PATCH", "/ambassadors/me", body)
+        .then(function () { return loadDash(); })
+        .then(function () { viewDashboard(); var e = document.getElementById("nv-err"); e.className = "err ok"; e.textContent = "Enregistré ✓"; })
+        .catch(function (e) { err(e.message); });
+    };
+  }
+
+  function tile(l, v) { return '<div class="tile"><div class="l">' + esc(l) + '</div><div class="v">' + esc(v) + '</div></div>'; }
+
+  // ── Routage ─────────────────────────────────────────────
+  function loadDash() { return api("GET", "/ambassadors/me/dashboard").then(function (d) { S.dash = d; }); }
+
+  function route() {
+    var s = S.me.status;
+    if (s === "none" || s === "rejected") return viewApply();
+    if (s === "pending") return viewPending();
+    return loadDash().then(viewDashboard).catch(function (e) { page('<div class="card"><p>' + esc(e.message) + '</p></div>'); });
+  }
+
+
+  // Hauteur de l'embed → page Framer (composant NavireEmbed), qui ajuste
+  // l'iframe : pas de double barre de défilement.
+  (function () {
+    if (window.parent === window) return;
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height);
+      if (h && h !== last) { last = h; try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {} }
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+  })();
+
+  var terms = api("GET", "/ambassadors/terms").then(function (t) { S.terms = t; }).catch(function () {});
+  function boot() {
+    if (!S.token) { terms.then(viewLoggedOut); return; }
+    Promise.all([terms, api("GET", "/auth/me").then(function (u) { S.user = u; }), api("GET", "/ambassadors/me").then(function (m) { S.me = m; })])
+      .then(route)
+      .catch(function (e) { if (e.status === 401) { S.token = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); } else page('<div class="card"><p>' + esc(e.message) + '</p></div>'); });
+  }
+  page('<p class="muted">Chargement…</p>');
+  S.token = load(CONFIG.TOKEN_KEY);
+  boot();
+})();
+</script>

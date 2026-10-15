@@ -1684,3 +1684,154 @@ class DeepWorkSession(Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="deep_work_sessions")
+
+
+# ============================================================
+# PROGRAMME AMBASSADEUR — parrainage Prép'AdJuris
+# ============================================================
+#
+# Un étudiant candidate (/ambassadeur), un admin valide sa candidature depuis
+# la console, puis il partage un lien /rejoindre?ref=CODE. Chaque prospect
+# venu par ce lien et qui paie son inscription Prép'AdJuris lui rapporte une
+# commission unique (app/services/ambassadors.py), versée à la main par
+# virement : aucune automatisation Stripe côté paiement des ambassadeurs.
+
+class Ambassador(Base):
+    """
+    Candidature puis statut d'ambassadeur. Une ligne par compte NAVIRE.
+
+    Cycle de vie de `status` :
+      pending   — candidature envoyée, en attente de la console
+      approved  — validée : le lien de parrainage est actif
+      rejected  — refusée (rejection_reason) ; l'étudiant peut recandidater
+      suspended — lien coupé par un admin ; les commissions déjà acquises
+                  restent dues
+    """
+
+    __tablename__ = "ambassadors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
+
+    # Code du lien de parrainage (ex. JULIE-7K2). Généré à la validation,
+    # jamais avant : un code n'existe que pour un ambassadeur approuvé.
+    code: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
+
+    # Nom montré au prospect sur la page /rejoindre (« Julie t'invite »).
+    # Choisi par l'ambassadeur : on n'expose jamais son nom complet ni son email.
+    display_name: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    prenom: Mapped[str] = mapped_column(String(80), nullable=False)
+    nom: Mapped[str] = mapped_column(String(80), nullable=False)
+    telephone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    university: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    study_level: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    # Réponses libres du formulaire de candidature.
+    motivation: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    reseaux: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    # IBAN pour le virement des commissions. Lu uniquement par la console ;
+    # l'ambassadeur n'en revoit que les 4 derniers caractères.
+    iban: Mapped[str | None] = mapped_column(String(34), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False, index=True)
+
+    terms_version: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    applied_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Visites de la page /rejoindre avec ce code (statistique, pas de traçage
+    # individuel).
+    clicks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+
+
+class AmbassadorReferral(Base):
+    """
+    Un prospect rattaché à un ambassadeur. Premier code utilisé = seul code
+    retenu : une ligne par compte, et une par email (le formulaire public paie
+    sans compte, le rattachement se fait alors sur l'adresse).
+    """
+
+    __tablename__ = "ambassador_referrals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    ambassador_id: Mapped[int] = mapped_column(
+        ForeignKey("ambassadors.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    referred_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), unique=True, index=True, nullable=True
+    )
+    referred_email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
+
+    # register | oauth | checkout | formulaire
+    source: Mapped[str] = mapped_column(String(16), default="register", nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+
+    referred_user: Mapped["User | None"] = relationship("User", foreign_keys=[referred_user_id])
+
+
+class AmbassadorCommission(Base):
+    """
+    Commission due pour une inscription Prép'AdJuris payée par un filleul.
+    Unique par Checkout Session : un event Stripe relivré n'en crée pas deux.
+
+    Cycle de vie de `status` :
+      pending   — due ; versable à partir de available_at (délai de
+                  rétractation, pendant lequel un remboursement l'annule)
+      paid      — virement fait (paid_at, paid_reference)
+      cancelled — paiement remboursé ou annulation manuelle
+    """
+
+    __tablename__ = "ambassador_commissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    ambassador_id: Mapped[int] = mapped_column(
+        ForeignKey("ambassadors.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    referral_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ambassador_referrals.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    matiere_keys: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+
+    stripe_checkout_session_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False
+    )
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(String(100), index=True, nullable=True)
+
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False, index=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    paid_reference: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cancelled_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+
+    referral: Mapped["AmbassadorReferral | None"] = relationship("AmbassadorReferral")

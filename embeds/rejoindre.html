@@ -1,0 +1,333 @@
+<!--
+  NAVIRE — Embed page /rejoindre (invitation d'un ambassadeur)
+  ============================================================
+  Lien partagé par l'ambassadeur : https://navire-ai.com/rejoindre?ref=JULIE-7K2
+
+  1. Lit le code du lien (?ref=) et affiche « Julie t'invite » (GET /ambassadors/ref/{code}).
+  2. Création du compte NAVIRE complet (pseudo, email vérifié, université, niveau)
+     ou connexion à un compte existant. Le code part avec l'inscription.
+  3. Choix des matières Prép'AdJuris, récapitulatif, puis paiement Stripe.
+
+  Réglages : bloc CONFIG ci-dessous (URL de l'API, clé du jeton partagée avec
+  les autres embeds).
+-->
+<div id="nv-join"></div>
+<style>
+  #nv-join {
+    --bg: #0a0a0a; --card: #141414; --field: #1f1f1f; --line: #2a2a2a;
+    --text: #f0f0f0; --muted: #888; --accent: #e63946; --ok: #2ecc71;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color-scheme: dark; color: var(--text); background: var(--bg); padding: 24px 16px; box-sizing: border-box;
+  }
+  #nv-join *, #nv-join *::before, #nv-join *::after { box-sizing: border-box; }
+  #nv-join .wrap { max-width: 560px; margin: 0 auto; }
+  #nv-join .brand { text-align: center; font-weight: 700; letter-spacing: 5px; font-size: 15px; margin-bottom: 20px; }
+  #nv-join .invite { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px; text-align: center; margin-bottom: 16px; }
+  #nv-join .avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+  #nv-join h1 { font-size: 22px; margin: 0 0 6px; line-height: 1.3; }
+  #nv-join h2 { font-size: 17px; margin: 0 0 14px; }
+  #nv-join p { margin: 0 0 10px; line-height: 1.55; }
+  #nv-join .muted { color: var(--muted); font-size: 13px; }
+  #nv-join .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px; margin-bottom: 16px; }
+  #nv-join .steps { display: flex; gap: 8px; margin-bottom: 16px; }
+  #nv-join .step { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+  #nv-join .step.on { background: var(--accent); }
+  #nv-join label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+  #nv-join input, #nv-join select { width: 100%; background: var(--field); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 12px; font-size: 15px; font-family: inherit; }
+  #nv-join input:focus, #nv-join select:focus { outline: none; border-color: var(--accent); }
+  #nv-join .row { display: flex; gap: 10px; }
+  #nv-join .row > * { flex: 1; min-width: 0; }
+  #nv-join .btn { display: block; width: 100%; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 14px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 18px; font-family: inherit; }
+  #nv-join .btn:disabled { opacity: .5; cursor: default; }
+  #nv-join .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+  #nv-join .tabs { display: flex; background: var(--field); border-radius: 8px; padding: 4px; margin-bottom: 6px; }
+  #nv-join .tabs button { flex: 1; background: transparent; border: 0; color: var(--muted); padding: 10px; border-radius: 6px; font-size: 14px; cursor: pointer; font-family: inherit; }
+  #nv-join .tabs button.on { background: var(--card); color: var(--text); font-weight: 600; }
+  #nv-join .err { color: #ff6b75; font-size: 13px; margin-top: 10px; min-height: 1em; }
+  #nv-join .sep { text-align: center; color: var(--muted); font-size: 12px; margin: 16px 0 0; }
+  #nv-join .mat { display: flex; align-items: center; gap: 12px; background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 10px; cursor: pointer; }
+  #nv-join .mat.on { border-color: var(--accent); }
+  #nv-join .mat input { width: auto; accent-color: var(--accent); }
+  #nv-join .recap { background: var(--field); border-radius: 8px; padding: 14px; margin-top: 14px; font-size: 13px; line-height: 1.6; white-space: pre-line; color: #ccc; }
+  #nv-join .total { display: flex; justify-content: space-between; font-weight: 700; margin-top: 14px; font-size: 16px; }
+  #nv-join .linkbtn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 13px; padding: 0; font-family: inherit; }
+</style>
+<script>
+(function () {
+  // ── CONFIG ──────────────────────────────────────────────
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    // Clé du jeton NAVIRE dans le stockage du navigateur : la même que celle
+    // des autres embeds, pour que l'élève reste connecté d'une page à l'autre.
+    TOKEN_KEY: "navire_token",
+    REF_KEY: "navire_ref",
+    SITE: "https://navire-ai.com",
+    INSCRIPTION_EUR: 20
+  };
+  var NIVEAUX = ["L1", "L2", "L3", "M1"];
+  var MATIERES = {
+    L1: [["L1_droit_constit", "Droit constitutionnel"], ["L1_intro_au_droit", "Introduction au droit"], ["L1_droit_ijae", "Droit IJAE"]],
+    L2: [["L2_droit_administratif", "Droit administratif"], ["L2_droit_des_obligations", "Droit des obligations"], ["L2_droit_penal", "Droit pénal"]],
+    L3: [["L3_droit_des_societes", "Droit des sociétés"], ["L3_droit_des_suretes", "Droit des sûretés"], ["L3_droit_des_contrats_speciaux", "Droit des contrats spéciaux"]],
+    M1: [["M1_distribution", "Distribution"]]
+  };
+
+  var root = document.getElementById("nv-join");
+  var state = { ref: null, amb: null, token: null, user: null, tab: "signup", step: 1,
+                email: "", emailToken: null, niveau: "", matieres: [] };
+
+  // ── Utilitaires ─────────────────────────────────────────
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return x.msg; }).join(" · "); return "Une erreur est survenue."; }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" };
+    if (state.token) h.Authorization = "Bearer " + state.token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(detail(j.detail)); return j; }); });
+  }
+  function go(url) { try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
+
+  // Le code du lien : adresse de l'embed, puis de la page parente quand le
+  // navigateur la laisse lire, puis le dernier code mémorisé.
+  function readRef() {
+    var sources = [];
+    try { sources.push(window.location.search); } catch (e) {}
+    try { sources.push(window.parent.location.search); } catch (e) {}
+    try { sources.push(window.top.location.search); } catch (e) {}
+    try { if (document.referrer) sources.push(new URL(document.referrer).search); } catch (e) {}
+    for (var i = 0; i < sources.length; i++) {
+      var m = /[?&]ref=([A-Za-z0-9-]{3,32})/.exec(sources[i] || "");
+      if (m) { store(CONFIG.REF_KEY, m[1].toUpperCase()); return m[1].toUpperCase(); }
+    }
+    return load(CONFIG.REF_KEY);
+  }
+
+  // ── Rendu ───────────────────────────────────────────────
+  function invite() {
+    if (!state.amb) {
+      return '<div class="invite"><h1>Rejoins Prép\'AdJuris</h1><p class="muted">Les séances de soutien en droit de NAVIRE, matière par matière.</p>' +
+        '<button class="linkbtn" id="nv-code-btn">Tu as un code d\'invitation ?</button></div>';
+    }
+    var n = state.amb.display_name;
+    return '<div class="invite"><div class="avatar">' + esc(n.charAt(0).toUpperCase()) + '</div>' +
+      '<h1>' + esc(n) + ' t\'invite sur NAVIRE</h1>' +
+      '<p class="muted">Crée ton compte et rejoins Prép\'AdJuris' + (state.amb.university ? ' — ' + esc(state.amb.university) : '') + '.</p></div>';
+  }
+
+  function steps() {
+    return '<div class="steps"><div class="step on"></div><div class="step ' + (state.step >= 2 ? "on" : "") + '"></div></div>';
+  }
+
+  function render() {
+    var html = '<div class="wrap"><div class="brand">NAVIRE</div>' + invite() + steps();
+    html += state.step === 1 ? accountCard() : matieresCard();
+    root.innerHTML = html + '</div>';
+    bind();
+  }
+
+  function accountCard() {
+    var t = state.tab;
+    var h = '<div class="card"><h2>1. Ton compte NAVIRE</h2>' +
+      '<div class="tabs"><button data-tab="signup" class="' + (t === "signup" ? "on" : "") + '">Créer mon compte</button>' +
+      '<button data-tab="login" class="' + (t === "login" ? "on" : "") + '">J\'ai déjà un compte</button></div>';
+    if (t === "login") {
+      h += '<label>Email</label><input id="nv-l-email" type="email" autocomplete="email">' +
+        '<label>Mot de passe</label><input id="nv-l-pass" type="password" autocomplete="current-password">' +
+        '<button class="btn" id="nv-login">Me connecter</button>';
+    } else if (t === "code") {
+      h += '<p>Un code à 6 chiffres vient d\'être envoyé à <strong>' + esc(state.email) + '</strong>.</p>' +
+        '<label>Code reçu par email</label><input id="nv-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code">' +
+        '<button class="btn" id="nv-verify">Valider et créer mon compte</button>' +
+        '<p class="sep"><button class="linkbtn" data-tab="signup">Modifier mes informations</button></p>';
+    } else {
+      var f = state.form || {};
+      h += '<div class="row"><div><label>Pseudo</label><input id="nv-s-user" value="' + esc(f.username) + '" maxlength="64" autocomplete="nickname"></div>' +
+        '<div><label>Niveau</label><select id="nv-s-niveau"><option value="">—</option>' +
+        NIVEAUX.map(function (n) { return '<option' + (f.niveau === n ? " selected" : "") + '>' + n + '</option>'; }).join("") + '</select></div></div>' +
+        '<label>Université</label><input id="nv-s-univ" value="' + esc(f.university) + '" maxlength="120" placeholder="Ex. Université Paris-Panthéon-Assas">' +
+        '<label>Email</label><input id="nv-s-email" type="email" value="' + esc(f.email) + '" autocomplete="email">' +
+        '<label>Mot de passe (8 caractères minimum)</label><input id="nv-s-pass" type="password" autocomplete="new-password">' +
+        '<button class="btn" id="nv-signup">Recevoir mon code de vérification</button>' +
+        '<p class="sep">ou</p><button class="btn ghost" id="nv-google">Continuer avec Google</button>';
+    }
+    return h + '<div class="err" id="nv-err"></div></div>';
+  }
+
+  function matieresCard() {
+    var niveau = state.niveau;
+    var h = '<div class="card"><h2>2. Tes matières Prép\'AdJuris</h2>' +
+      '<p class="muted">Connecté en tant que <strong>' + esc(state.user ? state.user.username : "") + '</strong>. ' +
+      '<button class="linkbtn" id="nv-logout">Changer de compte</button></p>' +
+      '<label>Niveau</label><select id="nv-niveau"><option value="">Choisis ton niveau</option>' +
+      NIVEAUX.map(function (n) { return '<option' + (niveau === n ? " selected" : "") + '>' + n + '</option>'; }).join("") + '</select>';
+    if (niveau) {
+      h += (MATIERES[niveau] || []).map(function (m) {
+        var on = state.matieres.indexOf(m[0]) >= 0;
+        return '<label class="mat ' + (on ? "on" : "") + '"><input type="checkbox" data-mat="' + m[0] + '"' + (on ? " checked" : "") + '>' +
+          '<span>' + esc(m[1]) + '</span></label>';
+      }).join("");
+    }
+    if (state.matieres.length) {
+      h += '<div class="total"><span>À payer aujourd\'hui</span><span>' + (state.recapTotal != null ? state.recapTotal : state.matieres.length * CONFIG.INSCRIPTION_EUR + ",00 €") + '</span></div>' +
+        '<div class="recap" id="nv-recap">' + esc(state.recap || "Calcul du récapitulatif…") + '</div>';
+    }
+    h += '<button class="btn" id="nv-pay"' + (state.matieres.length ? "" : " disabled") + '>Payer mon inscription</button>' +
+      '<p class="muted" style="margin-top:12px">Paiement sécurisé par Stripe. L\'inscription règle d\'avance ta prochaine séance ; les suivantes sont prélevées en fin de mois.</p>' +
+      '<div class="err" id="nv-err"></div></div>';
+    return h;
+  }
+
+  function err(msg) { var e = document.getElementById("nv-err"); if (e) e.textContent = msg || ""; }
+  function busy(btn, on, label) { if (!btn) return; btn.disabled = on; if (label) btn.textContent = label; }
+  function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; }
+
+  // ── Actions ─────────────────────────────────────────────
+  function bind() {
+    Array.prototype.forEach.call(root.querySelectorAll("[data-tab]"), function (b) {
+      b.onclick = function () { state.tab = b.getAttribute("data-tab"); render(); };
+    });
+    var el;
+    if ((el = document.getElementById("nv-code-btn"))) el.onclick = function () {
+      var c = window.prompt("Code d'invitation de ton ambassadeur :");
+      if (c) { state.ref = c.trim().toUpperCase(); store(CONFIG.REF_KEY, state.ref); resolveRef().then(render); }
+    };
+    if ((el = document.getElementById("nv-signup"))) el.onclick = signup;
+    if ((el = document.getElementById("nv-verify"))) el.onclick = verify;
+    if ((el = document.getElementById("nv-login"))) el.onclick = login;
+    if ((el = document.getElementById("nv-google"))) el.onclick = google;
+    if ((el = document.getElementById("nv-logout"))) el.onclick = function () { state.token = null; state.user = null; store(CONFIG.TOKEN_KEY, null); state.step = 1; render(); };
+    if ((el = document.getElementById("nv-niveau"))) el.onchange = function () { state.niveau = this.value; state.matieres = []; state.recap = null; render(); };
+    Array.prototype.forEach.call(root.querySelectorAll("[data-mat]"), function (cb) {
+      cb.onchange = function () {
+        var k = cb.getAttribute("data-mat"), i = state.matieres.indexOf(k);
+        if (cb.checked && i < 0) state.matieres.push(k); else if (!cb.checked && i >= 0) state.matieres.splice(i, 1);
+        state.recap = null; state.recapTotal = null; render(); recap();
+      };
+    });
+    if ((el = document.getElementById("nv-pay"))) el.onclick = pay;
+  }
+
+  function signup() {
+    var f = { username: val("nv-s-user"), niveau: val("nv-s-niveau"), university: val("nv-s-univ"), email: val("nv-s-email").toLowerCase(), password: document.getElementById("nv-s-pass").value };
+    state.form = f;
+    if (f.username.length < 3) return err("Ton pseudo doit faire au moins 3 caractères.");
+    if (!f.niveau) return err("Indique ton niveau.");
+    if (!f.university) return err("Indique ton université.");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email)) return err("Adresse email invalide.");
+    if (f.password.length < 8) return err("Le mot de passe doit faire au moins 8 caractères.");
+    var b = document.getElementById("nv-signup"); busy(b, true, "Envoi du code…");
+    api("POST", "/auth/request-code", { email: f.email, username: f.username })
+      .then(function () { state.email = f.email; state.tab = "code"; render(); })
+      .catch(function (e) { busy(b, false, "Recevoir mon code de vérification"); err(e.message); });
+  }
+
+  function verify() {
+    var f = state.form, b = document.getElementById("nv-verify"); busy(b, true, "Création du compte…");
+    api("POST", "/auth/verify-code", { email: f.email, code: val("nv-code") })
+      .then(function (r) {
+        return api("POST", "/auth/register", {
+          username: f.username, email: f.email, password: f.password,
+          university: f.university, study_level: f.niveau,
+          email_token: r.email_token, referral_code: state.ref || null
+        });
+      })
+      .then(function (r) { state.niveau = f.niveau; loggedIn(r); })
+      .catch(function (e) { busy(b, false, "Valider et créer mon compte"); err(e.message); });
+  }
+
+  function login() {
+    var b = document.getElementById("nv-login"); busy(b, true, "Connexion…");
+    api("POST", "/auth/login", { email: val("nv-l-email").toLowerCase(), password: document.getElementById("nv-l-pass").value })
+      .then(function (r) { loggedIn(r, true); })
+      .catch(function (e) { busy(b, false, "Me connecter"); err(e.message); });
+  }
+
+  // Google : fenêtre sur l'API (l'iframe Framer ne peut pas parler à Google),
+  // qui renvoie un ticket par postMessage.
+  function google() {
+    var f = state.form || {};
+    var w = window.open(CONFIG.API + "/auth/google/start", "navire_oauth", "width=480,height=640");
+    if (!w) return err("Autorise les fenêtres pop-up pour continuer avec Google.");
+    function onMsg(ev) {
+      var d = ev.data || {};
+      if (d.type === "NAVIRE_OAUTH_ERROR") { window.removeEventListener("message", onMsg); err(d.message || "Connexion Google interrompue."); }
+      if (d.type !== "NAVIRE_OAUTH_TICKET") return;
+      window.removeEventListener("message", onMsg);
+      api("POST", "/auth/oauth", {
+        provider: "google", ticket: d.ticket, username: val("nv-s-user") || f.username || null,
+        university: val("nv-s-univ") || null, study_level: val("nv-s-niveau") || null,
+        referral_code: state.ref || null
+      }).then(function (r) { state.niveau = val("nv-s-niveau") || ""; loggedIn(r, true); })
+        .catch(function (e) { err(e.message); });
+    }
+    window.addEventListener("message", onMsg);
+  }
+
+  // Compte existant ou Google : le rattachement au code se fait ici (pour
+  // un compte neuf, /auth/register et /auth/oauth l'ont déjà fait).
+  function loggedIn(r, claim) {
+    state.token = r.access_token; state.user = r.user; store(CONFIG.TOKEN_KEY, r.access_token);
+    if (!state.niveau && r.user && NIVEAUX.indexOf(r.user.study_level) >= 0) state.niveau = r.user.study_level;
+    state.step = 2; render();
+    if (claim && state.ref) api("POST", "/ambassadors/claim", { code: state.ref }).catch(function () {});
+  }
+
+  function recap() {
+    if (!state.matieres.length) return;
+    var keys = state.matieres.slice();
+    api("GET", "/prepa/adjuris/echeancier?matieres=" + encodeURIComponent(keys.join(",")))
+      .then(function (r) {
+        if (keys.join() !== state.matieres.join()) return;
+        state.recap = r.texte;
+        state.recapTotal = (r.inscription.total_cents / 100).toFixed(2).replace(".", ",") + " €";
+        render();
+      })
+      .catch(function (e) { state.recap = e.message; render(); });
+  }
+
+  function pay() {
+    var b = document.getElementById("nv-pay"); busy(b, true, "Ouverture du paiement…");
+    api("POST", "/prepa/adjuris/checkout-session", { matieres: state.matieres, ref: state.ref || null })
+      .then(function (r) {
+        go(r.checkout_url);
+        // Navigateur qui refuse la redirection depuis une iframe : lien manuel.
+        b.outerHTML = '<a class="btn" style="text-align:center;text-decoration:none" target="_top" href="' + esc(r.checkout_url) + '">Ouvrir la page de paiement</a>';
+      })
+      .catch(function (e) { busy(b, false, "Payer mon inscription"); err(e.message); });
+  }
+
+  function resolveRef() {
+    if (!state.ref) return Promise.resolve();
+    return api("GET", "/ambassadors/ref/" + encodeURIComponent(state.ref))
+      .then(function (r) { state.amb = r.valid ? r : null; if (!r.valid) { state.ref = null; store(CONFIG.REF_KEY, null); } })
+      .catch(function () { state.amb = null; });
+  }
+
+
+  // Hauteur de l'embed → page Framer (composant NavireEmbed), qui ajuste
+  // l'iframe : pas de double barre de défilement.
+  (function () {
+    if (window.parent === window) return;
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height);
+      if (h && h !== last) { last = h; try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {} }
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+  })();
+
+  // ── Démarrage ───────────────────────────────────────────
+  state.ref = readRef();
+  state.token = load(CONFIG.TOKEN_KEY);
+  var boot = state.token
+    ? api("GET", "/auth/me").then(function (u) { state.user = u; state.step = 2;
+        if (NIVEAUX.indexOf(u.study_level) >= 0) state.niveau = u.study_level;
+        if (state.ref) api("POST", "/ambassadors/claim", { code: state.ref }).catch(function () {}); })
+      .catch(function () { state.token = null; store(CONFIG.TOKEN_KEY, null); })
+    : Promise.resolve();
+  Promise.all([boot, resolveRef()]).then(render);
+  root.innerHTML = '<div class="wrap"><div class="brand">NAVIRE</div><p class="muted" style="text-align:center">Chargement…</p></div>';
+})();
+</script>

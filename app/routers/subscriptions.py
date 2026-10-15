@@ -84,6 +84,7 @@ from app.services.email import (
     mail_pending_subscription,
     mail_prepa_adjuris_link_code,
     mail_discord_link_code,
+    mail_ambassador_commission,
 )
 from app.services.discord_link import (
     PURCHASE_TTL_DAYS,
@@ -1013,6 +1014,40 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
         subject, html = mail_pending_subscription(email, "prepa-adjuris", FRONTEND_URL)
         send_mail(email, subject, html)
 
+    # ── Programme ambassadeur : commission si le payeur est un filleul ──
+    _commission_ambassadeur(db, session, user, email or (user.email if user else ""), matiere_keys)
+
+
+def _commission_ambassadeur(db: Session, session: dict, user: User | None, email: str, matiere_keys: list[str]) -> None:
+    """Crée la commission de l'ambassadeur et le prévient. Jamais bloquant :
+    l'inscription est déjà enregistrée, un échec ici ne doit pas faire
+    relivrer l'event (la commission se rattrape depuis la console)."""
+    from app.services import ambassadors as parrainage
+    try:
+        deja = db.execute(
+            select(parrainage.AmbassadorCommission.id).where(
+                parrainage.AmbassadorCommission.stripe_checkout_session_id == session.get("id")
+            )
+        ).first()
+        if deja:
+            return  # event relivré : commission et email déjà faits
+        commission = parrainage.record_commission(db, session, user, email, matiere_keys)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("Ambassadeur : commission non enregistrée pour %s", session.get("id"))
+        return
+    if commission is None:
+        return
+    try:
+        amb = db.get(parrainage.Ambassador, commission.ambassador_id)
+        destinataire = db.get(User, amb.user_id) if amb else None
+        if destinataire:
+            filleul = user.username if user else "Un nouvel étudiant"
+            montant = f"{commission.amount_cents / 100:.2f} €".replace(".", ",")
+            send_mail(destinataire.email, *mail_ambassador_commission(amb.prenom, filleul, montant))
+    except Exception:  # noqa: BLE001
+        logger.exception("Ambassadeur : email de commission non envoyé")
+
 
 # ============================================================
 # Webhook Stripe
@@ -1294,6 +1329,18 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         _sync_user_plan(db, user, new_plan)
 
             db.commit()
+
+    # ── charge.refunded / charge.dispute.created ──────────
+    # Programme ambassadeur : un paiement remboursé ou contesté annule la
+    # commission tant qu'elle n'est pas versée.
+    elif event_type in ("charge.refunded", "charge.dispute.created"):
+        from app.services.ambassadors import cancel_for_refund
+        motif = "Paiement remboursé" if event_type == "charge.refunded" else "Paiement contesté"
+        try:
+            cancel_for_refund(db, data.get("payment_intent"), motif)
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            logger.exception("Ambassadeur : annulation de commission impossible (%s)", data.get("id"))
 
     return {"ok": True}
 

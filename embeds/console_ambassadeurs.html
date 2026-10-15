@@ -1,0 +1,269 @@
+<!--
+  NAVIRE — Console : onglet « Ambassadeurs »
+  ===========================================
+  Réservé aux comptes is_admin (même jeton que la console).
+    - Candidatures : valider / refuser (motif envoyé par email)
+    - Ambassadeurs : lien, stats, filleuls, suspendre / réactiver
+    - Commissions  : à verser (délai de 14 jours passé), sélection, export CSV
+                     pour le virement, puis « Marquer comme versées »
+
+  Réglages : bloc CONFIG ci-dessous.
+-->
+<div id="nv-cons-amb"></div>
+<style>
+  #nv-cons-amb {
+    --bg: #0a0a0a; --card: #141414; --field: #1f1f1f; --line: #2a2a2a;
+    --text: #f0f0f0; --muted: #888; --accent: #e63946; --ok: #2ecc71; --warn: #f4a261;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color-scheme: dark; color: var(--text); background: var(--bg); padding: 20px 16px; box-sizing: border-box; font-size: 14px;
+  }
+  #nv-cons-amb *, #nv-cons-amb *::before, #nv-cons-amb *::after { box-sizing: border-box; }
+  #nv-cons-amb .wrap { max-width: 1100px; margin: 0 auto; }
+  #nv-cons-amb h1 { font-size: 20px; margin: 0 0 14px; letter-spacing: 1px; }
+  #nv-cons-amb h2 { font-size: 15px; margin: 0 0 10px; }
+  #nv-cons-amb p { margin: 0 0 8px; line-height: 1.5; }
+  #nv-cons-amb .muted { color: var(--muted); font-size: 12px; }
+  #nv-cons-amb .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 14px; }
+  #nv-cons-amb .tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  #nv-cons-amb .tile .v { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  #nv-cons-amb .tile .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  #nv-cons-amb .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  #nv-cons-amb .tabs button { background: var(--card); border: 1px solid var(--line); color: var(--muted); padding: 9px 14px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px; }
+  #nv-cons-amb .tabs button.on { color: var(--text); border-color: var(--accent); }
+  #nv-cons-amb .count { background: var(--accent); color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-left: 6px; }
+  #nv-cons-amb .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  #nv-cons-amb .head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+  #nv-cons-amb .kv { display: grid; grid-template-columns: 140px 1fr; gap: 4px 10px; margin: 10px 0; font-size: 13px; }
+  #nv-cons-amb .kv span:nth-child(odd) { color: var(--muted); }
+  #nv-cons-amb .quote { background: var(--field); border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; font-size: 13px; margin: 6px 0; }
+  #nv-cons-amb .btn { background: var(--accent); color: #fff; border: 0; border-radius: 7px; padding: 8px 14px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px; }
+  #nv-cons-amb .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+  #nv-cons-amb .btn:disabled { opacity: .5; cursor: default; }
+  #nv-cons-amb .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  #nv-cons-amb input, #nv-cons-amb select { background: var(--field); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 8px 10px; font-family: inherit; font-size: 13px; }
+  #nv-cons-amb table { width: 100%; border-collapse: collapse; }
+  #nv-cons-amb th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  #nv-cons-amb td { padding: 9px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  #nv-cons-amb .scroll { overflow-x: auto; }
+  #nv-cons-amb .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 7px; border-radius: 20px; background: var(--field); color: var(--muted); text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+  #nv-cons-amb .b-approved, #nv-cons-amb .b-paid, #nv-cons-amb .b-available { background: rgba(46, 204, 113, .15); color: var(--ok); }
+  #nv-cons-amb .b-pending { background: rgba(244, 162, 97, .15); color: var(--warn); }
+  #nv-cons-amb .b-rejected, #nv-cons-amb .b-suspended, #nv-cons-amb .b-cancelled { background: rgba(230, 57, 70, .15); color: #ff6b75; }
+  #nv-cons-amb .mono { font-family: 'Courier New', monospace; font-size: 12px; }
+  #nv-cons-amb .err { color: #ff6b75; margin: 8px 0; }
+  #nv-cons-amb .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+</style>
+<script>
+(function () {
+  // ── CONFIG ──────────────────────────────────────────────
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token"   // jeton du compte admin, comme le reste de la console
+  };
+
+  var root = document.getElementById("nv-cons-amb");
+  var S = { token: null, tab: "pending", summary: null, list: [], commissions: [], cfilter: "available", selected: {}, open: {} };
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function eur(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",") + " €"; }
+  function date(iso) { return iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"; }
+  function detail(d) { if (!d) return "Erreur."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return x.msg; }).join(" · "); return "Erreur."; }
+  function api(method, path, body) {
+    return fetch(CONFIG.API + path, {
+      method: method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + S.token },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(detail(j.detail)); return j; }); });
+  }
+  var LAB = { pending: "En attente", approved: "Actif", rejected: "Refusé", suspended: "Suspendu", available: "À verser", paid: "Versée", cancelled: "Annulée" };
+  function badge(s, label) { return '<span class="badge b-' + s + '">' + esc(label || LAB[s] || s) + '</span>'; }
+  function tile(l, v) { return '<div class="tile"><div class="l">' + esc(l) + '</div><div class="v">' + esc(v) + '</div></div>'; }
+
+  // ── Données ─────────────────────────────────────────────
+  function refresh() {
+    var jobs = [api("GET", "/ambassadors/admin/summary").then(function (s) { S.summary = s; })];
+    if (S.tab === "commissions") {
+      jobs.push(api("GET", "/ambassadors/admin/commissions" + (S.cfilter ? "?status=" + S.cfilter : "")).then(function (r) { S.commissions = r.items; S.ctotal = r.total_cents; }));
+    } else {
+      var st = S.tab === "pending" ? "pending" : "";
+      jobs.push(api("GET", "/ambassadors/admin/list" + (st ? "?status=" + st : "")).then(function (r) {
+        S.list = S.tab === "pending" ? r.items : r.items.filter(function (a) { return a.status !== "pending"; });
+      }));
+    }
+    return Promise.all(jobs).then(render).catch(function (e) { loginView(e.message === "Admin only" ? "Ce compte n'est pas administrateur." : e.message); });
+  }
+
+  // ── Rendu ───────────────────────────────────────────────
+  function render() {
+    var s = S.summary, a = s.ambassadors, c = s.commissions;
+    var html = '<div class="wrap"><h1>AMBASSADEURS</h1><div class="grid">' +
+      tile("Candidatures", a.pending) + tile("Ambassadeurs actifs", a.approved) + tile("Filleuls", s.referrals) +
+      tile("À verser", eur(c.available_cents)) + tile("En attente 14 j", eur(c.pending_cents)) + tile("Déjà versé", eur(c.paid_cents)) + '</div>' +
+      '<div class="tabs">' +
+      tab("pending", "Candidatures" + (a.pending ? '<span class="count">' + a.pending + '</span>' : "")) +
+      tab("ambassadors", "Ambassadeurs") + tab("commissions", "Commissions") + '</div><div id="nv-msg" class="err"></div>';
+    html += S.tab === "commissions" ? commissionsView() : listView();
+    root.innerHTML = html + '</div>';
+    bind();
+  }
+  function tab(k, l) { return '<button data-tab="' + k + '" class="' + (S.tab === k ? "on" : "") + '">' + l + '</button>'; }
+
+  function listView() {
+    if (!S.list.length) return '<div class="card"><p class="muted">' + (S.tab === "pending" ? "Aucune candidature en attente." : "Aucun ambassadeur pour l'instant.") + '</p></div>';
+    return S.list.map(function (x) {
+      var actions = "";
+      if (x.status === "pending") actions = '<button class="btn" data-act="approve" data-id="' + x.id + '">Valider</button><button class="btn ghost" data-act="reject" data-id="' + x.id + '">Refuser</button>';
+      if (x.status === "approved") actions = '<button class="btn ghost" data-act="suspend" data-id="' + x.id + '">Suspendre</button>';
+      if (x.status === "suspended") actions = '<button class="btn" data-act="reactivate" data-id="' + x.id + '">Réactiver</button>';
+      actions += '<button class="btn ghost" data-act="detail" data-id="' + x.id + '">' + (S.open[x.id] ? "Masquer" : "Détails") + '</button>';
+      var g = x.earnings, st = x.stats;
+      var h = '<div class="card"><div class="head"><div><h2>' + esc(x.prenom + " " + x.nom) + ' ' + badge(x.status) + '</h2>' +
+        '<p class="muted">' + esc(x.username) + ' · ' + esc(x.email) + ' · candidature du ' + date(x.applied_at) + '</p></div>' +
+        '<div class="actions">' + actions + '</div></div>' +
+        '<div class="kv"><span>Nom affiché</span><span>' + esc(x.display_name) + '</span>' +
+        '<span>Université</span><span>' + esc(x.university || "—") + ' · ' + esc(x.study_level || "—") + '</span>' +
+        '<span>Téléphone</span><span>' + esc(x.telephone || "—") + '</span>' +
+        '<span>IBAN</span><span class="mono">' + esc(x.iban || "non renseigné") + '</span>' +
+        (x.code ? '<span>Lien</span><span class="mono">' + esc(x.link) + '</span>' : "") +
+        (x.status !== "pending" ? '<span>Résultats</span><span>' + st.clicks + ' visites · ' + st.signups + ' comptes · ' + st.paying + ' payants · gagné ' + eur(g.total_earned_cents) + ' (à verser ' + eur(g.available_cents) + ')</span>' : "") +
+        (x.rejection_reason ? '<span>Motif du refus</span><span>' + esc(x.rejection_reason) + '</span>' : "") + '</div>';
+      if (x.status === "pending" || S.open[x.id]) {
+        h += '<p class="muted">Motivation</p><div class="quote">' + esc(x.motivation) + '</div>' +
+          (x.reseaux ? '<p class="muted">Diffusion prévue</p><div class="quote">' + esc(x.reseaux) + '</div>' : "");
+      }
+      if (S.open[x.id] && S.open[x.id].referrals) {
+        var refs = S.open[x.id].referrals;
+        h += '<p class="muted" style="margin-top:10px">Filleuls (' + refs.length + ')</p>' + (refs.length
+          ? '<div class="scroll"><table><thead><tr><th>Pseudo</th><th>Email</th><th>Arrivée</th><th>Origine</th><th>Statut</th><th>Commission</th></tr></thead><tbody>' +
+            refs.map(function (r) { return '<tr><td>' + esc(r.username || "—") + '</td><td>' + esc(r.email) + '</td><td>' + date(r.joined_at) + '</td><td>' + esc(r.source) + '</td><td>' + esc({ paid: "Payé", signed_up: "Compte créé", refunded: "Remboursé" }[r.status]) + '</td><td>' + (r.commission_cents ? eur(r.commission_cents) : "—") + '</td></tr>'; }).join("") +
+            '</tbody></table></div>' : '<p class="muted">Aucun.</p>');
+      }
+      return h + '</div>';
+    }).join("");
+  }
+
+  function commissionsView() {
+    var filters = [["available", "À verser"], ["pending", "En attente 14 j"], ["paid", "Versées"], ["cancelled", "Annulées"], ["", "Toutes"]];
+    var h = '<div class="card"><div class="bar"><select id="c-filter">' +
+      filters.map(function (f) { return '<option value="' + f[0] + '"' + (S.cfilter === f[0] ? " selected" : "") + '>' + f[1] + '</option>'; }).join("") +
+      '</select><span class="muted">' + S.commissions.length + ' ligne(s) · ' + eur(S.ctotal) + '</span>' +
+      '<button class="btn ghost" id="c-csv">Exporter CSV</button></div>';
+    if (S.cfilter === "available" && S.commissions.length) {
+      var sel = Object.keys(S.selected).filter(function (k) { return S.selected[k]; });
+      var tot = S.commissions.filter(function (c) { return S.selected[c.id]; }).reduce(function (a, c) { return a + c.amount_cents; }, 0);
+      h += '<div class="bar"><input id="c-ref" placeholder="Référence du virement (facultatif)">' +
+        '<button class="btn" id="c-pay"' + (sel.length ? "" : " disabled") + '>Marquer ' + sel.length + ' comme versée(s) · ' + eur(tot) + '</button></div>';
+    }
+    if (!S.commissions.length) return h + '<p class="muted">Rien ici.</p></div>';
+    h += '<div class="scroll"><table><thead><tr>' + (S.cfilter === "available" ? '<th><input type="checkbox" id="c-all"></th>' : "") +
+      '<th>Date</th><th>Ambassadeur</th><th>IBAN</th><th>Filleul</th><th>Matières</th><th>Montant</th><th>Statut</th><th></th></tr></thead><tbody>' +
+      S.commissions.map(function (c) {
+        var info = c.status === "pending" ? "versable le " + date(c.available_at)
+          : c.status === "paid" ? date(c.paid_at) + (c.paid_reference ? " · " + c.paid_reference : "")
+          : c.status === "cancelled" ? (c.cancelled_reason || "") : "";
+        return '<tr>' + (S.cfilter === "available" ? '<td><input type="checkbox" data-sel="' + c.id + '"' + (S.selected[c.id] ? " checked" : "") + '></td>' : "") +
+          '<td>' + date(c.created_at) + '</td><td>' + esc(c.ambassador) + '<br><span class="muted mono">' + esc(c.ambassador_code) + '</span></td>' +
+          '<td class="mono">' + esc(c.iban || "—") + '</td><td>' + esc(c.referral_email || "—") + '</td>' +
+          '<td>' + esc(c.matieres.join(", ")) + '</td><td><strong>' + eur(c.amount_cents) + '</strong></td>' +
+          '<td>' + badge(c.status) + '<br><span class="muted">' + esc(info) + '</span></td>' +
+          '<td>' + (c.status === "pending" || c.status === "available" ? '<button class="btn ghost" data-cancel="' + c.id + '">Annuler</button>' : "") + '</td></tr>';
+      }).join("") + '</tbody></table></div></div>';
+    return h;
+  }
+
+  // ── Actions ─────────────────────────────────────────────
+  function msg(t) { var m = document.getElementById("nv-msg"); if (m) m.textContent = t || ""; }
+  function act(p) { return p.then(refresh).catch(function (e) { msg(e.message); }); }
+
+  function bind() {
+    Array.prototype.forEach.call(root.querySelectorAll("[data-tab]"), function (b) {
+      b.onclick = function () { S.tab = b.getAttribute("data-tab"); S.selected = {}; refresh(); };
+    });
+    Array.prototype.forEach.call(root.querySelectorAll("[data-act]"), function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute("data-id"), a = b.getAttribute("data-act");
+        if (a === "detail") {
+          if (S.open[id]) { delete S.open[id]; return render(); }
+          return api("GET", "/ambassadors/admin/" + id).then(function (d) { S.open[id] = d; render(); }).catch(function (e) { msg(e.message); });
+        }
+        if (a === "reject") {
+          var reason = window.prompt("Motif du refus (envoyé à l'étudiant, facultatif) :", "");
+          if (reason === null) return;
+          return act(api("POST", "/ambassadors/admin/" + id + "/reject", { reason: reason }));
+        }
+        if (a === "suspend" && !window.confirm("Suspendre ce lien ? Il n'enregistrera plus de filleuls.")) return;
+        b.disabled = true;
+        act(api("POST", "/ambassadors/admin/" + id + "/" + a));
+      };
+    });
+    var f = document.getElementById("c-filter");
+    if (f) f.onchange = function () { S.cfilter = f.value; S.selected = {}; refresh(); };
+    Array.prototype.forEach.call(root.querySelectorAll("[data-sel]"), function (cb) {
+      cb.onchange = function () { S.selected[cb.getAttribute("data-sel")] = cb.checked; render(); };
+    });
+    var all = document.getElementById("c-all");
+    if (all) {
+      all.checked = S.commissions.length > 0 && S.commissions.every(function (c) { return S.selected[c.id]; });
+      all.onchange = function () { S.commissions.forEach(function (c) { S.selected[c.id] = all.checked; }); render(); };
+    }
+    var pay = document.getElementById("c-pay");
+    if (pay) pay.onclick = function () {
+      var ids = Object.keys(S.selected).filter(function (k) { return S.selected[k]; }).map(Number);
+      if (!window.confirm("Confirmer que le virement de ces " + ids.length + " commission(s) a été fait ?")) return;
+      act(api("POST", "/ambassadors/admin/commissions/mark-paid", { ids: ids, reference: document.getElementById("c-ref").value || null })
+        .then(function () { S.selected = {}; }));
+    };
+    Array.prototype.forEach.call(root.querySelectorAll("[data-cancel]"), function (b) {
+      b.onclick = function () {
+        var reason = window.prompt("Motif de l'annulation :", "");
+        if (!reason) return;
+        act(api("POST", "/ambassadors/admin/commissions/" + b.getAttribute("data-cancel") + "/cancel", { reason: reason }));
+      };
+    });
+    var csv = document.getElementById("c-csv");
+    if (csv) csv.onclick = exportCsv;
+  }
+
+  // Une ligne par ambassadeur et par IBAN : prêt pour préparer les virements.
+  function exportCsv() {
+    var parAmb = {};
+    S.commissions.forEach(function (c) {
+      var k = c.ambassador_id;
+      parAmb[k] = parAmb[k] || { nom: c.ambassador, code: c.ambassador_code, iban: c.iban || "", total: 0, n: 0, ids: [] };
+      parAmb[k].total += c.amount_cents; parAmb[k].n += 1; parAmb[k].ids.push(c.id);
+    });
+    var rows = [["Ambassadeur", "Code", "IBAN", "Nombre de commissions", "Montant (EUR)", "IDs"]];
+    Object.keys(parAmb).forEach(function (k) { var a = parAmb[k]; rows.push([a.nom, a.code, a.iban, a.n, (a.total / 100).toFixed(2).replace(".", ","), a.ids.join(" ")]); });
+    var text = "﻿" + rows.map(function (r) { return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(";"); }).join("\n");
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+    a.download = "commissions-ambassadeurs-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // ── Démarrage ───────────────────────────────────────────
+  // Sans jeton lisible (iframe cloisonnée), connexion admin dans l'onglet même.
+  function loginView(message) {
+    root.innerHTML = '<div class="wrap"><h1>AMBASSADEURS</h1><div class="card" style="max-width:420px">' +
+      '<p class="muted">Connexion avec un compte admin NAVIRE.</p>' +
+      '<p><input id="a-email" type="email" placeholder="Email" style="width:100%"></p>' +
+      '<p><input id="a-pass" type="password" placeholder="Mot de passe" style="width:100%"></p>' +
+      '<button class="btn" id="a-login">Se connecter</button><p class="err">' + esc(message || "") + '</p></div></div>';
+    document.getElementById("a-login").onclick = function () {
+      fetch(CONFIG.API + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: document.getElementById("a-email").value.trim().toLowerCase(), password: document.getElementById("a-pass").value }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(detail(j.detail)); return j; }); })
+        .then(function (j) {
+          S.token = j.access_token; try { localStorage.setItem(CONFIG.TOKEN_KEY, S.token); } catch (e) {}
+          refresh();
+        })
+        .catch(function (e) { loginView(e.message); });
+    };
+  }
+
+  S.token = load(CONFIG.TOKEN_KEY);
+  if (!S.token) { loginView(); return; }
+  root.innerHTML = '<div class="wrap"><p class="muted">Chargement…</p></div>';
+  refresh();
+})();
+</script>
