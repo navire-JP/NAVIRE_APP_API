@@ -4,8 +4,8 @@
   Même DA et même structure que l'embed NAVIRE AI :
     - s'adapte à la largeur de SON conteneur : >= 760px barre latérale,
       < 760px menu tiroir ;
-    - prend toute la hauteur de l'écran sous sa position, seule la page
-      ouverte défile.
+    - pas de défilement interne : l'embed grandit avec son contenu et c'est
+      la page du site qui défile (au minimum, la hauteur de l'écran).
 
   Selon GET /ambassadors/me :
     - non connecté          → présentation + connexion (email ou Google)
@@ -37,8 +37,7 @@
 
   position: relative;
   width: 100%;
-  height: 640px;          /* remplacé par la hauteur de l'écran au chargement */
-  min-height: 460px;
+  min-height: 560px;      /* porté à la hauteur de l'écran au chargement */
   display: flex;
   overflow: hidden;
   font-family: 'Inter', sans-serif;
@@ -52,9 +51,6 @@
 #nv-amb button { font-family: inherit; color: inherit; }
 #nv-amb ::selection { background: rgba(255,255,255,0.22); }
 #nv-amb svg { flex-shrink: 0; }
-#nv-amb .nv-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
-#nv-amb .nv-scroll::-webkit-scrollbar { width: 6px; }
-#nv-amb .nv-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9px; }
 
 /* ================= SIDEBAR ================= */
 #nv-amb .nv-side {
@@ -95,7 +91,7 @@
 #nv-amb .nv-nav.is-active { background: var(--panel-2); color: var(--text); }
 #nv-amb .nv-nav .nv-badge { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-3); }
 
-#nv-amb .nv-side-fill { flex: 1; }
+#nv-amb .nv-side-fill { flex: 0 0 18px; }
 #nv-amb .nv-wallet { padding: 12px; border-radius: 11px; background: var(--panel); font-size: 11.5px; color: var(--text-3); }
 #nv-amb .nv-wallet b { display: block; font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -.4px; margin: 2px 0 6px; }
 #nv-amb .nv-wallet-bar { height: 4px; border-radius: 9px; background: var(--panel-2); overflow: hidden; }
@@ -118,7 +114,7 @@
 #nv-amb .nv-icon-btn svg { width: 18px; height: 18px; }
 #nv-amb .nv-menu-btn { display: none; }
 
-#nv-amb .nv-page { flex: 1; min-height: 0; animation: nv-fade .28s var(--ease); }
+#nv-amb .nv-page { flex: 1 0 auto; animation: nv-fade .28s var(--ease); }
 #nv-amb .nv-page-inner { max-width: 760px; margin: 0 auto; padding: 8px 20px 34px; }
 #nv-amb.is-solo .nv-page-inner { padding-top: 24px; }
 @keyframes nv-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -234,7 +230,7 @@
 #nv-amb .nv-sim-total b { font-size: 30px; font-weight: 800; letter-spacing: -.8px; }
 
 /* Toasts */
-#nv-amb .nv-toasts { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 50; pointer-events: none; }
+#nv-amb .nv-toasts { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 50; pointer-events: none; }
 #nv-amb .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,30,44,0.95); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
 #nv-amb .nv-toast.is-error { color: #ffb3b3; }
 @keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
@@ -324,7 +320,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
       </button>
     </div>
-    <div class="nv-page nv-scroll" data-el="page"></div>
+    <div class="nv-page" data-el="page"></div>
     <div class="nv-toasts" data-el="toasts"></div>
   </main>
 </div>
@@ -366,6 +362,7 @@
     var t = document.createElement("div");
     t.className = "nv-toast" + (isError ? " is-error" : "");
     t.textContent = msg;
+    el("toasts").style.top = (visibleTop() + 24) + "px";
     el("toasts").appendChild(t);
     setTimeout(function () { t.remove(); }, 2700);
   }
@@ -390,41 +387,74 @@
     share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>'
   };
 
-  // ================= HAUTEUR (comme NAVIRE AI) =================
-  // L'embed prend la hauteur de l'écran sous sa position. Dans un Embed HTML
-  // Framer, on règle aussi l'iframe et ses blocs parents ; affiché par le
-  // composant NavireEmbed, on lui envoie la hauteur.
+  // ================= HAUTEUR =================
+  // Pas de défilement interne : l'embed fait au moins la hauteur de l'écran
+  // sous sa position, et grandit avec son contenu. Dans un Embed HTML Framer,
+  // on agrandit l'iframe et ses blocs parents ; affiché par le composant
+  // NavireEmbed, on lui envoie la hauteur.
   var FRAMED = window.self !== window.top;
   var HOST = null, frameEl = null, wrappers = [];
   if (FRAMED) {
     var hideBar = document.createElement("style");
-    hideBar.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    hideBar.textContent = "html,body{margin:0;overflow:hidden;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
     document.head.appendChild(hideBar);
     try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
     if (frameEl) for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
   }
-  function sizeApp() {
+  function minHeight() {
     var win = HOST || window, h;
     if (HOST || !FRAMED) {
       var anchor = frameEl || root;
       var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
-      h = Math.max(560, Math.round(win.innerHeight - top - 12));
+      h = Math.round(win.innerHeight - top - 12);
     } else {
       // Iframe d'un autre domaine : la page parente n'est pas lisible.
-      h = Math.max(560, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+      h = Math.round((window.screen && window.screen.availHeight || 900) - 180);
     }
-    root.style.height = h + "px";
+    root.style.minHeight = Math.max(560, h) + "px";
+  }
+  var lastH = 0;
+  function syncFrame() {
+    var h = Math.ceil(root.getBoundingClientRect().height);
+    if (!h || h === lastH) return;
+    lastH = h;
     if (frameEl) {
       frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
-      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; });
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
     } else if (FRAMED) {
       try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
     }
   }
+  function sizeApp() { minHeight(); syncFrame(); }
   sizeApp();
+  if (window.ResizeObserver) new ResizeObserver(syncFrame).observe(root);
+  else setInterval(syncFrame, 500);
   (HOST || window).addEventListener("resize", sizeApp);
   window.addEventListener("load", sizeApp);
   setTimeout(sizeApp, 600);   // après la mise en place de la page Framer
+
+  // Haut de l'embed visible dans la page du site (changement de page, menu).
+  function revealTop() {
+    try {
+      if (frameEl) {
+        var r = frameEl.getBoundingClientRect();
+        if (r.top < 0) HOST.scrollBy({ top: r.top - 80, behavior: "smooth" });
+      } else if (FRAMED) {
+        root.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        var t = root.getBoundingClientRect().top;
+        if (t < 0) window.scrollBy({ top: t - 80, behavior: "smooth" });
+      }
+    } catch (e) {}
+  }
+  // Partie de l'embed visible à l'écran : les toasts s'y affichent.
+  function visibleTop() {
+    try {
+      if (frameEl) return Math.max(0, -frameEl.getBoundingClientRect().top);
+      if (!FRAMED) return Math.max(0, -root.getBoundingClientRect().top);
+    } catch (e) {}
+    return 0;
+  }
 
   // ================= RESPONSIVE (largeur du conteneur) =================
   function updateCompact() {
@@ -442,7 +472,6 @@
     root.classList.toggle("is-solo", !!solo);
     var p = el("page");
     p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
-    p.scrollTop = 0;
     applyLogos(p);
   }
 
@@ -639,13 +668,13 @@
   // ================= ACTIONS =================
   root.addEventListener("click", function (e) {
     var v = e.target.closest("[data-view]");
-    if (v && root.contains(v) && S.dash) { setView(v.getAttribute("data-view")); return; }
+    if (v && root.contains(v) && S.dash) { setView(v.getAttribute("data-view")); revealTop(); return; }
     var f = e.target.closest("[data-filter]");
     if (f && root.contains(f)) { S.refFilter = f.getAttribute("data-filter"); viewReferrals(); return; }
     var a = e.target.closest("[data-act]");
     if (!a || !root.contains(a)) return;
     var act = a.getAttribute("data-act");
-    if (act === "open-drawer") root.classList.add("is-drawer");
+    if (act === "open-drawer") { root.classList.add("is-drawer"); revealTop(); }
     else if (act === "close-drawer") root.classList.remove("is-drawer");
     else if (act === "refresh") loadDash().then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
     else if (act === "copy-link") copyText(S.dash.ambassador.link, function () { toast("Lien copié"); });

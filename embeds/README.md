@@ -17,7 +17,8 @@ rouge `#5BE3A3` / `#FFD166` / `#FF6B6B`), y compris dans la console.
 **Embed HTML, comme NAVIRE AI.** Coller `rejoindre.html` dans un Embed HTML
 de la page `/rejoindre`, et `ambassadeur.html` dans celui de `/ambassadeur`.
 L'embed lit le `?ref=CODE` de la page, reprend la connexion du site
-(`navire_token`) et agrandit lui-même son iframe à la hauteur du contenu.
+(`navire_token`) et agrandit lui-même son iframe à la hauteur du contenu :
+pas de défilement interne, c'est la page du site qui défile.
 
 Si un jour l'embed ne voit plus le `?ref=` (iframe cloisonnée), le composant
 `framer/NavireEmbed.tsx` sert de solution de repli : il affiche les mêmes
