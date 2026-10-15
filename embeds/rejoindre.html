@@ -52,23 +52,43 @@
   @media (prefers-reduced-motion: reduce) { #nv-join *, #nv-join *::before, #nv-join *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
   #nv-join .wrap { max-width: 560px; margin: 0 auto; }
   #nv-join .brand { justify-content: center; }
-  #nv-join .invite { text-align: center; padding: 26px 22px; margin-bottom: 14px; }
-  #nv-join .avatar { width: 58px; height: 58px; border-radius: 50%; background: var(--panel-3); border: 1px solid var(--line-2); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; margin-bottom: 12px; box-shadow: 0 20px 60px rgba(120,150,255,0.18); }
-  #nv-join .invite h1 { font-size: 23px; }
+  @keyframes nv-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  @keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+  #nv-join .invite { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10px 10px 22px; gap: 6px; }
+  #nv-join .hero-logo { width: 64px; height: 64px; border-radius: 15px; background: url("https://navire-app-api.onrender.com/assets/logo-navire-app.png") center/contain no-repeat; box-shadow: 0 20px 60px rgba(120,150,255,0.18); animation: nv-float 6s ease-in-out infinite; margin-bottom: 14px; }
+  #nv-join .hero-pair { position: relative; margin-bottom: 14px; }
+  #nv-join .hero-pair .hero-logo { margin: 0; }
+  #nv-join .avatar { position: absolute; right: -14px; bottom: -8px; width: 34px; height: 34px; border-radius: 50%; background: #16161f; border: 2px solid rgba(255,255,255,0.14); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+  #nv-join .invite h1 { font-size: 24px; letter-spacing: -.5px; }
+  #nv-join .invite .muted { font-size: 13.5px; max-width: 420px; line-height: 1.55; }
+  #nv-join .grad { background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   #nv-join .steps { display: flex; gap: 6px; margin: 0 2px 14px; }
   #nv-join .step { flex: 1; height: 3px; border-radius: 9px; background: var(--panel-2); transition: background .3s; }
   #nv-join .step.on { background: #fff; }
-  #nv-join .card .btn { width: 100%; margin-top: 18px; }
-  #nv-join .tabs { display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 99px; padding: 4px; margin-bottom: 4px; }
-  #nv-join .tabs button { flex: 1; background: transparent; border: 0; color: var(--text-3); padding: 9px; border-radius: 99px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .15s, color .15s; }
-  #nv-join .tabs button.on { background: var(--panel-3); color: #fff; }
-  #nv-join .sep { text-align: center; color: var(--text-4); font-size: 12px; margin: 16px 0 0; }
-  #nv-join .mat { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; margin: 8px 0 0; cursor: pointer; color: var(--text); font-size: 14px; transition: background .15s, border-color .15s; }
-  #nv-join .mat:hover { background: var(--panel-2); }
-  #nv-join .mat.on { border-color: rgba(255,255,255,0.3); background: var(--panel-2); }
-  #nv-join .mat input { width: 18px; height: 18px; padding: 0; accent-color: #fff; flex-shrink: 0; }
-  #nv-join .recap { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 12px; font-size: 12.5px; line-height: 1.65; white-space: pre-line; color: var(--text-2); }
-  #nv-join .total { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; margin-top: 18px; font-size: 16px; }
+  #nv-join .card .btn { width: 100%; margin-top: 18px; height: 44px; }
+  #nv-join .tabs { display: flex; gap: 6px; margin-bottom: 4px; }
+  #nv-join .tabs button { flex: 1; height: 34px; background: transparent; border: 1px solid var(--line); color: var(--text-2); border-radius: 99px; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: background .15s, color .15s; }
+  #nv-join .tabs button:hover { background: var(--panel-2); color: #fff; }
+  #nv-join .tabs button.on { background: var(--panel-3); color: #fff; border-color: rgba(255,255,255,0.14); }
+  #nv-join .sep { display: flex; align-items: center; gap: 10px; color: var(--text-4); font-size: 11.5px; margin: 16px 0 0; }
+  #nv-join .sep::before, #nv-join .sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  #nv-join .mat { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); margin-top: 6px; cursor: pointer; font-size: 13.5px; color: var(--text-2); transition: background .15s, border-color .15s, color .15s; outline: none; }
+  #nv-join .mat:hover, #nv-join .mat:focus-visible { background: var(--panel-2); }
+  #nv-join .mat.on { border-color: rgba(255,255,255,0.14); background: var(--panel-2); color: #fff; }
+  #nv-join .mat-name { flex: 1; font-weight: 500; }
+  #nv-join .mat-price { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); }
+  #nv-join .check { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s, border-color .15s; }
+  #nv-join .check svg { width: 12px; height: 12px; color: #0a0a12; opacity: 0; transform: scale(.5); transition: opacity .15s, transform .2s var(--ease); }
+  #nv-join .mat.on .check { background: #fff; border-color: #fff; }
+  #nv-join .mat.on .check svg { opacity: 1; transform: none; }
+  #nv-join .recap { background: rgba(0,0,0,0.25); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 12px; font-size: 12.5px; line-height: 1.65; white-space: pre-line; color: var(--text-2); }
+  #nv-join .total { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; margin-top: 18px; font-size: 15px; }
+  #nv-join .total span:last-child { font-size: 22px; letter-spacing: -.5px; }
+  @media (max-width: 480px) {
+    #nv-join .row > * { flex-basis: 100%; }
+    #nv-join input, #nv-join select { font-size: 16px; } /* évite le zoom auto d'iOS */
+    #nv-join .invite h1 { font-size: 21px; }
+  }
 </style>
 <script>
 (function () {
@@ -125,12 +145,12 @@
   // ── Rendu ───────────────────────────────────────────────
   function invite() {
     if (!state.amb) {
-      return '<div class="invite"><h1>Rejoins Prép\'AdJuris</h1><p class="muted">Les séances de soutien en droit de NAVIRE, matière par matière.</p>' +
+      return '<div class="invite"><div class="hero-logo"></div><h1>Rejoins Prép\'AdJuris</h1><p class="muted">Les séances de soutien en droit de NAVIRE, matière par matière.</p>' +
         '<button class="linkbtn" id="nv-code-btn">Tu as un code d\'invitation ?</button></div>';
     }
     var n = state.amb.display_name;
-    return '<div class="invite"><div class="avatar">' + esc(n.charAt(0).toUpperCase()) + '</div>' +
-      '<h1>' + esc(n) + ' t\'invite sur NAVIRE</h1>' +
+    return '<div class="invite"><div class="hero-pair"><div class="hero-logo"></div><div class="avatar">' + esc(n.charAt(0).toUpperCase()) + '</div></div>' +
+      '<h1>' + esc(n) + ' t\'invite sur <span class="grad">NAVIRE</span></h1>' +
       '<p class="muted">Crée ton compte et rejoins Prép\'AdJuris' + (state.amb.university ? ' — ' + esc(state.amb.university) : '') + '.</p></div>';
   }
 
@@ -139,7 +159,7 @@
   }
 
   function render() {
-    var html = '<div class="wrap"><div class="brand">NAVIRE</div>' + invite() + steps();
+    var html = '<div class="wrap">' + invite() + steps();
     html += state.step === 1 ? accountCard() : matieresCard();
     root.innerHTML = html + '</div>';
     bind();
@@ -183,8 +203,9 @@
     if (niveau) {
       h += (MATIERES[niveau] || []).map(function (m) {
         var on = state.matieres.indexOf(m[0]) >= 0;
-        return '<label class="mat ' + (on ? "on" : "") + '"><input type="checkbox" data-mat="' + m[0] + '"' + (on ? " checked" : "") + '>' +
-          '<span>' + esc(m[1]) + '</span></label>';
+        return '<div class="mat ' + (on ? "on" : "") + '" data-mat="' + m[0] + '" role="checkbox" aria-checked="' + on + '" tabindex="0">' +
+          '<span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="mat-name">' + esc(m[1]) + '</span>' +
+          '<span class="mat-price">' + CONFIG.INSCRIPTION_EUR + ' €</span></div>';
       }).join("");
     }
     if (state.matieres.length) {
@@ -217,12 +238,14 @@
     if ((el = document.getElementById("nv-google"))) el.onclick = google;
     if ((el = document.getElementById("nv-logout"))) el.onclick = function () { state.token = null; state.user = null; store(CONFIG.TOKEN_KEY, null); state.step = 1; render(); };
     if ((el = document.getElementById("nv-niveau"))) el.onchange = function () { state.niveau = this.value; state.matieres = []; state.recap = null; render(); };
-    Array.prototype.forEach.call(root.querySelectorAll("[data-mat]"), function (cb) {
-      cb.onchange = function () {
-        var k = cb.getAttribute("data-mat"), i = state.matieres.indexOf(k);
-        if (cb.checked && i < 0) state.matieres.push(k); else if (!cb.checked && i >= 0) state.matieres.splice(i, 1);
+    Array.prototype.forEach.call(root.querySelectorAll("[data-mat]"), function (row) {
+      function toggle() {
+        var k = row.getAttribute("data-mat"), i = state.matieres.indexOf(k);
+        if (i < 0) state.matieres.push(k); else state.matieres.splice(i, 1);
         state.recap = null; state.recapTotal = null; render(); recap();
-      };
+      }
+      row.onclick = toggle;
+      row.onkeydown = function (e) { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } };
     });
     if ((el = document.getElementById("nv-pay"))) el.onclick = pay;
   }
