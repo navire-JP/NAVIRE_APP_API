@@ -7,6 +7,7 @@
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les deux pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
+| `framer/QCM_Logic.tsx` | page QCM | Override `QcmAppRoot` : choix du cours, génération, questions, bilan |
 
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
 panneaux blancs translucides, bouton principal blanc, états vert / jaune /
@@ -33,6 +34,13 @@ Deux Code Files Framer, à coller tels quels :
 2. `framer/Navire_AdminConsole.tsx` → remplace le Code File existant
    `Navire_AdminConsole`. Il importe la section ci-dessus, ajoute l'onglet
    « Amb. » et rend la barre d'onglets défilante (8 onglets dans 583 px).
+
+## QCM
+
+`framer/QCM_Logic.tsx` → remplace le Code File `QCM_Logic`, puis appliquer
+l'override `QcmAppRoot` à la Frame du QCM (fond transparent ou `#090914`).
+Même charte que NAVIRE AI ; la logique (sessions, anti-triche au refresh,
+AFK, ELO) est inchangée.
 
 ## Côté Stripe
 
