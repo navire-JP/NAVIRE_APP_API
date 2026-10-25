@@ -15,7 +15,7 @@ from app.db.database import get_db
 from app.db.models import User, File as FileModel
 from app.routers.auth import get_current_user
 from app.core.config import USER_FILES_DIR, MAX_UPLOAD_BYTES
-from app.core.limits import check_file_limit, get_file_ttl, get_limit
+from app.core.limits import check_file_limit, get_file_ttl, get_user_limit
 from app.db.models import NavireChunk  # NAVIRE — nettoyage des chunks liés aux PDF
 from app.services.navire_ingest import ingest_user_file  # NAVIRE — indexation RAG des PDF perso
 
@@ -112,7 +112,7 @@ async def upload_file(
 
     # Compte actuel pour la réponse quota
     used = count_active_files(db, current_user)
-    files_limit = get_limit(current_user.plan, "files_total")
+    files_limit = get_user_limit(current_user, "files_total")
 
     # Dossier user : storage/UserFiles/<user_id>/
     user_dir = Path(USER_FILES_DIR) / str(current_user.id)
@@ -146,7 +146,7 @@ async def upload_file(
         await file.close()
 
     # ⏳ Expiration selon le plan
-    ttl_hours = get_file_ttl(current_user.plan)
+    ttl_hours = get_file_ttl(current_user)
     expires_at = None
     if ttl_hours is not None:
         expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
@@ -199,7 +199,7 @@ def list_files(
         .order_by(desc(FileModel.created_at))
     ).scalars().all()
 
-    files_limit = get_limit(current_user.plan, "files_total")
+    files_limit = get_user_limit(current_user, "files_total")
 
     return {
         "items": [

@@ -10,7 +10,7 @@ from app.schemas.auth import ProfileUpdateIn, UserOut
 from app.routers.auth import get_current_user
 from app.core.cloudinary_client import upload_avatar, is_allowed_image, MAX_AVATAR_BYTES, resolve_avatar_url
 from app.core.config import DISCORD_INVITE_URL
-from app.core.limits import get_limit
+from app.core.limits import get_user_limit
 from app.services.discord_link import (
     LinkCodeRateLimited,
     SOURCE_PROFILE,
@@ -294,7 +294,7 @@ def get_profile_summary(
     files_count = db.execute(
         select(func.count()).select_from(FileModel).where(FileModel.user_id == u.id)
     ).scalar_one()
-    files_limit = get_limit(u.plan, "files_total")
+    files_limit = get_user_limit(u, "files_total")
 
     # --- Tous les utilisateurs au-dessus en ELO (classement complet, sans
     # limite) — nécessaire pour le pattern UX "ma ligne reste collée en bas

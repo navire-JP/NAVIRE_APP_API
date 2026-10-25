@@ -58,7 +58,7 @@ from app.db.models import (
     DiscordLinkCode,
 )
 from app.routers.auth import get_current_user
-from app.core.limits import get_limits
+from app.core.limits import get_user_limits
 from app.core.config import (
     STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET,
@@ -338,7 +338,7 @@ def get_my_subscription(
     """
     sub = get_or_create_subscription(db, user)
     _sync_expired_plan(db, user, sub)
-    limits = get_limits(user.plan)
+    limits = get_user_limits(user)
     access_until = _paid_access_until(sub)
 
     return {
