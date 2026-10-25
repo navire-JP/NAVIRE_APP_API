@@ -1835,3 +1835,119 @@ class AmbassadorCommission(Base):
     )
 
     referral: Mapped["AmbassadorReferral | None"] = relationship("AmbassadorReferral")
+
+
+# ============================================================
+# NAVIRE Lib — cours, dissertations, points de passage
+# ============================================================
+
+class LibDocument(Base):
+    """
+    Cours (ou dissertation, fiche, cas pratique) importé d'un .docx / .pdf par
+    la console. `content` garde les blocs produits par
+    app/services/lib_parser.py : {"blocks": [...], "plan": [...], "stats": {...}}.
+    Le fichier d'origine reste sur le disque (source_path) pour un ré-import.
+    """
+    __tablename__ = "lib_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    kind: Mapped[str] = mapped_column(String(20), default="cours", nullable=False, index=True)
+    # cours | dissertation | fiche | cas_pratique
+    niveau: Mapped[str] = mapped_column(String(10), default="", nullable=False, index=True)
+    matiere: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+
+    titre: Mapped[str] = mapped_column(String(200), nullable=False)
+    sous_titre: Mapped[str] = mapped_column(String(400), default="", nullable=False)
+    kicker: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    maj: Mapped[str] = mapped_column(String(120), default="", nullable=False)  # « À jour au … »
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    content: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+    source_filename: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    source_path: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Elo minimal pour ouvrir le document (0 = libre)
+    elo_requis: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    checkpoints: Mapped[list["LibCheckpoint"]] = relationship(
+        "LibCheckpoint",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="LibCheckpoint.anchor_block",
+    )
+
+
+class LibCheckpoint(Base):
+    """
+    Point de passage : la suite du document (blocs après anchor_block) reste
+    floutée tant que l'élève n'a pas atteint `elo_requis` et obtenu
+    `seuil_pct` % des points aux questions.
+
+    questions : [{id, type: "qcm"|"courte", question, choices?, answer?,
+                  accepted?, points, explication}]
+    """
+    __tablename__ = "lib_checkpoints"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("lib_documents.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    anchor_block: Mapped[int] = mapped_column(Integer, nullable=False)
+    titre: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+
+    elo_requis: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    seuil_pct: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    recompense_elo: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+
+    questions: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    source: Mapped[str] = mapped_column(String(20), default="auto", nullable=False)  # tableau|paragraphes|ia|manuel
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    document: Mapped["LibDocument"] = relationship("LibDocument", back_populates="checkpoints")
+
+
+class LibProgress(Base):
+    """Résultat d'un élève à un point de passage (une ligne par couple)."""
+    __tablename__ = "lib_progress"
+    __table_args__ = (UniqueConstraint("user_id", "checkpoint_id", name="uq_lib_progress_user_checkpoint"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("lib_documents.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    checkpoint_id: Mapped[int] = mapped_column(
+        ForeignKey("lib_checkpoints.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    passed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    best_score_pct: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_score_pct: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    elo_gagne: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    passed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )

@@ -1,0 +1,1055 @@
+<!--
+  NAVIRE — Embed page /lib (NAVIRE Lib : cours, dissertations, fiches)
+  ====================================================================
+  Même DA et même structure que l'embed NAVIRE AI :
+    - >= 760px de conteneur : barre latérale ; < 760px : menu tiroir ;
+    - prend la hauteur de l'écran sous sa position, seule la page défile.
+
+  Bibliothèque  → GET /lib/catalogue
+  Lecture       → GET /lib/documents/{id} : plan à gauche, cours au centre.
+                  Au point de passage ouvert, la suite arrive floutée sous une
+                  fenêtre : questions (QCM + questions à points), Elo requis.
+  Quiz          → GET /lib/checkpoints/{id}/questions, POST …/submit
+
+  Un lien vers un cours précis : /lib?doc=12
+  Réglages : bloc CONFIG du script (liens QCM, NAVIRE AI, actus).
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+#nv-lib {
+  --panel: rgba(255,255,255,0.035);
+  --panel-2: rgba(255,255,255,0.06);
+  --panel-3: rgba(255,255,255,0.1);
+  --line: rgba(255,255,255,0.07);
+  --line-2: rgba(255,255,255,0.14);
+  --text: #fff;
+  --text-2: rgba(255,255,255,0.72);
+  --text-3: rgba(255,255,255,0.45);
+  --text-4: rgba(255,255,255,0.28);
+  --danger: #FF6B6B;
+  --ok: #5BE3A3;
+  --warn: #FFD166;
+  --blue: #7AA7FF;
+  --violet: #9B6FFF;
+  --radius: 14px;
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --serif: 'Source Serif 4', Georgia, serif;
+  --mono: 'IBM Plex Mono', monospace;
+
+  position: relative;
+  width: 100%;
+  height: 640px;          /* remplacé par la hauteur de l'écran au chargement */
+  min-height: 460px;
+  display: flex;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+  background: transparent;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+#nv-lib *, #nv-lib *::before, #nv-lib *::after { box-sizing: border-box; }
+#nv-lib button { font-family: inherit; color: inherit; }
+#nv-lib ::selection { background: rgba(122,167,255,0.3); }
+#nv-lib svg { flex-shrink: 0; }
+#nv-lib .nv-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+#nv-lib .nv-scroll::-webkit-scrollbar { width: 6px; }
+#nv-lib .nv-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9px; }
+
+/* ================= SIDEBAR ================= */
+#nv-lib .nv-side { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; padding: 14px 10px 12px; gap: 4px; border-right: 1px solid var(--line); z-index: 30; min-height: 0; }
+#nv-lib.is-solo .nv-side, #nv-lib.is-solo .nv-scrim, #nv-lib.is-solo .nv-topbar { display: none !important; }
+#nv-lib .nv-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 12px; }
+#nv-lib .nv-logo { width: 32px; height: 32px; background: center/contain no-repeat; flex-shrink: 0; }
+#nv-lib .nv-brand-name { font-weight: 800; font-size: 15px; letter-spacing: .6px; }
+#nv-lib .nv-brand-name span { font-weight: 500; color: var(--text-3); letter-spacing: 0; margin-left: 3px; }
+#nv-lib .nv-brand-sub { font-size: 10.5px; color: var(--text-3); margin-top: 1px; }
+#nv-lib .nv-side-close { margin-left: auto; }
+#nv-lib:not(.is-compact) .nv-side-close { display: none; }
+#nv-lib .nv-side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+
+#nv-lib .nv-nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 10px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-2); transition: background .15s, color .15s; text-align: left; text-decoration: none; }
+#nv-lib .nv-nav svg { width: 17px; height: 17px; opacity: .8; }
+#nv-lib .nv-nav:hover { background: var(--panel); color: var(--text); }
+#nv-lib .nv-nav.is-active { background: var(--panel-2); color: var(--text); }
+#nv-lib .nv-nav .nv-badge { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+#nv-lib .nv-group-label { font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 14px 12px 6px; display: flex; align-items: center; gap: 8px; }
+#nv-lib .nv-group-label b { margin-left: auto; font-family: var(--mono); font-weight: 600; letter-spacing: 0; }
+
+/* Plan du cours */
+#nv-lib .nl-doc-head { padding: 2px 8px 10px; }
+#nv-lib .nl-doc-head small { font-family: var(--mono); font-size: 10px; color: var(--text-4); letter-spacing: .6px; text-transform: uppercase; }
+#nv-lib .nl-doc-head b { display: block; font-size: 14px; line-height: 1.3; margin: 4px 0 8px; }
+#nv-lib .nl-bar { height: 4px; border-radius: 9px; background: var(--panel-2); overflow: hidden; }
+#nv-lib .nl-bar i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, var(--ok), var(--blue)); transition: width .5s var(--ease); }
+#nv-lib .nl-doc-head .nl-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-top: 6px; }
+#nv-lib .nl-plan { flex: 1; min-height: 120px; margin: 0 -2px; padding: 0 2px; }
+#nv-lib .nl-plan-item { display: flex; align-items: flex-start; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 8px; padding: 6px 10px; font-size: 12.5px; line-height: 1.35; color: var(--text-2); transition: background .15s, color .15s; }
+#nv-lib .nl-plan-item:hover { background: var(--panel); color: #fff; }
+#nv-lib .nl-plan-item.l1 { font-weight: 600; color: #fff; margin-top: 6px; }
+#nv-lib .nl-plan-item.l2 { padding-left: 22px; font-size: 12px; }
+#nv-lib .nl-plan-item.l3 { padding-left: 34px; font-size: 11.5px; color: var(--text-3); }
+#nv-lib .nl-plan-item.is-current { background: var(--panel-2); color: #fff; }
+#nv-lib .nl-plan-item.is-current::before { content: ''; width: 3px; align-self: stretch; border-radius: 3px; background: var(--blue); margin: 1px 0 1px -6px; flex-shrink: 0; }
+#nv-lib .nl-plan-item.is-locked { color: var(--text-4); }
+#nv-lib .nl-plan-item.is-locked .nl-ico-lock { opacity: .8; }
+#nv-lib .nl-plan-item span { flex: 1; min-width: 0; }
+#nv-lib .nl-plan-item svg { width: 13px; height: 13px; margin-top: 1px; }
+#nv-lib .nl-plan-cp { display: flex; align-items: center; gap: 8px; margin: 4px 0 4px 10px; padding: 6px 10px; border-radius: 9px; border: 1px dashed var(--line-2); background: transparent; width: calc(100% - 10px); cursor: pointer; font-size: 11.5px; color: var(--text-2); text-align: left; }
+#nv-lib .nl-plan-cp:hover { background: var(--panel); }
+#nv-lib .nl-plan-cp i { width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 9px; border: 1.5px solid var(--text-4); flex-shrink: 0; }
+#nv-lib .nl-plan-cp.passed { border-style: solid; border-color: rgba(91,227,163,0.25); }
+#nv-lib .nl-plan-cp.passed i { background: var(--ok); border-color: var(--ok); color: #0a0a12; }
+#nv-lib .nl-plan-cp.open { border-color: rgba(122,167,255,0.5); color: #fff; }
+#nv-lib .nl-plan-cp.open i { border-color: var(--blue); animation: nl-pulse 1.8s infinite; }
+#nv-lib .nl-plan-cp.elo { border-color: rgba(255,209,102,0.4); }
+#nv-lib .nl-plan-cp.elo i { border-color: var(--warn); color: var(--warn); }
+#nv-lib .nl-plan-cp b { margin-left: auto; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--text-3); }
+@keyframes nl-pulse { 0% { box-shadow: 0 0 0 0 rgba(122,167,255,0.5); } 70% { box-shadow: 0 0 0 7px rgba(122,167,255,0); } 100% { box-shadow: 0 0 0 0 rgba(122,167,255,0); } }
+
+/* Boutons d'action */
+#nv-lib .nl-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+#nv-lib .nl-action { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px 8px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 11px; font-weight: 600; color: var(--text-2); text-decoration: none; transition: background .15s, color .15s, transform .15s; }
+#nv-lib .nl-action:hover { background: var(--panel-3); color: #fff; transform: translateY(-1px); }
+#nv-lib .nl-action svg { width: 18px; height: 18px; }
+#nv-lib .nl-action.is-ai svg { color: var(--violet); }
+#nv-lib .nl-action.is-qcm svg { color: var(--blue); }
+#nv-lib .nl-action.is-news svg { color: var(--warn); }
+
+/* Carte Elo */
+#nv-lib .nl-elo { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+#nv-lib .nl-elo-top { display: flex; align-items: baseline; gap: 8px; }
+#nv-lib .nl-elo-top b { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+#nv-lib .nl-elo-top small { font-family: var(--mono); font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .6px; }
+#nv-lib .nl-elo-top em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--text-2); text-transform: capitalize; }
+#nv-lib .nl-elo .nl-bar { margin-top: 8px; }
+#nv-lib .nl-elo .nl-bar i { background: linear-gradient(90deg, var(--blue), var(--violet)); }
+#nv-lib .nl-elo-next { font-size: 10.5px; color: var(--text-4); margin-top: 6px; }
+#nv-lib .nv-logout { margin-top: 6px; font-size: 11.5px; color: var(--text-4); background: none; border: 0; cursor: pointer; padding: 4px 12px; text-align: left; }
+#nv-lib .nv-logout:hover { color: var(--text-2); }
+
+#nv-lib .nv-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 25; }
+
+/* ================= MAIN ================= */
+#nv-lib .nv-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+#nv-lib .nv-topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; min-height: 52px; flex-shrink: 0; position: relative; }
+#nv-lib .nv-topbar-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+#nv-lib .nv-icon-btn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: none; background: transparent; color: var(--text-3); cursor: pointer; transition: background .15s, color .15s; padding: 0; }
+#nv-lib .nv-icon-btn:hover { background: var(--panel-2); color: var(--text); }
+#nv-lib .nv-icon-btn.is-on { color: var(--warn); }
+#nv-lib .nv-icon-btn svg { width: 18px; height: 18px; }
+#nv-lib .nv-menu-btn { display: none; }
+#nv-lib .nl-pill { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; font-weight: 600; white-space: nowrap; }
+#nv-lib .nl-pill svg { width: 13px; height: 13px; color: var(--violet); }
+#nv-lib .nl-readbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: transparent; }
+#nv-lib .nl-readbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--violet)); transition: width .15s linear; }
+
+#nv-lib .nv-page { flex: 1; min-height: 0; position: relative; }
+#nv-lib .nv-page-inner { max-width: 760px; margin: 0 auto; padding: 8px 20px 60px; animation: nv-fade .28s var(--ease); }
+#nv-lib.is-solo .nv-page-inner { padding-top: 24px; }
+@keyframes nv-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes nv-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes nv-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes nv-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+#nv-lib .nv-page-head { margin: 6px 0 18px; }
+#nv-lib .nv-page-head h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+#nv-lib .nv-page-head p { margin: 4px 0 0; font-size: 13px; color: var(--text-3); line-height: 1.55; }
+
+/* Accueil non connecté */
+#nv-lib .nv-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 10px 6px; gap: 6px; }
+#nv-lib .nv-hero-logo { width: 64px; height: 64px; border-radius: 15px; background: center/contain no-repeat; margin-bottom: 14px; box-shadow: 0 20px 60px rgba(120,150,255,0.18); animation: nv-float 6s ease-in-out infinite; }
+#nv-lib .nv-hero h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.6px; line-height: 1.2; }
+#nv-lib .nv-hero p { margin: 0; font-size: 13.5px; color: var(--text-3); max-width: 480px; line-height: 1.55; }
+#nv-lib .nv-grad { background: linear-gradient(90deg, #fff, var(--blue), var(--violet)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#nv-lib .nv-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin: 24px 0 8px; }
+#nv-lib .nv-step { text-align: left; padding: 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); animation: nv-rise .5s var(--ease) both; }
+#nv-lib .nv-step:nth-child(2) { animation-delay: .05s; }
+#nv-lib .nv-step:nth-child(3) { animation-delay: .1s; }
+#nv-lib .nv-step i { font-style: normal; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--text-4); }
+#nv-lib .nv-step b { display: block; font-size: 13px; font-weight: 600; margin: 4px 0 3px; }
+#nv-lib .nv-step span { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+#nv-lib .nv-card { padding: 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; animation: nv-rise .4s var(--ease) both; }
+
+/* Boutons, champs */
+#nv-lib .nv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 18px; border-radius: 99px; border: none; background: #fff; color: #0a0a12; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .15s, background .2s, opacity .2s; }
+#nv-lib .nv-btn:hover:not(:disabled) { transform: translateY(-1px); }
+#nv-lib .nv-btn:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; transform: none; }
+#nv-lib .nv-btn svg { width: 15px; height: 15px; }
+#nv-lib .nv-btn.is-block { width: 100%; height: 42px; }
+#nv-lib .nv-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line-2); background: transparent; font-size: 12.5px; color: var(--text-2); cursor: pointer; text-decoration: none; white-space: nowrap; transition: background .15s, color .15s; }
+#nv-lib .nv-chip:hover { background: var(--panel-2); color: #fff; }
+#nv-lib .nv-chip.is-active { background: var(--panel-3); color: #fff; }
+#nv-lib .nv-chip svg { width: 14px; height: 14px; }
+#nv-lib .nv-field { display: block; margin-top: 12px; }
+#nv-lib .nv-field > span { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin-bottom: 6px; }
+#nv-lib .nv-input { width: 100%; height: 42px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: #fff; font: inherit; font-size: 13.5px; outline: none; transition: border-color .15s, background .15s; }
+#nv-lib .nv-input::placeholder { color: var(--text-4); }
+#nv-lib .nv-input:focus { border-color: rgba(255,255,255,0.22); background: var(--panel-2); }
+#nv-lib .nv-err { color: var(--danger); font-size: 12.5px; margin-top: 10px; min-height: 1em; }
+#nv-lib .nv-sep { display: flex; align-items: center; gap: 10px; color: var(--text-4); font-size: 11.5px; margin: 14px 0; }
+#nv-lib .nv-sep::before, #nv-lib .nv-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+#nv-lib .nv-empty { text-align: center; padding: 34px 20px; font-size: 13px; color: var(--text-3); line-height: 1.6; }
+#nv-lib .nv-empty b { display: block; color: var(--text-2); font-size: 14px; margin-bottom: 4px; }
+#nv-lib .nv-skel { height: 62px; border-radius: 12px; margin-bottom: 8px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nv-shimmer 1.4s linear infinite; }
+#nv-lib .nv-tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); white-space: nowrap; }
+#nv-lib .nv-tag.ok { color: var(--ok); background: rgba(91,227,163,0.1); }
+#nv-lib .nv-tag.warn { color: var(--warn); background: rgba(255,209,102,0.1); }
+#nv-lib .nv-tag.blue { color: var(--blue); background: rgba(122,167,255,0.1); }
+#nv-lib .nv-tag.violet { color: var(--violet); background: rgba(155,111,255,0.12); }
+
+/* ================= BIBLIOTHÈQUE ================= */
+#nv-lib .nl-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+#nv-lib .nl-stat { padding: 14px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); animation: nv-rise .4s var(--ease) both; min-width: 0; }
+#nv-lib .nl-stat small { display: block; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.5px; margin-top: 6px; }
+#nv-lib .nl-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+#nv-lib .nl-search { display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 42px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; }
+#nv-lib .nl-search svg { width: 16px; height: 16px; color: var(--text-3); }
+#nv-lib .nl-search input { flex: 1; background: none; border: none; outline: none; color: #fff; font: inherit; font-size: 13.5px; }
+#nv-lib .nl-search input::placeholder { color: var(--text-4); }
+#nv-lib .nl-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+#nv-lib .nl-book { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; text-align: left; transition: background .2s, border-color .2s, transform .2s var(--ease); animation: nv-rise .4s var(--ease) both; min-height: 170px; overflow: hidden; }
+#nv-lib .nl-book:hover { background: var(--panel-2); border-color: var(--line-2); transform: translateY(-2px); }
+#nv-lib .nl-book::after { content: ''; position: absolute; right: -40px; top: -40px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, var(--accent, rgba(122,167,255,0.18)), transparent 70%); pointer-events: none; }
+#nv-lib .nl-book-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+#nv-lib .nl-book h3 { margin: 2px 0 0; font-size: 16px; font-weight: 700; letter-spacing: -.3px; line-height: 1.3; }
+#nv-lib .nl-book p { margin: 0; font-size: 12px; color: var(--text-3); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-lib .nl-book-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-3); }
+#nv-lib .nl-book-foot .nl-bar { flex: 1; }
+#nv-lib .nl-book.is-locked { opacity: .65; }
+#nv-lib .nl-book .nl-lockbadge { position: absolute; right: 12px; top: 12px; z-index: 1; }
+
+/* ================= LECTURE ================= */
+#nv-lib .nl-article { font-family: var(--serif); font-size: 17px; line-height: 1.75; color: rgba(255,255,255,0.86); }
+#nv-lib.is-compact .nl-article { font-size: 16px; }
+#nv-lib .nl-cover { text-align: center; padding: 26px 0 30px; margin-bottom: 18px; border-bottom: 1px solid var(--line); font-family: 'Inter', sans-serif; }
+#nv-lib .nl-cover small { font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.4px; color: var(--text-3); text-transform: uppercase; }
+#nv-lib .nl-cover h1 { margin: 10px 0 8px; font-size: 32px; font-weight: 800; letter-spacing: -.8px; line-height: 1.15; }
+#nv-lib .nl-cover p { margin: 0 auto; max-width: 520px; font-size: 14px; color: var(--text-3); line-height: 1.55; }
+#nv-lib .nl-cover .nl-cover-meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+#nv-lib .nl-article h2, #nv-lib .nl-article h3, #nv-lib .nl-article h4, #nv-lib .nl-article h5 { font-family: 'Inter', sans-serif; scroll-margin-top: 14px; }
+#nv-lib .nl-h1 { margin: 44px 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -.4px; line-height: 1.25; color: #fff; }
+#nv-lib .nl-h1 .nl-step-num { display: block; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--blue); letter-spacing: 1.4px; margin-bottom: 4px; }
+#nv-lib .nl-h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 700; letter-spacing: .3px; color: #fff; text-transform: none; }
+#nv-lib .nl-h3 { margin: 22px 0 4px; font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.9); }
+#nv-lib .nl-h4 { margin: 18px 0 4px; font-size: 14px; font-weight: 600; color: var(--text-2); }
+#nv-lib .nl-article p { margin: 0 0 14px; text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+#nv-lib.is-compact .nl-article p { text-align: left; }
+#nv-lib .nl-lead { font-family: 'Inter', sans-serif; font-weight: 700; font-size: .88em; color: #fff; }
+#nv-lib .nl-goal { margin: 10px 0 18px; padding: 12px 16px; border-radius: 12px; background: rgba(122,167,255,0.07); border: 1px solid rgba(122,167,255,0.18); font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.6; color: #cfe0ff; }
+#nv-lib .nl-goal em { font-style: normal; }
+#nv-lib .nl-quote { margin: 4px 0 16px; padding: 12px 18px; border-left: 3px solid var(--violet); background: rgba(155,111,255,0.06); border-radius: 0 12px 12px 0; font-size: .95em; color: rgba(255,255,255,0.8); }
+#nv-lib .nl-pdp { display: flex; align-items: center; gap: 8px; margin: 34px 0 10px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--ok); }
+#nv-lib .nl-pdp::after { content: ''; flex: 1; height: 1px; background: rgba(91,227,163,0.2); }
+#nv-lib .nl-table { margin: 0 0 18px; border-radius: 12px; border: 1px solid var(--line); overflow: hidden; overflow-x: auto; font-family: 'Inter', sans-serif; }
+#nv-lib .nl-table table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
+#nv-lib .nl-table th { text-align: left; padding: 9px 12px; background: var(--panel-2); font-size: 10.5px; font-family: var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--text-3); }
+#nv-lib .nl-table td { padding: 9px 12px; border-top: 1px solid var(--line); vertical-align: top; color: var(--text-2); }
+#nv-lib .nl-table td:first-child { font-weight: 600; color: #fff; width: 30%; }
+
+/* Surlignage */
+#nv-lib .nl-article mark { color: inherit; border-radius: 4px; padding: 0 2px; margin: 0 -1px; -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background .2s; }
+#nv-lib .nl-article mark.nl-art { background: rgba(122,167,255,0.16); box-shadow: inset 0 -1px 0 rgba(122,167,255,0.5); }
+#nv-lib .nl-article mark.nl-jp { background: rgba(255,209,102,0.15); box-shadow: inset 0 -1px 0 rgba(255,209,102,0.5); }
+#nv-lib .nl-article mark.nl-loi { background: rgba(91,227,163,0.13); box-shadow: inset 0 -1px 0 rgba(91,227,163,0.45); }
+#nv-lib .nl-article mark.nl-hl { background: rgba(255,230,0,0.22); }
+#nv-lib.is-plain .nl-article mark { background: transparent; box-shadow: none; }
+#nv-lib .nl-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; color: var(--text-3); margin: -6px 0 18px; justify-content: center; font-family: 'Inter', sans-serif; }
+#nv-lib .nl-legend span { display: inline-flex; align-items: center; gap: 6px; }
+#nv-lib .nl-legend i { width: 14px; height: 8px; border-radius: 3px; }
+#nv-lib.is-plain .nl-legend { display: none; }
+#nv-lib .nl-flash { animation: nl-flash 2.2s var(--ease); }
+@keyframes nl-flash { 0%, 30% { background: rgba(122,167,255,0.14); } 100% { background: transparent; } }
+
+/* Point de passage validé (dans le cours) */
+#nv-lib .nl-done { display: flex; align-items: center; gap: 12px; margin: 10px 0 28px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(91,227,163,0.2); background: rgba(91,227,163,0.05); font-family: 'Inter', sans-serif; font-size: 13px; }
+#nv-lib .nl-done .nl-done-ico { width: 30px; height: 30px; border-radius: 50%; background: var(--ok); color: #0a0a12; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#nv-lib .nl-done .nl-done-ico svg { width: 15px; height: 15px; }
+#nv-lib .nl-done div { flex: 1; min-width: 0; }
+#nv-lib .nl-done b { display: block; font-size: 13px; }
+#nv-lib .nl-done small { color: var(--text-3); font-size: 11.5px; }
+
+/* ===== Verrou : la suite floutée + fenêtre ===== */
+#nv-lib .nl-gate { position: relative; margin-top: 18px; min-height: 420px; }
+#nv-lib .nl-teaser { filter: blur(7px); opacity: .55; user-select: none; -webkit-user-select: none; pointer-events: none; mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 100%); -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 100%); max-height: 560px; overflow: hidden; }
+#nv-lib .nl-gate-card { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); width: min(440px, 100%); padding: 22px; border-radius: 20px; background: rgba(14,14,24,0.92); border: 1px solid var(--line-2); box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(122,167,255,0.06); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-family: 'Inter', sans-serif; text-align: center; animation: nl-pop .5s var(--ease) both; }
+@keyframes nl-pop { from { opacity: 0; transform: translate(-50%, 16px) scale(.97); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+#nv-lib .nl-gate-ico { width: 54px; height: 54px; margin: 0 auto 12px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(122,167,255,0.25), rgba(155,111,255,0.25)); border: 1px solid rgba(155,111,255,0.35); }
+#nv-lib .nl-gate-ico svg { width: 24px; height: 24px; }
+#nv-lib .nl-gate-ico.is-elo { background: linear-gradient(135deg, rgba(255,209,102,0.25), rgba(255,107,107,0.18)); border-color: rgba(255,209,102,0.4); color: var(--warn); }
+#nv-lib .nl-gate-card small { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 1.2px; color: var(--text-3); text-transform: uppercase; }
+#nv-lib .nl-gate-card h3 { margin: 6px 0 6px; font-size: 18px; font-weight: 700; letter-spacing: -.3px; line-height: 1.3; }
+#nv-lib .nl-gate-card p { margin: 0 0 14px; font-size: 13px; color: var(--text-3); line-height: 1.55; }
+#nv-lib .nl-gate-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 16px; }
+#nv-lib .nl-gate-facts div { padding: 10px 6px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+#nv-lib .nl-gate-facts b { display: block; font-size: 17px; font-weight: 700; }
+#nv-lib .nl-gate-facts span { font-size: 10.5px; color: var(--text-3); }
+#nv-lib .nl-gate-facts .is-reward b { color: var(--violet); }
+#nv-lib .nl-elo-need { text-align: left; margin: 0 0 16px; padding: 12px; border-radius: 12px; background: rgba(255,209,102,0.06); border: 1px solid rgba(255,209,102,0.18); }
+#nv-lib .nl-elo-need div { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); margin-bottom: 7px; }
+#nv-lib .nl-elo-need b { color: var(--warn); font-family: var(--mono); }
+#nv-lib .nl-elo-need .nl-bar i { background: linear-gradient(90deg, var(--warn), var(--danger)); }
+#nv-lib .nl-gate-btns { display: flex; flex-direction: column; gap: 8px; }
+#nv-lib .nl-gate-btns .nv-chip { width: 100%; height: 40px; }
+
+/* Quiz final (ne floute rien) */
+#nv-lib .nl-final { margin: 30px 0 10px; padding: 20px; border-radius: 18px; background: linear-gradient(135deg, rgba(122,167,255,0.08), rgba(155,111,255,0.08)); border: 1px solid rgba(155,111,255,0.25); font-family: 'Inter', sans-serif; display: flex; gap: 14px; align-items: center; }
+#nv-lib .nl-final div { flex: 1; min-width: 0; }
+#nv-lib .nl-final b { display: block; font-size: 15px; }
+#nv-lib .nl-final span { font-size: 12.5px; color: var(--text-3); }
+
+/* ================= QUIZ (fenêtre) ================= */
+#nv-lib .nl-modal { position: absolute; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(4,4,10,0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); animation: nv-fade .25s var(--ease); }
+#nv-lib .nl-quiz { width: min(620px, 100%); max-height: 100%; display: flex; flex-direction: column; border-radius: 22px; background: #0e0e18; border: 1px solid var(--line-2); box-shadow: 0 40px 100px rgba(0,0,0,0.55); overflow: hidden; }
+#nv-lib .nl-quiz-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+#nv-lib .nl-quiz-head div { flex: 1; min-width: 0; }
+#nv-lib .nl-quiz-head small { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: var(--text-3); text-transform: uppercase; }
+#nv-lib .nl-quiz-head b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-pips { display: flex; gap: 4px; padding: 0 16px 12px; }
+#nv-lib .nl-pips i { flex: 1; height: 4px; border-radius: 9px; background: var(--panel-3); transition: background .25s; }
+#nv-lib .nl-pips i.is-done { background: var(--blue); }
+#nv-lib .nl-pips i.is-cur { background: #fff; }
+#nv-lib .nl-quiz-body { padding: 6px 18px 18px; overflow-y: auto; min-height: 0; }
+#nv-lib .nl-q-kind { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+#nv-lib .nl-q-text { font-family: var(--serif); font-size: 17px; line-height: 1.6; margin: 0 0 16px; color: #fff; }
+#nv-lib .nl-choice { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 8px; padding: 12px 14px; border-radius: 13px; border: 1px solid var(--line-2); background: var(--panel); text-align: left; cursor: pointer; font-size: 14px; line-height: 1.45; transition: background .15s, border-color .15s, transform .15s; }
+#nv-lib .nl-choice:hover { background: var(--panel-2); }
+#nv-lib .nl-choice:active { transform: scale(.99); }
+#nv-lib .nl-choice kbd { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: var(--mono); font-size: 11px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text-3); }
+#nv-lib .nl-choice.is-on { border-color: var(--blue); background: rgba(122,167,255,0.1); }
+#nv-lib .nl-choice.is-on kbd { background: var(--blue); color: #0a0a12; border-color: var(--blue); }
+#nv-lib .nl-quiz-foot { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+#nv-lib .nl-quiz-foot .nv-hint { flex: 1; font-size: 11.5px; color: var(--text-4); }
+/* Résultat */
+#nv-lib .nl-result { text-align: center; padding: 10px 0 4px; }
+#nv-lib .nl-ring { position: relative; width: 132px; height: 132px; margin: 4px auto 12px; }
+#nv-lib .nl-ring svg { width: 132px; height: 132px; transform: rotate(-90deg); }
+#nv-lib .nl-ring circle { fill: none; stroke-width: 9; stroke-linecap: round; }
+#nv-lib .nl-ring .bg { stroke: var(--panel-3); }
+#nv-lib .nl-ring .fg { transition: stroke-dashoffset 1.1s var(--ease); }
+#nv-lib .nl-ring b { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; letter-spacing: -.6px; }
+#nv-lib .nl-ring b small { font-size: 11px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
+#nv-lib .nl-result h3 { margin: 0 0 4px; font-size: 19px; font-weight: 700; }
+#nv-lib .nl-result p { margin: 0 auto 12px; max-width: 420px; font-size: 13px; color: var(--text-3); line-height: 1.55; }
+#nv-lib .nl-gain { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 99px; background: rgba(155,111,255,0.14); border: 1px solid rgba(155,111,255,0.35); color: #d7c7ff; font-weight: 700; font-size: 14px; animation: nl-gain 1s var(--ease) .4s both; }
+@keyframes nl-gain { 0% { opacity: 0; transform: translateY(10px) scale(.8); } 60% { transform: translateY(-3px) scale(1.06); } 100% { opacity: 1; transform: none; } }
+#nv-lib .nl-corr { text-align: left; margin-top: 18px; }
+#nv-lib .nl-corr-item { padding: 11px 13px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 6px; font-size: 13px; line-height: 1.5; }
+#nv-lib .nl-corr-item.ok { border-color: rgba(91,227,163,0.22); }
+#nv-lib .nl-corr-item.ko { border-color: rgba(255,107,107,0.22); }
+#nv-lib .nl-corr-item .nl-corr-top { display: flex; gap: 8px; align-items: flex-start; }
+#nv-lib .nl-corr-item .nl-corr-top .nl-corr-q { flex: 1; color: var(--text-2); }
+#nv-lib .nl-corr-item .nl-corr-exp { margin-top: 6px; padding-left: 26px; font-size: 12px; color: var(--text-3); }
+#nv-lib .nl-corr-item .nl-corr-exp b { color: #fff; font-weight: 600; }
+#nv-lib .nl-corr-ico { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; font-size: 11px; font-weight: 800; }
+#nv-lib .ok .nl-corr-ico { background: var(--ok); color: #0a0a12; }
+#nv-lib .ko .nl-corr-ico { background: var(--danger); color: #0a0a12; }
+#nv-lib .nl-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#nv-lib .nl-confetti i { position: absolute; top: -10px; width: 7px; height: 12px; border-radius: 2px; animation: nl-fall 1.8s linear forwards; }
+@keyframes nl-fall { to { transform: translateY(720px) rotate(540deg); opacity: 0; } }
+
+/* Toasts */
+#nv-lib .nv-toasts { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 3000; pointer-events: none; }
+#nv-lib .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,30,44,0.95); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
+#nv-lib .nv-toast.is-error { color: #ffb3b3; }
+@keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* ================= COMPACT (téléphone / embed étroit) ================= */
+#nv-lib.is-compact .nv-side { position: absolute; top: 0; bottom: 0; left: 0; overflow-y: auto; visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s; z-index: 1001; width: min(320px, 88%); transform: translateX(-102%); background: #0c0c14; box-shadow: 20px 0 60px rgba(0,0,0,0.4); }
+#nv-lib.is-compact.is-drawer .nv-side { transform: none; visibility: visible; transition: transform .32s var(--ease); }
+#nv-lib.is-compact .nv-scrim { z-index: 1000; }
+#nv-lib.is-compact.is-drawer .nv-scrim { opacity: 1; pointer-events: auto; }
+#nv-lib.is-compact .nv-side-close, #nv-lib.is-compact .nv-menu-btn { display: inline-flex; }
+#nv-lib.is-compact .nv-topbar { padding: 8px; border-bottom: 1px solid var(--line); min-height: 58px; }
+#nv-lib.is-compact .nv-topbar-title { text-align: center; font-size: 14px; }
+#nv-lib.is-compact .nv-page-inner { padding-left: 16px; padding-right: 16px; }
+#nv-lib.is-compact .nl-grid { grid-template-columns: 1fr; }
+#nv-lib.is-compact .nv-steps { grid-template-columns: 1fr; }
+#nv-lib.is-compact .nl-cover h1 { font-size: 25px; }
+#nv-lib.is-compact .nv-icon-btn { width: 42px; height: 42px; border-radius: 12px; }
+#nv-lib.is-compact .nv-icon-btn svg { width: 21px; height: 21px; }
+#nv-lib.is-compact .nv-nav { padding: 12px; font-size: 15px; gap: 12px; }
+#nv-lib.is-compact .nl-plan-item { padding-top: 9px; padding-bottom: 9px; font-size: 14px; }
+#nv-lib.is-compact .nl-plan-item.l2 { font-size: 13.5px; }
+#nv-lib.is-compact .nl-plan-item.l3 { font-size: 13px; }
+#nv-lib.is-compact .nv-input { font-size: 16px; } /* 16px : évite le zoom auto d'iOS */
+#nv-lib.is-compact .nv-btn { height: 44px; }
+#nv-lib.is-compact .nl-modal { padding: 0; align-items: stretch; }
+#nv-lib.is-compact .nl-quiz { border-radius: 0; width: 100%; max-height: none; border: 0; }
+#nv-lib.is-compact .nl-quiz-body { flex: 1; }
+#nv-lib.is-compact .nl-choice { padding: 14px; font-size: 15px; }
+#nv-lib.is-compact .nl-gate-card { padding: 18px; top: 20px; }
+#nv-lib.is-compact .nl-pill .nl-pill-label { display: none; }
+#nv-lib.is-compact .nl-stats b { font-size: 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  #nv-lib *, #nv-lib *::before, #nv-lib *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+
+<div id="nv-lib" class="is-solo">
+  <aside class="nv-side nv-scroll">
+    <div class="nv-brand">
+      <div class="nv-logo" data-logo></div>
+      <div>
+        <div class="nv-brand-name">NAVIRE<span>Lib</span></div>
+        <div class="nv-brand-sub">Cours, dissertations, fiches</div>
+      </div>
+      <button class="nv-icon-btn nv-side-close" data-act="close-drawer" aria-label="Fermer le menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="nv-side-body" data-el="side"></div>
+    <div data-el="elo"></div>
+    <button class="nv-logout" data-act="logout">Se déconnecter</button>
+  </aside>
+  <div class="nv-scrim" data-act="close-drawer"></div>
+
+  <main class="nv-main">
+    <div class="nv-topbar">
+      <button class="nv-icon-btn nv-menu-btn" data-act="open-drawer" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      </button>
+      <div class="nv-topbar-title" data-el="title">Bibliothèque</div>
+      <button class="nv-icon-btn" data-act="toggle-hl" data-el="hl-btn" aria-label="Surlignage" title="Surlignage des références">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
+      </button>
+      <span class="nl-pill" data-el="pill"></span>
+      <div class="nl-readbar"><i data-el="readbar"></i></div>
+    </div>
+    <div class="nv-page nv-scroll" data-el="page"></div>
+    <div class="nv-toasts" data-el="toasts"></div>
+  </main>
+  <div data-el="modal"></div>
+</div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",                     // même clé que les autres embeds
+    SIGNUP_URL: "https://navire-ai.com/register",
+    QCM_URL: "https://navire-ai.com/qcm",            // page QCM NAVIRE (gagner de l'Elo)
+    AI_URL: "https://navire-ai.com/navire-ai",       // page NAVIRE AI
+    ACTUS_URL: "https://navire-ai.com/actus"         // page actus / veille
+  };
+  var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
+  var KINDS = { cours: "Cours", dissertation: "Dissertation", fiche: "Fiche", cas_pratique: "Cas pratique" };
+  var KINDS_PL = { cours: "Cours", dissertation: "Dissertations", fiche: "Fiches", cas_pratique: "Cas pratiques" };
+  var KIND_ACCENT = { cours: "rgba(122,167,255,0.2)", dissertation: "rgba(155,111,255,0.22)", fiche: "rgba(91,227,163,0.18)", cas_pratique: "rgba(255,209,102,0.18)" };
+
+  var root = document.getElementById("nv-lib");
+  var S = { token: null, user: null, cat: null, filter: "all", query: "", doc: null, docId: null, quiz: null, plain: false, current: null };
+
+  // ================= OUTILS =================
+  function $(sel) { return root.querySelector(sel); }
+  function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return String(x.msg || "").replace(/^Value error, /, ""); }).join(" · "); return "Une erreur est survenue."; }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" };
+    if (S.token) h.Authorization = "Bearer " + S.token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(detail(j.detail)); e.status = r.status; throw e; } return j; }); });
+  }
+  function go(url) { try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
+  function val(id) { var n = document.getElementById(id); return n ? n.value.trim() : ""; }
+  function err(msg) { var e = el("err"); if (e) e.textContent = msg || ""; }
+  function toast(msg, isError) {
+    var t = document.createElement("div");
+    t.className = "nv-toast" + (isError ? " is-error" : "");
+    t.textContent = msg;
+    el("toasts").appendChild(t);
+    setTimeout(function () { t.remove(); }, 2700);
+  }
+  function applyLogos(scope) { (scope || root).querySelectorAll("[data-logo]").forEach(function (n) { n.style.backgroundImage = 'url("' + LOGO + '")'; }); }
+  function pageParam(name) {
+    var q = "";
+    try { q = window.top.location.search; } catch (e) { q = window.location.search; }
+    try { return new URLSearchParams(q || window.location.search).get(name); } catch (e) { return null; }
+  }
+  function setPageParam(name, value) {
+    try {
+      var w = window.top, u = new URL(w.location.href);
+      if (value == null) u.searchParams.delete(name); else u.searchParams.set(name, value);
+      w.history.replaceState(w.history.state, "", u.toString());
+    } catch (e) {}
+  }
+  function stepNum(text) { var m = /^(?:ÉTAPE|ETAPE|PARTIE)\s+(\d+)/i.exec(text || ""); return m ? m[1] : null; }
+  function cleanTitle(text) {
+    var t = String(text || "").replace(/^(?:ÉTAPE|ETAPE|PARTIE)\s+\d+\.?\s*/i, "");
+    return t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t;
+  }
+
+  // « TITRE 1. LES MODES » → « Titre 1. Les modes » (plan seulement ; le cours
+  // garde la typographie du document).
+  function smartCase(t) {
+    t = String(t || "");
+    if (t !== t.toUpperCase() || !/[A-ZÀ-Ý]{3}/.test(t)) return t;
+    return t.toLowerCase().replace(/(^|[.:]\s+)([a-zà-ÿ])/g, function (m, a, c) { return a + c.toUpperCase(); });
+  }
+
+  var ICON = {
+    lock: '<svg class="nl-ico-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>',
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    qcm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+    ai: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>',
+    news: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>',
+    flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>'
+  };
+
+  // ================= HAUTEUR (comme NAVIRE AI) =================
+  var FRAMED = window.self !== window.top;
+  var HOST = null, frameEl = null, wrappers = [];
+  if (FRAMED) {
+    var hideBar = document.createElement("style");
+    hideBar.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    document.head.appendChild(hideBar);
+    try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+    if (frameEl) for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+  }
+  function sizeApp() {
+    var win = HOST || window, h;
+    if (HOST || !FRAMED) {
+      var anchor = frameEl || root;
+      var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
+      h = Math.max(560, Math.round(win.innerHeight - top - 12));
+    } else {
+      h = Math.max(560, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+    }
+    root.style.height = h + "px";
+    if (frameEl) {
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; });
+    } else if (FRAMED) {
+      try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+    }
+  }
+  sizeApp();
+  (HOST || window).addEventListener("resize", sizeApp);
+  window.addEventListener("load", sizeApp);
+  setTimeout(sizeApp, 600);
+
+  function updateCompact() {
+    var compact = root.clientWidth < 760;
+    root.classList.toggle("is-compact", compact);
+    if (!compact) root.classList.remove("is-drawer");
+  }
+  if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
+  else window.addEventListener("resize", updateCompact);
+  updateCompact();
+  applyLogos();
+
+  S.plain = load("navire_lib_plain") === "1";
+  root.classList.toggle("is-plain", S.plain);
+
+  // ================= RENDU COMMUN =================
+  function setPage(html, solo) {
+    root.classList.toggle("is-solo", !!solo);
+    var p = el("page");
+    p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
+    p.scrollTop = 0;
+    applyLogos(p);
+  }
+  function bar(pct) { return '<div class="nl-bar"><i style="width:' + Math.max(0, Math.min(100, pct || 0)) + '%"></i></div>'; }
+
+  function renderElo() {
+    var u = S.user;
+    if (!u) { el("elo").innerHTML = ""; el("pill").innerHTML = ""; return; }
+    var next = u.next_tier_min != null ? '<div class="nl-elo-next">' + (u.next_tier_min - u.elo) + ' Elo avant « ' + esc(u.next_tier) + ' »</div>' : '<div class="nl-elo-next">Rang maximal</div>';
+    el("elo").innerHTML = '<div class="nl-elo"><div class="nl-elo-top"><b>' + u.elo + '</b><small>Elo</small><em>' + esc(u.tier) + '</em></div>' + bar(Math.round((u.progress || 0) * 100)) + next + '</div>';
+    el("pill").innerHTML = ICON.bolt + '<span>' + u.elo + '</span><span class="nl-pill-label">Elo</span>';
+  }
+  function setTitle(t) { el("title").textContent = t; }
+
+  // ================= NON CONNECTÉ =================
+  function viewLoggedOut() {
+    S.user = null; renderElo();
+    setPage(
+      '<div class="nv-hero"><div class="nv-hero-logo" data-logo></div><h1>NAVIRE <span class="nv-grad">Lib</span></h1>' +
+      '<p>Les cours, dissertations et fiches de la prépa, à lire comme un jeu : chaque étape validée débloque la suite et te rapporte de l\'Elo.</p></div>' +
+      '<div class="nv-steps">' +
+        '<div class="nv-step"><i>01</i><b>Lis l\'étape</b><span>Le cours complet, surligné : articles, arrêts, textes.</span></div>' +
+        '<div class="nv-step"><i>02</i><b>Passe le point de passage</b><span>QCM et questions à points sur ce que tu viens de lire.</span></div>' +
+        '<div class="nv-step"><i>03</i><b>Débloque et gagne</b><span>La suite s\'ouvre, ton Elo monte. Certaines étapes demandent un Elo minimal.</span></div>' +
+      '</div>' +
+      '<div class="nv-card" style="max-width:420px;margin:18px auto 0">' +
+        '<label class="nv-field" style="margin-top:0"><span>Email</span><input class="nv-input" id="l-email" type="email" autocomplete="email"></label>' +
+        '<label class="nv-field"><span>Mot de passe</span><input class="nv-input" id="l-pass" type="password" autocomplete="current-password"></label>' +
+        '<div class="nv-err" data-el="err"></div>' +
+        '<div style="margin-top:6px"><button class="nv-btn is-block" data-act="login">Me connecter</button></div>' +
+        '<div class="nv-sep">ou</div>' +
+        '<button class="nv-chip" style="width:100%;height:42px" data-act="google">Continuer avec Google</button>' +
+        '<div style="text-align:center;margin-top:12px;font-size:12.5px;color:var(--text-3)">Pas encore de compte ? <a href="#" data-act="signup" style="color:#fff">Créer un compte</a></div>' +
+      '</div>', true);
+  }
+
+  // ================= BIBLIOTHÈQUE =================
+  function sideLibrary() {
+    var items = (S.cat && S.cat.items) || [];
+    var counts = { all: items.length };
+    items.forEach(function (d) { counts[d.kind] = (counts[d.kind] || 0) + 1; });
+    var nav = [["all", "Toute la bibliothèque", ICON.grid]].concat(Object.keys(KINDS).filter(function (k) { return counts[k]; }).map(function (k) { return [k, KINDS_PL[k], ICON.book]; }));
+    el("side").innerHTML =
+      nav.map(function (n) {
+        return '<button class="nv-nav' + (S.filter === n[0] ? " is-active" : "") + '" data-filter="' + n[0] + '">' + n[2] + esc(n[1]) + '<span class="nv-badge">' + (counts[n[0]] || 0) + '</span></button>';
+      }).join("") +
+      '<div class="nv-group-label">Raccourcis</div>' + actions();
+  }
+  function actions() {
+    return '<div class="nl-actions">' +
+      '<a class="nl-action is-qcm" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'QCM</a>' +
+      '<a class="nl-action is-ai" href="' + CONFIG.AI_URL + '" data-go data-ai>' + ICON.ai + 'NAVIRE AI</a>' +
+      '<a class="nl-action is-news" href="' + CONFIG.ACTUS_URL + '" data-go>' + ICON.news + 'Actus</a>' +
+    '</div>';
+  }
+
+  function viewLibrary() {
+    S.doc = null; S.docId = null; setPageParam("doc", null);
+    root.classList.remove("is-solo");
+    setTitle("Bibliothèque");
+    el("hl-btn").style.display = "none";
+    el("readbar").style.width = "0";
+    sideLibrary();
+    var items = (S.cat && S.cat.items) || [];
+    var q = S.query.toLowerCase();
+    var list = items.filter(function (d) {
+      return (S.filter === "all" || d.kind === S.filter) &&
+        (!q || [d.titre, d.matiere, d.niveau, d.sous_titre].join(" ").toLowerCase().indexOf(q) !== -1);
+    });
+    var done = items.filter(function (d) { return d.nb_points_passage && d.valides === d.nb_points_passage; }).length;
+    var cps = items.reduce(function (a, d) { return a + d.valides; }, 0);
+    var html =
+      '<div class="nv-page-head"><h2>Bibliothèque</h2><p>Lis, valide chaque point de passage, débloque la suite.</p></div>' +
+      '<div class="nl-stats">' +
+        '<div class="nl-stat"><small>Elo</small><b>' + (S.user ? S.user.elo : 0) + '</b></div>' +
+        '<div class="nl-stat"><small>Points de passage</small><b>' + cps + '</b></div>' +
+        '<div class="nl-stat"><small>Terminés</small><b>' + done + ' / ' + items.length + '</b></div>' +
+      '</div>' +
+      '<div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="Rechercher un cours, une matière…" value="' + esc(S.query) + '"></div>';
+    if (!items.length) html += '<div class="nv-empty"><b>La bibliothèque arrive</b>Les premiers cours sont en préparation.</div>';
+    else if (!list.length) html += '<div class="nv-empty"><b>Aucun résultat</b>Essaie un autre mot.</div>';
+    else html += '<div class="nl-grid" data-el="grid">' + list.map(bookCard).join("") + '</div>';
+    setPage(html);
+    var s = document.getElementById("lib-search");
+    if (s) s.addEventListener("input", function (e) {
+      S.query = e.target.value;
+      var pos = e.target.selectionStart;
+      viewLibrary();
+      var n = document.getElementById("lib-search"); n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {}
+    });
+  }
+  function bookCard(d, i) {
+    var lock = d.verrouille ? '<span class="nv-tag warn nl-lockbadge">' + ICON.lock.replace('class="nl-ico-lock"', 'style="width:11px;height:11px"') + d.elo_requis + ' Elo</span>' : "";
+    var state = d.nb_points_passage && d.valides === d.nb_points_passage ? '<span class="nv-tag ok">Terminé</span>' : d.valides ? '<span class="nv-tag blue">En cours</span>' : "";
+    return '<button class="nl-book' + (d.verrouille ? " is-locked" : "") + '" data-open="' + d.id + '" style="animation-delay:' + (i * 0.04) + 's;--accent:' + (KIND_ACCENT[d.kind] || "") + '">' + lock +
+      '<div class="nl-book-top"><span class="nv-tag violet">' + esc(KINDS[d.kind] || d.kind) + '</span>' + (d.niveau ? '<span class="nv-tag">' + esc(d.niveau) + '</span>' : "") + state + '</div>' +
+      '<h3>' + esc(d.titre) + '</h3>' +
+      '<p>' + esc(d.description || d.sous_titre || d.matiere || "") + '</p>' +
+      '<div class="nl-book-foot">' + (d.nb_points_passage ? bar(d.progression_pct) + '<span>' + d.valides + '/' + d.nb_points_passage + '</span>' : '<span>' + (d.minutes || "?") + ' min de lecture</span>') + '</div>' +
+    '</button>';
+  }
+
+  // ================= LECTURE =================
+  function openDoc(id, opts) {
+    opts = opts || {};
+    S.docId = id; setPageParam("doc", id);
+    root.classList.remove("is-solo");
+    root.classList.remove("is-drawer");
+    el("hl-btn").style.display = "";
+    el("hl-btn").classList.toggle("is-on", !S.plain);
+    if (!opts.keep) el("page").innerHTML = '<div class="nv-page-inner"><div class="nv-skel" style="height:160px;margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div><div class="nv-skel"></div></div>';
+    return api("GET", "/lib/documents/" + id).then(function (d) {
+      S.doc = d; S.user = d.user || S.user; renderElo();
+      renderReader(opts);
+    }).catch(function (x) {
+      if (x.status === 404) { toast("Ce document n'est plus disponible.", true); return refreshCatalogue().then(viewLibrary); }
+      setPage('<div class="nv-empty"><b>Lecture impossible</b>' + esc(x.message) + '</div>');
+    });
+  }
+
+  function sideReader() {
+    var d = S.doc, doc = d.document;
+    var cps = d.checkpoints || [];
+    var byAnchor = {};
+    cps.forEach(function (c) { byAnchor[c.anchor] = c; });
+    // Plan : titres + points de passage insérés à leur position.
+    var items = [];
+    var plan = d.plan || [];
+    var anchors = cps.map(function (c) { return c.anchor; }).sort(function (a, b) { return a - b; });
+    var ai = 0;
+    plan.forEach(function (h) {
+      var idx = +h.id.slice(1);
+      while (ai < anchors.length && anchors[ai] < idx) { items.push(planCp(byAnchor[anchors[ai]])); ai++; }
+      items.push('<button class="nl-plan-item l' + h.level + (h.locked ? " is-locked" : "") + '" data-goto="' + h.id + '"' + (h.locked ? ' data-locked="1"' : "") + '>' +
+        (h.locked ? ICON.lock : "") + '<span>' + esc(h.level === 1 ? cleanTitle(h.text) : smartCase(h.text)) + '</span></button>');
+    });
+    while (ai < anchors.length) { items.push(planCp(byAnchor[anchors[ai]])); ai++; }
+
+    el("side").innerHTML =
+      '<button class="nv-nav" data-act="library">' + ICON.back + 'Bibliothèque</button>' +
+      '<div class="nl-doc-head"><small>' + esc(KINDS[doc.kind] || doc.kind) + (doc.niveau ? " · " + esc(doc.niveau) : "") + '</small><b>' + esc(doc.titre) + '</b>' +
+        (doc.nb_points_passage ? bar(doc.progression_pct) + '<div class="nl-bar-label"><span>' + doc.valides + ' / ' + doc.nb_points_passage + ' points de passage</span><span>' + doc.progression_pct + ' %</span></div>' : "") +
+      '</div>' +
+      '<div class="nv-group-label">Plan</div>' +
+      '<div class="nl-plan nv-scroll" data-el="plan">' + items.join("") + '</div>' +
+      actions();
+  }
+  function planCp(c) {
+    if (!c) return "";
+    var label = c.status === "passed" ? c.best_score_pct + " %" : c.status === "elo" ? c.elo_requis + " Elo" : c.status === "open" ? "+" + c.recompense_elo : "";
+    return '<button class="nl-plan-cp ' + c.status + '" data-cp="' + c.id + '"><i>' + (c.status === "passed" ? "✓" : c.status === "elo" ? "!" : "") + '</i>' +
+      (c.final ? "Quiz final" : "Point de passage") + '<b>' + label + '</b></button>';
+  }
+
+  function blockHtml(b) {
+    var id = ' id="nl-' + b.id + '" data-block="' + b.id + '"';
+    switch (b.t) {
+      case "h1": var n = stepNum(b.text); return '<h2 class="nl-h1"' + id + '>' + (n ? '<span class="nl-step-num">ÉTAPE ' + n + '</span>' + esc(cleanTitle(b.text)) : esc(cleanTitle(b.text))) + '</h2>';
+      case "h2": return '<h3 class="nl-h2"' + id + '>' + b.html + '</h3>';
+      case "h3": return '<h4 class="nl-h3"' + id + '>' + b.html + '</h4>';
+      case "h4": return '<h5 class="nl-h4"' + id + '>' + b.html + '</h5>';
+      case "goal": return '<div class="nl-goal"' + id + '>' + b.html + '</div>';
+      case "quote": return '<blockquote class="nl-quote"' + id + '>' + b.html + '</blockquote>';
+      case "pdp": return '<div class="nl-pdp"' + id + '>' + ICON.flag.replace("<svg", '<svg style="width:14px;height:14px"') + b.html + '</div>';
+      case "table": return '<div class="nl-table"' + id + '>' + b.html + '</div>';
+      default: return '<p' + id + '>' + b.html + '</p>';
+    }
+  }
+
+  function renderReader(opts) {
+    var d = S.doc, doc = d.document;
+    setTitle(doc.titre);
+    sideReader();
+    var cps = {};
+    (d.checkpoints || []).forEach(function (c) { cps[c.anchor] = c; });
+    var gate = d.gate;
+    var html = '<article class="nl-article">' +
+      '<header class="nl-cover">' + (doc.kicker ? '<small>' + esc(doc.kicker) + '</small>' : '<small>NAVIRE Lib · ' + esc(KINDS[doc.kind] || "") + '</small>') +
+        '<h1>' + esc(doc.titre) + '</h1>' + (doc.sous_titre ? '<p>' + esc(doc.sous_titre) + '</p>' : "") +
+        '<div class="nl-cover-meta">' + (doc.maj ? '<span class="nv-tag">' + esc(doc.maj) + '</span>' : "") +
+          (doc.minutes ? '<span class="nv-tag">' + doc.minutes + ' min</span>' : "") +
+          (doc.nb_points_passage ? '<span class="nv-tag blue">' + doc.nb_points_passage + ' points de passage</span>' : "") + '</div>' +
+      '</header>' +
+      '<div class="nl-legend"><span><i style="background:rgba(122,167,255,0.35)"></i>Articles</span><span><i style="background:rgba(255,209,102,0.35)"></i>Jurisprudence</span><span><i style="background:rgba(91,227,163,0.3)"></i>Lois, règlements</span></div>';
+
+    d.blocks.forEach(function (b) {
+      html += blockHtml(b);
+      var idx = +b.id.slice(1), c = cps[idx];
+      if (!c) return;
+      if (c.status === "passed") {
+        html += '<div class="nl-done"><span class="nl-done-ico">' + ICON.tick + '</span><div><b>' + esc(c.final ? "Quiz final validé" : "Point de passage validé") + '</b><small>Meilleur score ' + c.best_score_pct + ' % · ' + c.attempts + ' tentative' + (c.attempts > 1 ? "s" : "") + '</small></div><button class="nv-chip" data-cp="' + c.id + '">Refaire</button></div>';
+      } else if (c.final && gate && gate.id === c.id) {
+        html += gate.status === "elo" ? gateCard(gate, true) :
+          '<div class="nl-final"><span class="nl-gate-ico">' + ICON.flag + '</span><div><b>Quiz final</b><span>' + c.nb_questions + ' questions · ' + c.seuil_pct + ' % pour valider · +' + c.recompense_elo + ' Elo</span></div><button class="nv-btn" data-cp="' + c.id + '">Commencer</button></div>';
+      }
+    });
+
+    if (gate && gate.type === "document") {
+      html += '<div class="nl-gate"><div class="nl-teaser">' + (d.teaser || []).map(blockHtml).join("") + '</div>' + docGateCard(gate) + '</div>';
+    } else if (gate && !gate.final) {
+      html += '<div class="nl-gate"><div class="nl-teaser" aria-hidden="true">' + (d.teaser || []).map(blockHtml).join("") + '</div>' + gateCard(gate) + '</div>';
+    } else if (!gate && (d.checkpoints || []).length) {
+      html += '<div class="nl-final" style="border-color:rgba(91,227,163,0.3)"><span class="nl-gate-ico" style="background:rgba(91,227,163,0.15);border-color:rgba(91,227,163,0.35);color:var(--ok)">' + ICON.tick + '</span><div><b>Cours terminé</b><span>Tous les points de passage sont validés. Bravo !</span></div><button class="nv-chip" data-act="library">Bibliothèque</button></div>';
+    }
+    html += '</article>';
+    setPage(html);
+    bindReader(opts || {});
+  }
+
+  function gateCard(g, inline) {
+    var elo = g.status === "elo";
+    var pct = elo ? Math.round(100 * (g.elo || 0) / Math.max(1, g.elo_requis)) : 0;
+    var card = '<div class="nl-gate-card"' + (inline ? ' style="position:relative;left:auto;top:auto;transform:none;margin:24px auto;animation:none"' : "") + '>' +
+      '<div class="nl-gate-ico' + (elo ? " is-elo" : "") + '">' + (elo ? ICON.lock : ICON.flag) + '</div>' +
+      '<small>' + (elo ? "Elo insuffisant" : "Point de passage") + '</small>' +
+      '<h3>' + esc(g.titre || "Point de passage") + '</h3>' +
+      '<p>' + (elo ? "Pour ouvrir la suite, il te faut " + g.elo_requis + " Elo. Gagne des points sur les QCM NAVIRE, puis reviens." : "Vérifie que tu as retenu l'essentiel : réussis " + g.seuil_pct + " % des points pour débloquer la suite du cours.") + '</p>' +
+      '<div class="nl-gate-facts"><div><b>' + g.nb_questions + '</b><span>questions</span></div><div><b>' + g.seuil_pct + ' %</b><span>pour valider</span></div><div class="is-reward"><b>+' + g.recompense_elo + '</b><span>Elo</span></div></div>' +
+      (elo ? '<div class="nl-elo-need"><div><span>Ton Elo</span><b>' + g.elo + ' / ' + g.elo_requis + '</b></div>' + bar(pct) + '</div>' : "") +
+      '<div class="nl-gate-btns">' +
+        (elo ? '<a class="nv-btn is-block" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'Gagner de l\'Elo sur les QCM</a>'
+             : '<button class="nv-btn is-block" data-cp="' + g.id + '">Commencer · ' + g.nb_questions + ' questions</button>') +
+        '<a class="nv-chip" href="' + CONFIG.AI_URL + '" data-go data-ai>' + ICON.ai + 'Réviser avec NAVIRE AI</a>' +
+      '</div></div>';
+    return card;
+  }
+  function docGateCard(g) {
+    var pct = Math.round(100 * (g.elo || 0) / Math.max(1, g.elo_requis));
+    return '<div class="nl-gate-card"><div class="nl-gate-ico is-elo">' + ICON.lock + '</div><small>Document verrouillé</small>' +
+      '<h3>' + g.elo_requis + ' Elo pour ouvrir ce document</h3><p>Ce document est réservé aux étudiants qui ont déjà fait leurs preuves. Monte ton Elo sur les QCM et les autres cours de la bibliothèque.</p>' +
+      '<div class="nl-elo-need"><div><span>Ton Elo</span><b>' + g.elo + ' / ' + g.elo_requis + '</b></div>' + bar(pct) + '</div>' +
+      '<div class="nl-gate-btns"><a class="nv-btn is-block" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'Gagner de l\'Elo</a><button class="nv-chip" data-act="library">Retour à la bibliothèque</button></div></div>';
+  }
+
+  var spy = null;
+  function bindReader(opts) {
+    var page = el("page");
+    // Position de lecture : reprise au dernier titre vu, ou au bloc demandé.
+    var target = opts.scrollTo || load("navire_lib_pos_" + S.docId);
+    if (target) {
+      var t = document.getElementById("nl-" + target);
+      if (t) { page.scrollTop = Math.max(0, t.offsetTop - 20); if (opts.flash) flashFrom(target); }
+    }
+    if (spy) spy.disconnect();
+    var heads = page.querySelectorAll(".nl-h1, .nl-h2, .nl-h3");
+    if (window.IntersectionObserver) {
+      spy = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) setCurrent(e.target.getAttribute("data-block")); });
+      }, { root: page, rootMargin: "0px 0px -75% 0px" });
+      heads.forEach(function (h) { spy.observe(h); });
+    }
+    page.onscroll = function () {
+      var max = page.scrollHeight - page.clientHeight;
+      el("readbar").style.width = (max > 0 ? Math.round(100 * page.scrollTop / max) : 0) + "%";
+    };
+    page.onscroll();
+  }
+  function setCurrent(id) {
+    if (!id || S.current === id) return;
+    S.current = id;
+    store("navire_lib_pos_" + S.docId, id);
+    var plan = el("plan");
+    if (!plan) return;
+    plan.querySelectorAll(".is-current").forEach(function (n) { n.classList.remove("is-current"); });
+    var item = plan.querySelector('[data-goto="' + id + '"]');
+    if (item) {
+      item.classList.add("is-current");
+      var r = item.offsetTop - plan.scrollTop;
+      if (r < 0 || r > plan.clientHeight - 30) plan.scrollTop = item.offsetTop - plan.clientHeight / 3;
+      var txt = item.textContent;
+      if (txt) setTitle(txt);
+    }
+  }
+  function flashFrom(id) {
+    var n = document.getElementById("nl-" + id), k = 0;
+    while (n && k < 3) { n.classList.add("nl-flash"); n = n.nextElementSibling; k++; }
+  }
+  function gotoBlock(id) {
+    var t = document.getElementById("nl-" + id);
+    if (t) el("page").scrollTo({ top: t.offsetTop - 16, behavior: "smooth" });
+    root.classList.remove("is-drawer");
+  }
+
+  // ================= QUIZ =================
+  function startQuiz(cpId) {
+    root.classList.remove("is-drawer");
+    api("GET", "/lib/checkpoints/" + cpId + "/questions").then(function (r) {
+      S.quiz = { cp: r.checkpoint, questions: r.questions, idx: 0, answers: {}, result: null, busy: false };
+      renderQuiz();
+    }).catch(function (x) { toast(x.message, true); });
+  }
+  function closeQuiz() { S.quiz = null; el("modal").innerHTML = ""; }
+  function renderQuiz() {
+    var Q = S.quiz;
+    if (!Q) return;
+    if (Q.result) return renderResult();
+    var q = Q.questions[Q.idx], n = Q.questions.length;
+    var a = Q.answers[q.id];
+    var body;
+    if (q.type === "qcm") {
+      body = q.choices.map(function (c, i) {
+        return '<button class="nl-choice' + (a === i ? " is-on" : "") + '" data-choice="' + i + '"><kbd>' + "ABCDEFGH"[i] + '</kbd><span>' + esc(c) + '</span></button>';
+      }).join("");
+    } else {
+      body = '<input class="nv-input" id="q-short" placeholder="Ta réponse…" autocomplete="off" value="' + esc(a || "") + '">' +
+        '<div style="font-size:11.5px;color:var(--text-4);margin-top:8px">Un mot ou une référence suffit. Accents et majuscules ne comptent pas.</div>';
+    }
+    var answered = q.type === "qcm" ? a != null : !!(a && String(a).trim());
+    el("modal").innerHTML = '<div class="nl-modal"><div class="nl-quiz">' +
+      '<div class="nl-quiz-head"><div><small>' + (Q.cp.final ? "Quiz final" : "Point de passage") + ' · ' + (Q.idx + 1) + ' / ' + n + '</small><b>' + esc(Q.cp.titre) + '</b></div><button class="nv-icon-btn" data-act="quiz-close" aria-label="Fermer">' + ICON.x + '</button></div>' +
+      '<div class="nl-pips">' + Q.questions.map(function (x, i) { return '<i class="' + (i === Q.idx ? "is-cur" : Q.answers[x.id] != null && Q.answers[x.id] !== "" ? "is-done" : "") + '"></i>'; }).join("") + '</div>' +
+      '<div class="nl-quiz-body"><div class="nl-q-kind">' + (q.type === "qcm" ? '<span class="nv-tag blue">QCM</span>' : '<span class="nv-tag violet">Question à points</span>') + '<span class="nv-tag">' + q.points + ' pt' + (q.points > 1 ? "s" : "") + '</span></div>' +
+        '<p class="nl-q-text">' + esc(q.question) + '</p>' + body + '</div>' +
+      '<div class="nl-quiz-foot"><span class="nv-hint">' + (q.type === "qcm" ? "Touches 1 à " + q.choices.length + " · Entrée pour valider" : "Entrée pour valider") + '</span>' +
+        (Q.idx > 0 ? '<button class="nv-chip" data-act="quiz-prev">Précédent</button>' : "") +
+        '<button class="nv-btn" data-act="quiz-next"' + (answered && !Q.busy ? "" : " disabled") + '>' + (Q.idx === n - 1 ? (Q.busy ? "Correction…" : "Terminer") : "Suivant") + '</button></div>' +
+    '</div></div>';
+    var inp = document.getElementById("q-short");
+    if (inp) {
+      inp.focus();
+      inp.addEventListener("input", function (e) {
+        Q.answers[q.id] = e.target.value;
+        var b = $('[data-act="quiz-next"]'); if (b) b.disabled = !e.target.value.trim();
+      });
+    }
+  }
+  function quizNext() {
+    var Q = S.quiz;
+    if (!Q || Q.busy) return;
+    var q = Q.questions[Q.idx];
+    var a = Q.answers[q.id];
+    if (a == null || a === "") return;
+    if (Q.idx < Q.questions.length - 1) { Q.idx++; renderQuiz(); return; }
+    Q.busy = true; renderQuiz();
+    api("POST", "/lib/checkpoints/" + Q.cp.id + "/submit", { answers: Q.answers }).then(function (r) {
+      Q.result = r; Q.busy = false;
+      if (S.user) { S.user.elo = r.elo; }
+      renderQuiz();
+      if (r.reussi) confetti();
+    }).catch(function (x) { Q.busy = false; renderQuiz(); toast(x.message, true); });
+  }
+  function renderResult() {
+    var Q = S.quiz, r = Q.result;
+    var C = 2 * Math.PI * 56, color = r.passed ? "var(--ok)" : "var(--danger)";
+    var qs = {};
+    Q.questions.forEach(function (q) { qs[q.id] = q; });
+    var title = r.reussi ? (r.deja_valide ? "Toujours au point" : r.unlocked ? "Suite débloquée !" : "Validé !") : "Pas encore…";
+    var sub = r.reussi
+      ? (r.unlocked ? "La prochaine étape du cours est ouverte." : r.deja_valide ? "Révision réussie." : "Tu as validé ce point de passage.")
+      : "Il faut " + r.seuil_pct + " % des points. Relis l'étape (les corrections ci-dessous t'aident) et retente.";
+    var corr = r.corrections.map(function (c) {
+      var q = qs[c.id] || {};
+      return '<div class="nl-corr-item ' + (c.correct ? "ok" : "ko") + '"><div class="nl-corr-top"><span class="nl-corr-ico">' + (c.correct ? "✓" : "✕") + '</span><span class="nl-corr-q">' + esc(q.question) + '</span><b class="nv-tag">' + c.points + '/' + c.max + '</b></div>' +
+        (c.correct ? "" : '<div class="nl-corr-exp">Réponse : <b>' + esc(c.expected) + '</b></div>') +
+        (c.explication ? '<div class="nl-corr-exp">' + esc(c.explication) + '</div>' : "") + '</div>';
+    }).join("");
+    el("modal").innerHTML = '<div class="nl-modal"><div class="nl-quiz" style="position:relative">' +
+      '<div class="nl-quiz-head"><div><small>Résultat</small><b>' + esc(Q.cp.titre) + '</b></div><button class="nv-icon-btn" data-act="quiz-done" aria-label="Fermer">' + ICON.x + '</button></div>' +
+      '<div class="nl-quiz-body"><div class="nl-result">' +
+        '<div class="nl-ring"><svg viewBox="0 0 132 132"><circle class="bg" cx="66" cy="66" r="56"/><circle class="fg" cx="66" cy="66" r="56" stroke="' + color + '" stroke-dasharray="' + C + '" stroke-dashoffset="' + C + '" data-el="ring"/></svg><b>' + r.score_pct + ' %<small>' + r.points + ' / ' + r.total + ' pts</small></b></div>' +
+        '<h3>' + title + '</h3><p>' + sub + '</p>' +
+        (r.elo_gagne ? '<span class="nl-gain">' + ICON.bolt.replace("<svg", '<svg style="width:14px;height:14px"') + '+' + r.elo_gagne + ' Elo · ' + r.elo + ' au total</span>' : "") +
+      '</div><div class="nl-corr">' + corr + '</div></div>' +
+      '<div class="nl-quiz-foot"><span class="nv-hint"></span>' +
+        (r.passed ? "" : '<button class="nv-chip" data-act="quiz-retry">Réessayer</button>') +
+        '<button class="nv-btn" data-act="quiz-done">' + (r.unlocked ? "Lire la suite" : "Revenir au cours") + '</button></div>' +
+      '<div class="nl-confetti" data-el="confetti"></div>' +
+    '</div></div>';
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
+      var ring = el("ring"); if (ring) ring.style.strokeDashoffset = C * (1 - r.score_pct / 100);
+    }); });
+  }
+  function confetti() {
+    var box = el("confetti"); if (!box) return;
+    var colors = ["#5BE3A3", "#7AA7FF", "#9B6FFF", "#FFD166", "#fff"];
+    for (var k = 0; k < 40; k++) {
+      var i = document.createElement("i");
+      i.style.left = Math.random() * 100 + "%";
+      i.style.background = colors[k % colors.length];
+      i.style.animationDelay = Math.random() * 0.5 + "s";
+      i.style.animationDuration = 1.4 + Math.random() * 1.2 + "s";
+      box.appendChild(i);
+    }
+  }
+  function quizDone() {
+    var r = S.quiz && S.quiz.result, cp = S.quiz && S.quiz.cp;
+    closeQuiz();
+    if (!r) return;
+    var next = r.unlocked ? "b" + (cp.anchor + 1) : null;
+    openDoc(S.docId, { keep: true, scrollTo: next || "b" + cp.anchor, flash: !!next });
+    refreshCatalogue();
+  }
+
+  // ================= ÉVÉNEMENTS =================
+  root.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-cp],[data-choice],[data-go]");
+    if (!t || !root.contains(t)) return;
+    if (t.hasAttribute("data-go")) {
+      e.preventDefault();
+      var href = t.getAttribute("href");
+      if (t.hasAttribute("data-ai") && S.doc) {
+        var cur = S.current ? (el("plan") && el("plan").querySelector('[data-goto="' + S.current + '"]')) : null;
+        var topic = (cur ? cur.textContent + " — " : "") + S.doc.document.titre;
+        href += (href.indexOf("?") === -1 ? "?" : "&") + "q=" + encodeURIComponent("Explique-moi : " + topic);
+      }
+      return go(href);
+    }
+    if (t.hasAttribute("data-open")) return openDoc(+t.getAttribute("data-open"));
+    if (t.hasAttribute("data-filter")) { S.filter = t.getAttribute("data-filter"); root.classList.remove("is-drawer"); return viewLibrary(); }
+    if (t.hasAttribute("data-goto")) {
+      if (t.hasAttribute("data-locked")) {
+        var g = S.doc && S.doc.gate;
+        toast(g && g.status === "elo" ? "Il te faut " + g.elo_requis + " Elo pour cette partie." : "Valide le point de passage pour ouvrir cette partie.");
+        var gate = $(".nl-gate"); if (gate) el("page").scrollTo({ top: gate.offsetTop - 20, behavior: "smooth" });
+        root.classList.remove("is-drawer");
+        return;
+      }
+      return gotoBlock(t.getAttribute("data-goto"));
+    }
+    if (t.hasAttribute("data-cp")) {
+      var id = +t.getAttribute("data-cp");
+      var c = S.doc && (S.doc.checkpoints || []).filter(function (x) { return x.id === id; })[0];
+      if (c && c.status === "locked") return toast("Valide d'abord les points de passage précédents.");
+      if (c && c.status === "elo") { toast("Il te faut " + c.elo_requis + " Elo (tu en as " + (S.user ? S.user.elo : 0) + ")."); var gc = $(".nl-gate-card"); if (gc) el("page").scrollTo({ top: gc.closest(".nl-gate, .nl-article").offsetTop, behavior: "smooth" }); return; }
+      return startQuiz(id);
+    }
+    if (t.hasAttribute("data-choice")) {
+      var Q = S.quiz, q = Q.questions[Q.idx];
+      Q.answers[q.id] = +t.getAttribute("data-choice");
+      return renderQuiz();
+    }
+    var act = t.getAttribute("data-act");
+    if (act === "open-drawer") root.classList.add("is-drawer");
+    else if (act === "close-drawer") root.classList.remove("is-drawer");
+    else if (act === "library") { root.classList.remove("is-drawer"); refreshCatalogue().then(viewLibrary); }
+    else if (act === "toggle-hl") { S.plain = !S.plain; root.classList.toggle("is-plain", S.plain); t.classList.toggle("is-on", !S.plain); store("navire_lib_plain", S.plain ? "1" : null); toast(S.plain ? "Surlignage masqué" : "Surlignage affiché"); }
+    else if (act === "logout") { S.token = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); }
+    else if (act === "login") login(t);
+    else if (act === "google") google();
+    else if (act === "signup") { e.preventDefault(); go(CONFIG.SIGNUP_URL); }
+    else if (act === "quiz-close") { if (!S.quiz.result && Object.keys(S.quiz.answers).length && !confirm("Abandonner ce point de passage ?")) return; closeQuiz(); }
+    else if (act === "quiz-next") quizNext();
+    else if (act === "quiz-prev") { S.quiz.idx = Math.max(0, S.quiz.idx - 1); renderQuiz(); }
+    else if (act === "quiz-retry") { var cpId = S.quiz.cp.id; closeQuiz(); startQuiz(cpId); }
+    else if (act === "quiz-done") quizDone();
+  });
+  root.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.target.id === "l-email" || e.target.id === "l-pass")) login($('[data-act="login"]'));
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { root.classList.remove("is-drawer"); if (S.quiz && S.quiz.result) quizDone(); }
+    if (!S.quiz || S.quiz.result) return;
+    var q = S.quiz.questions[S.quiz.idx];
+    if (q.type === "qcm" && /^[1-8]$/.test(e.key) && +e.key <= q.choices.length) { S.quiz.answers[q.id] = +e.key - 1; renderQuiz(); }
+    else if (e.key === "Enter") { e.preventDefault(); quizNext(); }
+  });
+
+  function login(b) {
+    b.disabled = true;
+    api("POST", "/auth/login", { email: val("l-email").toLowerCase(), password: (document.getElementById("l-pass") || {}).value || "" })
+      .then(loggedIn).catch(function (x) { b.disabled = false; err(x.message); });
+  }
+  function google() {
+    var w = window.open(CONFIG.API + "/auth/google/start", "navire_oauth", "width=480,height=640");
+    if (!w) return err("Autorise les fenêtres pop-up pour continuer avec Google.");
+    function onMsg(ev) {
+      var d = ev.data || {};
+      if (d.type === "NAVIRE_OAUTH_ERROR") { window.removeEventListener("message", onMsg); err(d.message || "Connexion Google interrompue."); }
+      if (d.type !== "NAVIRE_OAUTH_TICKET") return;
+      window.removeEventListener("message", onMsg);
+      api("POST", "/auth/oauth", { provider: "google", ticket: d.ticket }).then(loggedIn).catch(function (x) { err(x.message); });
+    }
+    window.addEventListener("message", onMsg);
+  }
+  function loggedIn(r) { S.token = r.access_token; store(CONFIG.TOKEN_KEY, r.access_token); boot(); }
+
+  // ================= DÉMARRAGE =================
+  function refreshCatalogue() {
+    return api("GET", "/lib/catalogue").then(function (c) { S.cat = c; if (c.user) { S.user = c.user; renderElo(); } });
+  }
+  function boot() {
+    if (!S.token) return viewLoggedOut();
+    setPage('<div class="nv-skel" style="margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div>', true);
+    refreshCatalogue().then(function () {
+      if (!S.cat.user) { S.token = null; store(CONFIG.TOKEN_KEY, null); return viewLoggedOut(); }
+      var want = +(pageParam("doc") || 0);
+      if (want) { viewLibrary(); return openDoc(want); }
+      viewLibrary();
+    }).catch(function (x) { setPage('<div class="nv-empty"><b>Bibliothèque indisponible</b>' + esc(x.message) + '</div>', true); });
+  }
+  S.token = load(CONFIG.TOKEN_KEY);
+  boot();
+})();
+</script>
