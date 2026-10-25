@@ -1,0 +1,298 @@
+"""
+NAVIRE Lib contre une base SQLite : import d'un cours .docx par la console,
+lecture par un élève (contenu flouté au point de passage), questions sans les
+réponses, correction, gain d'Elo, verrou d'Elo du point suivant.
+
+Lancer : pytest tests/test_lib.py
+"""
+
+import io
+import os
+import uuid
+
+import pytest
+
+for k, v in {
+    "OPENAI_API_KEY": "x", "BREVO_API_KEY_MEOLES": "x",
+    "STRIPE_SECRET_KEY_MEOLES": "x", "STRIPE_WEBHOOK_SECRET_MEOLES": "x",
+    "STRIPE_SECRET_KEY": "sk_test_x", "STRIPE_WEBHOOK_SECRET": "whsec_x",
+    "DATABASE_URL": "sqlite:///./test_prepa_adjuris.db",
+}.items():
+    os.environ.setdefault(k, v)
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+ADMIN = {"X-Admin-Code": "THORKISHERE"}
+
+NOTIONS = [
+    ("Distribution directe", "Succursales, salariés, vente à distance. Maîtrise totale."),
+    ("Distribution indirecte", "Intermédiaires indépendants, pour le compte du producteur ou pour leur compte."),
+    ("Réseau", "Ensemble de contrats conclus selon un modèle uniforme."),
+    ("Loi Doubin", "Art. L. 330-3 C. com. Document d'information précontractuelle."),
+    ("Franchise", "Signes distinctifs, savoir-faire, assistance."),
+    ("Concession", "Exclusivité territoriale contre approvisionnement exclusif."),
+]
+
+
+def _cours_docx() -> bytes:
+    import docx
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    d = docx.Document()
+
+    def p(text, bold=False, italic=False, center=False):
+        par = d.add_paragraph()
+        r = par.add_run(text)
+        r.bold, r.italic = bold, italic
+        if center:
+            par.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        return par
+
+    def lead(n, titre, corps):
+        par = d.add_paragraph()
+        par.add_run(f"{n}. {titre}.- ").bold = True
+        par.add_run(corps)
+
+    p("NAVIRE LIB · MASTER 1", center=True)
+    p("DROIT DE LA DISTRIBUTION", bold=True, center=True)
+    p("Contrats de distribution et concurrence", center=True)
+    p("À jour au 24 octobre 2026", italic=True, center=True)
+    p("PLAN SOMMAIRE", bold=True)
+    p("ÉTAPE 1. NOTIONS\t3")
+    p("ÉTAPE 2. CONTRATS\t5")
+    texte = "Le producteur peut distribuer lui-même ses produits selon l'article L. 330-3 du Code de commerce. " * 6
+    for e, (titre, notions) in enumerate([("NOTIONS", NOTIONS[:3]), ("CONTRATS", NOTIONS[3:])], 1):
+        p(f"ÉTAPE {e}. {titre}", bold=True)
+        p("Objectif de l'étape : comprendre.", italic=True)
+        p("TITRE 1. PREMIER TITRE", bold=True)
+        for i in range(3):
+            lead(e * 10 + i, f"Paragraphe {e}-{i}", texte)
+        p("POINTS DE PASSAGE", bold=True)
+        t = d.add_table(rows=1, cols=2)
+        t.rows[0].cells[0].text, t.rows[0].cells[1].text = "Notion", "Ce qu'il faut retenir"
+        for n, r in notions:
+            row = t.add_row()
+            row.cells[0].text, row.cells[1].text = n, r
+    p("SOURCES", bold=True)
+    p("Code de commerce, art. L. 330-3.")
+    buf = io.BytesIO()
+    d.save(buf)
+    return buf.getvalue()
+
+
+@pytest.fixture(scope="module")
+def client(tmp_path_factory):
+    import app.main as main
+    import app.routers.lib as lib
+    from app.db.database import Base, engine
+
+    lib.LIB_DIR = tmp_path_factory.mktemp("lib")
+    engine.dispose()
+    Base.metadata.create_all(bind=engine)
+    # Sans `with` : le lifespan (pgvector, migrations Postgres) ne tourne pas.
+    yield TestClient(main.app)
+    engine.dispose()
+
+
+def _user(username):
+    from app.db.database import SessionLocal
+    from app.db.models import User
+    from app.core.security import create_access_token
+
+    db = SessionLocal()
+    u = User(email=f"{username}-{uuid.uuid4().hex[:8]}@test.fr", username=f"{username}{uuid.uuid4().hex[:4]}")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    h = {"Authorization": f"Bearer {create_access_token(str(u.id))}"}
+    db.close()
+    return u.id, h
+
+
+def _reponses(client, cp_id, juste=True):
+    """Bonnes (ou mauvaises) réponses, lues dans la vue admin."""
+    from app.db.database import SessionLocal
+    from app.db.models import LibCheckpoint
+
+    db = SessionLocal()
+    cp = db.get(LibCheckpoint, cp_id)
+    out = {}
+    for q in cp.questions:
+        if q["type"] == "qcm":
+            out[q["id"]] = q["answer"] if juste else (q["answer"] + 1) % len(q["choices"])
+        else:
+            out[q["id"]] = q["accepted"][0].lower() if juste else "aucune idée"
+    db.close()
+    return out
+
+
+def test_parse_docx_structure():
+    from app.services.lib_parser import parse_document, detect_checkpoints
+
+    r = parse_document(_cours_docx(), "cours.docx")
+    assert r["meta"]["titre"] == "DROIT DE LA DISTRIBUTION"
+    assert r["meta"]["maj"].startswith("À jour")
+    types = [b["t"] for b in r["blocks"]]
+    assert types.count("h1") == 3            # deux étapes + sources
+    assert types.count("pdp") == 2 and types.count("table") == 2
+    assert not any("PLAN SOMMAIRE" in b["text"] for b in r["blocks"])  # sommaire écarté
+    p = next(b for b in r["blocks"] if b["t"] == "p" and b.get("lead"))
+    assert p["num"] == 10 and '<span class="nl-lead">' in p["html"]
+    assert '<mark class="nl-art">article L. 330-3</mark>' in p["html"]
+
+    cps = detect_checkpoints(r["blocks"])
+    assert len(cps) == 2
+    assert all(r["blocks"][c["anchor"]]["t"] == "table" for c in cps)
+    q = cps[0]["questions"]
+    assert {x["type"] for x in q} == {"qcm"}  # 3 notions : que des QCM
+    assert all(x["choices"][x["answer"]] in [n for n, _ in NOTIONS] for x in q)
+
+
+def test_short_answers_tolerant():
+    from app.services.lib_parser import check_short_answer
+
+    assert check_short_answer("loi doubin", ["Loi Doubin"])
+    assert check_short_answer("Doubin", ["Loi Doubin"])
+    assert check_short_answer("Réseeau", ["Réseau"])  # faute de frappe
+    assert not check_short_answer("loi", ["Loi Doubin"])
+    assert check_short_answer("franchis", ["Franchise"])
+    assert not check_short_answer("", ["Franchise"])
+    assert not check_short_answer("concession", ["Franchise"])
+
+
+def test_parcours_complet(client):
+    # ── Console : import ──
+    r = client.post(
+        "/lib/admin/documents",
+        headers=ADMIN,
+        files={"file": ("Cours.docx", _cours_docx(),
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        data={"niveau": "M1", "matiere": "Distribution", "elo_palier": "10", "recompense_elo": "10"},
+    )
+    assert r.status_code == 200, r.text
+    doc = r.json()
+    assert doc["titre"] == "Droit de la distribution"
+    assert doc["detection"]["points_passage"] == 2
+    cp1, cp2 = doc["checkpoints"]
+    assert (cp1["elo_requis"], cp2["elo_requis"]) == (0, 10)
+    assert cp2["final"] is True and cp1["final"] is False   # après l'étape 2 : sources seulement
+
+    assert client.post("/lib/admin/documents", files={"file": ("x.docx", b"x")}).status_code == 401
+
+    # Brouillon : invisible pour l'élève
+    uid, h = _user("lecteur")
+    assert client.get(f"/lib/documents/{doc['id']}", headers=h).status_code == 404
+    assert client.patch(f"/lib/admin/documents/{doc['id']}", headers=ADMIN, json={"is_published": True}).status_code == 200
+
+    cat = client.get("/lib/catalogue", headers=h).json()
+    item = next(i for i in cat["items"] if i["id"] == doc["id"])
+    assert item["nb_points_passage"] == 2 and item["valides"] == 0 and item["nb_etapes"] == 2
+
+    # ── Élève : lecture jusqu'au premier point de passage ──
+    v = client.get(f"/lib/documents/{doc['id']}", headers=h).json()
+    assert v["blocks"][-1]["id"] == f"b{cp1['anchor_block']}"
+    assert v["teaser"] and v["gate"]["id"] == cp1["id"] and v["gate"]["status"] == "open"
+    assert any(x["locked"] for x in v["plan"]) and not v["plan"][0]["locked"]
+
+    # Le second point de passage n'est pas encore accessible
+    assert client.get(f"/lib/checkpoints/{cp2['id']}/questions", headers=h).status_code == 403
+
+    qs = client.get(f"/lib/checkpoints/{cp1['id']}/questions", headers=h).json()["questions"]
+    assert qs and all("answer" not in q and "accepted" not in q for q in qs)
+
+    # Échec : rien ne se débloque, pas d'Elo
+    r = client.post(f"/lib/checkpoints/{cp1['id']}/submit", headers=h,
+                    json={"answers": _reponses(client, cp1["id"], juste=False)}).json()
+    assert r["passed"] is False and r["elo_gagne"] == 0 and r["corrections"]
+
+    # Réussite : +10 Elo, la suite s'ouvre
+    r = client.post(f"/lib/checkpoints/{cp1['id']}/submit", headers=h,
+                    json={"answers": _reponses(client, cp1["id"])}).json()
+    assert r["passed"] and r["score_pct"] == 100 and r["elo_gagne"] == 10 and r["elo"] == 10
+    assert r["unlocked"] is True
+
+    # Revalider ne rapporte rien de plus
+    r = client.post(f"/lib/checkpoints/{cp1['id']}/submit", headers=h,
+                    json={"answers": _reponses(client, cp1["id"])}).json()
+    assert r["deja_valide"] and r["elo_gagne"] == 0 and r["elo"] == 10
+
+    # Point final : tout est lisible, le quiz final reste à faire
+    v = client.get(f"/lib/documents/{doc['id']}", headers=h).json()
+    assert len(v["blocks"]) == doc["nb_blocs"] and v["teaser"] == []
+    assert v["gate"]["id"] == cp2["id"] and v["gate"]["final"] is True
+
+    # ── Verrou d'Elo ──
+    client.patch(f"/lib/admin/checkpoints/{cp2['id']}", headers=ADMIN, json={"elo_requis": 50})
+    v = client.get(f"/lib/documents/{doc['id']}", headers=h).json()
+    assert v["gate"]["status"] == "elo" and v["gate"]["elo"] == 10
+    r = client.get(f"/lib/checkpoints/{cp2['id']}/questions", headers=h)
+    assert r.status_code == 403 and "50 Elo" in r.json()["detail"]
+
+    # Elo du document entier
+    client.patch(f"/lib/admin/documents/{doc['id']}", headers=ADMIN, json={"elo_requis": 500})
+    v = client.get(f"/lib/documents/{doc['id']}", headers=h).json()
+    assert v["gate"]["type"] == "document" and v["blocks"] == []
+    client.patch(f"/lib/admin/documents/{doc['id']}", headers=ADMIN, json={"elo_requis": 0})
+
+    # ── Console : statistiques, édition, nouvelle version ──
+    a = client.get(f"/lib/admin/documents/{doc['id']}", headers=ADMIN).json()
+    assert a["lecteurs"] == 1 and a["checkpoints"][0]["valides"] == 1 and a["blocks"]
+
+    bad = client.patch(f"/lib/admin/checkpoints/{cp2['id']}", headers=ADMIN,
+                       json={"questions": [{"id": "q1", "type": "qcm", "question": "Quoi ?", "choices": ["a"], "answer": 0}]})
+    assert bad.status_code == 400
+    ok = client.patch(f"/lib/admin/checkpoints/{cp2['id']}", headers=ADMIN, json={"questions": [
+        {"id": "q1", "type": "qcm", "question": "Le DIP est remis…", "choices": ["20 jours avant", "Après"], "answer": 0, "points": 1},
+        {"id": "q2", "type": "courte", "question": "Quelle loi ?", "accepted": ["Doubin"], "points": 3},
+    ]})
+    assert ok.status_code == 200 and ok.json()["source"] == "manuel"
+
+    r = client.post(f"/lib/admin/documents/{doc['id']}/fichier", headers=ADMIN,
+                    files={"file": ("Cours v2.docx", _cours_docx(), "application/octet-stream")})
+    assert r.status_code == 200
+    a = r.json()
+    assert [c["id"] for c in a["checkpoints"]] == [cp1["id"], cp2["id"]]  # progression conservée
+    assert a["checkpoints"][1]["source"] == "manuel"                       # questions éditées gardées
+    assert a["checkpoints"][0]["valides"] == 1
+
+    assert client.get(f"/lib/admin/documents/{doc['id']}/source", headers=ADMIN).status_code == 200
+    assert client.delete(f"/lib/admin/documents/{doc['id']}", headers=ADMIN).json()["ok"]
+    assert client.get(f"/lib/documents/{doc['id']}", headers=h).status_code == 404
+
+
+def test_import_pdf(client):
+    import fitz
+
+    pdf = fitz.open()
+    page = pdf.new_page()
+    y = 72
+    lignes = [("PREMIÈRE PARTIE. LA FORMATION", True)] + [
+        (f"{i}. Notion {i}.- Le contrat de franchise suppose un savoir-faire secret, substantiel et identifié, art. 1164 du Code civil.", False)
+        for i in range(1, 9)
+    ] + [("DEUXIÈME PARTIE. L'EXÉCUTION", True)] + [
+        (f"{i}. Notion {i}.- La rupture brutale est sanctionnée par l'article L. 442-1 du Code de commerce.", False)
+        for i in range(9, 13)
+    ]
+    for txt, bold in lignes:
+        page.insert_text((72, y), txt[:95], fontname="hebo" if bold else "helv", fontsize=10)
+        y += 24
+    data = pdf.tobytes()
+
+    from app.services.lib_parser import parse_document
+    r = parse_document(data, "plan.pdf")
+    assert [b["t"] for b in r["blocks"]].count("h1") == 2
+    assert any(b.get("lead") == "Notion 3" for b in r["blocks"])
+
+    r = client.post("/lib/admin/documents", headers=ADMIN,
+                    files={"file": ("plan.pdf", data, "application/pdf")}, data={"kind": "fiche"})
+    assert r.status_code == 200, r.text
+    assert r.json()["kind"] == "fiche"
+    client.delete(f"/lib/admin/documents/{r.json()['id']}", headers=ADMIN)
+
+    r = client.post("/lib/admin/documents", headers=ADMIN, files={"file": ("x.txt", b"bonjour", "text/plain")})
+    assert r.status_code == 400
+
+
+def test_embed_servi(client):
+    r = client.get("/lib/embed")
+    assert r.status_code == 200 and 'API: ""' in r.text

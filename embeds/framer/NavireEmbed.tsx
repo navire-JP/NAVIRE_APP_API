@@ -1,4 +1,4 @@
-// NAVIRE — composant Framer pour les pages /rejoindre et /ambassadeur
+// NAVIRE — composant Framer pour les pages /rejoindre, /ambassadeur et /lib
 // ====================================================================
 // À coller dans Framer : Assets → Code → New Code File → « NavireEmbed ».
 // Puis glisser le composant sur la page et choisir « Page » dans le panneau.
@@ -17,14 +17,21 @@ const API = "https://navire-app-api.onrender.com"
  * @framerSupportedLayoutWidth any
  * @framerSupportedLayoutHeight auto
  */
-export default function NavireEmbed(props: { page: "rejoindre" | "ambassadeur" }) {
+export default function NavireEmbed(props: { page: "rejoindre" | "ambassadeur" | "lib" }) {
     const [src, setSrc] = useState("")
     const [height, setHeight] = useState(900)
 
     useEffect(() => {
-        const ref = new URLSearchParams(window.location.search).get("ref")
-        const query = ref ? `?ref=${encodeURIComponent(ref)}` : ""
-        setSrc(`${API}/ambassadors/embed/${props.page}${query}`)
+        const params = new URLSearchParams(window.location.search)
+        if (props.page === "lib") {
+            // /lib?doc=12 ouvre directement un cours
+            const doc = params.get("doc")
+            setSrc(`${API}/lib/embed${doc ? `?doc=${encodeURIComponent(doc)}` : ""}`)
+        } else {
+            const ref = params.get("ref")
+            const query = ref ? `?ref=${encodeURIComponent(ref)}` : ""
+            setSrc(`${API}/ambassadors/embed/${props.page}${query}`)
+        }
 
         const onMessage = (event: MessageEvent) => {
             if (event.origin !== API) return
@@ -51,7 +58,7 @@ addPropertyControls(NavireEmbed, {
     page: {
         type: ControlType.Enum,
         title: "Page",
-        options: ["rejoindre", "ambassadeur"],
-        optionTitles: ["Rejoindre (lien ambassadeur)", "Espace ambassadeur"],
+        options: ["rejoindre", "ambassadeur", "lib"],
+        optionTitles: ["Rejoindre (lien ambassadeur)", "Espace ambassadeur", "NAVIRE Lib"],
     },
 })

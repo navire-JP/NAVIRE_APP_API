@@ -45,6 +45,7 @@ from app.routers.prepa_adjuris_agenda import router as prepa_adjuris_agenda_rout
 from app.services.prepa_adjuris_facturation import job_facturation_adjuris
 from app.routers.navire import router as navire_router
 from app.routers.ambassadors import router as ambassadors_router
+from app.routers.lib import router as lib_router
 # ============================================================
 # MEOLES — import isolé
 # ============================================================
@@ -342,6 +343,7 @@ app.include_router(prepa_adjuris_espace_router)
 app.include_router(prepa_adjuris_agenda_router)
 app.include_router(navire_router)
 app.include_router(ambassadors_router)
+app.include_router(lib_router)
 
 # ============================================================
 # MEOLES — Routers

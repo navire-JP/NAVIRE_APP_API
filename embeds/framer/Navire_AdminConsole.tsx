@@ -12,10 +12,14 @@
 //
 // Ambassadeurs : onglet « Amb. » (candidatures, ambassadeurs, commissions à
 // verser). Le code de la section est dans Navire_Ambassadeurs.tsx.
+//
+// NAVIRE Lib : onglet « Lib » (import des cours .docx / .pdf, points de
+// passage, Elo, questions). Le code de la section est dans Navire_Lib.tsx.
 
 import type { Override } from "framer"
 import * as React from "react"
 import { AmbassadeursSection } from "./Navire_Ambassadeurs.tsx"
+import { LibSection } from "./Navire_Lib.tsx"
 
 // ── Hide all scrollbars globally ──
 if (typeof document !== "undefined") {
@@ -147,6 +151,7 @@ type Section =
     | "terminal"
     | "adjuris"
     | "ambassadeurs"
+    | "lib"
 
 type Onglet =
     | "etudiants"
@@ -7498,6 +7503,7 @@ const SECTIONS: { id: Section; label: string }[] = [
     { id: "prepa", label: "Prepa" },
     { id: "adjuris", label: "AdJuris" },
     { id: "ambassadeurs", label: "Amb." },
+    { id: "lib", label: "Lib" },
     { id: "carts", label: "Carts" },
     { id: "terminal", label: "Terminal" },
 ]
@@ -7605,6 +7611,7 @@ function ConsoleUI() {
                 {section === "terminal" && <TerminalSection />}
                 {section === "adjuris" && <AdjurisSection />}
                 {section === "ambassadeurs" && <AmbassadeursSection />}
+                {section === "lib" && <LibSection />}
             </div>
         </div>
     )
