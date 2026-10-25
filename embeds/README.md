@@ -17,8 +17,8 @@
 
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
 panneaux blancs translucides, bouton principal blanc, états vert / jaune /
-rouge `#5BE3A3` / `#FFD166` / `#FF6B6B`), sauf NAVIRE Lib : bleu et blanc. La section console reprend les
-design tokens de la console.
+rouge `#5BE3A3` / `#FFD166` / `#FF6B6B`), y compris dans la console, sauf
+NAVIRE Lib : bleu et blanc.
 
 ## `/rejoindre` et `/ambassadeur`
 
@@ -38,10 +38,13 @@ Deux Code Files Framer, à coller tels quels :
 1. `framer/Navire_Ambassadeurs.tsx` → Code File nommé `Navire_Ambassadeurs`
    (section « Ambassadeurs »).
 2. `framer/Navire_AdminConsole.tsx` → remplace le Code File existant
-   `Navire_AdminConsole`. Il importe la section ci-dessus, ajoute l'onglet
-   « Amb. » et rend la barre d'onglets défilante (8 onglets dans 583 px).
+   `Navire_AdminConsole`. Il importe la section ci-dessus et la section
+   Lib ci-dessous, et ajoute les onglets « Amb. » et « Lib ». Charte NAVIRE AI
+   (Inter, pastilles, couleurs d'état) ; l'onglet Carts (paniers MEOLES) est
+   retiré.
 3. `framer/Navire_Lib.tsx` → Code File nommé `Navire_Lib` (section « Lib »).
-   Dans `Navire_AdminConsole`, quatre lignes l'activent :
+   Déjà branchée dans `Navire_AdminConsole.tsx` ; dans une copie plus
+   ancienne de la console, quatre lignes l'activent :
    ```ts
    import { LibSection } from "./Navire_Lib.tsx"          // en tête
    | "lib"                                                // type Section
