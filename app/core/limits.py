@@ -87,6 +87,23 @@ def get_limit(plan: str, key: str) -> Any:
     return get_limits(plan).get(key)
 
 
+def get_user_limits(user: User) -> dict[str, Any]:
+    """
+    Limites effectives d'un utilisateur : celles de son plan, sauf pour les
+    admins qui n'en ont aucune (toutes les clés à None = illimité), quel que
+    soit leur plan.
+    """
+    limits = get_limits(user.plan)
+    if user.is_admin:
+        return {key: None for key in limits}
+    return limits
+
+
+def get_user_limit(user: User, key: str) -> Any:
+    """Limite effective d'un utilisateur (None si illimité, toujours pour un admin)."""
+    return get_user_limits(user).get(key)
+
+
 # ============================================================
 # HELPERS DE VÉRIFICATION
 # Lèvent une HTTPException 403 si la limite est dépassée.
@@ -94,7 +111,7 @@ def get_limit(plan: str, key: str) -> Any:
 # ============================================================
 
 def check_qcm_daily_limit(user: User, db: Session) -> None:
-    limit = get_limit(user.plan, "qcm_per_day")
+    limit = get_user_limit(user, "qcm_per_day")
     if limit is None:
         return
 
@@ -131,7 +148,7 @@ def navire_daily_usage(user: User, db: Session) -> tuple[int, int | None]:
     Retourne (questions envoyées aujourd'hui, limite du plan) pour NAVIRE.
     Jour calendaire UTC ; limite None = illimité (le compte n'est alors pas fait).
     """
-    limit = get_limit(user.plan, "navire_per_day")
+    limit = get_user_limit(user, "navire_per_day")
     if limit is None:
         return 0, None
 
@@ -186,7 +203,7 @@ def check_flashcard_limit(user: User, db: Session) -> None:
 
     Utilisé dans : routers/flash.py → POST /flash/cards (création d'une carte)
     """
-    limit = get_limit(user.plan, "flashcards_total")
+    limit = get_user_limit(user, "flashcards_total")
     if limit is None:
         return
 
@@ -218,7 +235,7 @@ def check_file_limit(user: User, db: Session) -> None:
 
     Utilisé dans : routers/files.py → POST /files/upload
     """
-    limit = get_limit(user.plan, "files_total")
+    limit = get_user_limit(user, "files_total")
     if limit is None:
         return
 
@@ -243,14 +260,14 @@ def check_file_limit(user: User, db: Session) -> None:
         )
 
 
-def get_file_ttl(plan: str) -> int | None:
+def get_file_ttl(user: User) -> int | None:
     """
     Retourne la durée de vie d'un fichier en heures selon le plan.
-    Retourne None si le fichier ne doit pas expirer (membre / membre+).
+    Retourne None si le fichier ne doit pas expirer (membre / membre+ / admin).
 
     Utilisé dans : routers/files.py au moment du calcul de expires_at.
     """
-    return get_limit(plan, "file_ttl_hours")
+    return get_user_limit(user, "file_ttl_hours")
 
 # ============================================================
 # ACCÈS PREPASSERELLE

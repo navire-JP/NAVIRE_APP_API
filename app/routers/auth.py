@@ -20,7 +20,7 @@ from app.schemas.auth import (
 )
 from app.core.security import hash_password, verify_password, create_access_token, decode_token
 from app.core.config import REQUIRE_EMAIL_VERIFICATION
-from app.core.limits import get_limits
+from app.core.limits import get_user_limits
 from app.core.cloudinary_client import resolve_avatar_url
 from app.services.email_verification import (
     request_code,
@@ -328,7 +328,7 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 
 @router.get("/me")
 def me(current_user: User = Depends(get_current_user)):
-    limits = get_limits(current_user.plan)
+    limits = get_user_limits(current_user)
 
     return {
         "id": current_user.id,
