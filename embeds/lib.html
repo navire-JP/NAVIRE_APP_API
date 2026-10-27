@@ -549,6 +549,8 @@
   }
   function plus() { return S.mode === "plus"; }
   function hasPlus() { return !!(S.user && S.user.acces_plus); }
+  // Pass admin : Lib+ ouvert, pas de verrou d'Elo, points de passage à passer sans répondre, brouillons en aperçu.
+  function isAdmin() { return !!(S.user && S.user.admin); }
 
   var ICON = {
     lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
@@ -769,7 +771,7 @@
       ? bar(d.progression_pct) + '<span>' + d.valides + '/' + d.nb_points_passage + '</span>'
       : '<span>' + (d.minutes || "?") + ' min de lecture</span>';
     return '<button class="nl-book' + (p && d.verrouille ? " is-locked" : "") + (d.plus ? " is-plus" : "") + '" data-open="' + d.id + '" style="animation-delay:' + (i * 0.04) + 's">' + lock +
-      '<div class="nl-book-top"><span class="nv-tag blue">' + esc(KINDS[d.kind] || d.kind) + '</span>' + (d.niveau ? '<span class="nv-tag">' + esc(d.niveau) + '</span>' : "") + (d.plus ? '<span class="nv-tag solid">LIB+</span>' : "") + state + '</div>' +
+      '<div class="nl-book-top"><span class="nv-tag blue">' + esc(KINDS[d.kind] || d.kind) + '</span>' + (d.niveau ? '<span class="nv-tag">' + esc(d.niveau) + '</span>' : "") + (d.plus ? '<span class="nv-tag solid">LIB+</span>' : "") + (d.brouillon ? '<span class="nv-tag white">Brouillon</span>' : "") + state + '</div>' +
       '<h3>' + esc(d.titre) + '</h3>' +
       '<p>' + esc(d.description || d.sous_titre || d.matiere || "") + '</p>' +
       '<div class="nl-book-foot">' + foot + '</div>' +
@@ -928,7 +930,7 @@
     var answered = q.type === "qcm" ? st.a != null : !!(st.a && String(st.a).trim());
     if (!res) {
       html += '<div class="nl-qfoot"><span class="nl-qmeta">' + (redo ? "Révision : sans Elo." : c.recompense_elo ? "+" + c.recompense_elo + " Elo à la clé" : "") + '</span>' +
-        (!redo && c.peut_passer ? '<button class="nv-chip" data-cp-skip="' + c.id + '">Passer à la suite</button>' : "") +
+        (!redo && c.peut_passer ? '<button class="nv-chip" data-cp-skip="' + c.id + '">' + (isAdmin() && c.attempts < (c.essais_max || 3) ? "Passer (admin)" : "Passer à la suite") + '</button>' : "") +
         '<button class="nv-btn is-blue" data-cp-submit="' + c.id + '"' + (answered && !st.busy ? "" : " disabled") + '>' + (st.busy ? "Correction…" : "Valider") + '</button></div>';
     } else if (res.peut_passer) {
       var cr = res.correction || {};
@@ -949,7 +951,7 @@
   function doneRow(c) {
     var a = S.after[c.id], sk = c.skipped;
     var title = sk ? "Point de passage franchi" : (c.final ? "Question finale réussie" : "Point de passage réussi");
-    var sub = a && a.message ? a.message : sk ? "Passé après " + c.attempts + " essais : prends le temps de revoir ce passage." : "Réussi en " + c.attempts + " essai" + (c.attempts > 1 ? "s" : "") + ".";
+    var sub = a && a.message ? a.message : sk ? (c.attempts < (c.essais_max || 3) ? "Passé avec le pass admin." : "Passé après " + c.attempts + " essais : prends le temps de revoir ce passage.") : "Réussi en " + c.attempts + " essai" + (c.attempts > 1 ? "s" : "") + ".";
     var gain = a && a.elo_gagne ? '<span class="nl-gain">' + ico("bolt", 11) + '+' + a.elo_gagne + ' Elo</span>' : "";
     var chatOpen = S.chat[c.id] && S.chat[c.id].open;
     return '<div class="nl-done"><span class="nl-done-ico' + (sk ? " is-skip" : "") + '">' + (sk ? ICON.skip : ICON.tick) + '</span><div><b>' + title + gain + '</b><small>' + esc(sub) + '</small></div>' +
@@ -1009,8 +1011,9 @@
   }
   function nextQuestion(id) { delete S.Q[id]; refreshSlot(id); loadQuestion(id); }
   function skipCheckpoint(id) {
+    var c = cpById(id), admin = isAdmin() && c && c.attempts < (c.essais_max || 3);
     api("POST", "/lib/checkpoints/" + id + "/passer").then(function () {
-      unlocked(id, { message: "La suite est ouverte. Une question sur ce passage ? NAVIRE AI est juste en dessous." });
+      unlocked(id, { message: admin ? "Passé avec le pass admin." : "La suite est ouverte. Une question sur ce passage ? NAVIRE AI est juste en dessous." });
     }).catch(function (x) { toast(x.message, true); });
   }
   // Après la question : la suite s'ouvre et le chat NAVIRE AI apparaît dessous.

@@ -13,6 +13,9 @@ NAVIRE Lib : bibliothèque de cours, dissertations et fiches, lue dans l'embed
   échecs, l'élève peut passer à la suite (sans Elo). Un chat NAVIRE AI, nourri
   de l'extrait lu, suit chaque point de passage.
 
+Pass admin (User.is_admin) : Lib+ ouvert, aucun verrou d'Elo, chaque point de
+passage peut être passé sans répondre, et les brouillons s'ouvrent en aperçu.
+
 Étudiant (auth NAVIRE) :
   GET  /lib/catalogue                     → documents publiés + progression
   GET  /lib/documents/{id}?mode=lib|plus  → plan, blocs lisibles, verrou suivant
@@ -83,6 +86,7 @@ SEUIL_PCT = int(os.getenv("LIB_SEUIL_PCT", "60"))
 ESSAIS_MAX = int(os.getenv("LIB_ESSAIS_MAX", "3"))
 TEASER_BLOCKS = 4
 
+ELO_ADMIN = 10**9                   # pass admin : aucun verrou d'Elo
 PLANS_PLUS = ("membre", "membre+")  # NAVIRE AI, NAVIRE AI+
 REFUS_PLUS = "NAVIRE Lib+ est réservé aux abonnés NAVIRE AI, NAVIRE AI+ et AdJuris."
 
@@ -132,10 +136,22 @@ def _total_points(c: LibCheckpoint) -> int:
     return sum(int(q.get("points", 1)) for q in (c.questions or []))
 
 
-def _state(doc: LibDocument, prog: dict[int, LibProgress], elo: int) -> dict:
+def _is_admin(user: User | None) -> bool:
+    return bool(user and user.is_admin)
+
+
+def _elo(user: User | None) -> int:
+    """Elo pris en compte pour les verrous : le pass admin les ouvre tous."""
+    if not user:
+        return 0
+    return ELO_ADMIN if user.is_admin else int(user.elo or 0)
+
+
+def _state(doc: LibDocument, prog: dict[int, LibProgress], elo: int, admin: bool = False) -> dict:
     """
     Où en est l'élève : premier point de passage non validé (le verrou), état
-    de chaque point de passage, index du dernier bloc lisible.
+    de chaque point de passage, index du dernier bloc lisible. Avec le pass
+    admin, chaque point de passage peut être passé sans répondre.
     """
     blocks = _blocks(doc)
     cps = _active(doc)
@@ -167,7 +183,7 @@ def _state(doc: LibDocument, prog: dict[int, LibProgress], elo: int) -> dict:
             "best_score_pct": p.best_score_pct if p else 0,
             "attempts": p.attempts if p else 0,
             "essais_max": ESSAIS_MAX,
-            "peut_passer": not passed and bool(p) and p.attempts >= ESSAIS_MAX,
+            "peut_passer": not passed and (admin or (bool(p) and p.attempts >= ESSAIS_MAX)),
         })
     gate_final = gate is not None and not parser.locks_content(blocks, gate.anchor_block)
     last = len(blocks) - 1 if gate is None or gate_final else gate.anchor_block
@@ -178,7 +194,10 @@ def _user_card(user: User | None, plus: bool = False) -> dict | None:
     if not user:
         return None
     elo = int(user.elo or 0)
-    return {"id": user.id, "username": user.username, "elo": elo, "acces_plus": plus, **tier_from_elo(elo)}
+    return {
+        "id": user.id, "username": user.username, "elo": elo, "acces_plus": plus,
+        "admin": bool(user.is_admin), **tier_from_elo(elo),
+    }
 
 
 def _summary(doc: LibDocument, prog: dict[int, LibProgress] | None = None, elo: int = 0) -> dict:
@@ -208,9 +227,10 @@ def _summary(doc: LibDocument, prog: dict[int, LibProgress] | None = None, elo: 
     }
 
 
-def _get_published(db: Session, doc_id: int) -> LibDocument:
+def _get_published(db: Session, doc_id: int, user: User | None = None) -> LibDocument:
+    """Document publié ; le pass admin ouvre aussi les brouillons (aperçu)."""
     doc = db.get(LibDocument, doc_id)
-    if not doc or not doc.is_published:
+    if not doc or not (doc.is_published or _is_admin(user)):
         raise HTTPException(404, detail="Document introuvable.")
     return doc
 
@@ -221,12 +241,12 @@ def _checkpoint_for_user(db: Session, cp_id: int, user: User) -> tuple[LibCheckp
     cp = db.get(LibCheckpoint, cp_id)
     if not cp or not cp.is_active:
         raise HTTPException(404, detail="Point de passage introuvable.")
-    doc = _get_published(db, cp.document_id)
-    elo = int(user.elo or 0)
+    doc = _get_published(db, cp.document_id, user)
+    elo = _elo(user)
     if elo < doc.elo_requis:
         raise HTTPException(403, detail=f"Ce document demande {doc.elo_requis} Elo.")
     prog = _progress_map(db, user, [doc.id])
-    st = _state(doc, prog, elo)
+    st = _state(doc, prog, elo, _is_admin(user))
     item = next(i for i in st["items"] if i["id"] == cp.id)
     if item["status"] == "locked":
         raise HTTPException(403, detail="Valide d'abord les points de passage précédents.")
@@ -241,12 +261,16 @@ def _checkpoint_for_user(db: Session, cp_id: int, user: User) -> tuple[LibCheckp
 
 @router.get("/catalogue")
 def catalogue(db: Session = Depends(get_db), user: User | None = Depends(get_current_user_optional)):
-    docs = db.execute(
-        select(LibDocument).where(LibDocument.is_published.is_(True)).order_by(LibDocument.ordre, LibDocument.id)
-    ).scalars().all()
+    q = select(LibDocument).order_by(LibDocument.ordre, LibDocument.id)
+    if not _is_admin(user):
+        q = q.where(LibDocument.is_published.is_(True))
+    docs = db.execute(q).scalars().all()
     prog = _progress_map(db, user, [d.id for d in docs])
-    elo = int(user.elo or 0) if user else 0
-    return {"items": [_summary(d, prog, elo) for d in docs], "user": _user_card(user, has_plus(db, user))}
+    elo = _elo(user)
+    return {
+        "items": [{**_summary(d, prog, elo), "brouillon": not d.is_published} for d in docs],
+        "user": _user_card(user, has_plus(db, user)),
+    }
 
 
 @router.get("/documents/{doc_id}")
@@ -256,9 +280,9 @@ def document(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    doc = _get_published(db, doc_id)
+    doc = _get_published(db, doc_id, user)
     plus = has_plus(db, user)
-    elo = int(user.elo or 0)
+    elo = _elo(user)
     blocks = _blocks(doc)
     plan_all = (doc.content or {}).get("plan") or parser.build_plan(blocks)
 
@@ -292,7 +316,7 @@ def document(
             "user": _user_card(user, plus),
         }
 
-    st = _state(doc, prog, elo)
+    st = _state(doc, prog, elo, _is_admin(user))
     last = st["last_visible"]
     gate = st["gate"]
     gate_item = next((i for i in st["items"] if gate and i["id"] == gate.id), None)
@@ -395,6 +419,9 @@ def passer(cp_id: int, db: Session = Depends(get_db), user: User = Depends(get_c
         return {"passed": True, "unlocked": False}
     if not item["peut_passer"]:
         raise HTTPException(403, detail=f"Encore {ESSAIS_MAX - item['attempts']} essai(s) avant de pouvoir passer.")
+    if p is None:  # pass admin : passé sans aucun essai
+        p = LibProgress(user_id=user.id, document_id=cp.document_id, checkpoint_id=cp.id)
+        db.add(p)
     p.passed = True
     p.skipped = True
     p.passed_at = datetime.now(timezone.utc)
@@ -431,8 +458,8 @@ def _extrait(doc: LibDocument, prog: dict, elo: int, cp_id: int | None) -> tuple
 @router.post("/chat")
 def chat(payload: ChatIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _require_plus(db, user)
-    doc = _get_published(db, payload.document_id)
-    elo = int(user.elo or 0)
+    doc = _get_published(db, payload.document_id, user)
+    elo = _elo(user)
     if elo < doc.elo_requis:
         raise HTTPException(403, detail=f"Ce document demande {doc.elo_requis} Elo.")
     check_navire_daily_limit(user, db)

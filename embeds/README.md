@@ -68,6 +68,9 @@ Un curseur en haut à droite passe de l'un à l'autre :
   suite, sans gagner d'Elo. Une fois le point de passage franchi, un chat
   NAVIRE AI s'ouvre dessous : il répond à partir de l'extrait lu
   (`POST /lib/chat`, même quota quotidien que NAVIRE AI).
+- **Pass admin** (comptes admin) : Lib+ ouvert sans abonnement, aucun verrou
+  d'Elo, bouton « Passer (admin) » sur chaque point de passage dès la première
+  question, et les brouillons s'ouvrent en aperçu (étiquette « Brouillon »).
 
 Côté console, onglet « Lib » : importer un `.docx` (conseillé : gras,
 italiques, tableaux et surlignage sont repris) ou un `.pdf`, et cocher

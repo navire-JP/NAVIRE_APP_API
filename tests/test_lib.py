@@ -346,6 +346,45 @@ def test_lib_et_lib_plus(client, monkeypatch):
         client.delete(f"/lib/admin/documents/{d['id']}", headers=ADMIN)
 
 
+def test_pass_admin(client):
+    from app.db.database import SessionLocal
+    from app.db.models import User
+
+    doc = client.post(
+        "/lib/admin/documents", headers=ADMIN,
+        files={"file": ("Cours.docx", _cours_docx(), "application/octet-stream")},
+        data={"elo_palier": "50", "plus": "true"},          # brouillon, Lib+, Elo requis
+    ).json()
+    cp1, cp2 = doc["checkpoints"]
+    client.patch(f"/lib/admin/documents/{doc['id']}", headers=ADMIN, json={"elo_requis": 500})
+
+    uid, h = _user("admin", plan="free")
+    db = SessionLocal()
+    db.get(User, uid).is_admin = True
+    db.commit()
+    db.close()
+    _, eleve = _user("eleve")
+
+    # Brouillon : visible en aperçu par l'admin seulement
+    cat = client.get("/lib/catalogue", headers=h).json()
+    assert cat["user"]["admin"] and cat["user"]["acces_plus"]
+    assert next(i for i in cat["items"] if i["id"] == doc["id"])["brouillon"] is True
+    assert all(i["id"] != doc["id"] for i in client.get("/lib/catalogue", headers=eleve).json()["items"])
+    assert client.get(f"/lib/documents/{doc['id']}", headers=eleve).status_code == 404
+
+    # Aucun verrou d'Elo, et chaque point de passage se passe sans répondre
+    v = client.get(f"/lib/documents/{doc['id']}", headers=h).json()
+    assert v["gate"]["type"] == "checkpoint" and v["gate"]["peut_passer"] is True
+    assert client.post(f"/lib/checkpoints/{cp1['id']}/passer", headers=h).json()["unlocked"] is True
+    v = client.get(f"/lib/documents/{doc['id']}", headers=h).json()
+    assert v["gate"]["id"] == cp2["id"] and v["gate"]["status"] == "open"   # 50 Elo requis : ignoré
+    assert client.post(f"/lib/checkpoints/{cp2['id']}/passer", headers=h).json()["passed"]
+    v = client.get(f"/lib/documents/{doc['id']}", headers=h).json()
+    assert v["gate"] is None and len(v["blocks"]) == doc["nb_blocs"] and v["user"]["elo"] == 0
+
+    client.delete(f"/lib/admin/documents/{doc['id']}", headers=ADMIN)
+
+
 def test_import_pdf(client):
     import fitz
 
