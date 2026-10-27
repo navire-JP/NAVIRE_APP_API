@@ -186,6 +186,10 @@ class User(Base):
 
     elo: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
 
+    # Classement : les autres joueurs peuvent ouvrir mes stats détaillées
+    # (QCM, séries, Elo). Le nom, l'Elo et le rang restent toujours visibles.
+    stats_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
     # ── Discord ──────────────────────────────────────────────────────────────
     discord_id: Mapped[str | None] = mapped_column(
         String(32), unique=True, nullable=True, index=True

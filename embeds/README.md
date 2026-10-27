@@ -6,6 +6,7 @@
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
 | `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI) |
+| `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
@@ -98,6 +99,26 @@ l'embed n'en reçoit que quelques blocs, affichés floutés sous la question. Le
 questions s'éditent dans la console, ou se génèrent avec l'IA
 (`OPENAI_MODEL_LIB`, sinon `OPENAI_MODEL`). « Nouvelle version » remplace le
 fichier en gardant points de passage et progression des élèves.
+
+## `/classement` : classement des joueurs
+
+**Embed HTML, comme NAVIRE AI.** Coller `classement.html` dans un Embed HTML
+de la page `/classement` (servi aussi par l'API : `GET /leaderboard/embed`).
+Charte bleu et blanc, comme NAVIRE Lib.
+
+- **Joueurs** : podium du top 3 puis la liste, à l'Elo (Général) ou à l'Elo
+  gagné sur 30 ou 7 jours. Ex aequo au même rang. **Ma fac** filtre sur la fac
+  du joueur connecté. Une barre « Ta place » reste en bas, avec l'écart avec la
+  place du dessus.
+- **Facs** : somme de l'Elo des étudiants de chaque fac, et la moyenne.
+- **Fiche joueur** (clic sur un joueur) : Elo, place, palier, gains sur 7 et
+  30 jours, séries, courbe d'Elo sur 30 jours, taux de réussite aux QCM,
+  origine de l'Elo (QCM, Lib…), points de passage Lib.
+- **Curseur « Mes stats visibles »** (activé par défaut) : masqué, les autres
+  ne voient plus que le nom, l'Elo, la place et la fac du joueur, avec un
+  cadenas dans la liste. Le joueur voit toujours ses propres stats.
+
+Sans connexion, le classement reste visible, avec un bouton « Rejoindre ».
 
 ## Côté Stripe
 
