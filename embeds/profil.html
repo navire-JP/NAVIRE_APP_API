@@ -94,9 +94,9 @@
   flex-shrink: 0;
   padding: 2px 8px;
   border-radius: 99px;
-  background: rgba(91,111,255,0.16);
-  border: 1px solid rgba(91,111,255,0.35);
-  color: #c9beff;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.75);
   font-size: 9.5px; font-weight: 700;
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -179,8 +179,8 @@
   gap: 10px;
   padding: 8px 8px 8px 12px;
   border-radius: 12px;
-  background: rgba(255,107,107,0.08);
-  border: 1px solid rgba(255,107,107,0.3);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.1);
 }
 .pp-alert.is-hidden { display: none; }
 .pp-alert-dot {
@@ -194,21 +194,21 @@
   color: rgba(255,255,255,0.82);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.pp-alert-text b { color: #FF8A8A; font-weight: 600; }
+.pp-alert-text b { color: #fff; font-weight: 600; }
 .pp-alert-btn {
   flex-shrink: 0;
   padding: 6px 12px;
   border-radius: 99px;
-  background: rgba(255,107,107,0.16);
-  border: 1px solid rgba(255,107,107,0.4);
-  color: #fff;
+  background: #fff;
+  border: 1px solid #fff;
+  color: #0d0d18;
   font-family: 'Inter', sans-serif;
   font-size: 11px; font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s;
 }
-.pp-alert-btn:hover { background: rgba(255,107,107,0.26); }
+.pp-alert-btn:hover { background: rgba(255,255,255,0.85); }
 
 /* ===== ROW STATS : 3 cartes ===== */
 .pp-stats-row {
@@ -883,16 +883,7 @@
   transition: color 0.15s, border-color 0.15s;
 }
 .pp-tab:hover { color: rgba(255,255,255,0.8); }
-.pp-tab.is-active { color: #fff; border-bottom-color: #5B6FFF; }
-.pp-tab-dot {
-  display: none;
-  position: absolute;
-  top: 7px; right: 2px;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: #FF6B6B;
-}
-.pp-tab.has-dot .pp-tab-dot { display: block; }
+.pp-tab.is-active { color: #fff; border-bottom-color: #fff; }
 
 .pp-set-body {
   flex: 1;
@@ -924,9 +915,9 @@
 }
 .pp-notice b { font-weight: 600; color: #fff; }
 .pp-notice a { color: inherit; font-weight: 600; }
-.pp-notice.is-ok { background: rgba(78,205,196,0.08); border-color: rgba(78,205,196,0.3); color: rgba(160,235,228,0.95); }
-.pp-notice.is-warn { background: rgba(255,209,102,0.08); border-color: rgba(255,209,102,0.3); color: rgba(255,224,150,0.95); }
-.pp-notice.is-error { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.3); color: rgba(255,170,170,0.95); }
+/* Une seule couleur d'alerte dans tout le panneau : le rouge, réservé aux
+   paiements en échec, et en simple liseré. Le reste est en niveaux de gris. */
+.pp-notice.is-error { border-color: rgba(255,107,107,0.35); }
 .pp-notice.is-hidden { display: none; }
 
 /* --- Onglet Abonnement : une carte par abonnement --- */
@@ -963,9 +954,8 @@
   border: 1px solid rgba(255,255,255,0.1);
   color: rgba(255,255,255,0.6);
 }
-.pp-pill.is-ok { background: rgba(78,205,196,0.1); border-color: rgba(78,205,196,0.35); color: #7FE0D8; }
-.pp-pill.is-warn { background: rgba(255,209,102,0.1); border-color: rgba(255,209,102,0.35); color: #FFD166; }
-.pp-pill.is-error { background: rgba(255,107,107,0.1); border-color: rgba(255,107,107,0.35); color: #FF8A8A; }
+.pp-pill.is-ok { color: rgba(255,255,255,0.85); }
+.pp-pill.is-error { border-color: rgba(255,107,107,0.35); color: #FF8A8A; }
 
 .pp-rows {
   display: flex;
@@ -988,7 +978,7 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.pp-row-v.is-warn { color: #FFD166; }
+.pp-row-v.is-warn { color: rgba(255,255,255,0.85); }
 .pp-row-v.is-error { color: #FF8A8A; }
 .pp-row-v.is-muted { color: rgba(255,255,255,0.5); font-weight: 500; }
 
@@ -1016,17 +1006,16 @@
 }
 .pp-act:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
 .pp-act:disabled { opacity: 0.5; cursor: not-allowed; }
-.pp-act-primary { background: #5B6FFF; border-color: transparent; color: #fff; }
-.pp-act-primary:hover { background: #4d5fef; border-color: transparent; }
-.pp-act-danger { background: rgba(255,107,107,0.06); border-color: rgba(255,107,107,0.3); color: #FF8A8A; }
-.pp-act-danger:hover { background: rgba(255,107,107,0.14); border-color: rgba(255,107,107,0.45); }
+.pp-act-primary { background: #fff; border-color: #fff; color: #0d0d18; }
+.pp-act-primary:hover { background: rgba(255,255,255,0.85); border-color: transparent; }
+.pp-act-danger { color: rgba(255,255,255,0.6); }
 .pp-act-link {
   background: none;
   border: none;
   padding: 7px 4px;
   color: rgba(255,255,255,0.45);
 }
-.pp-act-link:hover { background: none; color: #9BA6FF; }
+.pp-act-link:hover { background: none; color: #fff; }
 
 .pp-set-foot {
   font-size: 10.5px;
@@ -1069,7 +1058,7 @@
 .pp-inv-links { display: flex; gap: 8px; }
 .pp-inv-links a {
   font-size: 10.5px; font-weight: 600;
-  color: rgba(155,166,255,0.9);
+  color: rgba(255,255,255,0.6);
   text-decoration: none;
 }
 .pp-inv-links a:hover { text-decoration: underline; }
@@ -1463,7 +1452,7 @@
       </div>
 
       <div class="pp-tabs" role="tablist">
-        <button class="pp-tab is-active" data-tab="abonnement" role="tab">Abonnement<span class="pp-tab-dot"></span></button>
+        <button class="pp-tab is-active" data-tab="abonnement" role="tab">Abonnement</button>
         <button class="pp-tab" data-tab="factures" role="tab">Factures</button>
         <button class="pp-tab" data-tab="securite" role="tab">Sécurité</button>
       </div>
@@ -1940,7 +1929,6 @@
   var alertEl      = document.getElementById('pp-alert');
   var alertText    = document.getElementById('pp-alert-text');
   var settingsBtn  = document.getElementById('pp-settings-open');
-  var tabAbonnement = document.querySelector('.pp-tab[data-tab="abonnement"]');
 
   function subRender(s) {
     // Bloc absent (API pas encore déployée) : rien d'affiché plutôt qu'un faux
@@ -1958,7 +1946,6 @@
     var probleme = !!s.payment_issue;
     alertEl.classList.toggle('is-hidden', !probleme);
     settingsBtn.classList.toggle('has-badge', probleme);
-    tabAbonnement.classList.toggle('has-dot', probleme);
 
     if (probleme) {
       var suspendu = (s.adjuris || []).some(function (a) { return a.status === 'suspendu'; });
@@ -2445,7 +2432,7 @@
 
     var h = '';
     if (billing.stripe_ok === false) {
-      h += '<div class="pp-notice is-warn">Stripe ne répond pas pour le moment : la carte, les montants ou les factures peuvent manquer. Réessaie dans quelques minutes.</div>';
+      h += '<div class="pp-notice">Stripe ne répond pas pour le moment : la carte, les montants ou les factures peuvent manquer. Réessaie dans quelques minutes.</div>';
     }
 
     h += carteNavire(billing.navire || {});
@@ -2497,8 +2484,8 @@
         (n.unpaid_invoice_url ? ' Tu peux aussi <a href="' + esc(n.unpaid_invoice_url) + '" target="_blank" rel="noopener">la régler en ligne</a>.' : '') +
         '</div>';
     } else if (n.status === 'cancelled') {
-      pill = '<span class="pp-pill is-warn">Résilié</span>';
-      notice = '<div class="pp-notice is-warn">Ton abonnement ne sera pas renouvelé' +
+      pill = '<span class="pp-pill">Résilié</span>';
+      notice = '<div class="pp-notice">Ton abonnement ne sera pas renouvelé' +
         (n.access_until ? ' : tu gardes ton accès jusqu\'au <b>' + esc(dateFr(n.access_until)) + '</b>.' : '.') + '</div>';
     } else {
       pill = '<span class="pp-pill is-ok">Actif</span>';
