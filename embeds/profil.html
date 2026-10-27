@@ -1,0 +1,2945 @@
+<!--
+  NAVIRE, page profil (composant embarqué)
+
+  Cette version ajoute de vrais paramètres de compte. La roue ouvre un panneau
+  à trois onglets :
+
+  - Abonnement : chaque abonnement de l'élève (NAVIRE AI, Prép'AdJuris), son
+    état, sa carte, son prochain prélèvement, et ce qu'on peut y faire :
+    changer de carte, résilier, réactiver, gérer la formule sur Stripe. Lu sur
+    GET /subscriptions/billing à l'ouverture, jamais au chargement du profil
+    (Stripe y répond en une à deux secondes).
+  - Factures : les dernières factures, tous abonnements confondus, avec le PDF
+    et le lien de règlement d'une facture en attente.
+  - Sécurité : l'adresse du compte, sa méthode de connexion, et le changement
+    de mot de passe (POST /users/me/password), qui vivait avant dans sa propre
+    modale.
+
+  Changer de carte passe par une page Stripe (POST /subscriptions/payment-
+  method) : l'élève y enregistre sa carte sans rien payer, puis revient sur
+  cette page avec ?billing=card_updated, qui rouvre l'onglet Abonnement. Une
+  facture restée impayée est représentée sur la nouvelle carte dans la foulée.
+
+  Au chargement, le bloc `subscription` de /users/me/profile-summary (lu en
+  base, sans Stripe) affiche la pastille du plan et, en cas d'impayé, une
+  alerte sous l'en-tête qui mène directement à l'onglet Abonnement.
+
+  Rappels des versions précédentes : le décompte du code de liaison Discord
+  reprend en direct au chargement (`discord_link_code`), le bandeau « Deep
+  work » est alimenté par le bloc `deepwork`, et la page devient fluide sous
+  620 px.
+
+  Le fichier est versionné avec l'API pour que le composant suive le contrat
+  des endpoints. Le rendu réel reste hébergé côté site.
+-->
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+.pp-root {
+  width: 620px; height: 583px;
+  max-width: 100%;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+  background: transparent;
+  color: #fff;
+  overflow: hidden;
+  position: relative;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pp-root * { box-sizing: border-box; }
+
+/* ===== HEADER : avatar + identité + actions (modifier / paramètres) ===== */
+.pp-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.pp-avatar {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 22px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+  position: relative;
+}
+.pp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.pp-identity { flex: 1; min-width: 0; }
+.pp-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 4px;
+}
+.pp-name {
+  font-family: 'Inter', sans-serif;
+  font-size: 19px; font-weight: 700;
+  letter-spacing: -0.6px;
+  color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0;
+}
+/* Pastille du plan, à droite du nom. Absente sur l'offre gratuite. */
+.pp-plan-chip {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(91,111,255,0.16);
+  border: 1px solid rgba(91,111,255,0.35);
+  color: #c9beff;
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pp-plan-chip.is-hidden { display: none; }
+.pp-uni {
+  font-size: 12px; color: rgba(255,255,255,0.45);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 6px;
+}
+.pp-uni svg { flex-shrink: 0; opacity: 0.6; }
+
+/* Les deux actions du header vivent côte à côte : le bouton texte
+   « Modifier », et la roue qui ouvre les paramètres du compte. */
+.pp-header-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pp-edit-btn {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.8);
+  font-size: 11.5px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pp-edit-btn:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.18);
+}
+.pp-edit-btn svg { flex-shrink: 0; }
+
+/* Roue paramètres : même langage visuel que le bouton Modifier, en rond.
+   Un point rouge s'y ajoute quand un paiement est en échec. */
+.pp-icon-btn {
+  flex-shrink: 0;
+  width: 34px; height: 34px;
+  padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.75);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.pp-icon-btn:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.18);
+  color: #fff;
+}
+.pp-icon-btn svg { width: 15px; height: 15px; transition: transform 0.35s ease; }
+.pp-icon-btn:hover svg { transform: rotate(60deg); }
+.pp-icon-badge {
+  position: absolute;
+  top: -1px; right: -1px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: #FF6B6B;
+  border: 2px solid #0d0d18;
+  display: none;
+}
+.pp-icon-btn.has-badge .pp-icon-badge { display: block; }
+
+/* ===== ALERTE D'IMPAYÉ : sous l'en-tête, seulement si besoin ===== */
+/* Le classement (flex:1) absorbe sa hauteur : la page garde ses 583 px. */
+.pp-alert {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 12px;
+  border-radius: 12px;
+  background: rgba(255,107,107,0.08);
+  border: 1px solid rgba(255,107,107,0.3);
+}
+.pp-alert.is-hidden { display: none; }
+.pp-alert-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #FF6B6B;
+  flex-shrink: 0;
+}
+.pp-alert-text {
+  flex: 1; min-width: 0;
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.82);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-alert-text b { color: #FF8A8A; font-weight: 600; }
+.pp-alert-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 99px;
+  background: rgba(255,107,107,0.16);
+  border: 1px solid rgba(255,107,107,0.4);
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.pp-alert-btn:hover { background: rgba(255,107,107,0.26); }
+
+/* ===== ROW STATS : 3 cartes ===== */
+.pp-stats-row {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.pp-stat-card {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+}
+.pp-stat-glow {
+  position: absolute;
+  top: -20px; right: -20px;
+  width: 70px; height: 70px;
+  border-radius: 50%;
+  filter: blur(20px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.pp-stat-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-stat-value {
+  font-family: 'Inter', sans-serif;
+  font-size: 22px; font-weight: 700;
+  letter-spacing: -0.8px;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-stat-sub {
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+  margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ===== ENCART DISCORD : liaison de compte + code AJ + deep work ===== */
+/* Deux états exclusifs dans la même carte. L'état « code » est plus haut d'une
+   trentaine de pixels que l'état repos : c'est le bloc classement (flex:1) qui
+   absorbe, la hauteur totale de 583 px ne bouge donc jamais. */
+.pp-discord-card {
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 11px 14px;
+  position: relative;
+  overflow: hidden;
+}
+.pp-dc-glow {
+  position: absolute;
+  top: -26px; left: 40px;
+  width: 90px; height: 90px;
+  border-radius: 50%;
+  background: #5865F2;
+  filter: blur(26px);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+/* --- État repos --- */
+.pp-dc-idle {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  position: relative;
+}
+.pp-dc-idle.is-hidden, .pp-dc-code.is-hidden { display: none; }
+
+.pp-dc-icon {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: rgba(88,101,242,0.16);
+  border: 1px solid rgba(88,101,242,0.3);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pp-dc-icon svg { width: 19px; height: 19px; fill: #9BA6FF; }
+
+.pp-dc-text { flex: 1; min-width: 0; }
+.pp-dc-title {
+  font-size: 12.5px; font-weight: 600; color: #fff;
+  letter-spacing: -0.2px;
+  margin-bottom: 2px;
+}
+.pp-dc-sub {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.4);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 5px;
+}
+.pp-dc-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  flex-shrink: 0;
+}
+.pp-dc-sub-text { overflow: hidden; text-overflow: ellipsis; }
+.pp-dc-sub.is-linked { color: rgba(78,205,196,0.85); }
+.pp-dc-sub.is-linked .pp-dc-dot { background: #4ECDC4; }
+.pp-dc-sub.is-error { color: #FF6B6B; }
+.pp-dc-sub.is-error .pp-dc-dot { background: #FF6B6B; }
+
+/* Colonne d'actions à droite de l'encart : le bouton principal, et quand le
+   compte est lié, un petit lien « Délier » discret en dessous. */
+.pp-dc-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.pp-dc-btn {
+  flex-shrink: 0;
+  padding: 8px 15px;
+  border-radius: 99px;
+  background: #5865F2;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px; font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, transform 0.15s;
+}
+.pp-dc-btn:hover { background: #4a57e0; }
+.pp-dc-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.pp-dc-unlink {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(255,107,107,0.7);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.pp-dc-unlink:hover { color: #FF6B6B; text-decoration: underline; }
+.pp-dc-unlink:disabled { opacity: 0.5; cursor: not-allowed; text-decoration: none; }
+.pp-dc-unlink.is-hidden { display: none; }
+
+/* --- État code affiché --- */
+.pp-dc-code { position: relative; }
+.pp-dc-code-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.pp-dc-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Le décompte est la seule valeur qui bouge chaque seconde : chiffres à
+   chasse fixe, sinon la ligne tremble à chaque tic. */
+.pp-dc-timer {
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px; font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.pp-dc-timer.is-urgent { color: #FFD166; }
+
+.pp-dc-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pp-dc-code-value {
+  font-family: 'Inter', sans-serif;
+  font-size: 21px; font-weight: 800;
+  letter-spacing: 3px;
+  color: #fff;
+  line-height: 1;
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden;
+}
+.pp-dc-mini {
+  flex-shrink: 0;
+  padding: 6px 11px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.78);
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px; font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pp-dc-mini:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.2);
+}
+.pp-dc-mini-primary {
+  background: rgba(88,101,242,0.9);
+  border-color: rgba(255,255,255,0.14);
+  color: #fff;
+}
+.pp-dc-mini-primary:hover { background: #4a57e0; }
+
+.pp-dc-hint {
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+  margin-top: 7px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-dc-hint b {
+  color: rgba(255,255,255,0.62);
+  font-weight: 600;
+}
+
+/* --- Bandeau deep work, en pied de l'encart Discord ---
+   Quatre chiffres alimentés par le bloc `deepwork` de /profile-summary. Le
+   bandeau reste affiché même à zéro session : il devient alors une invitation
+   à rejoindre le vocal, plutôt qu'un encart qui apparaît et disparaît en
+   faisant sauter la hauteur de la carte. */
+.pp-dw {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  position: relative;
+}
+.pp-dw-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.pp-dw-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display: flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+.pp-dw-streak {
+  font-size: 10.5px; font-weight: 600;
+  color: rgba(255,209,102,0.9);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-dw-streak.is-off { color: rgba(255,255,255,0.28); }
+
+.pp-dw-grid {
+  display: flex;
+  gap: 8px;
+}
+.pp-dw-item {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 6px 9px;
+}
+.pp-dw-value {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px; font-weight: 700;
+  letter-spacing: -0.4px;
+  color: #fff;
+  line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-dw-label {
+  font-size: 9.5px;
+  color: rgba(255,255,255,0.38);
+  margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-dw-empty {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.35);
+  line-height: 1.4;
+}
+.pp-dw-empty b { color: rgba(255,255,255,0.6); font-weight: 600; }
+.pp-dw-grid.is-hidden, .pp-dw-empty.is-hidden { display: none; }
+
+/* ===== SECTION : titre de bloc ===== */
+.pp-section-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,0.35);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.pp-section-title .pp-doc-count {
+  color: rgba(255,255,255,0.5);
+  font-weight: 400;
+}
+
+/* ===== CLASSEMENT : zone scrollable qui occupe tout l'espace restant ===== */
+.pp-rank-block {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.pp-rank-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  position: relative;
+  /* Barre de défilement masquée visuellement, le scroll reste actif */
+  scrollbar-width: none;
+}
+.pp-rank-scroll::-webkit-scrollbar { display: none; }
+
+.pp-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-bottom: 4px;
+}
+.pp-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+.pp-rank-row.is-me {
+  background: rgba(91,111,255,0.12);
+  border-color: rgba(91,111,255,0.4);
+}
+.pp-rank-num {
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px; font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  width: 22px; flex-shrink: 0;
+}
+.pp-rank-row.is-me .pp-rank-num { color: #9B6FFF; }
+.pp-rank-avatar {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff;
+  overflow: hidden;
+}
+.pp-rank-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.pp-rank-name {
+  flex: 1; min-width: 0;
+  font-size: 12px; font-weight: 600; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-rank-row.is-me .pp-rank-name { color: #c9beff; }
+.pp-rank-elo {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; font-weight: 600;
+  color: rgba(255,255,255,0.55);
+  flex-shrink: 0;
+}
+
+/* Ligne « moi » flottante, collée au bas de la zone visible. Elle s'efface
+   dès que le scroll atteint la vraie position (voir le JS, qui bascule
+   .is-floating-hidden). Léger fondu en haut pour annoncer la liste réelle
+   en dessous. */
+.pp-rank-sticky-me {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding-top: 14px;
+  background: linear-gradient(to bottom, transparent, rgba(8,8,15,0.001) 30%, rgba(8,8,15,0.55) 60%);
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.pp-rank-sticky-me .pp-rank-row {
+  pointer-events: auto;
+  box-shadow: 0 8px 24px rgba(91,111,255,0.18);
+}
+.pp-rank-sticky-me.is-floating-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ===== DOCS BAR (quota compact) ===== */
+.pp-docs-bar-track {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.pp-docs-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #5B6FFF, #9B6FFF);
+  transition: width 0.4s ease;
+}
+
+/* ===== ÉTATS VIDES ===== */
+.pp-empty {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  padding: 8px 0;
+  text-align: center;
+}
+
+/* ===== CONTENU FIGÉ EN HAUT : s'estompe quand une modale est ouverte ===== */
+.pp-fixed-content {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pp-content-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: opacity 0.25s ease;
+}
+.pp-content-wrap.is-dimmed {
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+/* ===== MODALE ÉDITION ===== */
+.pp-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  z-index: 50;
+}
+.pp-modal-overlay.is-open { display: flex; }
+.pp-modal {
+  width: 320px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
+  background: #0d0d18;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.pp-modal::-webkit-scrollbar { display: none; }
+.pp-modal-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 15px; font-weight: 700;
+  margin-bottom: 16px;
+  letter-spacing: -0.3px;
+}
+.pp-modal-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.pp-modal-avatar-wrap {
+  position: relative;
+  width: 64px; height: 64px;
+  flex-shrink: 0;
+}
+.pp-modal-avatar {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 20px; font-weight: 700;
+}
+.pp-modal-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.pp-upload-btn {
+  position: absolute;
+  bottom: -2px; right: -2px;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #5B6FFF;
+  border: 2px solid #0d0d18;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, transform 0.15s;
+}
+.pp-upload-btn svg { width: 13px; height: 13px; stroke: #fff; flex-shrink: 0; }
+.pp-upload-btn:hover { background: #4d5fef; transform: scale(1.08); }
+.pp-modal-avatar-hint {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+}
+
+.pp-field-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px; font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  display: block;
+}
+.pp-input {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  margin-bottom: 14px;
+  outline: none;
+}
+.pp-input:focus { border-color: #5B6FFF; }
+
+.pp-modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.pp-btn {
+  flex: 1;
+  text-align: center;
+  padding: 10px;
+  border-radius: 99px;
+  font-size: 12.5px; font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: 'Inter', sans-serif;
+}
+.pp-btn-cancel {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.7);
+}
+.pp-btn-cancel:hover { background: rgba(255,255,255,0.08); }
+.pp-btn-save {
+  background: #5B6FFF;
+  color: #fff;
+}
+.pp-btn-save:hover { background: #4d5fef; }
+.pp-btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.pp-modal-error {
+  font-size: 11px;
+  color: #FF6B6B;
+  margin-top: -6px;
+  margin-bottom: 10px;
+  display: none;
+}
+.pp-modal-error.is-visible { display: block; }
+
+/* Lien discret en pied de la modale édition : deuxième chemin vers l'onglet
+   Sécurité des paramètres, pour qui cherche « modifier » d'abord. */
+.pp-modal-foot {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  display: flex;
+  justify-content: center;
+}
+.pp-modal-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: color 0.15s;
+}
+.pp-modal-link:hover { color: #9BA6FF; }
+.pp-modal-link svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+/* ===== PANNEAU PARAMÈTRES ===== */
+/* Occupe toute la carte : trois onglets ne tiennent pas dans une modale de
+   320 px. Un seul panneau ouvert à la fois, modale d'édition comprise. */
+.pp-settings {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  padding: 12px;
+}
+.pp-settings.is-open { display: flex; }
+.pp-set-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0d0d18;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.pp-set-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px 0;
+  flex-shrink: 0;
+}
+.pp-set-title {
+  font-size: 15px; font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.pp-set-close {
+  width: 30px; height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.pp-set-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.pp-set-close svg { width: 13px; height: 13px; }
+
+.pp-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 18px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+}
+.pp-tab {
+  position: relative;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 8px 10px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px; font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.pp-tab:hover { color: rgba(255,255,255,0.8); }
+.pp-tab.is-active { color: #fff; border-bottom-color: #5B6FFF; }
+.pp-tab-dot {
+  display: none;
+  position: absolute;
+  top: 7px; right: 2px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #FF6B6B;
+}
+.pp-tab.has-dot .pp-tab-dot { display: block; }
+
+.pp-set-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 18px 18px;
+  scrollbar-width: none;
+}
+.pp-set-body::-webkit-scrollbar { display: none; }
+.pp-pane.is-hidden { display: none; }
+
+.pp-set-loading {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  text-align: center;
+  padding: 30px 0;
+}
+
+/* Bandeaux d'information en tête d'onglet ou de carte */
+.pp-notice {
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  margin-bottom: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.75);
+}
+.pp-notice b { font-weight: 600; color: #fff; }
+.pp-notice a { color: inherit; font-weight: 600; }
+.pp-notice.is-ok { background: rgba(78,205,196,0.08); border-color: rgba(78,205,196,0.3); color: rgba(160,235,228,0.95); }
+.pp-notice.is-warn { background: rgba(255,209,102,0.08); border-color: rgba(255,209,102,0.3); color: rgba(255,224,150,0.95); }
+.pp-notice.is-error { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.3); color: rgba(255,170,170,0.95); }
+.pp-notice.is-hidden { display: none; }
+
+/* --- Onglet Abonnement : une carte par abonnement --- */
+.pp-sub-card {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 13px 14px;
+  margin-bottom: 10px;
+}
+.pp-sub-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.pp-sub-name {
+  font-size: 13.5px; font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.pp-sub-meta {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.42);
+  margin-top: 2px;
+}
+.pp-pill {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 10px; font-weight: 600;
+  white-space: nowrap;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.6);
+}
+.pp-pill.is-ok { background: rgba(78,205,196,0.1); border-color: rgba(78,205,196,0.35); color: #7FE0D8; }
+.pp-pill.is-warn { background: rgba(255,209,102,0.1); border-color: rgba(255,209,102,0.35); color: #FFD166; }
+.pp-pill.is-error { background: rgba(255,107,107,0.1); border-color: rgba(255,107,107,0.35); color: #FF8A8A; }
+
+.pp-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.pp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 11.5px;
+}
+.pp-row-k { color: rgba(255,255,255,0.42); flex-shrink: 0; }
+.pp-row-v {
+  color: #fff;
+  font-weight: 600;
+  text-align: right;
+  min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.pp-row-v.is-warn { color: #FFD166; }
+.pp-row-v.is-error { color: #FF8A8A; }
+.pp-row-v.is-muted { color: rgba(255,255,255,0.5); font-weight: 500; }
+
+.pp-sub-card .pp-notice { margin: 10px 0 0; }
+
+.pp-sub-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+}
+.pp-act {
+  padding: 7px 13px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px; font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pp-act:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+.pp-act:disabled { opacity: 0.5; cursor: not-allowed; }
+.pp-act-primary { background: #5B6FFF; border-color: transparent; color: #fff; }
+.pp-act-primary:hover { background: #4d5fef; border-color: transparent; }
+.pp-act-danger { background: rgba(255,107,107,0.06); border-color: rgba(255,107,107,0.3); color: #FF8A8A; }
+.pp-act-danger:hover { background: rgba(255,107,107,0.14); border-color: rgba(255,107,107,0.45); }
+.pp-act-link {
+  background: none;
+  border: none;
+  padding: 7px 4px;
+  color: rgba(255,255,255,0.45);
+}
+.pp-act-link:hover { background: none; color: #9BA6FF; }
+
+.pp-set-foot {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.32);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* --- Onglet Factures --- */
+.pp-inv {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.pp-inv:last-child { border-bottom: none; }
+.pp-inv-main { flex: 1; min-width: 0; }
+.pp-inv-title {
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-inv-sub {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.4);
+  margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-inv-side {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.pp-inv-amount {
+  font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pp-inv-links { display: flex; gap: 8px; }
+.pp-inv-links a {
+  font-size: 10.5px; font-weight: 600;
+  color: rgba(155,166,255,0.9);
+  text-decoration: none;
+}
+.pp-inv-links a:hover { text-decoration: underline; }
+
+/* --- Onglet Sécurité --- */
+.pp-sec-block {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 13px 14px;
+  margin-bottom: 14px;
+}
+.pp-sec-title {
+  font-size: 13.5px; font-weight: 700;
+  letter-spacing: -0.2px;
+  margin-bottom: 4px;
+}
+.pp-modal-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.42);
+  line-height: 1.45;
+  margin: 0 0 14px;
+}
+.pp-modal-sub b { color: rgba(255,255,255,0.65); font-weight: 600; }
+
+.pp-input-wrap { position: relative; }
+.pp-input-wrap .pp-input { padding-right: 42px; }
+.pp-eye {
+  position: absolute;
+  top: 7px; right: 8px;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  color: rgba(255,255,255,0.35);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.pp-eye:hover { color: rgba(255,255,255,0.75); }
+.pp-eye svg { width: 15px; height: 15px; }
+
+/* Règles de la politique de mot de passe, identiques à celles de l'API
+   (8 à 72 caractères, 1 majuscule, 1 chiffre ou symbole). Elles s'allument
+   à la frappe : l'utilisateur voit ce qui manque avant d'envoyer. */
+.pp-rules {
+  list-style: none;
+  margin: -8px 0 13px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pp-rule {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.32);
+  display: flex; align-items: center; gap: 6px;
+  transition: color 0.15s;
+}
+.pp-rule-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255,255,255,0.22);
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.pp-rule.is-ok { color: rgba(78,205,196,0.85); }
+.pp-rule.is-ok .pp-rule-dot { background: #4ECDC4; }
+
+.pp-modal-success {
+  font-size: 11px;
+  color: rgba(78,205,196,0.9);
+  margin-top: -6px;
+  margin-bottom: 10px;
+  display: none;
+}
+.pp-modal-success.is-visible { display: block; }
+
+.pp-pwd-field.is-hidden { display: none; }
+.pp-pwd-actions { display: flex; justify-content: flex-end; }
+.pp-pwd-actions .pp-btn { flex: 0 0 auto; padding: 10px 22px; }
+
+/* ===== CHARGEMENT ===== */
+.pp-loading {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  font-family: 'Inter', sans-serif;
+  z-index: 10;
+}
+
+/* ===== TÉLÉPHONE =====
+   La page était figée à 620 x 583 : dans une frame plus étroite, les trois
+   colonnes de l'encart Discord se comprimaient jusqu'à se chevaucher. Elle
+   devient fluide, et l'encart se réduit à l'essentiel plutôt que de tout
+   garder en miniature. */
+@media (max-width: 620px) {
+  /* Hauteur libre : empilé, le haut de page dépasse à lui seul les 583 px, et
+     le classement n'a plus de place à se réserver. C'est donc la page qui
+     défile, pas une zone interne. */
+  .pp-root {
+    width: 100%;
+    height: auto;
+    min-height: 583px;
+    overflow: visible;
+    padding: 14px;
+    gap: 10px;
+  }
+  .pp-rank-scroll { overflow: visible; }
+
+  /* La ligne « moi » flottante n'a plus de sens quand la liste est déroulée
+     en entier : elle ferait doublon avec la vraie, quelques lignes plus bas. */
+  .pp-rank-sticky-me { display: none; }
+
+  /* Les modales et les paramètres se centrent sur l'écran, pas sur la carte :
+     celle-ci fait désormais plusieurs milliers de pixels de haut, un panneau
+     centré dessus s'ouvrirait hors du champ visible. */
+  .pp-modal-overlay, .pp-settings { position: fixed; }
+  .pp-modal-overlay.is-open, .pp-settings.is-open { background: rgba(6,6,12,0.72); }
+  .pp-settings { padding: 10px; }
+}
+
+@media (max-width: 520px) {
+  .pp-header { gap: 11px; }
+  .pp-avatar { width: 52px; height: 52px; font-size: 18px; }
+  .pp-name { font-size: 17px; }
+  .pp-name-row { margin-bottom: 3px; }
+
+  /* Le mot « Modifier » disparaît : deux ronds alignés, le crayon et la roue. */
+  .pp-edit-btn {
+    width: 34px; height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+    gap: 0;
+  }
+  .pp-edit-label { display: none; }
+
+  .pp-alert-text { white-space: normal; line-height: 1.35; }
+
+  .pp-stats-row { flex-wrap: wrap; gap: 8px; }
+  .pp-stat-card { flex: 1 1 calc(50% - 4px); padding: 10px 12px; }
+  .pp-stat-value { font-size: 19px; }
+
+  /* Encart Discord minimal : plus d'icône, une seule colonne, action pleine
+     largeur. Le statut reste, c'est la seule information qui compte ici. */
+  .pp-discord-card { padding: 11px 12px; }
+  .pp-dc-icon { display: none; }
+  .pp-dc-idle { flex-wrap: wrap; gap: 9px; }
+  .pp-dc-text { flex: 1 1 100%; }
+  .pp-dc-actions {
+    flex: 1 1 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  .pp-dc-btn { flex: 1; padding: 9px 12px; }
+
+  /* Le code passe sur sa propre ligne, les deux actions se partagent la
+     suivante à parts égales. */
+  .pp-dc-code-row { flex-wrap: wrap; }
+  .pp-dc-code-value { flex: 1 1 100%; font-size: 19px; letter-spacing: 2.5px; }
+  .pp-dc-mini { flex: 1; }
+  .pp-dc-hint { white-space: normal; line-height: 1.35; }
+
+  .pp-dw-grid { flex-wrap: wrap; }
+  .pp-dw-item { flex: 1 1 calc(50% - 4px); }
+
+  /* Paramètres : plein écran, onglets sur toute la largeur. */
+  .pp-settings { padding: 0; }
+  .pp-set-panel { border-radius: 0; border: none; }
+  .pp-set-head { padding: 14px 14px 0; }
+  .pp-tabs { padding: 8px 14px 0; }
+  .pp-tab { flex: 1; padding: 8px 4px 10px; }
+  .pp-set-body { padding: 12px 14px 18px; }
+  .pp-sub-actions .pp-act:not(.pp-act-link) { flex: 1 1 auto; text-align: center; }
+  .pp-row-v { white-space: normal; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-icon-btn, .pp-icon-btn svg, .pp-content-wrap, .pp-rank-sticky-me, .pp-docs-bar-fill { transition: none; }
+  .pp-icon-btn:hover svg { transform: none; }
+}
+</style>
+
+<div class="pp-root" id="pp-root">
+
+  <div class="pp-loading" id="pp-loading">CHARGEMENT…</div>
+
+  <div class="pp-content-wrap" id="pp-content">
+
+    <!-- BLOC FIGÉ : header et stats, jamais affectés par le scroll du classement -->
+    <div class="pp-fixed-content">
+      <!-- HEADER -->
+      <div class="pp-header">
+        <div class="pp-avatar" id="pp-avatar">…</div>
+        <div class="pp-identity">
+          <div class="pp-name-row">
+            <div class="pp-name" id="pp-name">…</div>
+            <span class="pp-plan-chip is-hidden" id="pp-plan-chip"></span>
+          </div>
+          <div class="pp-uni" id="pp-uni">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></svg>
+            <span id="pp-uni-text">…</span>
+          </div>
+        </div>
+        <div class="pp-header-actions">
+          <button class="pp-edit-btn" id="pp-edit-open" title="Modifier mon profil" aria-label="Modifier mon profil">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span class="pp-edit-label">Modifier</span>
+          </button>
+          <button class="pp-icon-btn" id="pp-settings-open" title="Paramètres du compte" aria-label="Paramètres du compte">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+            </svg>
+            <span class="pp-icon-badge"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ALERTE D'IMPAYÉ (masquée tant que tout est réglé) -->
+      <div class="pp-alert is-hidden" id="pp-alert">
+        <span class="pp-alert-dot"></span>
+        <span class="pp-alert-text" id="pp-alert-text"><b>Paiement refusé.</b> Mets ta carte à jour pour garder ton accès.</span>
+        <button class="pp-alert-btn" id="pp-alert-btn">Mettre à jour</button>
+      </div>
+
+      <!-- STATS -->
+      <div class="pp-stats-row">
+        <div class="pp-stat-card">
+          <div class="pp-stat-glow" style="background:#5B6FFF;"></div>
+          <div class="pp-stat-label">ELO</div>
+          <div class="pp-stat-value" id="pp-elo-val">…</div>
+          <div class="pp-stat-sub" id="pp-elo-rank">rang …</div>
+        </div>
+        <div class="pp-stat-card">
+          <div class="pp-stat-glow" style="background:#4ECDC4;"></div>
+          <div class="pp-stat-label">Réussite QCM</div>
+          <div class="pp-stat-value" id="pp-qcm-val">…</div>
+          <div class="pp-stat-sub" id="pp-qcm-sub">… sessions</div>
+        </div>
+        <div class="pp-stat-card">
+          <div class="pp-stat-glow" style="background:#FFD166;"></div>
+          <div class="pp-stat-label">Documents</div>
+          <div class="pp-stat-value" id="pp-docs-val">…</div>
+          <div class="pp-docs-bar-track"><div class="pp-docs-bar-fill" id="pp-docs-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- ENCART DISCORD : liaison de compte, code AJ, puis stats deep work -->
+      <div class="pp-discord-card">
+        <div class="pp-dc-glow"></div>
+
+        <!-- État repos -->
+        <div class="pp-dc-idle" id="pp-dc-idle">
+          <div class="pp-dc-icon">
+            <svg viewBox="0 0 24 24"><path d="M19.54 5.34A16.1 16.1 0 0 0 15.5 4.1l-.2.37c1.32.32 2.53.87 3.66 1.64a12.7 12.7 0 0 0-9.92 0A11.6 11.6 0 0 1 12.7 4.5l-.2-.4a16.1 16.1 0 0 0-4.04 1.24C5.9 8.86 5.2 12.29 5.5 15.67a16.2 16.2 0 0 0 4.9 2.47l.4-.55c-.68-.25-1.33-.56-1.94-.93l.16-.12a11.6 11.6 0 0 0 9.96 0l.16.12c-.61.37-1.26.68-1.94.93l.4.55c1.75-.54 3.4-1.38 4.9-2.47.36-3.92-.76-7.32-2.96-10.33ZM9.9 13.9c-.96 0-1.75-.88-1.75-1.96s.77-1.97 1.75-1.97c.98 0 1.77.89 1.75 1.97 0 1.08-.77 1.96-1.75 1.96Zm4.45 0c-.96 0-1.75-.88-1.75-1.96s.77-1.97 1.75-1.97c.98 0 1.77.89 1.75 1.97 0 1.08-.77 1.96-1.75 1.96Z"/></svg>
+          </div>
+          <div class="pp-dc-text">
+            <div class="pp-dc-title">Compte Discord</div>
+            <div class="pp-dc-sub" id="pp-dc-status">
+              <span class="pp-dc-dot"></span>
+              <span class="pp-dc-sub-text" id="pp-dc-status-text">Non connecté</span>
+            </div>
+          </div>
+          <div class="pp-dc-actions" id="pp-dc-actions">
+            <button class="pp-dc-btn" id="pp-dc-connect">Connecter mes comptes</button>
+            <button class="pp-dc-unlink is-hidden" id="pp-dc-unlink">Délier mon compte</button>
+          </div>
+        </div>
+
+        <!-- État code affiché -->
+        <div class="pp-dc-code is-hidden" id="pp-dc-code">
+          <div class="pp-dc-code-head">
+            <span class="pp-dc-label">Code de connexion Discord</span>
+            <span class="pp-dc-timer" id="pp-dc-timer">…</span>
+          </div>
+          <div class="pp-dc-code-row">
+            <div class="pp-dc-code-value" id="pp-dc-code-value">········</div>
+            <button class="pp-dc-mini" id="pp-dc-copy">Copier</button>
+            <a class="pp-dc-mini pp-dc-mini-primary" id="pp-dc-open" target="_blank" rel="noopener">Ouvrir Discord</a>
+          </div>
+          <div class="pp-dc-hint" id="pp-dc-hint">…</div>
+        </div>
+
+        <!-- Deep work : temps de travail en vocal, objectifs tenus, série -->
+        <div class="pp-dw" id="pp-dw">
+          <div class="pp-dw-head">
+            <span class="pp-dw-title">🌊 Deep work</span>
+            <span class="pp-dw-streak is-off" id="pp-dw-streak">…</span>
+          </div>
+          <div class="pp-dw-grid is-hidden" id="pp-dw-grid">
+            <div class="pp-dw-item">
+              <div class="pp-dw-value" id="pp-dw-total">…</div>
+              <div class="pp-dw-label">travaillées</div>
+            </div>
+            <div class="pp-dw-item">
+              <div class="pp-dw-value" id="pp-dw-sessions">…</div>
+              <div class="pp-dw-label">sessions</div>
+            </div>
+            <div class="pp-dw-item">
+              <div class="pp-dw-value" id="pp-dw-goals">…</div>
+              <div class="pp-dw-label">objectifs tenus</div>
+            </div>
+            <div class="pp-dw-item">
+              <div class="pp-dw-value" id="pp-dw-week">…</div>
+              <div class="pp-dw-label">7 derniers jours</div>
+            </div>
+          </div>
+          <div class="pp-dw-empty" id="pp-dw-empty">
+            Rejoins le salon vocal <b>deep work</b> sur Discord : ton temps de travail,
+            tes objectifs et ta série s'afficheront ici.
+          </div>
+        </div>
+      </div>
+
+      <div class="pp-section-title">
+        <span>Classement</span>
+      </div>
+    </div>
+
+    <!-- BLOC CLASSEMENT : seule zone scrollable -->
+    <div class="pp-rank-block">
+      <div class="pp-rank-scroll" id="pp-rank-scroll">
+        <div class="pp-rank-list" id="pp-rank-list">
+          <div class="pp-empty">…</div>
+        </div>
+      </div>
+      <!-- Ligne « moi » flottante, collée en bas tant que le scroll n'a pas
+           atteint ma vraie position dans la liste au-dessus -->
+      <div class="pp-rank-sticky-me" id="pp-rank-sticky-me"></div>
+    </div>
+
+  </div>
+
+  <!-- MODALE ÉDITION -->
+  <div class="pp-modal-overlay" id="pp-modal-overlay">
+    <div class="pp-modal">
+      <div class="pp-modal-title">Modifier mon profil</div>
+
+      <div class="pp-modal-avatar-row">
+        <div class="pp-modal-avatar-wrap">
+          <div class="pp-modal-avatar" id="pp-modal-avatar">…</div>
+          <button class="pp-upload-btn" id="pp-upload-btn" title="Changer la photo" aria-label="Changer la photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </button>
+          <input type="file" id="pp-file-input" accept="image/jpeg,image/jpg,image/png,image/webp" style="display:none;">
+        </div>
+        <div class="pp-modal-avatar-hint" id="pp-modal-avatar-hint">Clique sur l'icône pour changer ta photo</div>
+      </div>
+
+      <label class="pp-field-label">Nom affiché</label>
+      <input class="pp-input" id="pp-input-name" type="text" maxlength="64" placeholder="Ton nom">
+
+      <div class="pp-modal-error" id="pp-modal-error">Une erreur est survenue.</div>
+
+      <div class="pp-modal-actions">
+        <button class="pp-btn pp-btn-cancel" id="pp-modal-cancel">Annuler</button>
+        <button class="pp-btn pp-btn-save" id="pp-modal-save">Enregistrer</button>
+      </div>
+
+      <div class="pp-modal-foot">
+        <button class="pp-modal-link" id="pp-goto-password">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span id="pp-goto-password-label">Modifier mon mot de passe</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANNEAU PARAMÈTRES : Abonnement, Factures, Sécurité -->
+  <div class="pp-settings" id="pp-settings" role="dialog" aria-modal="true" aria-labelledby="pp-set-title">
+    <div class="pp-set-panel">
+      <div class="pp-set-head">
+        <div class="pp-set-title" id="pp-set-title">Paramètres</div>
+        <button class="pp-set-close" id="pp-set-close" aria-label="Fermer les paramètres">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="pp-tabs" role="tablist">
+        <button class="pp-tab is-active" data-tab="abonnement" role="tab">Abonnement<span class="pp-tab-dot"></span></button>
+        <button class="pp-tab" data-tab="factures" role="tab">Factures</button>
+        <button class="pp-tab" data-tab="securite" role="tab">Sécurité</button>
+      </div>
+
+      <div class="pp-set-body" id="pp-set-body">
+        <div class="pp-notice is-hidden" id="pp-set-notice"></div>
+
+        <!-- Onglet Abonnement : rempli par renderAbonnement() -->
+        <div class="pp-pane" id="pp-pane-abonnement">
+          <div class="pp-set-loading">Chargement…</div>
+        </div>
+
+        <!-- Onglet Factures : rempli par renderFactures() -->
+        <div class="pp-pane is-hidden" id="pp-pane-factures">
+          <div class="pp-set-loading">Chargement…</div>
+        </div>
+
+        <!-- Onglet Sécurité -->
+        <div class="pp-pane is-hidden" id="pp-pane-securite">
+          <div class="pp-sec-block">
+            <div class="pp-rows">
+              <div class="pp-row"><span class="pp-row-k">Adresse email</span><span class="pp-row-v" id="pp-sec-email">…</span></div>
+              <div class="pp-row"><span class="pp-row-k">Connexion</span><span class="pp-row-v" id="pp-sec-login">…</span></div>
+            </div>
+          </div>
+
+          <div class="pp-sec-title" id="pp-pwd-title">Modifier mon mot de passe</div>
+          <div class="pp-modal-sub" id="pp-pwd-sub">
+            Tu resteras connecté sur cet appareil après le changement.
+          </div>
+
+          <div class="pp-pwd-field" id="pp-pwd-current-field">
+            <label class="pp-field-label">Mot de passe actuel</label>
+            <div class="pp-input-wrap">
+              <input class="pp-input" id="pp-pwd-current" type="password" maxlength="72" autocomplete="current-password" placeholder="Ton mot de passe actuel">
+              <button class="pp-eye" data-target="pp-pwd-current" type="button" aria-label="Afficher le mot de passe">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <label class="pp-field-label">Nouveau mot de passe</label>
+          <div class="pp-input-wrap">
+            <input class="pp-input" id="pp-pwd-new" type="password" maxlength="72" autocomplete="new-password" placeholder="Nouveau mot de passe">
+            <button class="pp-eye" data-target="pp-pwd-new" type="button" aria-label="Afficher le mot de passe">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+
+          <ul class="pp-rules">
+            <li class="pp-rule" id="pp-rule-len"><span class="pp-rule-dot"></span>8 caractères minimum</li>
+            <li class="pp-rule" id="pp-rule-upper"><span class="pp-rule-dot"></span>au moins 1 majuscule</li>
+            <li class="pp-rule" id="pp-rule-num"><span class="pp-rule-dot"></span>au moins 1 chiffre ou 1 symbole</li>
+          </ul>
+
+          <label class="pp-field-label">Confirmer le nouveau mot de passe</label>
+          <div class="pp-input-wrap">
+            <input class="pp-input" id="pp-pwd-confirm" type="password" maxlength="72" autocomplete="new-password" placeholder="Retape le nouveau mot de passe">
+            <button class="pp-eye" data-target="pp-pwd-confirm" type="button" aria-label="Afficher le mot de passe">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="pp-modal-error" id="pp-pwd-error">Une erreur est survenue.</div>
+          <div class="pp-modal-success" id="pp-pwd-success">Mot de passe mis à jour.</div>
+
+          <div class="pp-pwd-actions">
+            <button class="pp-btn pp-btn-save" id="pp-pwd-save">Enregistrer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  // ── CONFIG ──────────────────────────────────────────────
+  var CONFIG = {
+    API: 'https://navire-app-api.onrender.com',
+    // Bouton « Voir les offres » d'un compte gratuit
+    OFFRES_URL: 'https://navire-ai.com/offres'
+  };
+  var API = CONFIG.API;
+
+  var token = '';
+  try { token = localStorage.getItem('navire_token') || ''; } catch (e) {}
+
+  var root = document.getElementById('pp-root');
+  var loadingEl = document.getElementById('pp-loading');
+
+  // Seuil unique pour tout ce qui change de forme sur téléphone. Il double la
+  // règle CSS du même nom : les libellés, eux, ne se raccourcissent pas en CSS.
+  var petitEcran = window.matchMedia('(max-width: 520px)');
+
+  function authHeaders(extra) {
+    var h = { 'Authorization': 'Bearer ' + token };
+    if (extra) for (var k in extra) h[k] = extra[k];
+    return h;
+  }
+
+  function initial(name) {
+    return (name || '?').trim().charAt(0).toUpperCase() || '?';
+  }
+
+  function setAvatarNode(node, url, name) {
+    if (url) {
+      node.innerHTML = '<img src="' + url + '" alt="">';
+    } else {
+      node.textContent = initial(name);
+    }
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // Message lisible d'une erreur de l'API : detail peut être une chaîne, un
+  // objet { code, message } ou la liste de validation de FastAPI.
+  function detailMessage(d, status) {
+    if (!d) return 'Une erreur est survenue (HTTP ' + status + ').';
+    if (typeof d === 'string') return d;
+    if (d.message) return d.message;
+    if (Array.isArray(d)) return d.map(function (x) { return x.msg; }).join(' · ');
+    return 'Une erreur est survenue (HTTP ' + status + ').';
+  }
+
+  // Appel JSON authentifié : rejette avec le message de l'API.
+  function api(method, path, body) {
+    return fetch(API + path, {
+      method: method,
+      headers: authHeaders(body ? { 'Content-Type': 'application/json' } : null),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (r.status === 401) throw new Error('Session expirée, reconnecte-toi.');
+        if (!r.ok) throw new Error(detailMessage(j.detail, r.status));
+        return j;
+      });
+    });
+  }
+
+  // Sortie vers Stripe : la page entière, pas l'iframe.
+  function go(url) {
+    try { window.top.location.href = url; } catch (e) { window.open(url, '_blank'); }
+  }
+
+  // Adresse de la page qui héberge l'embed, pour que Stripe y ramène l'élève.
+  // L'API ne la retient que sur le domaine du site.
+  function pageUrl() {
+    try { if (window.top.location.href) return window.top.location.href; } catch (e) {}
+    try { if (document.referrer) return document.referrer; } catch (e) {}
+    return null;
+  }
+
+  var currentProfile = null; // dernier payload /profile-summary
+
+  // ============================================================
+  // CONSTRUCTION D'UNE LIGNE DE CLASSEMENT
+  // ============================================================
+  function buildRankRow(rankNum, username, eloVal, avatarUrl, isMe) {
+    var rowEl = document.createElement('div');
+    rowEl.className = 'pp-rank-row' + (isMe ? ' is-me' : '');
+
+    var numEl = document.createElement('div');
+    numEl.className = 'pp-rank-num';
+    numEl.textContent = '#' + rankNum;
+
+    var avEl = document.createElement('div');
+    avEl.className = 'pp-rank-avatar';
+    setAvatarNode(avEl, avatarUrl, username);
+
+    var nameEl = document.createElement('div');
+    nameEl.className = 'pp-rank-name';
+    nameEl.textContent = isMe ? (username || '…') + ' (toi)' : (username || '…');
+
+    var eloEl = document.createElement('div');
+    eloEl.className = 'pp-rank-elo';
+    eloEl.textContent = eloVal + ' elo';
+
+    rowEl.appendChild(numEl);
+    rowEl.appendChild(avEl);
+    rowEl.appendChild(nameEl);
+    rowEl.appendChild(eloEl);
+    return rowEl;
+  }
+
+  // ============================================================
+  // ENCART DISCORD : code de liaison à durée courte, et déliaison
+  // ============================================================
+  var dcIdle       = document.getElementById('pp-dc-idle');
+  var dcCodeBox    = document.getElementById('pp-dc-code');
+  var dcStatus     = document.getElementById('pp-dc-status');
+  var dcStatusText = document.getElementById('pp-dc-status-text');
+  var dcConnect    = document.getElementById('pp-dc-connect');
+  var dcUnlink     = document.getElementById('pp-dc-unlink');
+  var dcTimer      = document.getElementById('pp-dc-timer');
+  var dcValue      = document.getElementById('pp-dc-code-value');
+  var dcCopy       = document.getElementById('pp-dc-copy');
+  var dcOpen       = document.getElementById('pp-dc-open');
+  var dcHint       = document.getElementById('pp-dc-hint');
+
+  var dcTicker = null;      // setInterval du décompte
+  var dcTick = null;        // fonction de tic courante, rejouée à la reprise d'onglet
+  var dcCurrentCode = '';
+
+  function dcSetStatus(text, kind) {
+    dcStatusText.textContent = text;
+    dcStatus.className = 'pp-dc-sub' + (kind ? ' is-' + kind : '');
+  }
+
+  function dcShowIdle() {
+    dcIdle.classList.remove('is-hidden');
+    dcCodeBox.classList.add('is-hidden');
+    if (dcTicker) { clearInterval(dcTicker); dcTicker = null; }
+    dcTick = null;
+  }
+
+  function dcShowCode() {
+    dcIdle.classList.add('is-hidden');
+    dcCodeBox.classList.remove('is-hidden');
+  }
+
+  function dcFormatTime(sec) {
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function dcStartCountdown(seconds) {
+    if (dcTicker) clearInterval(dcTicker);
+
+    // Échéance absolue plutôt qu'un compteur décrémenté à chaque tic : un
+    // onglet passé en arrière-plan voit ses minuteurs ralentis par le
+    // navigateur, et un compteur décrémenté afficherait un temps faux au
+    // retour. Ici, chaque tic relit l'horloge, donc le décompte reste juste.
+    var echeance = Date.now() + Math.max(0, seconds) * 1000;
+
+    dcTick = function () {
+      var left = Math.round((echeance - Date.now()) / 1000);
+      if (left <= 0) {
+        dcShowIdle();
+        dcSetStatus('Code expiré, demandes-en un nouveau', 'error');
+        return;
+      }
+      dcTimer.textContent = 'expire dans ' + dcFormatTime(left);
+      dcTimer.classList.toggle('is-urgent', left <= 60);
+    };
+
+    dcTick();
+    dcTicker = setInterval(function () { if (dcTick) dcTick(); }, 1000);
+  }
+
+  // Retour sur l'onglet : on remet le décompte à l'heure tout de suite, sans
+  // attendre le prochain tic.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && dcTick) dcTick();
+  });
+
+  // Affichage d'un code, qu'il vienne d'être émis ou qu'il courait déjà.
+  function dcShowCodeData(d) {
+    dcCurrentCode = d.code || '';
+    dcValue.textContent = dcCurrentCode;
+    dcHint.innerHTML =
+      'À saisir dans Discord avec ton identifiant <b>' + esc(d.user_id != null ? d.user_id : '…') +
+      '</b> et <b>' + esc(d.email || '…') + '</b>';
+    if (d.discord_url) {
+      dcOpen.href = d.discord_url;
+      dcOpen.style.display = '';
+    } else {
+      dcOpen.style.display = 'none';
+    }
+    dcCopy.textContent = 'Copier';
+    dcShowCode();
+    dcStartCountdown(d.expires_in != null ? d.expires_in : 300);
+  }
+
+  function dcRequestCode() {
+    if (!token) return;
+
+    dcConnect.disabled = true;
+    dcConnect.textContent = 'Génération…';
+
+    fetch(API + '/users/me/discord-code', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' })
+    })
+      .then(function (r) {
+        if (r.status === 429) throw new Error('RATE');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        dcShowCodeData(d);
+      })
+      .catch(function (err) {
+        if (err && err.message === 'RATE') {
+          dcSetStatus('Trop de codes demandés, réessaie dans quelques minutes', 'error');
+        } else {
+          dcSetStatus('Génération impossible, réessaie', 'error');
+          console.error('[discord-code]', err);
+        }
+      })
+      .finally(function () {
+        dcConnect.disabled = false;
+        dcConnect.textContent = dcConnectLabel();
+      });
+  }
+
+  // Libellés courts sur téléphone : le bouton y passe pleine largeur sous le
+  // statut, une phrase entière y paraît bavarde.
+  function dcConnectLabel() {
+    var linked = currentProfile && currentProfile.user && currentProfile.user.discord_linked;
+    if (petitEcran.matches) return linked ? 'Relier un autre' : 'Connecter';
+    return linked ? 'Relier un autre compte' : 'Connecter mes comptes';
+  }
+
+  function dcUnlinkLabel() {
+    return petitEcran.matches ? 'Délier' : 'Délier mon compte';
+  }
+
+  function dcSyncLabels() {
+    if (!dcConnect.disabled) dcConnect.textContent = dcConnectLabel();
+    if (!dcUnlink.disabled) dcUnlink.textContent = dcUnlinkLabel();
+  }
+
+  if (petitEcran.addEventListener) petitEcran.addEventListener('change', dcSyncLabels);
+  else if (petitEcran.addListener) petitEcran.addListener(dcSyncLabels);
+
+  function dcRequestUnlink() {
+    if (!token) return;
+    if (!confirm('Délier ton compte Discord de NAVIRE ? Tu pourras en relier un autre ensuite.')) return;
+
+    dcUnlink.disabled = true;
+    dcConnect.disabled = true;
+    dcUnlink.textContent = 'Déliaison…';
+
+    fetch(API + '/users/me/discord-unlink', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' })
+    })
+      .then(function (r) {
+        if (!r.ok) {
+          return r.json().catch(function () { return {}; }).then(function (j) {
+            throw new Error(j.detail || ('HTTP ' + r.status));
+          });
+        }
+        return r.json();
+      })
+      .then(function (u) {
+        if (currentProfile) currentProfile.user = u;
+        dcRender(u);
+      })
+      .catch(function (err) {
+        dcSetStatus('Déliaison impossible, réessaie', 'error');
+        console.error('[discord-unlink]', err);
+      })
+      .finally(function () {
+        dcUnlink.disabled = false;
+        dcConnect.disabled = false;
+        dcUnlink.textContent = dcUnlinkLabel();
+      });
+  }
+
+  // Copie : l'API Clipboard est bloquée dans certaines iframes, d'où le repli
+  // sur un textarea temporaire.
+  function dcCopyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        resolve();
+      } catch (e) { reject(e); }
+    });
+  }
+
+  dcConnect.addEventListener('click', dcRequestCode);
+  dcUnlink.addEventListener('click', dcRequestUnlink);
+
+  dcCopy.addEventListener('click', function () {
+    if (!dcCurrentCode) return;
+    dcCopyToClipboard(dcCurrentCode)
+      .then(function () {
+        dcCopy.textContent = 'Copié';
+        setTimeout(function () { dcCopy.textContent = 'Copier'; }, 1800);
+      })
+      .catch(function () {
+        dcCopy.textContent = 'Échec';
+        setTimeout(function () { dcCopy.textContent = 'Copier'; }, 1800);
+      });
+  });
+
+  function dcRender(u) {
+    // discord_linked peut manquer si l'API n'est pas encore à jour : on reste
+    // alors sur un libellé neutre plutôt que d'affirmer quoi que ce soit.
+    if (u.discord_linked === true) {
+      dcSetStatus('Connecté, ton rôle suit ton abonnement', 'linked');
+      dcUnlink.classList.remove('is-hidden');
+    } else if (u.discord_linked === false) {
+      dcSetStatus('Non connecté', null);
+      dcUnlink.classList.add('is-hidden');
+    } else {
+      dcSetStatus('Lie ton compte pour recevoir ton rôle', null);
+      dcUnlink.classList.add('is-hidden');
+    }
+    dcSyncLabels();
+  }
+
+  // ============================================================
+  // DEEP WORK : bandeau de l'encart Discord
+  // ============================================================
+  // Alimenté par le bloc `deepwork` de /users/me/profile-summary. Les libellés
+  // de durée sont déjà formatés côté API (« 1 h 05 », « 40 min ») : la page ne
+  // refait pas le calcul, elle affiche.
+  var dwGrid     = document.getElementById('pp-dw-grid');
+  var dwEmpty    = document.getElementById('pp-dw-empty');
+  var dwStreak   = document.getElementById('pp-dw-streak');
+  var dwTotal    = document.getElementById('pp-dw-total');
+  var dwSessions = document.getElementById('pp-dw-sessions');
+  var dwGoals    = document.getElementById('pp-dw-goals');
+  var dwWeek     = document.getElementById('pp-dw-week');
+
+  function dwRender(stats) {
+    // Bloc absent (API pas encore déployée) ou aucune session : on garde
+    // l'invitation, jamais des zéros muets.
+    var sessions = (stats && stats.total_sessions) || 0;
+    if (!sessions) {
+      dwGrid.classList.add('is-hidden');
+      dwEmpty.classList.remove('is-hidden');
+      dwStreak.textContent = '…';
+      dwStreak.className = 'pp-dw-streak is-off';
+      return;
+    }
+
+    dwEmpty.classList.add('is-hidden');
+    dwGrid.classList.remove('is-hidden');
+
+    dwTotal.textContent    = stats.total_label || '0 min';
+    dwSessions.textContent = sessions;
+    dwGoals.textContent    = (stats.goals_reached || 0) + '/' + (stats.goals_set || 0);
+    dwWeek.textContent     = stats.week_label || '0 min';
+
+    var streak = stats.current_streak || 0;
+    dwStreak.textContent = streak > 0
+      ? '🔥 ' + streak + ' jour' + (streak > 1 ? 's' : '') + ' d\'affilée'
+      : 'série interrompue';
+    dwStreak.className = 'pp-dw-streak' + (streak > 0 ? '' : ' is-off');
+  }
+
+  // ============================================================
+  // ABONNEMENT : pastille du plan et alerte d'impayé (page principale)
+  // ============================================================
+  // Bloc `subscription` de /profile-summary, lu en base sans appel Stripe :
+  // il est là à chaque chargement, le détail attend l'ouverture des paramètres.
+  var planChip     = document.getElementById('pp-plan-chip');
+  var alertEl      = document.getElementById('pp-alert');
+  var alertText    = document.getElementById('pp-alert-text');
+  var settingsBtn  = document.getElementById('pp-settings-open');
+  var tabAbonnement = document.querySelector('.pp-tab[data-tab="abonnement"]');
+
+  function subRender(s) {
+    // Bloc absent (API pas encore déployée) : rien d'affiché plutôt qu'un faux
+    // « gratuit ».
+    if (!s) {
+      planChip.classList.add('is-hidden');
+      alertEl.classList.add('is-hidden');
+      return;
+    }
+
+    var paye = s.plan && s.plan !== 'free';
+    planChip.textContent = s.plan_label || '';
+    planChip.classList.toggle('is-hidden', !paye);
+
+    var probleme = !!s.payment_issue;
+    alertEl.classList.toggle('is-hidden', !probleme);
+    settingsBtn.classList.toggle('has-badge', probleme);
+    tabAbonnement.classList.toggle('has-dot', probleme);
+
+    if (probleme) {
+      var suspendu = (s.adjuris || []).some(function (a) { return a.status === 'suspendu'; });
+      alertText.innerHTML = suspendu
+        ? '<b>Accès suspendu.</b> Un paiement est en attente : mets ta carte à jour.'
+        : '<b>Paiement refusé.</b> Mets ta carte à jour pour garder ton accès.';
+    }
+  }
+
+  document.getElementById('pp-alert-btn').addEventListener('click', function () {
+    openSettings('abonnement');
+  });
+
+  // ============================================================
+  // CHARGEMENT INITIAL
+  // ============================================================
+  function loadProfile() {
+    if (!token) {
+      loadingEl.textContent = 'NON CONNECTÉ';
+      return Promise.resolve();
+    }
+
+    return fetch(API + '/users/me/profile-summary', { headers: authHeaders() })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        currentProfile = data;
+        render(data);
+        loadingEl.style.display = 'none';
+      })
+      .catch(function (err) {
+        loadingEl.textContent = 'ERREUR DE CHARGEMENT';
+        console.error('[profile]', err);
+      });
+  }
+
+  function render(data) {
+    var u = data.user || {};
+    var elo = data.elo || {};
+    var qcm = data.qcm_stats || {};
+    var files = data.files || {};
+    var above = data.ranking_above || [];
+    var below = data.ranking_below || [];
+
+    // Header
+    setAvatarNode(document.getElementById('pp-avatar'), u.avatar_url, u.username);
+    document.getElementById('pp-name').textContent = u.username || '…';
+    document.getElementById('pp-uni-text').textContent = u.university || 'Université non renseignée';
+
+    // Abonnement : pastille et alerte
+    subRender(data.subscription);
+
+    // Stats : ELO
+    document.getElementById('pp-elo-val').textContent = elo.value != null ? elo.value : '…';
+    document.getElementById('pp-elo-rank').textContent =
+      elo.rank != null ? ('rang #' + elo.rank + (elo.total_ranked_users ? ' / ' + elo.total_ranked_users : '')) : 'rang …';
+
+    // Stats : QCM
+    document.getElementById('pp-qcm-val').textContent = (qcm.success_rate != null ? qcm.success_rate : 0) + '%';
+    document.getElementById('pp-qcm-sub').textContent = (qcm.total_sessions || 0) + ' session' + ((qcm.total_sessions || 0) === 1 ? '' : 's');
+
+    // Stats : documents
+    var docsCount = files.count || 0;
+    var docsLimit = files.limit; // peut être null, ce qui vaut illimité
+    document.getElementById('pp-docs-val').textContent = docsLimit != null ? (docsCount + ' / ' + docsLimit) : (docsCount + '');
+    var pct = docsLimit ? Math.min(100, Math.round((docsCount / docsLimit) * 100)) : (docsCount > 0 ? 100 : 0);
+    document.getElementById('pp-docs-bar').style.width = pct + '%';
+
+    // Encart Discord : un code encore valable reprend son décompte ici, en
+    // direct. Sans ça, un simple rechargement effaçait le code affiché et
+    // obligeait à en demander un autre, alors que l'ancien courait toujours et
+    // que la génération est limitée à quelques codes par quart d'heure. Un
+    // décompte déjà en cours n'est jamais réinitialisé par un rechargement du
+    // profil : il continue.
+    if (data.discord_link_code && !dcTicker) {
+      dcShowCodeData(data.discord_link_code);
+    }
+    if (dcCodeBox.classList.contains('is-hidden')) dcRender(u);
+
+    // Deep work : toujours rendu, le bandeau vit sous les deux états de l'encart
+    dwRender(data.deepwork);
+
+    // Sécurité : libellés « modifier » ou « définir » selon has_password
+    pwdSyncLabels();
+
+    // ========================================================
+    // CLASSEMENT : liste complète (au-dessus, moi, en dessous) dans le flux,
+    // avec ma ligne en flottant par défaut tant que le scroll n'a pas atteint
+    // ma vraie position dans la liste.
+    // ========================================================
+    var listEl = document.getElementById('pp-rank-list');
+    var stickyWrap = document.getElementById('pp-rank-sticky-me');
+    var scrollEl = document.getElementById('pp-rank-scroll');
+    listEl.innerHTML = '';
+    stickyWrap.innerHTML = '';
+
+    var myRankNum = elo.rank != null ? elo.rank : null;
+
+    // Au-dessus
+    above.forEach(function (row) {
+      listEl.appendChild(buildRankRow(row.rank, row.username, row.elo, row.avatar_url, false));
+    });
+
+    // Ma ligne, dans le flux normal, à sa vraie position
+    if (myRankNum != null) {
+      var meRowInFlow = buildRankRow(myRankNum, u.username, elo.value != null ? elo.value : '…', u.avatar_url, true);
+      meRowInFlow.id = 'pp-rank-me-inflow';
+      listEl.appendChild(meRowInFlow);
+    }
+
+    // En dessous
+    below.forEach(function (row) {
+      listEl.appendChild(buildRankRow(row.rank, row.username, row.elo, row.avatar_url, false));
+    });
+
+    if (!above.length && !below.length && myRankNum == null) {
+      var empty = document.createElement('div');
+      empty.className = 'pp-empty';
+      empty.textContent = 'Classement indisponible pour le moment.';
+      listEl.appendChild(empty);
+    }
+
+    // Copie flottante collée en bas, visible par défaut, masquée dès que le
+    // scroll amène ma vraie ligne dans le champ visible.
+    if (myRankNum != null) {
+      stickyWrap.appendChild(
+        buildRankRow(myRankNum, u.username, elo.value != null ? elo.value : '…', u.avatar_url, true)
+      );
+    }
+
+    function syncStickyVisibility() {
+      var inflow = document.getElementById('pp-rank-me-inflow');
+      if (!inflow) return;
+      var scrollRect = scrollEl.getBoundingClientRect();
+      var rowRect = inflow.getBoundingClientRect();
+      // Ma ligne réelle est visible si elle tient entièrement dans la zone de scroll
+      var fullyVisible = rowRect.top >= scrollRect.top && rowRect.bottom <= scrollRect.bottom + 1;
+      stickyWrap.classList.toggle('is-floating-hidden', fullyVisible);
+    }
+
+    scrollEl.removeEventListener('scroll', scrollEl.__ppScrollHandler || function () {});
+    scrollEl.__ppScrollHandler = syncStickyVisibility;
+    scrollEl.addEventListener('scroll', syncStickyVisibility);
+
+    // État initial : si la liste entière rentre déjà sans scroll, on masque
+    // tout de suite le flottant pour éviter un doublon inutile.
+    setTimeout(syncStickyVisibility, 50);
+  }
+
+  // ============================================================
+  // MODALE ÉDITION
+  // ============================================================
+  var overlay = document.getElementById('pp-modal-overlay');
+  var inputName = document.getElementById('pp-input-name');
+  var modalAvatar = document.getElementById('pp-modal-avatar');
+  var avatarHint = document.getElementById('pp-modal-avatar-hint');
+  var errorEl = document.getElementById('pp-modal-error');
+  var saveBtn = document.getElementById('pp-modal-save');
+  var fileInput = document.getElementById('pp-file-input');
+  var settingsEl = document.getElementById('pp-settings');
+
+  var pendingFile = null;       // fichier choisi, pas encore envoyé
+  var pendingAvatarUrl = null;  // URL renvoyée après envoi réussi au backend
+
+  function dimContent(on) {
+    var contentEl = document.getElementById('pp-content');
+    if (contentEl) contentEl.classList.toggle('is-dimmed', !!on);
+  }
+
+  function resetAvatarHint() {
+    avatarHint.textContent = "Clique sur l'icône pour changer ta photo";
+    avatarHint.style.color = '';
+  }
+
+  function openModal() {
+    if (!currentProfile) return;
+    var u = currentProfile.user || {};
+    inputName.value = u.username || '';
+    pendingFile = null;
+    pendingAvatarUrl = null;
+    fileInput.value = '';
+    setAvatarNode(modalAvatar, u.avatar_url, u.username);
+    resetAvatarHint();
+    errorEl.classList.remove('is-visible');
+    closeSettings(true);
+    overlay.classList.add('is-open');
+    dimContent(true);
+  }
+
+  function closeModal() {
+    overlay.classList.remove('is-open');
+    if (!settingsEl.classList.contains('is-open')) dimContent(false);
+  }
+
+  document.getElementById('pp-edit-open').addEventListener('click', openModal);
+  document.getElementById('pp-modal-cancel').addEventListener('click', closeModal);
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) closeModal();
+  });
+
+  // ---- Sélection de fichier (input natif) ----
+  document.getElementById('pp-upload-btn').addEventListener('click', function () {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', function () {
+    var file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+
+    var allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (allowed.indexOf(file.type) === -1) {
+      avatarHint.textContent = 'Format non supporté (JPG, PNG ou WEBP).';
+      avatarHint.style.color = '#FF6B6B';
+      fileInput.value = '';
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      avatarHint.textContent = 'Image trop lourde (max 8 Mo).';
+      avatarHint.style.color = '#FF6B6B';
+      fileInput.value = '';
+      return;
+    }
+
+    pendingFile = file;
+    resetAvatarHint();
+    avatarHint.textContent = 'Nouvelle photo prête, clique sur Enregistrer';
+
+    // Aperçu local immédiat, avant l'envoi
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      modalAvatar.innerHTML = '<img src="' + e.target.result + '" alt="">';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ---- Enregistrement ----
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.classList.add('is-visible');
+  }
+
+  saveBtn.addEventListener('click', function () {
+    var newName = inputName.value.trim();
+    if (!newName) {
+      showError('Le nom ne peut pas être vide.');
+      return;
+    }
+
+    errorEl.classList.remove('is-visible');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Enregistrement…';
+
+    var currentName = (currentProfile && currentProfile.user && currentProfile.user.username) || '';
+    var nameChanged = newName !== currentName;
+
+    // 1) L'avatar d'abord, si un nouveau fichier a été choisi (envoi multipart)
+    var avatarTask = pendingFile
+      ? fetch(API + '/users/me/avatar', {
+          method: 'POST',
+          headers: authHeaders(), // pas de Content-Type : le navigateur pose la frontière multipart
+          body: (function () {
+            var fd = new FormData();
+            fd.append('file', pendingFile);
+            return fd;
+          })()
+        }).then(function (r) {
+          if (!r.ok) {
+            return r.json().catch(function () { return {}; }).then(function (j) {
+              throw new Error('Avatar HTTP ' + r.status + ' : ' + (j.detail || 'erreur inconnue'));
+            });
+          }
+          return r.json();
+        })
+      : Promise.resolve(null);
+
+    avatarTask
+      .then(function () {
+        // 2) Le nom ensuite, seulement s'il a changé
+        if (!nameChanged) return null;
+        return fetch(API + '/users/me', {
+          method: 'PATCH',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ username: newName })
+        }).then(function (r) {
+          if (!r.ok) throw new Error('Échec mise à jour du nom (HTTP ' + r.status + ')');
+          return r.json();
+        });
+      })
+      .then(function () {
+        closeModal();
+        loadingEl.style.display = 'flex';
+        loadingEl.textContent = 'MISE À JOUR…';
+        loadProfile();
+      })
+      .catch(function (err) {
+        console.error('[save profile]', err);
+        showError((err && err.message) ? err.message : 'Échec de l\'enregistrement. Réessaie.');
+      })
+      .finally(function () {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Enregistrer';
+      });
+  });
+
+  // ============================================================
+  // PANNEAU PARAMÈTRES (roue) : Abonnement, Factures, Sécurité
+  // ============================================================
+  var setBody     = document.getElementById('pp-set-body');
+  var setNotice   = document.getElementById('pp-set-notice');
+  var paneAbo     = document.getElementById('pp-pane-abonnement');
+  var paneFact    = document.getElementById('pp-pane-factures');
+  var paneSec     = document.getElementById('pp-pane-securite');
+  var tabs        = Array.prototype.slice.call(document.querySelectorAll('.pp-tab'));
+  var activeTab   = 'abonnement';
+
+  var billing = null;          // dernier payload GET /subscriptions/billing
+  var billingPromise = null;   // requête en cours, partagée entre onglets
+  var billingError = null;
+
+  function showSetNotice(text, kind) {
+    if (!text) {
+      setNotice.className = 'pp-notice is-hidden';
+      setNotice.textContent = '';
+      return;
+    }
+    setNotice.className = 'pp-notice' + (kind ? ' is-' + kind : '');
+    setNotice.textContent = text;
+  }
+
+  function setTab(name) {
+    activeTab = name;
+    tabs.forEach(function (t) {
+      var on = t.getAttribute('data-tab') === name;
+      t.classList.toggle('is-active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    paneAbo.classList.toggle('is-hidden', name !== 'abonnement');
+    paneFact.classList.toggle('is-hidden', name !== 'factures');
+    paneSec.classList.toggle('is-hidden', name !== 'securite');
+    setBody.scrollTop = 0;
+
+    if (name === 'securite') {
+      secRender();
+      setTimeout(function () { (hasPassword() ? pwdCurrent : pwdNew).focus(); }, 30);
+    } else if (!billing && !billingPromise) {
+      loadBilling();
+    }
+  }
+
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      showSetNotice(null);
+      setTab(t.getAttribute('data-tab'));
+    });
+  });
+
+  function openSettings(tab) {
+    if (!currentProfile) return;
+    overlay.classList.remove('is-open');
+    resetPwdForm();
+    settingsEl.classList.add('is-open');
+    dimContent(true);
+    setTab(tab || 'abonnement');
+    // Les données de facturation ont pu changer depuis la dernière ouverture
+    // (prélèvement, retour de Stripe) : on les relit à chaque fois.
+    if (tab !== 'securite') loadBilling();
+  }
+
+  function closeSettings(silent) {
+    settingsEl.classList.remove('is-open');
+    resetPwdForm();
+    showSetNotice(null);
+    if (!silent && !overlay.classList.contains('is-open')) dimContent(false);
+  }
+
+  settingsBtn.addEventListener('click', function () { openSettings('abonnement'); });
+  document.getElementById('pp-goto-password').addEventListener('click', function () { openSettings('securite'); });
+  document.getElementById('pp-set-close').addEventListener('click', function () { closeSettings(); });
+  settingsEl.addEventListener('click', function (e) {
+    if (e.target === settingsEl) closeSettings();
+  });
+
+  // ---- Données de facturation ----
+  function loadBilling() {
+    if (!token) return Promise.resolve(null);
+    if (!billing) {
+      paneAbo.innerHTML = '<div class="pp-set-loading">Chargement de ton abonnement…</div>';
+      paneFact.innerHTML = '<div class="pp-set-loading">Chargement des factures…</div>';
+    }
+    billingError = null;
+    var p = api('GET', '/subscriptions/billing')
+      .then(function (d) {
+        billing = d;
+        return d;
+      })
+      .catch(function (err) {
+        billingError = err;
+        console.error('[billing]', err);
+        return null;
+      })
+      .then(function (d) {
+        if (billingPromise === p) billingPromise = null;
+        renderAbonnement();
+        renderFactures();
+        return d;
+      });
+    billingPromise = p;
+    return p;
+  }
+
+  // ---- Formats ----
+  function euros(cents, currency) {
+    if (cents == null) return null;
+    try {
+      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: (currency || 'eur').toUpperCase() })
+        .format(cents / 100);
+    } catch (e) {
+      return (cents / 100).toFixed(2).replace('.', ',') + ' €';
+    }
+  }
+
+  function dateFr(iso, court) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('fr-FR', court
+      ? { day: 'numeric', month: 'short', year: 'numeric' }
+      : { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  var MARQUES = {
+    visa: 'Visa', mastercard: 'Mastercard', amex: 'American Express',
+    cartes_bancaires: 'CB', cb: 'CB', discover: 'Discover', jcb: 'JCB',
+    unionpay: 'UnionPay', diners: 'Diners', sepa: 'Prélèvement SEPA',
+    sepa_debit: 'Prélèvement SEPA', link: 'Link', paypal: 'PayPal'
+  };
+
+  function carteTexte(c) {
+    if (!c) return null;
+    var marque = MARQUES[c.brand] || (c.brand ? c.brand.charAt(0).toUpperCase() + c.brand.slice(1) : 'Moyen de paiement');
+    var t = marque + (c.last4 ? ' •••• ' + c.last4 : '');
+    if (c.exp_month && c.exp_year) {
+      t += ' · ' + (c.exp_month < 10 ? '0' : '') + c.exp_month + '/' + String(c.exp_year).slice(-2);
+    }
+    return t;
+  }
+
+  function row(k, v, kind) {
+    return '<div class="pp-row"><span class="pp-row-k">' + esc(k) + '</span>' +
+      '<span class="pp-row-v' + (kind ? ' is-' + kind : '') + '">' + v + '</span></div>';
+  }
+
+  function rowCarte(c) {
+    if (!c) return row('Carte', 'aucune enregistrée', 'muted');
+    var t = esc(carteTexte(c));
+    if (c.expired) return row('Carte', t + ' · expirée', 'error');
+    if (c.expires_soon) return row('Carte', t + ' · expire bientôt', 'warn');
+    return row('Carte', t);
+  }
+
+  function rowProchain(n) {
+    if (!n) return '';
+    var montant = euros(n.amount_cents, n.currency);
+    var quand = dateFr(n.date);
+    var v = montant ? esc(montant) + ' le ' + esc(quand) : esc(quand);
+    if (n.sessions) v += ' <span style="color:rgba(255,255,255,0.45);font-weight:500">(' + n.sessions + ' séance' + (n.sessions > 1 ? 's' : '') + ')</span>';
+    return row('Prochain prélèvement', v);
+  }
+
+  function cycleTexte(c) {
+    return c === 'annual' ? 'annuel' : (c === 'monthly' ? 'mensuel' : '');
+  }
+
+  // ---- Onglet Abonnement ----
+  function renderAbonnement() {
+    if (!billing) {
+      paneAbo.innerHTML =
+        '<div class="pp-notice is-error">' + esc(billingError ? billingError.message : 'Abonnement indisponible.') + '</div>' +
+        '<div class="pp-sub-actions"><button class="pp-act" data-act="retry">Réessayer</button></div>';
+      return;
+    }
+
+    var h = '';
+    if (billing.stripe_ok === false) {
+      h += '<div class="pp-notice is-warn">Stripe ne répond pas pour le moment : la carte, les montants ou les factures peuvent manquer. Réessaie dans quelques minutes.</div>';
+    }
+
+    h += carteNavire(billing.navire || {});
+    (billing.adjuris || []).forEach(function (a) { h += carteAdjuris(a); });
+
+    h += '<div class="pp-set-foot">Les paiements sont gérés par Stripe : NAVIRE ne voit jamais ton numéro de carte complet.</div>';
+    paneAbo.innerHTML = h;
+
+    // L'alerte de la page principale suit l'état le plus récent.
+    if (currentProfile) {
+      var s = currentProfile.subscription || {};
+      s.payment_issue = !!billing.payment_issue;
+      s.plan = billing.plan;
+      s.plan_label = billing.plan_label;
+      s.adjuris = billing.adjuris;
+      currentProfile.subscription = s;
+      subRender(s);
+    }
+  }
+
+  function carteNavire(n) {
+    var nom = 'NAVIRE AI';
+    var pill, rows = '', notice = '', actions = '';
+
+    if (!n.managed_by) {
+      // Offre gratuite
+      return '<div class="pp-sub-card">' +
+        '<div class="pp-sub-head"><div><div class="pp-sub-name">' + nom + '</div>' +
+        '<div class="pp-sub-meta">Offre gratuite</div></div><span class="pp-pill">Gratuit</span></div>' +
+        '<div class="pp-modal-sub" style="margin:0">Passe à Membre ou Membre+ pour plus de QCM, de flashcards et de documents.</div>' +
+        '<div class="pp-sub-actions"><button class="pp-act pp-act-primary" data-act="offres">Voir les offres</button></div>' +
+        '</div>';
+    }
+
+    var formule = esc(n.plan_label || n.plan) + (cycleTexte(n.billing_cycle) ? ' · ' + cycleTexte(n.billing_cycle) : '');
+
+    if (n.managed_by === 'manual') {
+      pill = '<span class="pp-pill is-ok">Actif</span>';
+      rows += row('Formule', formule);
+      if (n.access_until) rows += row('Accès jusqu\'au', esc(dateFr(n.access_until)));
+      notice = '<div class="pp-notice">Accès accordé par l\'équipe NAVIRE : aucun prélèvement.</div>';
+      return '<div class="pp-sub-card"><div class="pp-sub-head"><div><div class="pp-sub-name">' + nom +
+        '</div></div>' + pill + '</div><div class="pp-rows">' + rows + '</div>' + notice + '</div>';
+    }
+
+    if (n.status === 'past_due') {
+      pill = '<span class="pp-pill is-error">Paiement refusé</span>';
+      notice = '<div class="pp-notice is-error">Le dernier prélèvement a échoué. Change de carte : la facture en attente sera représentée aussitôt.' +
+        (n.unpaid_invoice_url ? ' Tu peux aussi <a href="' + esc(n.unpaid_invoice_url) + '" target="_blank" rel="noopener">la régler en ligne</a>.' : '') +
+        '</div>';
+    } else if (n.status === 'cancelled') {
+      pill = '<span class="pp-pill is-warn">Résilié</span>';
+      notice = '<div class="pp-notice is-warn">Ton abonnement ne sera pas renouvelé' +
+        (n.access_until ? ' : tu gardes ton accès jusqu\'au <b>' + esc(dateFr(n.access_until)) + '</b>.' : '.') + '</div>';
+    } else {
+      pill = '<span class="pp-pill is-ok">Actif</span>';
+    }
+
+    rows += row('Formule', formule);
+    rows += rowProchain(n.next_payment);
+    if (n.status === 'active' && !n.next_payment && n.current_period_end) {
+      rows += row('Renouvellement', esc(dateFr(n.current_period_end)));
+    }
+    rows += rowCarte(n.card);
+
+    var a = n.actions || {};
+    if (a.reactivate) actions += '<button class="pp-act pp-act-primary" data-act="reactivate">Réactiver</button>';
+    if (a.update_card) actions += '<button class="pp-act' + (n.status === 'past_due' || (n.card && n.card.expired) ? ' pp-act-primary' : '') + '" data-act="card" data-target="navire">Changer de carte</button>';
+    if (a.cancel) actions += '<button class="pp-act pp-act-danger" data-act="cancel">Résilier</button>';
+    if (a.portal) actions += '<button class="pp-act pp-act-link" data-act="portal">Changer de formule</button>';
+
+    return '<div class="pp-sub-card">' +
+      '<div class="pp-sub-head"><div><div class="pp-sub-name">' + nom + '</div></div>' + pill + '</div>' +
+      '<div class="pp-rows">' + rows + '</div>' + notice +
+      (actions ? '<div class="pp-sub-actions">' + actions + '</div>' : '') +
+      '</div>';
+  }
+
+  function carteAdjuris(a) {
+    var pill, notice = '';
+    if (a.status === 'suspendu') {
+      pill = '<span class="pp-pill is-error">Accès suspendu</span>';
+      notice = '<div class="pp-notice is-error">Un prélèvement est resté impayé : ton accès aux matières est suspendu. Change de carte, la facture sera représentée aussitôt et ton accès rendu.' +
+        (a.unpaid_invoice_url ? ' Ou <a href="' + esc(a.unpaid_invoice_url) + '" target="_blank" rel="noopener">règle-la en ligne</a>.' : '') + '</div>';
+    } else if (a.status === 'payment_failed') {
+      pill = '<span class="pp-pill is-error">Paiement refusé</span>';
+      notice = '<div class="pp-notice is-error">Le dernier prélèvement a échoué. Ton accès est conservé 7 jours : change de carte pour régler la facture.' +
+        (a.unpaid_invoice_url ? ' Ou <a href="' + esc(a.unpaid_invoice_url) + '" target="_blank" rel="noopener">règle-la en ligne</a>.' : '') + '</div>';
+    } else {
+      pill = '<span class="pp-pill is-ok">Actif</span>';
+    }
+
+    var matieres = (a.matieres || []).map(function (m) { return esc(m.label || m.key); }).join(', ');
+    var rows = rowProchain(a.next_payment) || row('Prochain prélèvement', 'aucun à venir', 'muted');
+    rows += rowCarte(a.card);
+
+    var actions = (a.actions || {}).update_card
+      ? '<div class="pp-sub-actions"><button class="pp-act' + (a.status !== 'active' || (a.card && a.card.expired) ? ' pp-act-primary' : '') +
+        '" data-act="card" data-target="' + esc(a.subscription_id) + '">Changer de carte</button></div>'
+      : '';
+
+    return '<div class="pp-sub-card">' +
+      '<div class="pp-sub-head"><div><div class="pp-sub-name">' + esc(a.label || 'Prép\'AdJuris') + '</div>' +
+      (matieres ? '<div class="pp-sub-meta">' + matieres + '</div>' : '') + '</div>' + pill + '</div>' +
+      '<div class="pp-rows">' + rows + '</div>' + notice + actions +
+      '</div>';
+  }
+
+  // ---- Onglet Factures ----
+  var STATUTS_FACTURE = {
+    paid: ['Payée', 'ok'], open: ['À régler', 'error'],
+    void: ['Annulée', ''], uncollectible: ['Impayée', 'error']
+  };
+
+  function renderFactures() {
+    if (!billing) {
+      paneFact.innerHTML = '<div class="pp-notice is-error">' + esc(billingError ? billingError.message : 'Factures indisponibles.') + '</div>';
+      return;
+    }
+    var list = billing.invoices || [];
+    if (!list.length) {
+      paneFact.innerHTML = '<div class="pp-set-loading">' +
+        (billing.stripe_ok === false ? 'Stripe ne répond pas, réessaie dans quelques minutes.' : 'Aucune facture pour l\'instant.') +
+        '</div>';
+      return;
+    }
+    var h = '';
+    list.forEach(function (f) {
+      var st = STATUTS_FACTURE[f.status] || [f.status || '', ''];
+      var liens = '';
+      if (f.status === 'open' && f.url) liens += '<a href="' + esc(f.url) + '" target="_blank" rel="noopener">Régler</a>';
+      else if (f.url) liens += '<a href="' + esc(f.url) + '" target="_blank" rel="noopener">Voir</a>';
+      if (f.pdf_url) liens += '<a href="' + esc(f.pdf_url) + '" target="_blank" rel="noopener">PDF</a>';
+      h += '<div class="pp-inv">' +
+        '<div class="pp-inv-main">' +
+          '<div class="pp-inv-title">' + esc(f.label) + (f.number ? ' · ' + esc(f.number) : '') + '</div>' +
+          '<div class="pp-inv-sub">' + esc(dateFr(f.date, true)) + '</div>' +
+        '</div>' +
+        '<span class="pp-pill' + (st[1] ? ' is-' + st[1] : '') + '">' + esc(st[0]) + '</span>' +
+        '<div class="pp-inv-side">' +
+          '<div class="pp-inv-amount">' + esc(euros(f.amount_cents, f.currency) || '') + '</div>' +
+          (liens ? '<div class="pp-inv-links">' + liens + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    });
+    paneFact.innerHTML = h;
+  }
+
+  // ---- Actions (délégation : le contenu est réécrit à chaque rendu) ----
+  paneAbo.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-act]') : null;
+    if (!btn || btn.disabled) return;
+    var act = btn.getAttribute('data-act');
+    if (act === 'retry') loadBilling();
+    else if (act === 'offres') go(CONFIG.OFFRES_URL);
+    else if (act === 'card') changerCarte(btn, btn.getAttribute('data-target'));
+    else if (act === 'cancel') resilier(btn);
+    else if (act === 'reactivate') reactiver(btn);
+    else if (act === 'portal') ouvrirPortail(btn);
+  });
+
+  function occupe(btn, texte) {
+    var avant = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = texte;
+    return function () { btn.disabled = false; btn.textContent = avant; };
+  }
+
+  // Page Stripe en mode « enregistrer une carte », sans paiement. Retour ici
+  // avec ?billing=card_updated (voir lireRetourStripe).
+  function changerCarte(btn, target) {
+    var fin = occupe(btn, 'Ouverture de Stripe…');
+    showSetNotice(null);
+    api('POST', '/subscriptions/payment-method', { target: target || 'navire', return_url: pageUrl() })
+      .then(function (d) { go(d.checkout_url); })
+      .catch(function (err) {
+        fin();
+        showSetNotice(err.message, 'error');
+      });
+  }
+
+  function resilier(btn) {
+    var n = (billing && billing.navire) || {};
+    var jusqua = n.next_payment && n.next_payment.date ? n.next_payment.date : n.current_period_end;
+    var msg = 'Résilier ton abonnement ' + (n.plan_label || '') + ' ?\n\n' +
+      (jusqua ? 'Tu gardes ton accès jusqu\'au ' + dateFr(jusqua) + ', ' : 'Tu gardes ton accès jusqu\'à la fin de la période payée, ') +
+      'puis tu repasses sur l\'offre gratuite. Tu pourras le réactiver d\'ici là.';
+    if (!confirm(msg)) return;
+    var fin = occupe(btn, 'Résiliation…');
+    api('POST', '/subscriptions/cancel')
+      .then(function (d) {
+        showSetNotice(d.message || 'Résiliation programmée.', 'ok');
+        return Promise.all([loadBilling(), loadProfile()]);
+      })
+      .catch(function (err) {
+        fin();
+        showSetNotice(err.message, 'error');
+      });
+  }
+
+  function reactiver(btn) {
+    var fin = occupe(btn, 'Réactivation…');
+    api('POST', '/subscriptions/reactivate')
+      .then(function (d) {
+        showSetNotice(d.message || 'Abonnement réactivé.', 'ok');
+        return Promise.all([loadBilling(), loadProfile()]);
+      })
+      .catch(function (err) {
+        fin();
+        showSetNotice(err.message, 'error');
+      });
+  }
+
+  // Portail Stripe : changement de formule (Membre ↔ Membre+, mensuel ↔
+  // annuel). La carte et les factures restent ici.
+  function ouvrirPortail(btn) {
+    var fin = occupe(btn, 'Ouverture de Stripe…');
+    api('POST', '/subscriptions/portal', { return_url: pageUrl() })
+      .then(function (d) { go(d.portal_url); })
+      .catch(function (err) {
+        fin();
+        showSetNotice(err.message, 'error');
+      });
+  }
+
+  // ---- Retour de Stripe : ?billing=card_updated | card_cancelled | portal ----
+  // Même lecture que l'embed /rejoindre : l'adresse de l'iframe, puis celle de
+  // la page parente quand le navigateur la laisse lire.
+  function lireRetourStripe() {
+    var sources = [];
+    try { sources.push(window.location.search); } catch (e) {}
+    try { sources.push(window.parent.location.search); } catch (e) {}
+    try { sources.push(window.top.location.search); } catch (e) {}
+    try { if (document.referrer) sources.push(new URL(document.referrer).search); } catch (e) {}
+    for (var i = 0; i < sources.length; i++) {
+      var m = /[?&]billing=(card_updated|card_cancelled|portal)\b/.exec(sources[i] || '');
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  // Retire ?billing= de l'adresse, pour qu'un rechargement ne rouvre pas les
+  // paramètres. Sans effet si la page parente est sur un autre domaine.
+  function effacerRetourStripe() {
+    [window, window.parent, window.top].forEach(function (w) {
+      try {
+        var u = new URL(w.location.href);
+        if (!u.searchParams.has('billing')) return;
+        u.searchParams.delete('billing');
+        w.history.replaceState(w.history.state, '', u.pathname + u.search + u.hash);
+      } catch (e) {}
+    });
+  }
+
+  function traiterRetourStripe() {
+    var retour = lireRetourStripe();
+    if (!retour) return;
+
+    // Le referrer garde ?billing= même après un rechargement : on ne traite
+    // chaque retour qu'une fois par onglet.
+    var cle = 'pp_billing_retour';
+    var deja = null;
+    try { deja = sessionStorage.getItem(cle); } catch (e) {}
+    var empreinte = retour + '|' + (pageUrl() || '');
+    if (deja === empreinte) return;
+    try { sessionStorage.setItem(cle, empreinte); } catch (e) {}
+    effacerRetourStripe();
+
+    openSettings('abonnement');
+    if (retour === 'card_updated') {
+      showSetNotice('Carte enregistrée. Elle servira aux prochains prélèvements, et une facture en attente est représentée dessus.', 'ok');
+      // Stripe prévient l'API quelques secondes après le retour : on relit
+      // l'abonnement une seconde fois pour afficher la nouvelle carte.
+      setTimeout(function () {
+        if (settingsEl.classList.contains('is-open')) {
+          loadBilling();
+          loadProfile();
+        }
+      }, 4000);
+    } else if (retour === 'card_cancelled') {
+      showSetNotice('Changement de carte annulé : rien n\'a été modifié.', null);
+    }
+  }
+
+  // ---- Onglet Sécurité ----
+  function secRender() {
+    var u = (currentProfile && currentProfile.user) || {};
+    document.getElementById('pp-sec-email').textContent = u.email || '…';
+    var fournisseur = u.oauth_provider
+      ? u.oauth_provider.charAt(0).toUpperCase() + u.oauth_provider.slice(1)
+      : null;
+    var login;
+    if (fournisseur && hasPassword()) login = fournisseur + ' et mot de passe';
+    else if (fournisseur) login = fournisseur;
+    else login = 'Email et mot de passe';
+    document.getElementById('pp-sec-login').textContent = login;
+  }
+
+  // ============================================================
+  // MOT DE PASSE (onglet Sécurité)
+  // ============================================================
+  // POST /users/me/password, corps { current_password?, new_password }.
+  // current_password n'est demandé que si le compte en a un : has_password
+  // vaut false pour un compte Google ou Facebook, qui définit alors son premier
+  // mot de passe. Si le champ manque dans la réponse de l'API (version pas
+  // encore déployée), on demande l'ancien mot de passe par défaut : c'est le
+  // cas de très loin le plus fréquent, et l'API tranchera de toute façon.
+  var pwdTitle     = document.getElementById('pp-pwd-title');
+  var pwdSub       = document.getElementById('pp-pwd-sub');
+  var pwdCurField  = document.getElementById('pp-pwd-current-field');
+  var pwdCurrent   = document.getElementById('pp-pwd-current');
+  var pwdNew       = document.getElementById('pp-pwd-new');
+  var pwdConfirm   = document.getElementById('pp-pwd-confirm');
+  var pwdError     = document.getElementById('pp-pwd-error');
+  var pwdSuccess   = document.getElementById('pp-pwd-success');
+  var pwdSave      = document.getElementById('pp-pwd-save');
+  var pwdGotoLabel = document.getElementById('pp-goto-password-label');
+
+  var ruleLen   = document.getElementById('pp-rule-len');
+  var ruleUpper = document.getElementById('pp-rule-upper');
+  var ruleNum   = document.getElementById('pp-rule-num');
+
+  function hasPassword() {
+    var u = currentProfile && currentProfile.user;
+    // undefined (API pas à jour) : on considère qu'il y a un mot de passe
+    return !(u && u.has_password === false);
+  }
+
+  function pwdSyncLabels() {
+    var setting = !hasPassword();
+    pwdTitle.textContent = setting ? 'Définir un mot de passe' : 'Modifier mon mot de passe';
+    pwdGotoLabel.textContent = setting ? 'Définir un mot de passe' : 'Modifier mon mot de passe';
+
+    var provider = (currentProfile && currentProfile.user && currentProfile.user.oauth_provider) || '';
+    if (setting) {
+      pwdSub.innerHTML = provider
+        ? 'Ton compte se connecte avec <b>' + esc(provider) + '</b>. Définis un mot de passe pour pouvoir aussi te connecter avec ton adresse email.'
+        : 'Définis un mot de passe pour pouvoir te connecter avec ton adresse email.';
+    } else {
+      pwdSub.textContent = 'Tu resteras connecté sur cet appareil après le changement.';
+    }
+
+    pwdCurField.classList.toggle('is-hidden', setting);
+  }
+
+  // Mêmes règles que validate_password côté API : 8 à 72 caractères,
+  // 1 majuscule, 1 chiffre ou symbole.
+  function pwdRules(pw) {
+    return {
+      len:   pw.length >= 8 && pw.length <= 72,
+      upper: /[A-Z]/.test(pw),
+      num:   /[\d]/.test(pw) || /[^\w\s]/.test(pw)
+    };
+  }
+
+  function pwdSyncRules() {
+    var r = pwdRules(pwdNew.value || '');
+    ruleLen.classList.toggle('is-ok', r.len);
+    ruleUpper.classList.toggle('is-ok', r.upper);
+    ruleNum.classList.toggle('is-ok', r.num);
+  }
+
+  function pwdShowError(msg) {
+    pwdSuccess.classList.remove('is-visible');
+    pwdError.textContent = msg;
+    pwdError.classList.add('is-visible');
+  }
+
+  function resetPwdForm() {
+    pwdSyncLabels();
+    pwdCurrent.value = '';
+    pwdNew.value = '';
+    pwdConfirm.value = '';
+    pwdSyncRules();
+    pwdError.classList.remove('is-visible');
+    pwdSuccess.classList.remove('is-visible');
+  }
+
+  pwdNew.addEventListener('input', pwdSyncRules);
+
+  // Œil : bascule l'affichage du champ visé
+  Array.prototype.forEach.call(document.querySelectorAll('.pp-eye'), function (btn) {
+    btn.addEventListener('click', function () {
+      var input = document.getElementById(btn.getAttribute('data-target'));
+      if (!input) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+      input.focus();
+    });
+  });
+
+  // Entrée dans n'importe quel champ vaut enregistrer
+  [pwdCurrent, pwdNew, pwdConfirm].forEach(function (input) {
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); submitPassword(); }
+    });
+  });
+
+  pwdSave.addEventListener('click', submitPassword);
+
+  function submitPassword() {
+    if (!token) { pwdShowError('Session expirée, reconnecte-toi.'); return; }
+
+    var needsCurrent = hasPassword();
+    var current = pwdCurrent.value;
+    var next = pwdNew.value;
+    var confirmVal = pwdConfirm.value;
+
+    if (needsCurrent && !current) {
+      pwdShowError('Renseigne ton mot de passe actuel.');
+      pwdCurrent.focus();
+      return;
+    }
+
+    var r = pwdRules(next);
+    if (!r.len || !r.upper || !r.num) {
+      pwdShowError('Mot de passe invalide : 8 à 72 caractères, au moins 1 majuscule, et au moins 1 chiffre ou 1 symbole.');
+      pwdNew.focus();
+      return;
+    }
+    if (next !== confirmVal) {
+      pwdShowError('Les deux mots de passe ne correspondent pas.');
+      pwdConfirm.focus();
+      return;
+    }
+    if (needsCurrent && next === current) {
+      pwdShowError('Le nouveau mot de passe doit être différent de l\'actuel.');
+      pwdNew.focus();
+      return;
+    }
+
+    pwdError.classList.remove('is-visible');
+    pwdSuccess.classList.remove('is-visible');
+    pwdSave.disabled = true;
+    pwdSave.textContent = 'Enregistrement…';
+
+    var body = { new_password: next };
+    if (needsCurrent) body.current_password = current;
+
+    fetch(API + '/users/me/password', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body)
+    })
+      .then(function (res) {
+        if (!res.ok) {
+          return res.json().catch(function () { return {}; }).then(function (j) {
+            if (res.status === 401) throw new Error('Session expirée, reconnecte-toi.');
+            throw new Error(detailMessage(j.detail, res.status));
+          });
+        }
+        return res.json();
+      })
+      .then(function (d) {
+        // Le backend renvoie un jeton frais : on remplace celui gardé en local
+        // pour que la session continue sans reconnexion.
+        if (d && d.access_token) {
+          token = d.access_token;
+          try { localStorage.setItem('navire_token', token); } catch (e) {}
+        }
+        if (currentProfile && currentProfile.user) {
+          currentProfile.user.has_password = true;
+        }
+        pwdSyncLabels();
+        secRender();
+
+        pwdCurrent.value = '';
+        pwdNew.value = '';
+        pwdConfirm.value = '';
+        pwdSyncRules();
+        pwdSuccess.textContent = 'Mot de passe mis à jour. Un email de confirmation t\'a été envoyé.';
+        pwdSuccess.classList.add('is-visible');
+      })
+      .catch(function (err) {
+        console.error('[password]', err);
+        pwdShowError((err && err.message) ? err.message : 'Échec de la mise à jour. Réessaie.');
+      })
+      .finally(function () {
+        pwdSave.disabled = false;
+        pwdSave.textContent = 'Enregistrer';
+      });
+  }
+
+  // Échap ferme le panneau ou la modale ouverte
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (settingsEl.classList.contains('is-open')) closeSettings();
+    else if (overlay.classList.contains('is-open')) closeModal();
+  });
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  dcSyncLabels();
+  pwdSyncLabels();
+  loadProfile().then(traiterRetourStripe);
+})();
+</script>
