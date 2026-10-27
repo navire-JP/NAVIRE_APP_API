@@ -13,6 +13,12 @@ NAVIRE Lib : bibliothèque de cours, dissertations et fiches, lue dans l'embed
   échecs, l'élève peut passer à la suite (sans Elo). Un chat NAVIRE AI, nourri
   de l'extrait lu, suit chaque point de passage.
 
+Mes fichiers : les PDF que l'élève a déposés dans « Mes fichiers » apparaissent
+dans sa bibliothèque (kind "perso", visibles par lui seul). Lus à la première
+ouverture ; en Lib+, des points de passage s'y placent tout seuls (structure
+du document, sinon tous les LIB_PERSO_MOTS mots) et leurs questions sont
+rédigées par l'IA quand l'élève y arrive. Sans Elo à gagner ni à avoir.
+
 Pass admin (User.is_admin) : Lib+ ouvert, aucun verrou d'Elo, chaque point de
 passage peut être passé sans répondre, et les brouillons s'ouvrent en aperçu.
 
@@ -58,12 +64,13 @@ from fastapi import APIRouter, Depends, File as FastAPIFile, Form, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import STORAGE_PATH
 from app.db.database import get_db
 from app.core.limits import check_navire_daily_limit
-from app.db.models import LibCheckpoint, LibDocument, LibProgress, PrepaAdjurisEnrollment, User
+from app.db.models import File, LibCheckpoint, LibDocument, LibProgress, PrepaAdjurisEnrollment, User
 from app.routers.admin import verify_admin_code
 from app.routers.auth import get_current_user, get_current_user_optional
 from app.services import lib_parser as parser
@@ -84,6 +91,7 @@ ELO_PALIER = int(os.getenv("LIB_ELO_PALIER", "10"))
 RECOMPENSE = int(os.getenv("LIB_RECOMPENSE_ELO", "10"))
 SEUIL_PCT = int(os.getenv("LIB_SEUIL_PCT", "60"))
 ESSAIS_MAX = int(os.getenv("LIB_ESSAIS_MAX", "3"))
+PERSO_MOTS = int(os.getenv("LIB_PERSO_MOTS", "1200"))  # Mes fichiers : un point de passage tous les N mots
 TEASER_BLOCKS = 4
 
 ELO_ADMIN = 10**9                   # pass admin : aucun verrou d'Elo
@@ -215,6 +223,7 @@ def _summary(doc: LibDocument, prog: dict[int, LibProgress] | None = None, elo: 
         "maj": doc.maj,
         "description": doc.description,
         "plus": doc.is_plus,
+        "perso": doc.owner_id is not None,
         "elo_requis": doc.elo_requis,
         "verrouille": elo < doc.elo_requis,
         "nb_etapes": sum(1 for b in _blocks(doc) if b.get("t") == "h1" and not parser.is_free_title(b.get("text", ""))),
@@ -228,11 +237,127 @@ def _summary(doc: LibDocument, prog: dict[int, LibProgress] | None = None, elo: 
 
 
 def _get_published(db: Session, doc_id: int, user: User | None = None) -> LibDocument:
-    """Document publié ; le pass admin ouvre aussi les brouillons (aperçu)."""
+    """
+    Document publié ; le pass admin ouvre aussi les brouillons (aperçu). Un
+    document de « Mes fichiers » n'est ouvert qu'à son propriétaire, et lu
+    à la première ouverture.
+    """
     doc = db.get(LibDocument, doc_id)
+    if doc and doc.owner_id is not None:
+        if not user or doc.owner_id != user.id:
+            raise HTTPException(404, detail="Document introuvable.")
+        _prepare_perso(db, doc)
+        return doc
     if not doc or not (doc.is_published or _is_admin(user)):
         raise HTTPException(404, detail="Document introuvable.")
     return doc
+
+
+# ============================================================
+# Mes fichiers
+# ============================================================
+
+def _titre_fichier(name: str) -> str:
+    t = Path(name or "Document").stem if (name or "").lower().endswith(".pdf") else (name or "Document")
+    return (t.replace("_", " ").strip() or "Document")[:200]
+
+
+def _delete_doc(db: Session, doc: LibDocument) -> None:
+    # SQLite n'applique pas ON DELETE CASCADE : on nettoie à la main.
+    db.query(LibProgress).filter(LibProgress.document_id == doc.id).delete(synchronize_session=False)
+    db.delete(doc)
+
+
+def _sync_perso(db: Session, user: User) -> None:
+    """
+    Un document Lib par PDF de « Mes fichiers » : créé vide (lu à la première
+    ouverture), renommé avec le fichier, supprimé avec lui.
+    """
+    from app.routers.files import purge_expired_files  # import local : évite un cycle
+
+    purge_expired_files(db, user)
+    files = db.execute(select(File).where(File.user_id == user.id)).scalars().all()
+    docs = db.execute(select(LibDocument).where(LibDocument.owner_id == user.id)).scalars().all()
+    ids = {f.id for f in files}
+    par_fichier = {d.source_file_id: d for d in docs}
+    change = False
+    for d in docs:
+        if d.source_file_id not in ids:
+            _delete_doc(db, d)
+            change = True
+    for f in files:
+        titre = _titre_fichier(f.filename_original)
+        d = par_fichier.get(f.id)
+        if d is None:
+            db.add(LibDocument(
+                kind="perso", titre=titre, owner_id=user.id, source_file_id=f.id,
+                source_filename=(f.filename_original or "")[:255], size_bytes=int(f.size_bytes or 0),
+                content={}, is_published=False,
+            ))
+            change = True
+        elif d.titre != titre:
+            d.titre = titre
+            change = True
+    if change:
+        try:
+            db.commit()
+        except IntegrityError:  # deux synchronisations en même temps
+            db.rollback()
+
+
+def _prepare_perso(db: Session, doc: LibDocument) -> None:
+    """Première ouverture : lecture du PDF, plan, points de passage (sans Elo)."""
+    if "blocks" in (doc.content or {}):
+        return
+    f = db.get(File, doc.source_file_id) if doc.source_file_id else None
+    if not f or not Path(f.path).exists():
+        raise HTTPException(404, detail="Fichier introuvable : il a peut-être expiré.")
+    parsed = _parse(Path(f.path).read_bytes(), "document.pdf")
+    doc.content = {k: parsed[k] for k in ("blocks", "plan", "stats")}
+    doc.sous_titre = (parsed["meta"].get("sous_titre") or "")[:400]
+    blocks = parsed["blocks"]
+    found = parser.detect_checkpoints(blocks, seed=doc.id or 0) or [
+        {"anchor": a, "titre": t, "questions": [], "source": "perso"}
+        for a, t in parser.anchors_perso(blocks, mots=PERSO_MOTS)
+    ]
+    for f_cp in found:
+        doc.checkpoints.append(LibCheckpoint(
+            anchor_block=f_cp["anchor"], titre=f_cp["titre"], questions=f_cp["questions"],
+            source=f_cp["source"], elo_requis=0, recompense_elo=0, seuil_pct=SEUIL_PCT,
+        ))
+    db.commit()
+    db.refresh(doc)
+
+
+def _section_blocks(doc: LibDocument, cp: LibCheckpoint) -> list[dict]:
+    """Blocs entre le point de passage précédent et celui-ci."""
+    prev = max([x.anchor_block for x in doc.checkpoints if x.anchor_block < cp.anchor_block], default=-1)
+    return _blocks(doc)[prev + 1: cp.anchor_block + 1]
+
+
+def _fill_perso(db: Session, doc: LibDocument, cp: LibCheckpoint) -> None:
+    """
+    Questions d'un point de passage de « Mes fichiers », rédigées par l'IA
+    quand l'élève y arrive (sinon tirées des paragraphes). Si rien n'est
+    possible, le point de passage disparaît : il ne bloque pas la lecture.
+    """
+    section = _section_blocks(doc, cp)
+    texte = "\n".join(b.get("text", "") for b in section)
+    qs: list[dict] = []
+    if len(texte) >= 200:
+        try:
+            qs = generer_questions_ia(texte, n_qcm=4, n_courte=1)
+        except Exception:
+            logger.exception("lib: questions IA impossibles (document perso %s)", doc.id)
+    if not qs:
+        qs = parser.questions_from_paragraphs(section, seed=cp.id)
+    if qs:
+        cp.questions, cp.source = qs, "ia"
+        db.commit()
+        return
+    cp.is_active = False
+    db.commit()
+    raise HTTPException(409, detail="Pas de question possible sur ce passage : la suite est ouverte.")
 
 
 def _checkpoint_for_user(db: Session, cp_id: int, user: User) -> tuple[LibCheckpoint, dict, dict]:
@@ -261,14 +386,20 @@ def _checkpoint_for_user(db: Session, cp_id: int, user: User) -> tuple[LibCheckp
 
 @router.get("/catalogue")
 def catalogue(db: Session = Depends(get_db), user: User | None = Depends(get_current_user_optional)):
-    q = select(LibDocument).order_by(LibDocument.ordre, LibDocument.id)
+    q = select(LibDocument).where(LibDocument.owner_id.is_(None)).order_by(LibDocument.ordre, LibDocument.id)
     if not _is_admin(user):
         q = q.where(LibDocument.is_published.is_(True))
     docs = db.execute(q).scalars().all()
+    if user:
+        # Mes fichiers en tête, du plus récent au plus ancien.
+        _sync_perso(db, user)
+        docs = db.execute(
+            select(LibDocument).where(LibDocument.owner_id == user.id).order_by(LibDocument.id.desc())
+        ).scalars().all() + docs
     prog = _progress_map(db, user, [d.id for d in docs])
     elo = _elo(user)
     return {
-        "items": [{**_summary(d, prog, elo), "brouillon": not d.is_published} for d in docs],
+        "items": [{**_summary(d, prog, elo), "brouillon": not d.is_published and d.owner_id is None} for d in docs],
         "user": _user_card(user, has_plus(db, user)),
     }
 
@@ -346,7 +477,9 @@ def _current_question(cp: LibCheckpoint, item: dict) -> dict:
 
 @router.get("/checkpoints/{cp_id}/question")
 def question(cp_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    cp, item, _ = _checkpoint_for_user(db, cp_id, user)
+    cp, item, ctx = _checkpoint_for_user(db, cp_id, user)
+    if not cp.questions and ctx["doc"].owner_id is not None:
+        _fill_perso(db, ctx["doc"], cp)
     return {"checkpoint": item, "question": parser.public_question(_current_question(cp, item))}
 
 
@@ -640,7 +773,9 @@ def _delete_checkpoints(db: Session, cps: list[LibCheckpoint]) -> None:
 
 @router.get("/admin/documents", dependencies=[Depends(verify_admin_code)])
 def admin_list(db: Session = Depends(get_db)):
-    docs = db.execute(select(LibDocument).order_by(LibDocument.ordre, LibDocument.id)).scalars().all()
+    docs = db.execute(
+        select(LibDocument).where(LibDocument.owner_id.is_(None)).order_by(LibDocument.ordre, LibDocument.id)
+    ).scalars().all()
     return {"items": [_admin_doc(db, d) for d in docs]}
 
 
@@ -664,7 +799,7 @@ async def admin_import(
     data = await _read_upload(file)
     parsed = _parse(data, file.filename or "")
     meta = parsed["meta"]
-    count = db.execute(select(func.count()).select_from(LibDocument)).scalar_one()
+    count = db.execute(select(func.count()).select_from(LibDocument).where(LibDocument.owner_id.is_(None))).scalar_one()
     doc = LibDocument(
         kind=kind,
         niveau=niveau.strip()[:10],
@@ -961,8 +1096,7 @@ def admin_generate(cp_id: int, db: Session = Depends(get_db)):
     if not c:
         raise HTTPException(404, detail="Point de passage introuvable.")
     blocks = _blocks(c.document)
-    prev = max([x.anchor_block for x in c.document.checkpoints if x.anchor_block < c.anchor_block], default=-1)
-    texte = "\n".join(b.get("text", "") for b in blocks[prev + 1: c.anchor_block + 1])
+    texte = "\n".join(b.get("text", "") for b in _section_blocks(c.document, c))
     if len(texte) < 200:
         raise HTTPException(400, detail="Extrait trop court pour générer des questions.")
     try:

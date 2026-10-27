@@ -385,6 +385,96 @@ def test_pass_admin(client):
     client.delete(f"/lib/admin/documents/{doc['id']}", headers=ADMIN)
 
 
+def _pdf_perso(paragraphes: int = 8) -> bytes:
+    import fitz
+
+    pdf = fitz.open()
+    page = pdf.new_page()
+    y = 60
+    phrase = "Le contrat de franchise suppose un savoir-faire secret, substantiel et identifié. "
+    for k in range(paragraphes):
+        for ligne in range(3):
+            page.insert_text((60, y), f"{phrase[:80]} ({k}.{ligne})", fontname="helv", fontsize=9)
+            y += 13
+        y += 10
+        if y > 760:
+            page, y = pdf.new_page(), 60
+    return pdf.tobytes()
+
+
+def test_mes_fichiers(client, monkeypatch, tmp_path):
+    import app.routers.lib as lib
+    from app.db.database import SessionLocal
+    from app.db.models import File
+
+    monkeypatch.setattr(lib, "PERSO_MOTS", 60)
+    uid, h = _user("perso", plan="membre+")
+    _, autre = _user("autre", plan="membre+")
+    _, gratuit_h = _user("gratuitperso", plan="free")
+
+    chemin = tmp_path / "fiche.pdf"
+    chemin.write_bytes(_pdf_perso())
+    db = SessionLocal()
+    f = File(user_id=uid, filename_original="Ma_fiche franchise.pdf", filename_stored="x.pdf",
+             path=str(chemin), size_bytes=chemin.stat().st_size)
+    db.add(f)
+    db.commit()
+    fid = f.id
+    db.close()
+
+    # Le fichier apparaît dans la bibliothèque de son propriétaire, en tête
+    cat = client.get("/lib/catalogue", headers=h).json()
+    perso = cat["items"][0]
+    assert perso["perso"] is True and perso["kind"] == "perso" and perso["titre"] == "Ma fiche franchise"
+    assert perso["plus"] is False and perso["brouillon"] is False
+    assert all(i["id"] != perso["id"] for i in client.get("/lib/catalogue", headers=autre).json()["items"])
+    assert client.get(f"/lib/documents/{perso['id']}?mode=lib", headers=autre).status_code == 404
+    assert all(d["id"] != perso["id"] for d in client.get("/lib/admin/documents", headers=ADMIN).json()["items"])
+
+    # Lib : lu à la première ouverture, en entier
+    v = client.get(f"/lib/documents/{perso['id']}?mode=lib", headers=h).json()
+    assert v["blocks"] and v["checkpoints"] == [] and v["gate"] is None
+
+    # Lib+ : points de passage placés tout seuls, sans Elo
+    v = client.get(f"/lib/documents/{perso['id']}", headers=h).json()
+    assert len(v["checkpoints"]) >= 2 and v["gate"]["status"] == "open"
+    assert all(c["elo_requis"] == 0 and c["recompense_elo"] == 0 for c in v["checkpoints"])
+    cp1 = v["checkpoints"][0]
+
+    # Questions rédigées par l'IA à l'arrivée sur le point de passage
+    vu = {}
+
+    def fausse_ia(texte, n_qcm=5, n_courte=2):
+        vu["texte"] = texte
+        return [{"id": "q1", "type": "qcm", "question": "Le savoir-faire doit être…", "choices": ["Secret", "Public"],
+                 "answer": 0, "points": 1, "explication": ""}]
+
+    monkeypatch.setattr(lib, "generer_questions_ia", fausse_ia)
+    q = client.get(f"/lib/checkpoints/{cp1['id']}/question", headers=h).json()["question"]
+    assert q["question"] == "Le savoir-faire doit être…" and "franchise" in vu["texte"]
+    r = client.post(f"/lib/checkpoints/{cp1['id']}/submit", headers=h, json={"question_id": "q1", "answer": 0}).json()
+    assert r["passed"] and r["elo_gagne"] == 0
+
+    # Rien à demander : le point de passage s'efface, la lecture continue
+    monkeypatch.setattr(lib, "generer_questions_ia", lambda *a, **k: [])
+    cp2 = client.get(f"/lib/documents/{perso['id']}", headers=h).json()["gate"]
+    r = client.get(f"/lib/checkpoints/{cp2['id']}/question", headers=h)
+    assert r.status_code == 409
+    v = client.get(f"/lib/documents/{perso['id']}", headers=h).json()
+    assert all(c["id"] != cp2["id"] for c in v["checkpoints"])
+
+    # Gratuit : ses fichiers dans Lib, pas de Lib+
+    assert client.get("/lib/catalogue", headers=gratuit_h).status_code == 200
+
+    # Fichier supprimé : le document disparaît
+    db = SessionLocal()
+    db.delete(db.get(File, fid))
+    db.commit()
+    db.close()
+    assert all(i["id"] != perso["id"] for i in client.get("/lib/catalogue", headers=h).json()["items"])
+    assert client.get(f"/lib/documents/{perso['id']}?mode=lib", headers=h).status_code == 404
+
+
 def test_import_pdf(client):
     import fitz
 

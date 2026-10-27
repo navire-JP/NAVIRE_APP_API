@@ -1853,7 +1853,7 @@ class LibDocument(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     kind: Mapped[str] = mapped_column(String(20), default="cours", nullable=False, index=True)
-    # cours | dissertation | fiche | cas_pratique
+    # cours | dissertation | fiche | cas_pratique | perso (fichier de l'élève)
     niveau: Mapped[str] = mapped_column(String(10), default="", nullable=False, index=True)
     matiere: Mapped[str] = mapped_column(String(120), default="", nullable=False)
 
@@ -1875,6 +1875,16 @@ class LibDocument(Base):
     # Réservé à NAVIRE Lib+ (abonnés NAVIRE AI, NAVIRE AI+ ou AdJuris) : absent
     # de NAVIRE Lib, la version en simple consultation.
     is_plus: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Document personnel : un PDF de « Mes fichiers » (files.id), lu dans Lib
+    # par son propriétaire seul. Créé vide à la synchronisation, découpé en
+    # blocs à la première ouverture (content == {}).
+    owner_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    source_file_id: Mapped[int | None] = mapped_column(
+        ForeignKey("files.id", ondelete="CASCADE"), unique=True, nullable=True
+    )
 
     ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)

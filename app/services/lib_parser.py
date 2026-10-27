@@ -561,6 +561,36 @@ def detect_checkpoints(blocks: list[dict], *, seed: int = 0) -> list[dict]:
     return out
 
 
+def anchors_perso(blocks: list[dict], *, mots: int = 1200, max_n: int = 12) -> list[tuple[int, str]]:
+    """
+    Où couper un PDF quelconque (fichier d'un élève) quand detect_checkpoints
+    ne trouve rien : fin de chaque grande partie si le document en a, sinon
+    tous les `mots` mots, à la fin d'un paragraphe. Sans questions : elles
+    sont rédigées plus tard (IA). [(anchor, titre)]
+    """
+    n = len(blocks)
+    for level in ("h1", "h2"):
+        heads = [i for i, bl in enumerate(blocks) if bl["t"] == level]
+        if len(heads) < 2:
+            continue
+        out = []
+        for k, h in enumerate(heads[:-1]):
+            end = heads[k + 1] - 1
+            if is_free_title(blocks[h]["text"]) or is_free_title(blocks[heads[k + 1]]["text"]):
+                continue
+            if sum(len(bl.get("text", "").split()) for bl in blocks[h: end + 1]) >= 250:
+                out.append((end, f"Point de passage · {_short(blocks[h]['text'])}"))
+        if out:
+            return out[:max_n]
+    out, count = [], 0
+    for i, bl in enumerate(blocks):
+        count += len(bl.get("text", "").split())
+        if count >= mots and bl["t"] == "p" and i < n - 3:
+            out.append((i, f"Point de passage {len(out) + 1}"))
+            count = 0
+    return out[:max_n]
+
+
 def locks_content(blocks: list[dict], anchor: int) -> bool:
     """
     False quand il ne reste après `anchor` que des parties libres (sources,
