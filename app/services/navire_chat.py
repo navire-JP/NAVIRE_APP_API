@@ -349,8 +349,11 @@ def send_message(
     use_navire_docs: bool = True,
     use_my_docs: bool = True,
     file_ids: list[int] | None = None,
+    context: str | None = None,
 ) -> dict:
     """
+    context : texte ajouté au prompt système (non enregistré dans la
+    conversation), par ex. l'extrait de cours lu dans NAVIRE Lib+.
     use_navire_docs / use_my_docs : sources que search_legal_base a le droit
     d'interroger (réglées par l'utilisateur dans l'onglet Sources).
     file_ids : sous-ensemble des PDF perso à utiliser (None = tous).
@@ -381,6 +384,8 @@ def send_message(
             + (" et ".join(actives) if actives else "aucune source")
             + ". search_legal_base n'interroge que ces sources."
         )
+    if context:
+        system_prompt += "\n\n" + context
 
     messages = (
         [{"role": "system", "content": system_prompt}]

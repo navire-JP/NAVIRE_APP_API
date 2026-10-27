@@ -1,16 +1,25 @@
 """
 app/routers/lib.py
 ==================
-NAVIRE Lib : bibliothèque de cours, dissertations et fiches. Le cours est lu
-dans l'embed (embeds/lib.html) ; des points de passage (QCM + questions à
-points) floutent la suite tant qu'ils ne sont pas validés, et peuvent exiger
-un Elo minimal.
+NAVIRE Lib : bibliothèque de cours, dissertations et fiches, lue dans l'embed
+(embeds/lib.html), en deux modes :
+
+- Lib (tout compte) : simple consultation, le document entier, sans point de
+  passage ni Elo. Les documents Lib+ n'y figurent pas.
+- Lib+ (abonnés NAVIRE AI, NAVIRE AI+ ou AdJuris) : tous les documents, et des
+  points de passage dans le cours. Chacun pose une seule question ; tant
+  qu'elle n'est pas réussie, la suite reste floutée. Chaque essai tire une
+  autre question de la réserve du point de passage ; après LIB_ESSAIS_MAX
+  échecs, l'élève peut passer à la suite (sans Elo). Un chat NAVIRE AI, nourri
+  de l'extrait lu, suit chaque point de passage.
 
 Étudiant (auth NAVIRE) :
   GET  /lib/catalogue                     → documents publiés + progression
-  GET  /lib/documents/{id}                → plan, blocs lisibles, verrou suivant
-  GET  /lib/checkpoints/{id}/questions    → questions (sans les réponses)
+  GET  /lib/documents/{id}?mode=lib|plus  → plan, blocs lisibles, verrou suivant
+  GET  /lib/checkpoints/{id}/question     → la question de l'essai (sans réponse)
   POST /lib/checkpoints/{id}/submit       → correction, progression, Elo
+  POST /lib/checkpoints/{id}/passer       → suite ouverte après les échecs
+  POST /lib/chat                          → question à NAVIRE AI sur le cours
   GET  /lib/embed                         → page d'embed servie par l'API
 
 Admin (header X-Admin-Code) :
@@ -50,7 +59,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import STORAGE_PATH
 from app.db.database import get_db
-from app.db.models import LibCheckpoint, LibDocument, LibProgress, User
+from app.core.limits import check_navire_daily_limit
+from app.db.models import LibCheckpoint, LibDocument, LibProgress, PrepaAdjurisEnrollment, User
 from app.routers.admin import verify_admin_code
 from app.routers.auth import get_current_user, get_current_user_optional
 from app.services import lib_parser as parser
@@ -70,7 +80,11 @@ LIB_MAX_BYTES = 50 * 1024 * 1024
 ELO_PALIER = int(os.getenv("LIB_ELO_PALIER", "10"))
 RECOMPENSE = int(os.getenv("LIB_RECOMPENSE_ELO", "10"))
 SEUIL_PCT = int(os.getenv("LIB_SEUIL_PCT", "60"))
+ESSAIS_MAX = int(os.getenv("LIB_ESSAIS_MAX", "3"))
 TEASER_BLOCKS = 4
+
+PLANS_PLUS = ("membre", "membre+")  # NAVIRE AI, NAVIRE AI+
+REFUS_PLUS = "NAVIRE Lib+ est réservé aux abonnés NAVIRE AI, NAVIRE AI+ et AdJuris."
 
 KINDS = ("cours", "dissertation", "fiche", "cas_pratique")
 
@@ -78,6 +92,24 @@ KINDS = ("cours", "dissertation", "fiche", "cas_pratique")
 # ============================================================
 # Outils
 # ============================================================
+
+def has_plus(db: Session, user: User | None) -> bool:
+    """Lib+ : admin, abonné NAVIRE AI / NAVIRE AI+, ou inscrit AdJuris actif."""
+    if not user:
+        return False
+    if user.is_admin or (user.plan or "free") in PLANS_PLUS:
+        return True
+    return db.execute(
+        select(PrepaAdjurisEnrollment.id).where(
+            PrepaAdjurisEnrollment.user_id == user.id, PrepaAdjurisEnrollment.status == "active"
+        ).limit(1)
+    ).first() is not None
+
+
+def _require_plus(db: Session, user: User) -> None:
+    if not has_plus(db, user):
+        raise HTTPException(403, detail=REFUS_PLUS)
+
 
 def _blocks(doc: LibDocument) -> list[dict]:
     return (doc.content or {}).get("blocks") or []
@@ -128,24 +160,25 @@ def _state(doc: LibDocument, prog: dict[int, LibProgress], elo: int) -> dict:
             "elo_requis": c.elo_requis,
             "seuil_pct": c.seuil_pct,
             "recompense_elo": c.recompense_elo,
-            "nb_questions": len(c.questions or []),
-            "total_points": _total_points(c),
             "final": final,
             "status": status,
             "passed": passed,
+            "skipped": bool(p and p.skipped),
             "best_score_pct": p.best_score_pct if p else 0,
             "attempts": p.attempts if p else 0,
+            "essais_max": ESSAIS_MAX,
+            "peut_passer": not passed and bool(p) and p.attempts >= ESSAIS_MAX,
         })
     gate_final = gate is not None and not parser.locks_content(blocks, gate.anchor_block)
     last = len(blocks) - 1 if gate is None or gate_final else gate.anchor_block
     return {"gate": gate, "items": items, "last_visible": last}
 
 
-def _user_card(user: User | None) -> dict | None:
+def _user_card(user: User | None, plus: bool = False) -> dict | None:
     if not user:
         return None
     elo = int(user.elo or 0)
-    return {"id": user.id, "username": user.username, "elo": elo, **tier_from_elo(elo)}
+    return {"id": user.id, "username": user.username, "elo": elo, "acces_plus": plus, **tier_from_elo(elo)}
 
 
 def _summary(doc: LibDocument, prog: dict[int, LibProgress] | None = None, elo: int = 0) -> dict:
@@ -162,6 +195,7 @@ def _summary(doc: LibDocument, prog: dict[int, LibProgress] | None = None, elo: 
         "kicker": doc.kicker,
         "maj": doc.maj,
         "description": doc.description,
+        "plus": doc.is_plus,
         "elo_requis": doc.elo_requis,
         "verrouille": elo < doc.elo_requis,
         "nb_etapes": sum(1 for b in _blocks(doc) if b.get("t") == "h1" and not parser.is_free_title(b.get("text", ""))),
@@ -183,6 +217,7 @@ def _get_published(db: Session, doc_id: int) -> LibDocument:
 
 def _checkpoint_for_user(db: Session, cp_id: int, user: User) -> tuple[LibCheckpoint, dict, dict]:
     """Point de passage accessible à l'élève, ou 403 avec la raison."""
+    _require_plus(db, user)
     cp = db.get(LibCheckpoint, cp_id)
     if not cp or not cp.is_active:
         raise HTTPException(404, detail="Point de passage introuvable.")
@@ -211,27 +246,50 @@ def catalogue(db: Session = Depends(get_db), user: User | None = Depends(get_cur
     ).scalars().all()
     prog = _progress_map(db, user, [d.id for d in docs])
     elo = int(user.elo or 0) if user else 0
-    return {"items": [_summary(d, prog, elo) for d in docs], "user": _user_card(user)}
+    return {"items": [_summary(d, prog, elo) for d in docs], "user": _user_card(user, has_plus(db, user))}
 
 
 @router.get("/documents/{doc_id}")
-def document(doc_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def document(
+    doc_id: int,
+    mode: Literal["lib", "plus"] = "plus",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     doc = _get_published(db, doc_id)
+    plus = has_plus(db, user)
     elo = int(user.elo or 0)
     blocks = _blocks(doc)
-    prog = _progress_map(db, user, [doc.id])
-    summary = _summary(doc, prog, elo)
     plan_all = (doc.content or {}).get("plan") or parser.build_plan(blocks)
 
+    if mode == "lib":
+        # Consultation : le document entier, sans point de passage ni Elo.
+        if doc.is_plus:
+            raise HTTPException(403, detail="Ce document est réservé à NAVIRE Lib+.")
+        return {
+            "mode": "lib",
+            "document": _summary(doc),
+            "plan": [{**h, "locked": False} for h in plan_all],
+            "blocks": blocks,
+            "teaser": [],
+            "checkpoints": [],
+            "gate": None,
+            "user": _user_card(user, plus),
+        }
+
+    _require_plus(db, user)
+    prog = _progress_map(db, user, [doc.id])
+    summary = _summary(doc, prog, elo)
     if elo < doc.elo_requis:
         return {
+            "mode": "plus",
             "document": summary,
             "plan": [{**h, "locked": True} for h in plan_all],
             "blocks": [],
             "teaser": blocks[:TEASER_BLOCKS],
             "checkpoints": [],
             "gate": {"type": "document", "elo_requis": doc.elo_requis, "elo": elo},
-            "user": _user_card(user),
+            "user": _user_card(user, plus),
         }
 
     st = _state(doc, prog, elo)
@@ -240,34 +298,47 @@ def document(doc_id: int, db: Session = Depends(get_db), user: User = Depends(ge
     gate_item = next((i for i in st["items"] if gate and i["id"] == gate.id), None)
     locks = gate_item is not None and not gate_item["final"]
     return {
+        "mode": "plus",
         "document": summary,
         "plan": [{**h, "locked": int(h["id"][1:]) > last} for h in plan_all],
         "blocks": blocks[: last + 1],
         "teaser": blocks[last + 1: last + 1 + TEASER_BLOCKS] if locks else [],
         "checkpoints": st["items"],
         "gate": ({"type": "checkpoint", **gate_item, "elo": elo} if gate_item else None),
-        "user": _user_card(user),
+        "user": _user_card(user, plus),
     }
 
 
-@router.get("/checkpoints/{cp_id}/questions")
-def questions(cp_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def _current_question(cp: LibCheckpoint, item: dict) -> dict:
+    """
+    La question de l'essai en cours : chaque essai tire la suivante de la
+    réserve du point de passage (un nouvel essai n'est pas la même question).
+    """
+    pool = cp.questions or []
+    if not pool:
+        raise HTTPException(409, detail="Ce point de passage n'a pas encore de question.")
+    return pool[int(item["attempts"]) % len(pool)]
+
+
+@router.get("/checkpoints/{cp_id}/question")
+def question(cp_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     cp, item, _ = _checkpoint_for_user(db, cp_id, user)
-    return {
-        "checkpoint": item,
-        "questions": [parser.public_question(q) for q in (cp.questions or [])],
-    }
+    return {"checkpoint": item, "question": parser.public_question(_current_question(cp, item))}
 
 
 class SubmitIn(BaseModel):
-    answers: dict[str, int | str | None] = Field(default_factory=dict)
+    question_id: str = Field(..., min_length=1, max_length=20)
+    answer: int | str | None = None
 
 
 @router.post("/checkpoints/{cp_id}/submit")
 def submit(cp_id: int, payload: SubmitIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     cp, item, ctx = _checkpoint_for_user(db, cp_id, user)
-    result = parser.grade(cp.questions or [], payload.answers)
-    reussi = result["score_pct"] >= cp.seuil_pct
+    q = _current_question(cp, item)
+    if q["id"] != payload.question_id:
+        raise HTTPException(409, detail="La question a changé : recharge le point de passage.")
+    result = parser.grade([q], {q["id"]: payload.answer})
+    reussi = result["corrections"][0]["correct"]
 
     now = datetime.now(timezone.utc)
     p = ctx["prog"].get(cp.id)
@@ -295,16 +366,98 @@ def submit(cp_id: int, payload: SubmitIn, db: Session = Depends(get_db), user: U
             session_id=f"lib-cp-{cp.id}", question_index=0,
             meta={"document_id": cp.document_id, "score_pct": result["score_pct"]},
         )
+    passed = reussi or deja
+    peut_passer = not passed and p.attempts >= ESSAIS_MAX
+    # Tant que l'élève peut encore retenter, la réponse attendue reste cachée.
+    correction = result["corrections"][0] if passed or peut_passer else \
+        {"id": q["id"], "correct": False, "points": 0, "max": result["total"], "explication": ""}
     return {
-        **result,
-        "seuil_pct": cp.seuil_pct,
-        "passed": reussi or deja,
+        "correction": correction,
+        "passed": passed,
         "reussi": reussi,
         "deja_valide": deja,
         "elo_gagne": gain,
         "elo": elo,
         "unlocked": reussi and not deja and not item["final"],
+        "essais": p.attempts,
+        "essais_max": ESSAIS_MAX,
+        "essais_restants": 0 if passed else max(0, ESSAIS_MAX - p.attempts),
+        "peut_passer": peut_passer,
     }
+
+
+@router.post("/checkpoints/{cp_id}/passer")
+def passer(cp_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Après ESSAIS_MAX échecs, la suite s'ouvre quand même, sans Elo."""
+    cp, item, ctx = _checkpoint_for_user(db, cp_id, user)
+    p = ctx["prog"].get(cp.id)
+    if p and p.passed:
+        return {"passed": True, "unlocked": False}
+    if not item["peut_passer"]:
+        raise HTTPException(403, detail=f"Encore {ESSAIS_MAX - item['attempts']} essai(s) avant de pouvoir passer.")
+    p.passed = True
+    p.skipped = True
+    p.passed_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"passed": True, "unlocked": not item["final"]}
+
+
+# ============================================================
+# Chat NAVIRE AI sur le cours (Lib+)
+# ============================================================
+
+class ChatIn(BaseModel):
+    document_id: int
+    message: str = Field(..., min_length=1, max_length=2000)
+    checkpoint_id: int | None = None
+    conversation_id: int | None = None
+
+
+def _extrait(doc: LibDocument, prog: dict, elo: int, cp_id: int | None) -> tuple[str, str]:
+    """Section lue (jusqu'au point de passage, ou jusqu'au verrou) : (titre, texte)."""
+    blocks = _blocks(doc)
+    st = _state(doc, prog, elo)
+    fin = st["last_visible"]
+    cps = _active(doc)
+    if cp_id is not None:
+        cp = next((c for c in cps if c.id == cp_id), None)
+        if cp is not None:
+            fin = min(fin, cp.anchor_block)
+    debut = max([c.anchor_block for c in cps if c.anchor_block < fin], default=-1) + 1
+    texte = "\n".join(b.get("text", "") for b in blocks[debut: fin + 1])
+    return parser._section_title(blocks, fin) if blocks else "", texte[-12000:]
+
+
+@router.post("/chat")
+def chat(payload: ChatIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    _require_plus(db, user)
+    doc = _get_published(db, payload.document_id)
+    elo = int(user.elo or 0)
+    if elo < doc.elo_requis:
+        raise HTTPException(403, detail=f"Ce document demande {doc.elo_requis} Elo.")
+    check_navire_daily_limit(user, db)
+    section, texte = _extrait(doc, _progress_map(db, user, [doc.id]), elo, payload.checkpoint_id)
+    context = (
+        f"CONTEXTE NAVIRE LIB+ : l'étudiant lit « {doc.titre} »"
+        + (f", partie « {section} »" if section else "")
+        + ". Il vient de répondre au point de passage et pose une question sur ce passage. "
+        "Réponds d'abord à partir de l'extrait ci-dessous, de façon brève et pédagogique, "
+        "sans tiret cadratin (—).\n\n"
+        f"EXTRAIT DU COURS :\n{texte}"
+    )
+    from app.services.navire_chat import send_message  # import local : client OpenAI
+
+    try:
+        r = send_message(
+            db=db, user=user, conversation_id=payload.conversation_id,
+            user_message=payload.message, mode="chat", context=context,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("lib: chat NAVIRE AI impossible")
+        raise HTTPException(502, detail=f"NAVIRE AI ne répond pas : {e}")
+    return {"conversation_id": r["conversation_id"], "reply": r["reply"], "sources": r.get("sources", [])}
 
 
 _EMBED = Path(__file__).resolve().parents[2] / "embeds" / "lib.html"
@@ -366,6 +519,7 @@ def _admin_doc(db: Session, doc: LibDocument, *, full: bool = False) -> dict:
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
         "lecteurs": int(lecteurs or 0),
         "nb_blocs": len(blocks),
+        "is_plus": doc.is_plus,
         "checkpoints": [_admin_cp(c, blocks, per_cp.get(c.id)) for c in sorted(doc.checkpoints, key=lambda c: c.anchor_block)],
     }
     if full:
@@ -475,6 +629,7 @@ async def admin_import(
     elo_palier: int = Form(ELO_PALIER),
     recompense_elo: int = Form(RECOMPENSE),
     publier: bool = Form(False),
+    plus: bool = Form(False),
     db: Session = Depends(get_db),
 ):
     if kind not in KINDS:
@@ -498,6 +653,7 @@ async def admin_import(
         size_bytes=len(data),
         ordre=int(count or 0) + 1,
         is_published=publier,
+        is_plus=plus,
     )
     db.add(doc)
     db.flush()
@@ -529,6 +685,7 @@ class DocPatch(BaseModel):
     elo_requis: int | None = Field(None, ge=0, le=100000)
     ordre: int | None = None
     is_published: bool | None = None
+    is_plus: bool | None = None
 
 
 @router.patch("/admin/documents/{doc_id}", dependencies=[Depends(verify_admin_code)])
@@ -726,6 +883,8 @@ pour vérifier qu'un étudiant l'a compris avant de passer à la suite.
 - {n_courte} questions à réponse courte (un mot ou une référence : notion, article, arrêt),
   avec les variantes de réponse acceptables.
 Chaque question porte sur le contenu de l'extrait, jamais sur des connaissances extérieures.
+Chaque question doit se suffire à elle-même : l'étudiant n'en verra qu'une à la fois.
+N'utilise jamais de tiret cadratin (—) : préfère la virgule, les deux-points ou les parenthèses.
 
 Réponds UNIQUEMENT en JSON :
 {{"questions": [

@@ -89,18 +89,20 @@ def client(tmp_path_factory):
     lib.LIB_DIR = tmp_path_factory.mktemp("lib")
     engine.dispose()
     Base.metadata.create_all(bind=engine)
+    from app.db.lib_migration import run_lib_migration
+    run_lib_migration()  # base de test d'une version précédente
     # Sans `with` : le lifespan (pgvector, migrations Postgres) ne tourne pas.
     yield TestClient(main.app)
     engine.dispose()
 
 
-def _user(username):
+def _user(username, plan="membre"):
     from app.db.database import SessionLocal
     from app.db.models import User
     from app.core.security import create_access_token
 
     db = SessionLocal()
-    u = User(email=f"{username}-{uuid.uuid4().hex[:8]}@test.fr", username=f"{username}{uuid.uuid4().hex[:4]}")
+    u = User(email=f"{username}-{uuid.uuid4().hex[:8]}@test.fr", username=f"{username}{uuid.uuid4().hex[:4]}", plan=plan)
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -109,21 +111,27 @@ def _user(username):
     return u.id, h
 
 
-def _reponses(client, cp_id, juste=True):
-    """Bonnes (ou mauvaises) réponses, lues dans la vue admin."""
+def _reponse(client, h, cp_id, juste=True):
+    """La question de l'essai et sa bonne (ou mauvaise) réponse, lue en base."""
     from app.db.database import SessionLocal
     from app.db.models import LibCheckpoint
 
+    r = client.get(f"/lib/checkpoints/{cp_id}/question", headers=h)
+    assert r.status_code == 200, r.text
+    q = r.json()["question"]
+    assert "answer" not in q and "accepted" not in q
     db = SessionLocal()
-    cp = db.get(LibCheckpoint, cp_id)
-    out = {}
-    for q in cp.questions:
-        if q["type"] == "qcm":
-            out[q["id"]] = q["answer"] if juste else (q["answer"] + 1) % len(q["choices"])
-        else:
-            out[q["id"]] = q["accepted"][0].lower() if juste else "aucune idée"
+    full = next(x for x in db.get(LibCheckpoint, cp_id).questions if x["id"] == q["id"])
     db.close()
-    return out
+    if full["type"] == "qcm":
+        a = full["answer"] if juste else (full["answer"] + 1) % len(full["choices"])
+    else:
+        a = full["accepted"][0].lower() if juste else "aucune idée"
+    return {"question_id": q["id"], "answer": a}
+
+
+def _repondre(client, h, cp_id, juste=True):
+    return client.post(f"/lib/checkpoints/{cp_id}/submit", headers=h, json=_reponse(client, h, cp_id, juste)).json()
 
 
 def test_parse_docx_structure():
@@ -195,25 +203,26 @@ def test_parcours_complet(client):
     assert any(x["locked"] for x in v["plan"]) and not v["plan"][0]["locked"]
 
     # Le second point de passage n'est pas encore accessible
-    assert client.get(f"/lib/checkpoints/{cp2['id']}/questions", headers=h).status_code == 403
+    assert client.get(f"/lib/checkpoints/{cp2['id']}/question", headers=h).status_code == 403
 
-    qs = client.get(f"/lib/checkpoints/{cp1['id']}/questions", headers=h).json()["questions"]
-    assert qs and all("answer" not in q and "accepted" not in q for q in qs)
-
-    # Échec : rien ne se débloque, pas d'Elo
-    r = client.post(f"/lib/checkpoints/{cp1['id']}/submit", headers=h,
-                    json={"answers": _reponses(client, cp1["id"], juste=False)}).json()
-    assert r["passed"] is False and r["elo_gagne"] == 0 and r["corrections"]
+    # Une seule question par essai, et l'essai suivant en tire une autre
+    q1 = client.get(f"/lib/checkpoints/{cp1['id']}/question", headers=h).json()["question"]
+    r = _repondre(client, h, cp1["id"], juste=False)
+    assert r["passed"] is False and r["elo_gagne"] == 0 and r["essais_restants"] == 2
+    assert r["peut_passer"] is False and "expected" not in r["correction"]   # réponse cachée
+    q2 = client.get(f"/lib/checkpoints/{cp1['id']}/question", headers=h).json()["question"]
+    assert q2["id"] != q1["id"]
+    # Répondre à une autre question que celle de l'essai : refusé
+    assert client.post(f"/lib/checkpoints/{cp1['id']}/submit", headers=h,
+                       json={"question_id": q1["id"], "answer": 0}).status_code == 409
 
     # Réussite : +10 Elo, la suite s'ouvre
-    r = client.post(f"/lib/checkpoints/{cp1['id']}/submit", headers=h,
-                    json={"answers": _reponses(client, cp1["id"])}).json()
-    assert r["passed"] and r["score_pct"] == 100 and r["elo_gagne"] == 10 and r["elo"] == 10
+    r = _repondre(client, h, cp1["id"])
+    assert r["passed"] and r["correction"]["correct"] and r["elo_gagne"] == 10 and r["elo"] == 10
     assert r["unlocked"] is True
 
     # Revalider ne rapporte rien de plus
-    r = client.post(f"/lib/checkpoints/{cp1['id']}/submit", headers=h,
-                    json={"answers": _reponses(client, cp1["id"])}).json()
+    r = _repondre(client, h, cp1["id"])
     assert r["deja_valide"] and r["elo_gagne"] == 0 and r["elo"] == 10
 
     # Point final : tout est lisible, le quiz final reste à faire
@@ -225,7 +234,7 @@ def test_parcours_complet(client):
     client.patch(f"/lib/admin/checkpoints/{cp2['id']}", headers=ADMIN, json={"elo_requis": 50})
     v = client.get(f"/lib/documents/{doc['id']}", headers=h).json()
     assert v["gate"]["status"] == "elo" and v["gate"]["elo"] == 10
-    r = client.get(f"/lib/checkpoints/{cp2['id']}/questions", headers=h)
+    r = client.get(f"/lib/checkpoints/{cp2['id']}/question", headers=h)
     assert r.status_code == 403 and "50 Elo" in r.json()["detail"]
 
     # Elo du document entier
@@ -255,9 +264,86 @@ def test_parcours_complet(client):
     assert a["checkpoints"][1]["source"] == "manuel"                       # questions éditées gardées
     assert a["checkpoints"][0]["valides"] == 1
 
+    # ── Trois échecs : l'élève peut passer à la suite, sans Elo ──
+    client.patch(f"/lib/admin/checkpoints/{cp2['id']}", headers=ADMIN, json={"elo_requis": 0})
+    uid2, h2 = _user("tenace")
+    assert client.post(f"/lib/checkpoints/{cp1['id']}/passer", headers=h2).status_code == 403
+    for k in range(3):
+        r = _repondre(client, h2, cp1["id"], juste=False)
+        assert r["passed"] is False and r["peut_passer"] is (k == 2)
+    assert r["correction"]["expected"]                                     # dévoilée au 3e échec
+    v = client.get(f"/lib/documents/{doc['id']}", headers=h2).json()
+    assert v["gate"]["id"] == cp1["id"] and v["gate"]["peut_passer"] is True
+    r = client.post(f"/lib/checkpoints/{cp1['id']}/passer", headers=h2).json()
+    assert r["passed"] and r["unlocked"]
+    v = client.get(f"/lib/documents/{doc['id']}", headers=h2).json()
+    assert v["checkpoints"][0]["skipped"] and v["gate"]["id"] == cp2["id"] and v["user"]["elo"] == 0
+
     assert client.get(f"/lib/admin/documents/{doc['id']}/source", headers=ADMIN).status_code == 200
     assert client.delete(f"/lib/admin/documents/{doc['id']}", headers=ADMIN).json()["ok"]
     assert client.get(f"/lib/documents/{doc['id']}", headers=h).status_code == 404
+
+
+def test_lib_et_lib_plus(client, monkeypatch):
+    r = client.post(
+        "/lib/admin/documents", headers=ADMIN,
+        files={"file": ("Cours.docx", _cours_docx(), "application/octet-stream")},
+        data={"publier": "true"},
+    )
+    doc = r.json()
+    plus = client.post(
+        "/lib/admin/documents", headers=ADMIN,
+        files={"file": ("Plus.docx", _cours_docx(), "application/octet-stream")},
+        data={"publier": "true", "plus": "true"},
+    ).json()
+    assert plus["is_plus"] is True and doc["is_plus"] is False
+    cp1 = doc["checkpoints"][0]
+
+    _, gratuit = _user("gratuit", plan="free")
+    cat = client.get("/lib/catalogue", headers=gratuit).json()
+    assert cat["user"]["acces_plus"] is False
+    assert next(i for i in cat["items"] if i["id"] == plus["id"])["plus"] is True
+
+    # Lib : tout le document, sans point de passage, même avec un Elo requis
+    client.patch(f"/lib/admin/documents/{doc['id']}", headers=ADMIN, json={"elo_requis": 500})
+    v = client.get(f"/lib/documents/{doc['id']}?mode=lib", headers=gratuit).json()
+    assert len(v["blocks"]) == doc["nb_blocs"] and v["checkpoints"] == [] and v["gate"] is None
+    client.patch(f"/lib/admin/documents/{doc['id']}", headers=ADMIN, json={"elo_requis": 0})
+    assert client.get(f"/lib/documents/{plus['id']}?mode=lib", headers=gratuit).status_code == 403
+
+    # Lib+ : fermé au compte gratuit
+    for url in (f"/lib/documents/{doc['id']}", f"/lib/checkpoints/{cp1['id']}/question"):
+        r = client.get(url, headers=gratuit)
+        assert r.status_code == 403 and "Lib+" in r.json()["detail"]
+    assert client.post("/lib/chat", headers=gratuit, json={"document_id": doc["id"], "message": "?"}).status_code == 403
+
+    # AdJuris actif : Lib+ ouvert
+    from app.db.database import SessionLocal
+    from app.db.models import PrepaAdjurisEnrollment
+    uid, adj = _user("adjuris", plan="free")
+    db = SessionLocal()
+    db.add(PrepaAdjurisEnrollment(user_id=uid, matiere_key="l1_civil", status="active"))
+    db.commit()
+    db.close()
+    assert client.get(f"/lib/documents/{plus['id']}", headers=adj).status_code == 200
+
+    # Chat NAVIRE AI : nourri de l'extrait lu
+    vu = {}
+
+    def faux(**kw):
+        vu.update(kw)
+        return {"conversation_id": 7, "reply": "Réponse", "sources": []}
+
+    import app.services.navire_chat as nc
+    monkeypatch.setattr(nc, "send_message", faux)
+    r = client.post("/lib/chat", headers=adj, json={"document_id": doc["id"], "checkpoint_id": cp1["id"], "message": "Et la franchise ?"})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"conversation_id": 7, "reply": "Réponse", "sources": []}
+    assert vu["user_message"] == "Et la franchise ?" and "Paragraphe 1-0" in vu["context"]
+    assert "Paragraphe 2-0" not in vu["context"]                    # rien après le point de passage
+
+    for d in (doc, plus):
+        client.delete(f"/lib/admin/documents/{d['id']}", headers=ADMIN)
 
 
 def test_import_pdf(client):

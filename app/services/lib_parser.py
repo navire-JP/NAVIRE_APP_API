@@ -510,7 +510,7 @@ def detect_checkpoints(blocks: list[dict], *, seed: int = 0) -> list[dict]:
                 questions = questions_from_paragraphs(_section_blocks(blocks, i), seed=seed * 1000 + k)
             out.append({
                 "anchor": anchor,
-                "titre": f"Point de passage — {_short(section) or f'étape {k + 1}'}",
+                "titre": f"Point de passage · {_short(section) or f'étape {k + 1}'}",
                 "questions": questions,
                 "source": "tableau" if pairs else "paragraphes",
             })
@@ -536,7 +536,7 @@ def detect_checkpoints(blocks: list[dict], *, seed: int = 0) -> list[dict]:
             if questions:
                 out.append({
                     "anchor": end,
-                    "titre": f"Point de passage — {_short(blocks[h]['text'])}",
+                    "titre": f"Point de passage · {_short(blocks[h]['text'])}",
                     "questions": questions,
                     "source": "paragraphes",
                 })
@@ -648,7 +648,7 @@ def questions_from_pairs(pairs, pool, *, seed: int = 0, n_qcm: int = 5, n_short:
             qs.append({
                 "id": f"q{k + 1}",
                 "type": "qcm",
-                "question": f"« {enonce} » — de quelle notion s'agit-il ?",
+                "question": f"« {enonce} » : de quelle notion s'agit-il ?",
                 "choices": choices,
                 "answer": choices.index(notion),
                 "points": 1,
@@ -689,7 +689,7 @@ def questions_from_paragraphs(section: list[dict], *, seed: int = 0, n: int = 5)
             qs.append({
                 "id": f"q{k + 1}",
                 "type": "qcm",
-                "question": f"« {_mask(extrait, p['lead'])} » — quel est l'intitulé de ce paragraphe ?",
+                "question": f"« {_mask(extrait, p['lead'])} » : quel est l'intitulé de ce paragraphe ?",
                 "choices": choices,
                 "answer": choices.index(p["lead"]),
                 "points": 1,

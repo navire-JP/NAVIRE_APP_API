@@ -1869,8 +1869,12 @@ class LibDocument(Base):
     source_path: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    # Elo minimal pour ouvrir le document (0 = libre)
+    # Elo minimal pour ouvrir le document en Lib+ (0 = libre)
     elo_requis: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Réservé à NAVIRE Lib+ (abonnés NAVIRE AI, NAVIRE AI+ ou AdJuris) : absent
+    # de NAVIRE Lib, la version en simple consultation.
+    is_plus: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
@@ -1946,6 +1950,9 @@ class LibProgress(Base):
     last_score_pct: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     elo_gagne: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Passé sans réussir, après LIB_ESSAIS_MAX échecs : la suite est ouverte,
+    # sans Elo.
+    skipped: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     passed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_attempt_at: Mapped[datetime] = mapped_column(
