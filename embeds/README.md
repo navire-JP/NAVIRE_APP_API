@@ -69,6 +69,13 @@ Un curseur en haut à droite passe de l'un à l'autre :
   suite, sans gagner d'Elo. Une fois le point de passage franchi, un chat
   NAVIRE AI s'ouvre dessous : il répond à partir de l'extrait lu
   (`POST /lib/chat`, même quota quotidien que NAVIRE AI).
+- **Mes fichiers** : les PDF que l'élève a déposés dans « Mes fichiers »
+  apparaissent en tête de sa bibliothèque (lui seul les voit), dans Lib comme
+  dans Lib+. Le PDF est lu à la première ouverture. En Lib+, des points de
+  passage s'y placent tout seuls (parties du document, sinon tous les
+  `LIB_PERSO_MOTS` mots, 1 200 par défaut) et l'IA rédige la question quand
+  l'élève y arrive. Pas d'Elo sur ses propres fichiers. Fichier supprimé ou
+  expiré : le document disparaît de Lib.
 - **Pass admin** (comptes admin) : Lib+ ouvert sans abonnement, aucun verrou
   d'Elo, bouton « Passer (admin) » sur chaque point de passage dès la première
   question, et les brouillons s'ouvrent en aperçu (étiquette « Brouillon »).
