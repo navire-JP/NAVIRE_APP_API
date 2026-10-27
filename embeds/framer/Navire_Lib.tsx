@@ -2,10 +2,12 @@
 // Section « Lib » de la console admin (Navire_AdminConsole.tsx).
 //
 // Import d'un cours (.docx ou .pdf) → le serveur le découpe en blocs, refait
-// le plan, surligne les références et place les points de passage (QCM +
-// questions à points). Ici : publier, régler l'Elo demandé et gagné à chaque
-// point de passage, corriger les questions, en faire générer par l'IA,
-// ajouter un point de passage à la main, déposer une nouvelle version.
+// le plan, surligne les références et place les points de passage. Chaque
+// point de passage garde une réserve de questions : l'élève en reçoit une par
+// essai (Lib+). Ici : publier, réserver un document à Lib+, régler l'Elo
+// demandé et gagné à chaque point de passage, corriger les questions, en
+// faire générer par l'IA, ajouter un point de passage à la main, déposer une
+// nouvelle version.
 //
 // Mêmes jeton, design tokens et primitives que la console (charte NAVIRE
 // AI) : le fichier est autonome pour ne pas dépendre de l'ordre des exports
@@ -145,6 +147,7 @@ interface Doc {
     description: string
     elo_requis: number
     is_published: boolean
+    is_plus: boolean
     ordre: number
     source_filename: string
     size_bytes: number
@@ -418,6 +421,7 @@ function ImportForm({ onDone }: { onDone: (d: Doc) => void }) {
     const [palier, setPalier] = React.useState("10")
     const [recompense, setRecompense] = React.useState("10")
     const [publier, setPublier] = React.useState(false)
+    const [plus, setPlus] = React.useState(false)
     const [busy, setBusy] = React.useState(false)
     const [msg, setMsg] = React.useState("")
     const ref = React.useRef<HTMLInputElement>(null)
@@ -438,6 +442,7 @@ function ImportForm({ onDone }: { onDone: (d: Doc) => void }) {
             fd.append("elo_palier", palier || "0")
             fd.append("recompense_elo", recompense || "0")
             fd.append("publier", String(publier))
+            fd.append("plus", String(plus))
             const d: Doc = await api("/lib/admin/documents", "POST", fd)
             setFile(null)
             setTitre("")
@@ -556,6 +561,11 @@ function ImportForm({ onDone }: { onDone: (d: Doc) => void }) {
                     on={publier}
                     onClick={() => setPublier((v) => !v)}
                     label="Publier tout de suite"
+                />
+                <Toggle
+                    on={plus}
+                    onClick={() => setPlus((v) => !v)}
+                    label="Réservé à Lib+"
                 />
             </div>
             {auto && (
@@ -799,7 +809,6 @@ function CheckpointRow({
     const [open, setOpen] = React.useState(false)
     const [edit, setEdit] = React.useState(false)
     const [elo, setElo] = React.useState(String(cp.elo_requis))
-    const [seuil, setSeuil] = React.useState(String(cp.seuil_pct))
     const [gain, setGain] = React.useState(String(cp.recompense_elo))
     const [titre, setTitre] = React.useState(cp.titre)
     const [busy, setBusy] = React.useState(false)
@@ -809,7 +818,6 @@ function CheckpointRow({
     React.useEffect(() => {
         setCur(cp)
         setElo(String(cp.elo_requis))
-        setSeuil(String(cp.seuil_pct))
         setGain(String(cp.recompense_elo))
         setTitre(cp.titre)
     }, [cp.id, cp.elo_requis, cp.seuil_pct, cp.recompense_elo, cp.titre, cp.is_active, cp.questions])
@@ -947,7 +955,7 @@ function CheckpointRow({
                     <div
                         style={{
                             display: "grid",
-                            gridTemplateColumns: "1fr 1fr 1fr auto",
+                            gridTemplateColumns: "1fr 1fr auto",
                             gap: 6,
                             alignItems: "end",
                         }}
@@ -955,10 +963,6 @@ function CheckpointRow({
                         <div>
                             <FL>Elo requis</FL>
                             <TI type="number" value={elo} onChange={(e: any) => setElo(e.target.value)} />
-                        </div>
-                        <div>
-                            <FL>Seuil %</FL>
-                            <TI type="number" value={seuil} onChange={(e: any) => setSeuil(e.target.value)} />
                         </div>
                         <div>
                             <FL>Elo gagné</FL>
@@ -972,7 +976,6 @@ function CheckpointRow({
                                     {
                                         titre,
                                         elo_requis: Number(elo) || 0,
-                                        seuil_pct: Number(seuil) || 0,
                                         recompense_elo: Number(gain) || 0,
                                     },
                                     "Réglages enregistrés"
@@ -985,7 +988,7 @@ function CheckpointRow({
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
                         <Btn onClick={() => setEdit((v) => !v)} style={{ fontSize: 10 }}>
-                            {edit ? "Fermer les questions" : `Questions (${cur.questions.length} · ${cur.total_points} pts)`}
+                            {edit ? "Fermer les questions" : `Réserve : ${cur.questions.length} question(s), 1 par essai`}
                         </Btn>
                         <Btn onClick={ia} disabled={busy} style={{ fontSize: 10, color: VIOLET }}>
                             ✦ Générer avec l'IA
@@ -1037,7 +1040,7 @@ function AddCheckpoint({ doc, onDone }: { doc: Doc; onDone: () => void }) {
             const opt = options.find((o) => String(o.i - 1) === pos)
             await api(`/lib/admin/documents/${doc.id}/checkpoints`, "POST", {
                 anchor_block: Number(pos),
-                titre: opt ? `Point de passage — avant « ${opt.b.text.slice(0, 60)} »` : "Point de passage",
+                titre: opt ? `Point de passage · avant « ${opt.b.text.slice(0, 60)} »` : "Point de passage",
                 elo_requis: Number(elo) || 0,
             })
             onDone()
@@ -1186,6 +1189,14 @@ function DocDetail({
                     style={{ fontSize: 10 }}
                 >
                     {doc.is_published ? "Dépublier" : "Publier"}
+                </Btn>
+                <Btn
+                    onClick={() => patch({ is_plus: !doc.is_plus }, doc.is_plus ? "Visible dans Lib" : "Réservé à Lib+")}
+                    disabled={busy}
+                    style={{ fontSize: 10 }}
+                    title="Lib+ : abonnés NAVIRE AI, NAVIRE AI+ et AdJuris. Lib : tout compte, en simple consultation."
+                >
+                    {doc.is_plus ? "Ouvrir à Lib" : "Réserver à Lib+"}
                 </Btn>
                 {doc.is_published && (
                     <Btn onClick={() => window.open(`${LIB_PAGE}?doc=${doc.id}`, "_blank")} style={{ fontSize: 10 }}>
@@ -1390,6 +1401,11 @@ function DocRow({
                 {d.elo_requis > 0 && (
                     <Tag color={WARN} border="rgba(255,209,102,0.35)">
                         {d.elo_requis} ELO
+                    </Tag>
+                )}
+                {d.is_plus && (
+                    <Tag color={t0} border={b0}>
+                        LIB+
                     </Tag>
                 )}
                 <Tag color={d.is_published ? OK : t2} border={d.is_published ? "rgba(91,227,163,0.4)" : b0}>

@@ -1,18 +1,25 @@
 <!--
-  NAVIRE — Embed page /lib (NAVIRE Lib : cours, dissertations, fiches)
-  ====================================================================
-  Même DA et même structure que l'embed NAVIRE AI :
+  NAVIRE, embed de la page /lib (NAVIRE Lib : cours, dissertations, fiches)
+  =========================================================================
+  Même DA et même structure que l'embed NAVIRE AI, en bleu et blanc :
     - >= 760px de conteneur : barre latérale ; < 760px : menu tiroir ;
     - prend la hauteur de l'écran sous sa position, seule la page défile.
 
-  Bibliothèque  → GET /lib/catalogue
-  Lecture       → GET /lib/documents/{id} : plan à gauche, cours au centre.
-                  Au point de passage ouvert, la suite arrive floutée sous une
-                  fenêtre : questions (QCM + questions à points), Elo requis.
-  Quiz          → GET /lib/checkpoints/{id}/questions, POST …/submit
+  Un curseur passe de NAVIRE Lib à NAVIRE Lib+ :
+    Lib   → consultation : le cours entier, sans point de passage ni Elo.
+    Lib+  → abonnés NAVIRE AI, NAVIRE AI+ et AdJuris : plus de cours, et des
+            points de passage intégrés au cours. Une question par point de
+            passage ; la suite reste floutée tant qu'elle n'est pas réussie.
+            Après 3 échecs, l'élève peut passer à la suite. Ensuite, un chat
+            NAVIRE AI répond aux questions sur le passage lu.
 
-  Un lien vers un cours précis : /lib?doc=12
-  Réglages : bloc CONFIG du script (liens QCM, NAVIRE AI, actus).
+  Bibliothèque  → GET /lib/catalogue
+  Lecture       → GET /lib/documents/{id}?mode=lib|plus
+  Question      → GET /lib/checkpoints/{id}/question, POST …/submit, POST …/passer
+  Chat          → POST /lib/chat
+
+  Un lien vers un cours précis : /lib?doc=12 (et &mode=lib pour forcer Lib)
+  Réglages : bloc CONFIG du script (liens QCM, NAVIRE AI, actus, offres).
 -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <style>
@@ -26,11 +33,11 @@
   --text-2: rgba(255,255,255,0.72);
   --text-3: rgba(255,255,255,0.45);
   --text-4: rgba(255,255,255,0.28);
-  --danger: #FF6B6B;
-  --ok: #5BE3A3;
-  --warn: #FFD166;
   --blue: #7AA7FF;
-  --violet: #9B6FFF;
+  --blue-hi: #B5CDFF;
+  --blue-deep: #4F7DFF;
+  --blue-soft: rgba(122,167,255,0.1);
+  --blue-line: rgba(122,167,255,0.35);
   --radius: 14px;
   --ease: cubic-bezier(.2,.8,.2,1);
   --serif: 'Source Serif 4', Georgia, serif;
@@ -64,6 +71,7 @@
 #nv-lib .nv-logo { width: 32px; height: 32px; background: center/contain no-repeat; flex-shrink: 0; }
 #nv-lib .nv-brand-name { font-weight: 800; font-size: 15px; letter-spacing: .6px; }
 #nv-lib .nv-brand-name span { font-weight: 500; color: var(--text-3); letter-spacing: 0; margin-left: 3px; }
+#nv-lib .nv-brand-name span b { color: var(--blue); font-weight: 700; }
 #nv-lib .nv-brand-sub { font-size: 10.5px; color: var(--text-3); margin-top: 1px; }
 #nv-lib .nv-side-close { margin-left: auto; }
 #nv-lib:not(.is-compact) .nv-side-close { display: none; }
@@ -75,14 +83,13 @@
 #nv-lib .nv-nav.is-active { background: var(--panel-2); color: var(--text); }
 #nv-lib .nv-nav .nv-badge { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
 #nv-lib .nv-group-label { font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 14px 12px 6px; display: flex; align-items: center; gap: 8px; }
-#nv-lib .nv-group-label b { margin-left: auto; font-family: var(--mono); font-weight: 600; letter-spacing: 0; }
 
 /* Plan du cours */
 #nv-lib .nl-doc-head { padding: 2px 8px 10px; }
 #nv-lib .nl-doc-head small { font-family: var(--mono); font-size: 10px; color: var(--text-4); letter-spacing: .6px; text-transform: uppercase; }
 #nv-lib .nl-doc-head b { display: block; font-size: 14px; line-height: 1.3; margin: 4px 0 8px; }
 #nv-lib .nl-bar { height: 4px; border-radius: 9px; background: var(--panel-2); overflow: hidden; }
-#nv-lib .nl-bar i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, var(--ok), var(--blue)); transition: width .5s var(--ease); }
+#nv-lib .nl-bar i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, var(--blue-deep), var(--blue-hi)); transition: width .5s var(--ease); }
 #nv-lib .nl-doc-head .nl-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-top: 6px; }
 #nv-lib .nl-plan { flex: 1; min-height: 120px; margin: 0 -2px; padding: 0 2px; }
 #nv-lib .nl-plan-item { display: flex; align-items: flex-start; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 8px; padding: 6px 10px; font-size: 12.5px; line-height: 1.35; color: var(--text-2); transition: background .15s, color .15s; }
@@ -93,18 +100,16 @@
 #nv-lib .nl-plan-item.is-current { background: var(--panel-2); color: #fff; }
 #nv-lib .nl-plan-item.is-current::before { content: ''; width: 3px; align-self: stretch; border-radius: 3px; background: var(--blue); margin: 1px 0 1px -6px; flex-shrink: 0; }
 #nv-lib .nl-plan-item.is-locked { color: var(--text-4); }
-#nv-lib .nl-plan-item.is-locked .nl-ico-lock { opacity: .8; }
 #nv-lib .nl-plan-item span { flex: 1; min-width: 0; }
 #nv-lib .nl-plan-item svg { width: 13px; height: 13px; margin-top: 1px; }
 #nv-lib .nl-plan-cp { display: flex; align-items: center; gap: 8px; margin: 4px 0 4px 10px; padding: 6px 10px; border-radius: 9px; border: 1px dashed var(--line-2); background: transparent; width: calc(100% - 10px); cursor: pointer; font-size: 11.5px; color: var(--text-2); text-align: left; }
 #nv-lib .nl-plan-cp:hover { background: var(--panel); }
 #nv-lib .nl-plan-cp i { width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 9px; border: 1.5px solid var(--text-4); flex-shrink: 0; }
-#nv-lib .nl-plan-cp.passed { border-style: solid; border-color: rgba(91,227,163,0.25); }
-#nv-lib .nl-plan-cp.passed i { background: var(--ok); border-color: var(--ok); color: #0a0a12; }
-#nv-lib .nl-plan-cp.open { border-color: rgba(122,167,255,0.5); color: #fff; }
+#nv-lib .nl-plan-cp.passed { border-style: solid; border-color: var(--blue-line); }
+#nv-lib .nl-plan-cp.passed i { background: var(--blue); border-color: var(--blue); color: #0a0a12; }
+#nv-lib .nl-plan-cp.open { border-color: var(--blue-line); color: #fff; }
 #nv-lib .nl-plan-cp.open i { border-color: var(--blue); animation: nl-pulse 1.8s infinite; }
-#nv-lib .nl-plan-cp.elo { border-color: rgba(255,209,102,0.4); }
-#nv-lib .nl-plan-cp.elo i { border-color: var(--warn); color: var(--warn); }
+#nv-lib .nl-plan-cp.elo i { border-color: #fff; color: #fff; }
 #nv-lib .nl-plan-cp b { margin-left: auto; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--text-3); }
 @keyframes nl-pulse { 0% { box-shadow: 0 0 0 0 rgba(122,167,255,0.5); } 70% { box-shadow: 0 0 0 7px rgba(122,167,255,0); } 100% { box-shadow: 0 0 0 0 rgba(122,167,255,0); } }
 
@@ -112,10 +117,7 @@
 #nv-lib .nl-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
 #nv-lib .nl-action { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px 8px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 11px; font-weight: 600; color: var(--text-2); text-decoration: none; transition: background .15s, color .15s, transform .15s; }
 #nv-lib .nl-action:hover { background: var(--panel-3); color: #fff; transform: translateY(-1px); }
-#nv-lib .nl-action svg { width: 18px; height: 18px; }
-#nv-lib .nl-action.is-ai svg { color: var(--violet); }
-#nv-lib .nl-action.is-qcm svg { color: var(--blue); }
-#nv-lib .nl-action.is-news svg { color: var(--warn); }
+#nv-lib .nl-action svg { width: 18px; height: 18px; color: var(--blue); }
 
 /* Carte Elo */
 #nv-lib .nl-elo { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
@@ -124,7 +126,6 @@
 #nv-lib .nl-elo-top small { font-family: var(--mono); font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .6px; }
 #nv-lib .nl-elo-top em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--text-2); text-transform: capitalize; }
 #nv-lib .nl-elo .nl-bar { margin-top: 8px; }
-#nv-lib .nl-elo .nl-bar i { background: linear-gradient(90deg, var(--blue), var(--violet)); }
 #nv-lib .nl-elo-next { font-size: 10.5px; color: var(--text-4); margin-top: 6px; }
 #nv-lib .nv-logout { margin-top: 6px; font-size: 11.5px; color: var(--text-4); background: none; border: 0; cursor: pointer; padding: 4px 12px; text-align: left; }
 #nv-lib .nv-logout:hover { color: var(--text-2); }
@@ -137,13 +138,21 @@
 #nv-lib .nv-topbar-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
 #nv-lib .nv-icon-btn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: none; background: transparent; color: var(--text-3); cursor: pointer; transition: background .15s, color .15s; padding: 0; }
 #nv-lib .nv-icon-btn:hover { background: var(--panel-2); color: var(--text); }
-#nv-lib .nv-icon-btn.is-on { color: var(--warn); }
+#nv-lib .nv-icon-btn.is-on { color: var(--blue); }
 #nv-lib .nv-icon-btn svg { width: 18px; height: 18px; }
 #nv-lib .nv-menu-btn { display: none; }
 #nv-lib .nl-pill { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; font-weight: 600; white-space: nowrap; }
-#nv-lib .nl-pill svg { width: 13px; height: 13px; color: var(--violet); }
+#nv-lib .nl-pill:empty { display: none; }
+#nv-lib .nl-pill svg { width: 13px; height: 13px; color: var(--blue); }
 #nv-lib .nl-readbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: transparent; }
-#nv-lib .nl-readbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--violet)); transition: width .15s linear; }
+#nv-lib .nl-readbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blue-deep), var(--blue-hi)); transition: width .15s linear; }
+
+/* Curseur Lib / Lib+ */
+#nv-lib .nl-mode { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; height: 32px; padding: 3px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line-2); flex-shrink: 0; cursor: pointer; }
+#nv-lib .nl-mode button { position: relative; z-index: 1; border: 0; background: transparent; padding: 0 12px; border-radius: 99px; font-size: 12px; font-weight: 700; color: var(--text-3); cursor: pointer; letter-spacing: .2px; transition: color .25s; white-space: nowrap; }
+#nv-lib .nl-mode button.is-on { color: #0a0a12; }
+#nv-lib .nl-mode i { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 99px; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.25); transition: transform .3s var(--ease), background .3s; }
+#nv-lib .nl-mode.is-plus i { transform: translateX(100%); background: var(--blue); }
 
 #nv-lib .nv-page { flex: 1; min-height: 0; position: relative; }
 #nv-lib .nv-page-inner { max-width: 760px; margin: 0 auto; padding: 8px 20px 60px; animation: nv-fade .28s var(--ease); }
@@ -157,20 +166,29 @@
 #nv-lib .nv-page-head h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
 #nv-lib .nv-page-head p { margin: 4px 0 0; font-size: 13px; color: var(--text-3); line-height: 1.55; }
 
-/* Accueil non connecté */
+/* Accueil non connecté, offre Lib+ */
 #nv-lib .nv-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 10px 6px; gap: 6px; }
 #nv-lib .nv-hero-logo { width: 64px; height: 64px; border-radius: 15px; background: center/contain no-repeat; margin-bottom: 14px; box-shadow: 0 20px 60px rgba(120,150,255,0.18); animation: nv-float 6s ease-in-out infinite; }
 #nv-lib .nv-hero h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.6px; line-height: 1.2; }
 #nv-lib .nv-hero p { margin: 0; font-size: 13.5px; color: var(--text-3); max-width: 480px; line-height: 1.55; }
-#nv-lib .nv-grad { background: linear-gradient(90deg, #fff, var(--blue), var(--violet)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#nv-lib .nv-grad { background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 #nv-lib .nv-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin: 24px 0 8px; }
 #nv-lib .nv-step { text-align: left; padding: 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); animation: nv-rise .5s var(--ease) both; }
 #nv-lib .nv-step:nth-child(2) { animation-delay: .05s; }
 #nv-lib .nv-step:nth-child(3) { animation-delay: .1s; }
-#nv-lib .nv-step i { font-style: normal; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--text-4); }
+#nv-lib .nv-step i { font-style: normal; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--blue); }
 #nv-lib .nv-step b { display: block; font-size: 13px; font-weight: 600; margin: 4px 0 3px; }
 #nv-lib .nv-step span { font-size: 12px; color: var(--text-3); line-height: 1.5; }
 #nv-lib .nv-card { padding: 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; animation: nv-rise .4s var(--ease) both; }
+#nv-lib .nl-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; max-width: 560px; margin: 22px auto 16px; text-align: left; }
+#nv-lib .nl-compare > div { padding: 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); }
+#nv-lib .nl-compare > div.is-plus { border-color: var(--blue-line); background: var(--blue-soft); }
+#nv-lib .nl-compare b { display: block; font-size: 14px; margin-bottom: 8px; }
+#nv-lib .nl-compare ul { margin: 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+#nv-lib .nl-compare li { display: flex; gap: 7px; margin-bottom: 5px; }
+#nv-lib .nl-compare li::before { content: '✓'; color: var(--blue); font-weight: 700; }
+#nv-lib .nl-compare li.no { color: var(--text-4); }
+#nv-lib .nl-compare li.no::before { content: '·'; color: var(--text-4); }
 
 /* Boutons, champs */
 #nv-lib .nv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 18px; border-radius: 99px; border: none; background: #fff; color: #0a0a12; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .15s, background .2s, opacity .2s; }
@@ -178,6 +196,7 @@
 #nv-lib .nv-btn:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; transform: none; }
 #nv-lib .nv-btn svg { width: 15px; height: 15px; }
 #nv-lib .nv-btn.is-block { width: 100%; height: 42px; }
+#nv-lib .nv-btn.is-blue { background: var(--blue); }
 #nv-lib .nv-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line-2); background: transparent; font-size: 12.5px; color: var(--text-2); cursor: pointer; text-decoration: none; white-space: nowrap; transition: background .15s, color .15s; }
 #nv-lib .nv-chip:hover { background: var(--panel-2); color: #fff; }
 #nv-lib .nv-chip.is-active { background: var(--panel-3); color: #fff; }
@@ -186,25 +205,23 @@
 #nv-lib .nv-field > span { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin-bottom: 6px; }
 #nv-lib .nv-input { width: 100%; height: 42px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: #fff; font: inherit; font-size: 13.5px; outline: none; transition: border-color .15s, background .15s; }
 #nv-lib .nv-input::placeholder { color: var(--text-4); }
-#nv-lib .nv-input:focus { border-color: rgba(255,255,255,0.22); background: var(--panel-2); }
-#nv-lib .nv-err { color: var(--danger); font-size: 12.5px; margin-top: 10px; min-height: 1em; }
+#nv-lib .nv-input:focus { border-color: var(--blue-line); background: var(--panel-2); }
+#nv-lib .nv-err { color: var(--blue-hi); font-size: 12.5px; margin-top: 10px; min-height: 1em; }
 #nv-lib .nv-sep { display: flex; align-items: center; gap: 10px; color: var(--text-4); font-size: 11.5px; margin: 14px 0; }
 #nv-lib .nv-sep::before, #nv-lib .nv-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 #nv-lib .nv-empty { text-align: center; padding: 34px 20px; font-size: 13px; color: var(--text-3); line-height: 1.6; }
 #nv-lib .nv-empty b { display: block; color: var(--text-2); font-size: 14px; margin-bottom: 4px; }
 #nv-lib .nv-skel { height: 62px; border-radius: 12px; margin-bottom: 8px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nv-shimmer 1.4s linear infinite; }
 #nv-lib .nv-tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); white-space: nowrap; }
-#nv-lib .nv-tag.ok { color: var(--ok); background: rgba(91,227,163,0.1); }
-#nv-lib .nv-tag.warn { color: var(--warn); background: rgba(255,209,102,0.1); }
-#nv-lib .nv-tag.blue { color: var(--blue); background: rgba(122,167,255,0.1); }
-#nv-lib .nv-tag.violet { color: var(--violet); background: rgba(155,111,255,0.12); }
+#nv-lib .nv-tag.blue { color: var(--blue); background: var(--blue-soft); }
+#nv-lib .nv-tag.solid { color: #0a0a12; background: var(--blue); }
+#nv-lib .nv-tag.white { color: #0a0a12; background: #fff; }
 
 /* ================= BIBLIOTHÈQUE ================= */
 #nv-lib .nl-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
 #nv-lib .nl-stat { padding: 14px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); animation: nv-rise .4s var(--ease) both; min-width: 0; }
 #nv-lib .nl-stat small { display: block; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #nv-lib .nl-stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.5px; margin-top: 6px; }
-#nv-lib .nl-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 #nv-lib .nl-search { display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 42px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; }
 #nv-lib .nl-search svg { width: 16px; height: 16px; color: var(--text-3); }
 #nv-lib .nl-search input { flex: 1; background: none; border: none; outline: none; color: #fff; font: inherit; font-size: 13.5px; }
@@ -212,7 +229,8 @@
 #nv-lib .nl-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 #nv-lib .nl-book { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; text-align: left; transition: background .2s, border-color .2s, transform .2s var(--ease); animation: nv-rise .4s var(--ease) both; min-height: 170px; overflow: hidden; }
 #nv-lib .nl-book:hover { background: var(--panel-2); border-color: var(--line-2); transform: translateY(-2px); }
-#nv-lib .nl-book::after { content: ''; position: absolute; right: -40px; top: -40px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, var(--accent, rgba(122,167,255,0.18)), transparent 70%); pointer-events: none; }
+#nv-lib .nl-book::after { content: ''; position: absolute; right: -40px; top: -40px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(122,167,255,0.16), transparent 70%); pointer-events: none; }
+#nv-lib .nl-book.is-plus { border-color: rgba(122,167,255,0.2); }
 #nv-lib .nl-book-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 #nv-lib .nl-book h3 { margin: 2px 0 0; font-size: 16px; font-weight: 700; letter-spacing: -.3px; line-height: 1.3; }
 #nv-lib .nl-book p { margin: 0; font-size: 12px; color: var(--text-3); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -220,6 +238,11 @@
 #nv-lib .nl-book-foot .nl-bar { flex: 1; }
 #nv-lib .nl-book.is-locked { opacity: .65; }
 #nv-lib .nl-book .nl-lockbadge { position: absolute; right: 12px; top: 12px; z-index: 1; }
+#nv-lib .nl-banner { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 16px; border-radius: 16px; border: 1px solid var(--blue-line); background: var(--blue-soft); cursor: pointer; text-align: left; width: 100%; transition: background .2s; }
+#nv-lib .nl-banner:hover { background: rgba(122,167,255,0.15); }
+#nv-lib .nl-banner div { flex: 1; min-width: 0; }
+#nv-lib .nl-banner b { display: block; font-size: 14px; }
+#nv-lib .nl-banner span { font-size: 12.5px; color: var(--text-2); }
 
 /* ================= LECTURE ================= */
 #nv-lib .nl-article { font-family: var(--serif); font-size: 17px; line-height: 1.75; color: rgba(255,255,255,0.86); }
@@ -238,23 +261,23 @@
 #nv-lib .nl-article p { margin: 0 0 14px; text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
 #nv-lib.is-compact .nl-article p { text-align: left; }
 #nv-lib .nl-lead { font-family: 'Inter', sans-serif; font-weight: 700; font-size: .88em; color: #fff; }
-#nv-lib .nl-goal { margin: 10px 0 18px; padding: 12px 16px; border-radius: 12px; background: rgba(122,167,255,0.07); border: 1px solid rgba(122,167,255,0.18); font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.6; color: #cfe0ff; }
+#nv-lib .nl-goal { margin: 10px 0 18px; padding: 12px 16px; border-radius: 12px; background: rgba(122,167,255,0.07); border: 1px solid rgba(122,167,255,0.18); font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.6; color: #d6e4ff; }
 #nv-lib .nl-goal em { font-style: normal; }
-#nv-lib .nl-quote { margin: 4px 0 16px; padding: 12px 18px; border-left: 3px solid var(--violet); background: rgba(155,111,255,0.06); border-radius: 0 12px 12px 0; font-size: .95em; color: rgba(255,255,255,0.8); }
-#nv-lib .nl-pdp { display: flex; align-items: center; gap: 8px; margin: 34px 0 10px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--ok); }
-#nv-lib .nl-pdp::after { content: ''; flex: 1; height: 1px; background: rgba(91,227,163,0.2); }
+#nv-lib .nl-quote { margin: 4px 0 16px; padding: 12px 18px; border-left: 3px solid var(--blue); background: rgba(122,167,255,0.06); border-radius: 0 12px 12px 0; font-size: .95em; color: rgba(255,255,255,0.8); }
+#nv-lib .nl-pdp { display: flex; align-items: center; gap: 8px; margin: 34px 0 10px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--blue); }
+#nv-lib .nl-pdp::after { content: ''; flex: 1; height: 1px; background: rgba(122,167,255,0.22); }
 #nv-lib .nl-table { margin: 0 0 18px; border-radius: 12px; border: 1px solid var(--line); overflow: hidden; overflow-x: auto; font-family: 'Inter', sans-serif; }
 #nv-lib .nl-table table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
 #nv-lib .nl-table th { text-align: left; padding: 9px 12px; background: var(--panel-2); font-size: 10.5px; font-family: var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--text-3); }
 #nv-lib .nl-table td { padding: 9px 12px; border-top: 1px solid var(--line); vertical-align: top; color: var(--text-2); }
 #nv-lib .nl-table td:first-child { font-weight: 600; color: #fff; width: 30%; }
 
-/* Surlignage */
+/* Surlignage : nuances de bleu et de blanc */
 #nv-lib .nl-article mark { color: inherit; border-radius: 4px; padding: 0 2px; margin: 0 -1px; -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background .2s; }
-#nv-lib .nl-article mark.nl-art { background: rgba(122,167,255,0.16); box-shadow: inset 0 -1px 0 rgba(122,167,255,0.5); }
-#nv-lib .nl-article mark.nl-jp { background: rgba(255,209,102,0.15); box-shadow: inset 0 -1px 0 rgba(255,209,102,0.5); }
-#nv-lib .nl-article mark.nl-loi { background: rgba(91,227,163,0.13); box-shadow: inset 0 -1px 0 rgba(91,227,163,0.45); }
-#nv-lib .nl-article mark.nl-hl { background: rgba(255,230,0,0.22); }
+#nv-lib .nl-article mark.nl-art { background: rgba(122,167,255,0.18); box-shadow: inset 0 -1px 0 rgba(122,167,255,0.6); }
+#nv-lib .nl-article mark.nl-jp { background: rgba(255,255,255,0.1); box-shadow: inset 0 -1px 0 rgba(255,255,255,0.55); }
+#nv-lib .nl-article mark.nl-loi { background: rgba(79,125,255,0.22); box-shadow: inset 0 -1px 0 rgba(79,125,255,0.6); }
+#nv-lib .nl-article mark.nl-hl { background: rgba(181,205,255,0.24); }
 #nv-lib.is-plain .nl-article mark { background: transparent; box-shadow: none; }
 #nv-lib .nl-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; color: var(--text-3); margin: -6px 0 18px; justify-content: center; font-family: 'Inter', sans-serif; }
 #nv-lib .nl-legend span { display: inline-flex; align-items: center; gap: 6px; }
@@ -263,97 +286,108 @@
 #nv-lib .nl-flash { animation: nl-flash 2.2s var(--ease); }
 @keyframes nl-flash { 0%, 30% { background: rgba(122,167,255,0.14); } 100% { background: transparent; } }
 
-/* Point de passage validé (dans le cours) */
-#nv-lib .nl-done { display: flex; align-items: center; gap: 12px; margin: 10px 0 28px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(91,227,163,0.2); background: rgba(91,227,163,0.05); font-family: 'Inter', sans-serif; font-size: 13px; }
-#nv-lib .nl-done .nl-done-ico { width: 30px; height: 30px; border-radius: 50%; background: var(--ok); color: #0a0a12; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-#nv-lib .nl-done .nl-done-ico svg { width: 15px; height: 15px; }
-#nv-lib .nl-done div { flex: 1; min-width: 0; }
-#nv-lib .nl-done b { display: block; font-size: 13px; }
-#nv-lib .nl-done small { color: var(--text-3); font-size: 11.5px; }
-
-/* ===== Verrou : la suite floutée + fenêtre ===== */
-#nv-lib .nl-gate { position: relative; margin-top: 18px; min-height: 420px; }
-#nv-lib .nl-teaser { filter: blur(7px); opacity: .55; user-select: none; -webkit-user-select: none; pointer-events: none; mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 100%); -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 100%); max-height: 560px; overflow: hidden; }
-#nv-lib .nl-gate-card { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); width: min(440px, 100%); padding: 22px; border-radius: 20px; background: rgba(14,14,24,0.92); border: 1px solid var(--line-2); box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(122,167,255,0.06); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-family: 'Inter', sans-serif; text-align: center; animation: nl-pop .5s var(--ease) both; }
-@keyframes nl-pop { from { opacity: 0; transform: translate(-50%, 16px) scale(.97); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
-#nv-lib .nl-gate-ico { width: 54px; height: 54px; margin: 0 auto 12px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(122,167,255,0.25), rgba(155,111,255,0.25)); border: 1px solid rgba(155,111,255,0.35); }
-#nv-lib .nl-gate-ico svg { width: 24px; height: 24px; }
-#nv-lib .nl-gate-ico.is-elo { background: linear-gradient(135deg, rgba(255,209,102,0.25), rgba(255,107,107,0.18)); border-color: rgba(255,209,102,0.4); color: var(--warn); }
-#nv-lib .nl-gate-card small { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 1.2px; color: var(--text-3); text-transform: uppercase; }
-#nv-lib .nl-gate-card h3 { margin: 6px 0 6px; font-size: 18px; font-weight: 700; letter-spacing: -.3px; line-height: 1.3; }
-#nv-lib .nl-gate-card p { margin: 0 0 14px; font-size: 13px; color: var(--text-3); line-height: 1.55; }
-#nv-lib .nl-gate-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 16px; }
-#nv-lib .nl-gate-facts div { padding: 10px 6px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
-#nv-lib .nl-gate-facts b { display: block; font-size: 17px; font-weight: 700; }
-#nv-lib .nl-gate-facts span { font-size: 10.5px; color: var(--text-3); }
-#nv-lib .nl-gate-facts .is-reward b { color: var(--violet); }
-#nv-lib .nl-elo-need { text-align: left; margin: 0 0 16px; padding: 12px; border-radius: 12px; background: rgba(255,209,102,0.06); border: 1px solid rgba(255,209,102,0.18); }
-#nv-lib .nl-elo-need div { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); margin-bottom: 7px; }
-#nv-lib .nl-elo-need b { color: var(--warn); font-family: var(--mono); }
-#nv-lib .nl-elo-need .nl-bar i { background: linear-gradient(90deg, var(--warn), var(--danger)); }
-#nv-lib .nl-gate-btns { display: flex; flex-direction: column; gap: 8px; }
-#nv-lib .nl-gate-btns .nv-chip { width: 100%; height: 40px; }
-
-/* Quiz final (ne floute rien) */
-#nv-lib .nl-final { margin: 30px 0 10px; padding: 20px; border-radius: 18px; background: linear-gradient(135deg, rgba(122,167,255,0.08), rgba(155,111,255,0.08)); border: 1px solid rgba(155,111,255,0.25); font-family: 'Inter', sans-serif; display: flex; gap: 14px; align-items: center; }
-#nv-lib .nl-final div { flex: 1; min-width: 0; }
-#nv-lib .nl-final b { display: block; font-size: 15px; }
-#nv-lib .nl-final span { font-size: 12.5px; color: var(--text-3); }
-
-/* ================= QUIZ (fenêtre) ================= */
-#nv-lib .nl-modal { position: absolute; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(4,4,10,0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); animation: nv-fade .25s var(--ease); }
-#nv-lib .nl-quiz { width: min(620px, 100%); max-height: 100%; display: flex; flex-direction: column; border-radius: 22px; background: #0e0e18; border: 1px solid var(--line-2); box-shadow: 0 40px 100px rgba(0,0,0,0.55); overflow: hidden; }
-#nv-lib .nl-quiz-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
-#nv-lib .nl-quiz-head div { flex: 1; min-width: 0; }
-#nv-lib .nl-quiz-head small { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: var(--text-3); text-transform: uppercase; }
-#nv-lib .nl-quiz-head b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#nv-lib .nl-pips { display: flex; gap: 4px; padding: 0 16px 12px; }
-#nv-lib .nl-pips i { flex: 1; height: 4px; border-radius: 9px; background: var(--panel-3); transition: background .25s; }
-#nv-lib .nl-pips i.is-done { background: var(--blue); }
-#nv-lib .nl-pips i.is-cur { background: #fff; }
-#nv-lib .nl-quiz-body { padding: 6px 18px 18px; overflow-y: auto; min-height: 0; }
-#nv-lib .nl-q-kind { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-#nv-lib .nl-q-text { font-family: var(--serif); font-size: 17px; line-height: 1.6; margin: 0 0 16px; color: #fff; }
+/* ===== Point de passage intégré au cours (Lib+) ===== */
+#nv-lib .nl-cp { margin: 26px 0 30px; font-family: 'Inter', sans-serif; }
+#nv-lib .nl-qcard { position: relative; padding: 20px; border-radius: 20px; background: rgba(14,16,30,0.92); border: 1px solid var(--blue-line); box-shadow: 0 24px 70px rgba(0,0,0,0.35), 0 0 0 4px rgba(122,167,255,0.05); animation: nv-rise .4s var(--ease) both; }
+#nv-lib .nl-qhead { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+#nv-lib .nl-qico { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--blue-soft); border: 1px solid var(--blue-line); color: var(--blue); flex-shrink: 0; }
+#nv-lib .nl-qico svg { width: 19px; height: 19px; }
+#nv-lib .nl-qhead div { flex: 1; min-width: 0; }
+#nv-lib .nl-qhead small { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 1.2px; color: var(--blue); text-transform: uppercase; }
+#nv-lib .nl-qhead b { display: block; font-size: 14.5px; line-height: 1.3; margin-top: 2px; }
+#nv-lib .nl-tries { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+#nv-lib .nl-tries i { width: 9px; height: 9px; border-radius: 50%; background: var(--panel-3); border: 1px solid var(--line-2); }
+#nv-lib .nl-tries i.is-used { background: transparent; border-color: var(--text-4); }
+#nv-lib .nl-tries i.is-cur { background: var(--blue); border-color: var(--blue); }
+#nv-lib .nl-q-text { font-family: var(--serif); font-size: 17px; line-height: 1.6; margin: 0 0 14px; color: #fff; }
 #nv-lib .nl-choice { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 8px; padding: 12px 14px; border-radius: 13px; border: 1px solid var(--line-2); background: var(--panel); text-align: left; cursor: pointer; font-size: 14px; line-height: 1.45; transition: background .15s, border-color .15s, transform .15s; }
-#nv-lib .nl-choice:hover { background: var(--panel-2); }
-#nv-lib .nl-choice:active { transform: scale(.99); }
+#nv-lib .nl-choice:hover:not(:disabled) { background: var(--panel-2); }
+#nv-lib .nl-choice:active:not(:disabled) { transform: scale(.99); }
+#nv-lib .nl-choice:disabled { cursor: default; }
 #nv-lib .nl-choice kbd { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: var(--mono); font-size: 11px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text-3); }
 #nv-lib .nl-choice.is-on { border-color: var(--blue); background: rgba(122,167,255,0.1); }
 #nv-lib .nl-choice.is-on kbd { background: var(--blue); color: #0a0a12; border-color: var(--blue); }
-#nv-lib .nl-quiz-foot { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
-#nv-lib .nl-quiz-foot .nv-hint { flex: 1; font-size: 11.5px; color: var(--text-4); }
-/* Résultat */
-#nv-lib .nl-result { text-align: center; padding: 10px 0 4px; }
-#nv-lib .nl-ring { position: relative; width: 132px; height: 132px; margin: 4px auto 12px; }
-#nv-lib .nl-ring svg { width: 132px; height: 132px; transform: rotate(-90deg); }
-#nv-lib .nl-ring circle { fill: none; stroke-width: 9; stroke-linecap: round; }
-#nv-lib .nl-ring .bg { stroke: var(--panel-3); }
-#nv-lib .nl-ring .fg { transition: stroke-dashoffset 1.1s var(--ease); }
-#nv-lib .nl-ring b { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; letter-spacing: -.6px; }
-#nv-lib .nl-ring b small { font-size: 11px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
-#nv-lib .nl-result h3 { margin: 0 0 4px; font-size: 19px; font-weight: 700; }
-#nv-lib .nl-result p { margin: 0 auto 12px; max-width: 420px; font-size: 13px; color: var(--text-3); line-height: 1.55; }
-#nv-lib .nl-gain { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 99px; background: rgba(155,111,255,0.14); border: 1px solid rgba(155,111,255,0.35); color: #d7c7ff; font-weight: 700; font-size: 14px; animation: nl-gain 1s var(--ease) .4s both; }
-@keyframes nl-gain { 0% { opacity: 0; transform: translateY(10px) scale(.8); } 60% { transform: translateY(-3px) scale(1.06); } 100% { opacity: 1; transform: none; } }
-#nv-lib .nl-corr { text-align: left; margin-top: 18px; }
-#nv-lib .nl-corr-item { padding: 11px 13px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 6px; font-size: 13px; line-height: 1.5; }
-#nv-lib .nl-corr-item.ok { border-color: rgba(91,227,163,0.22); }
-#nv-lib .nl-corr-item.ko { border-color: rgba(255,107,107,0.22); }
-#nv-lib .nl-corr-item .nl-corr-top { display: flex; gap: 8px; align-items: flex-start; }
-#nv-lib .nl-corr-item .nl-corr-top .nl-corr-q { flex: 1; color: var(--text-2); }
-#nv-lib .nl-corr-item .nl-corr-exp { margin-top: 6px; padding-left: 26px; font-size: 12px; color: var(--text-3); }
-#nv-lib .nl-corr-item .nl-corr-exp b { color: #fff; font-weight: 600; }
-#nv-lib .nl-corr-ico { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; font-size: 11px; font-weight: 800; }
-#nv-lib .ok .nl-corr-ico { background: var(--ok); color: #0a0a12; }
-#nv-lib .ko .nl-corr-ico { background: var(--danger); color: #0a0a12; }
-#nv-lib .nl-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-#nv-lib .nl-confetti i { position: absolute; top: -10px; width: 7px; height: 12px; border-radius: 2px; animation: nl-fall 1.8s linear forwards; }
-@keyframes nl-fall { to { transform: translateY(720px) rotate(540deg); opacity: 0; } }
+#nv-lib .nl-choice.is-wrong { border-color: var(--line-2); background: transparent; color: var(--text-3); text-decoration: line-through; text-decoration-color: rgba(255,255,255,0.3); }
+#nv-lib .nl-choice.is-right { border-color: #fff; background: rgba(255,255,255,0.08); }
+#nv-lib .nl-choice.is-right kbd { background: #fff; color: #0a0a12; border-color: #fff; }
+#nv-lib .nl-qhint { font-size: 11.5px; color: var(--text-4); margin-top: 8px; }
+#nv-lib .nl-qfoot { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+#nv-lib .nl-qfoot .nl-qmeta { flex: 1; font-size: 11.5px; color: var(--text-3); min-width: 140px; }
+#nv-lib .nl-qfb { margin-top: 14px; padding: 12px 14px; border-radius: 13px; border: 1px solid var(--line-2); background: var(--panel); font-size: 13px; line-height: 1.55; color: var(--text-2); animation: nv-fade .3s var(--ease); }
+#nv-lib .nl-qfb b { color: #fff; }
+#nv-lib .nl-qfb .nl-qfb-exp { margin-top: 6px; color: var(--text-3); font-size: 12.5px; }
+#nv-lib .nl-teaser { filter: blur(7px); opacity: .5; user-select: none; -webkit-user-select: none; pointer-events: none; mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 100%); -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 100%); max-height: 420px; overflow: hidden; }
+
+/* Verrou d'Elo, document verrouillé, cours terminé */
+#nv-lib .nl-gate-card { padding: 22px; border-radius: 20px; background: rgba(14,16,30,0.92); border: 1px solid var(--line-2); text-align: center; animation: nv-rise .4s var(--ease) both; font-family: 'Inter', sans-serif; }
+#nv-lib .nl-gate-ico { width: 54px; height: 54px; margin: 0 auto 12px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: var(--blue-soft); border: 1px solid var(--blue-line); color: var(--blue); }
+#nv-lib .nl-gate-ico svg { width: 24px; height: 24px; }
+#nv-lib .nl-gate-card small { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 1.2px; color: var(--text-3); text-transform: uppercase; }
+#nv-lib .nl-gate-card h3 { margin: 6px 0 6px; font-size: 18px; font-weight: 700; letter-spacing: -.3px; line-height: 1.3; }
+#nv-lib .nl-gate-card p { margin: 0 auto 14px; max-width: 420px; font-size: 13px; color: var(--text-3); line-height: 1.55; }
+#nv-lib .nl-elo-need { text-align: left; margin: 0 auto 16px; max-width: 380px; padding: 12px; border-radius: 12px; background: var(--blue-soft); border: 1px solid var(--blue-line); }
+#nv-lib .nl-elo-need div { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); margin-bottom: 7px; }
+#nv-lib .nl-elo-need b { color: var(--blue); font-family: var(--mono); }
+#nv-lib .nl-gate-btns { display: flex; flex-direction: column; gap: 8px; max-width: 380px; margin: 0 auto; }
+#nv-lib .nl-gate-btns .nv-chip { width: 100%; height: 40px; }
+#nv-lib .nl-end { margin: 30px 0 10px; padding: 18px; border-radius: 18px; background: var(--blue-soft); border: 1px solid var(--blue-line); font-family: 'Inter', sans-serif; display: flex; gap: 14px; align-items: center; }
+#nv-lib .nl-end .nl-qico { background: var(--blue); color: #0a0a12; }
+#nv-lib .nl-end div { flex: 1; min-width: 0; }
+#nv-lib .nl-end b { display: block; font-size: 15px; }
+#nv-lib .nl-end span { font-size: 12.5px; color: var(--text-3); }
+
+/* Point de passage validé */
+#nv-lib .nl-done { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--blue-line); background: rgba(122,167,255,0.05); font-size: 13px; flex-wrap: wrap; }
+#nv-lib .nl-done .nl-done-ico { width: 30px; height: 30px; border-radius: 50%; background: var(--blue); color: #0a0a12; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#nv-lib .nl-done .nl-done-ico.is-skip { background: #fff; }
+#nv-lib .nl-done .nl-done-ico svg { width: 15px; height: 15px; }
+#nv-lib .nl-done > div { flex: 1; min-width: 160px; }
+#nv-lib .nl-done b { display: block; font-size: 13px; }
+#nv-lib .nl-done small { color: var(--text-3); font-size: 11.5px; }
+#nv-lib .nl-done .nl-done-btns { display: flex; gap: 6px; flex: 0 0 auto; min-width: 0; }
+#nv-lib .nl-done .nv-chip { height: 30px; font-size: 12px; padding: 0 12px; }
+#nv-lib .nl-gain { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; background: var(--blue); color: #0a0a12; font-weight: 700; font-size: 11.5px; margin-left: 6px; animation: nl-gain 1s var(--ease) .2s both; vertical-align: 1px; }
+@keyframes nl-gain { 0% { opacity: 0; transform: translateY(6px) scale(.8); } 60% { transform: translateY(-2px) scale(1.06); } 100% { opacity: 1; transform: none; } }
+
+/* ===== Chat NAVIRE AI (Lib+) ===== */
+#nv-lib .nl-chat { margin-top: 10px; border-radius: 18px; border: 1px solid var(--line-2); background: rgba(14,16,30,0.7); overflow: hidden; animation: nv-rise .4s var(--ease) both; }
+#nv-lib .nl-chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+#nv-lib .nl-bubble { position: relative; width: 34px; height: 34px; border-radius: 50%; background: #0c0c18 center/62% no-repeat; border: 1px solid var(--blue-line); box-shadow: 0 0 0 3px rgba(122,167,255,0.08), 0 6px 18px rgba(79,125,255,0.25); flex-shrink: 0; }
+#nv-lib .nl-bubble::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); border: 2px solid #0c0c18; }
+#nv-lib .nl-bubble.is-sm { width: 26px; height: 26px; box-shadow: none; }
+#nv-lib .nl-bubble.is-sm::after { display: none; }
+#nv-lib .nl-chat-head div { flex: 1; min-width: 0; }
+#nv-lib .nl-chat-head b { display: block; font-size: 13px; }
+#nv-lib .nl-chat-head span { font-size: 11.5px; color: var(--text-3); }
+#nv-lib .nl-msgs { padding: 14px; display: flex; flex-direction: column; gap: 10px; max-height: 420px; }
+#nv-lib .nl-msg { display: flex; gap: 8px; align-items: flex-end; max-width: 92%; animation: nv-fade .25s var(--ease); }
+#nv-lib .nl-msg .nl-txt { padding: 10px 13px; border-radius: 16px; font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; }
+#nv-lib .nl-msg.ai .nl-txt { background: var(--panel-2); border: 1px solid var(--line); border-bottom-left-radius: 5px; color: rgba(255,255,255,0.9); }
+#nv-lib .nl-msg.me { align-self: flex-end; }
+#nv-lib .nl-msg.me .nl-txt { background: var(--blue); color: #0a0a12; border-bottom-right-radius: 5px; font-weight: 500; }
+#nv-lib .nl-msg .nl-txt ul { margin: 6px 0; padding-left: 18px; }
+#nv-lib .nl-msg .nl-txt p { margin: 0 0 6px; }
+#nv-lib .nl-msg .nl-txt p:last-child { margin: 0; }
+#nv-lib .nl-typing { display: inline-flex; gap: 4px; padding: 4px 2px; }
+#nv-lib .nl-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); animation: nl-dot 1.2s infinite; }
+#nv-lib .nl-typing i:nth-child(2) { animation-delay: .15s; }
+#nv-lib .nl-typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes nl-dot { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+#nv-lib .nl-sugg { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px; }
+#nv-lib .nl-sugg .nv-chip { height: 30px; font-size: 12px; }
+#nv-lib .nl-chat-form { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+#nv-lib .nl-chat-form input { flex: 1; min-width: 0; height: 40px; padding: 0 14px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); color: #fff; font: inherit; font-size: 13.5px; outline: none; }
+#nv-lib .nl-chat-form input:focus { border-color: var(--blue-line); }
+#nv-lib .nl-chat-form input::placeholder { color: var(--text-4); }
+#nv-lib .nl-send { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--blue); color: #0a0a12; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: transform .15s, opacity .2s; }
+#nv-lib .nl-send:disabled { opacity: .4; cursor: default; }
+#nv-lib .nl-send:hover:not(:disabled) { transform: scale(1.05); }
+#nv-lib .nl-send svg { width: 17px; height: 17px; }
 
 /* Toasts */
 #nv-lib .nv-toasts { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 3000; pointer-events: none; }
-#nv-lib .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,30,44,0.95); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
-#nv-lib .nv-toast.is-error { color: #ffb3b3; }
+#nv-lib .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,32,50,0.95); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
+#nv-lib .nv-toast.is-error { border-color: var(--blue-line); color: var(--blue-hi); }
 @keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
 
 /* ================= COMPACT (téléphone / embed étroit) ================= */
@@ -363,9 +397,9 @@
 #nv-lib.is-compact.is-drawer .nv-scrim { opacity: 1; pointer-events: auto; }
 #nv-lib.is-compact .nv-side-close, #nv-lib.is-compact .nv-menu-btn { display: inline-flex; }
 #nv-lib.is-compact .nv-topbar { padding: 8px; border-bottom: 1px solid var(--line); min-height: 58px; }
-#nv-lib.is-compact .nv-topbar-title { text-align: center; font-size: 14px; }
+#nv-lib.is-compact .nv-topbar-title { font-size: 14px; }
 #nv-lib.is-compact .nv-page-inner { padding-left: 16px; padding-right: 16px; }
-#nv-lib.is-compact .nl-grid { grid-template-columns: 1fr; }
+#nv-lib.is-compact .nl-grid, #nv-lib.is-compact .nl-compare { grid-template-columns: 1fr; }
 #nv-lib.is-compact .nv-steps { grid-template-columns: 1fr; }
 #nv-lib.is-compact .nl-cover h1 { font-size: 25px; }
 #nv-lib.is-compact .nv-icon-btn { width: 42px; height: 42px; border-radius: 12px; }
@@ -374,14 +408,11 @@
 #nv-lib.is-compact .nl-plan-item { padding-top: 9px; padding-bottom: 9px; font-size: 14px; }
 #nv-lib.is-compact .nl-plan-item.l2 { font-size: 13.5px; }
 #nv-lib.is-compact .nl-plan-item.l3 { font-size: 13px; }
-#nv-lib.is-compact .nv-input { font-size: 16px; } /* 16px : évite le zoom auto d'iOS */
+#nv-lib.is-compact .nv-input, #nv-lib.is-compact .nl-chat-form input { font-size: 16px; } /* 16px : évite le zoom auto d'iOS */
 #nv-lib.is-compact .nv-btn { height: 44px; }
-#nv-lib.is-compact .nl-modal { padding: 0; align-items: stretch; }
-#nv-lib.is-compact .nl-quiz { border-radius: 0; width: 100%; max-height: none; border: 0; }
-#nv-lib.is-compact .nl-quiz-body { flex: 1; }
 #nv-lib.is-compact .nl-choice { padding: 14px; font-size: 15px; }
-#nv-lib.is-compact .nl-gate-card { padding: 18px; top: 20px; }
-#nv-lib.is-compact .nl-pill .nl-pill-label { display: none; }
+#nv-lib.is-compact .nl-qcard { padding: 16px; }
+#nv-lib.is-compact .nl-pill { display: none; }
 #nv-lib.is-compact .nl-stats b { font-size: 18px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -394,8 +425,8 @@
     <div class="nv-brand">
       <div class="nv-logo" data-logo></div>
       <div>
-        <div class="nv-brand-name">NAVIRE<span>Lib</span></div>
-        <div class="nv-brand-sub">Cours, dissertations, fiches</div>
+        <div class="nv-brand-name" data-el="brand">NAVIRE<span>Lib</span></div>
+        <div class="nv-brand-sub" data-el="brand-sub">Cours, dissertations, fiches</div>
       </div>
       <button class="nv-icon-btn nv-side-close" data-act="close-drawer" aria-label="Fermer le menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -417,12 +448,14 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
       </button>
       <span class="nl-pill" data-el="pill"></span>
+      <div class="nl-mode" data-el="mode" data-act="toggle-mode" role="switch" aria-label="NAVIRE Lib ou Lib+">
+        <i></i><button data-mode="lib">Lib</button><button data-mode="plus">Lib+</button>
+      </div>
       <div class="nl-readbar"><i data-el="readbar"></i></div>
     </div>
     <div class="nv-page nv-scroll" data-el="page"></div>
     <div class="nv-toasts" data-el="toasts"></div>
   </main>
-  <div data-el="modal"></div>
 </div>
 
 <script>
@@ -434,20 +467,29 @@
     SIGNUP_URL: "https://navire-ai.com/register",
     QCM_URL: "https://navire-ai.com/qcm",            // page QCM NAVIRE (gagner de l'Elo)
     AI_URL: "https://navire-ai.com/navire-ai",       // page NAVIRE AI
-    ACTUS_URL: "https://navire-ai.com/actus"         // page actus / veille
+    ACTUS_URL: "https://navire-ai.com/actus",        // page actus / veille
+    OFFRES_URL: "https://navire-ai.com/offres"       // abonnements (accès Lib+)
   };
   var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
   var KINDS = { cours: "Cours", dissertation: "Dissertation", fiche: "Fiche", cas_pratique: "Cas pratique" };
   var KINDS_PL = { cours: "Cours", dissertation: "Dissertations", fiche: "Fiches", cas_pratique: "Cas pratiques" };
-  var KIND_ACCENT = { cours: "rgba(122,167,255,0.2)", dissertation: "rgba(155,111,255,0.22)", fiche: "rgba(91,227,163,0.18)", cas_pratique: "rgba(255,209,102,0.18)" };
 
   var root = document.getElementById("nv-lib");
-  var S = { token: null, user: null, cat: null, filter: "all", query: "", doc: null, docId: null, quiz: null, plain: false, current: null };
+  var S = {
+    token: null, user: null, cat: null, filter: "all", query: "", doc: null, docId: null, plain: false, current: null,
+    mode: "lib",   // "lib" | "plus"
+    Q: {},         // question en cours, par point de passage : { q, a, busy, res }
+    redo: {},      // points de passage validés que l'élève refait
+    after: {},     // résultat qui vient d'ouvrir la suite (message sous le point de passage)
+    chat: {}       // chat NAVIRE AI, par point de passage : { open, conv, msgs, busy, draft }
+  };
 
   // ================= OUTILS =================
   function $(sel) { return root.querySelector(sel); }
   function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  // Pas de tiret cadratin dans les textes générés (titres, questions, IA).
+  function nodash(s, sep) { return String(s == null ? "" : s).replace(/\s*—\s*/g, sep || ", "); }
   function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
   function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return String(x.msg || "").replace(/^Value error, /, ""); }).join(" · "); return "Une erreur est survenue."; }
@@ -485,7 +527,6 @@
     var t = String(text || "").replace(/^(?:ÉTAPE|ETAPE|PARTIE)\s+\d+\.?\s*/i, "");
     return t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t;
   }
-
   // « TITRE 1. LES MODES » → « Titre 1. Les modes » (plan seulement ; le cours
   // garde la typographie du document).
   function smartCase(t) {
@@ -493,10 +534,28 @@
     if (t !== t.toUpperCase() || !/[A-ZÀ-Ý]{3}/.test(t)) return t;
     return t.toLowerCase().replace(/(^|[.:]\s+)([a-zà-ÿ])/g, function (m, a, c) { return a + c.toUpperCase(); });
   }
+  // Réponses de NAVIRE AI : gras, italique, listes, paragraphes.
+  function md(text) {
+    var out = [], list = null;
+    nodash(text).split(/\n/).forEach(function (line) {
+      var h = esc(line).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|[^*])\*([^*\s][^*]*?)\*/g, "$1<em>$2</em>").replace(/^#{1,4}\s*/, "");
+      var m = /^\s*(?:[-•*]|\d+[.)])\s+(.*)$/.exec(h);
+      if (m) { if (!list) { list = []; } list.push("<li>" + m[1] + "</li>"); return; }
+      if (list) { out.push("<ul>" + list.join("") + "</ul>"); list = null; }
+      if (h.trim()) out.push("<p>" + h + "</p>");
+    });
+    if (list) out.push("<ul>" + list.join("") + "</ul>");
+    return out.join("");
+  }
+  function plus() { return S.mode === "plus"; }
+  function hasPlus() { return !!(S.user && S.user.acces_plus); }
+  // Pass admin : Lib+ ouvert, pas de verrou d'Elo, points de passage à passer sans répondre, brouillons en aperçu.
+  function isAdmin() { return !!(S.user && S.user.admin); }
 
   var ICON = {
-    lock: '<svg class="nl-ico-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
     tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    skip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
@@ -506,8 +565,10 @@
     bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>',
     flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>',
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
     grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>'
   };
+  function ico(name, size) { return ICON[name].replace("<svg", '<svg style="width:' + size + 'px;height:' + size + 'px"'); }
 
   // ================= HAUTEUR (comme NAVIRE AI) =================
   var FRAMED = window.self !== window.top;
@@ -564,25 +625,44 @@
   }
   function bar(pct) { return '<div class="nl-bar"><i style="width:' + Math.max(0, Math.min(100, pct || 0)) + '%"></i></div>'; }
 
+  function renderMode() {
+    var m = el("mode");
+    m.classList.toggle("is-plus", plus());
+    m.querySelectorAll("[data-mode]").forEach(function (b) { b.classList.toggle("is-on", b.getAttribute("data-mode") === S.mode); });
+    m.setAttribute("aria-checked", plus() ? "true" : "false");
+    el("brand").innerHTML = "NAVIRE<span>Lib" + (plus() ? "<b>+</b>" : "") + "</span>";
+    el("brand-sub").textContent = plus() ? "Cours, points de passage, NAVIRE AI" : "Cours, dissertations, fiches";
+    renderElo();
+  }
   function renderElo() {
     var u = S.user;
-    if (!u) { el("elo").innerHTML = ""; el("pill").innerHTML = ""; return; }
-    var next = u.next_tier_min != null ? '<div class="nl-elo-next">' + (u.next_tier_min - u.elo) + ' Elo avant « ' + esc(u.next_tier) + ' »</div>' : '<div class="nl-elo-next">Rang maximal</div>';
+    if (!u || !plus() || !hasPlus()) { el("elo").innerHTML = ""; el("pill").innerHTML = ""; return; }
+    var next = u.next_tier_min != null ? '<div class="nl-elo-next">' + (u.next_tier_min - u.elo) + ' Elo avant « ' + esc(u.tier_next || u.next_tier) + ' »</div>' : '<div class="nl-elo-next">Rang maximal</div>';
     el("elo").innerHTML = '<div class="nl-elo"><div class="nl-elo-top"><b>' + u.elo + '</b><small>Elo</small><em>' + esc(u.tier) + '</em></div>' + bar(Math.round((u.progress || 0) * 100)) + next + '</div>';
-    el("pill").innerHTML = ICON.bolt + '<span>' + u.elo + '</span><span class="nl-pill-label">Elo</span>';
+    el("pill").innerHTML = ICON.bolt + '<span>' + u.elo + '</span><span>Elo</span>';
   }
   function setTitle(t) { el("title").textContent = t; }
+  function setMode(m) {
+    if (m === S.mode) return;
+    S.mode = m; store("navire_lib_mode", m);
+    renderMode();
+    if (!S.user) return;
+    // En lisant un cours : on le rouvre dans l'autre mode s'il y figure.
+    var d = S.doc && S.doc.document;
+    if (S.docId && d && (m === "plus" ? hasPlus() : !d.plus)) return openDoc(S.docId);
+    viewLibrary();
+  }
 
   // ================= NON CONNECTÉ =================
   function viewLoggedOut() {
     S.user = null; renderElo();
     setPage(
       '<div class="nv-hero"><div class="nv-hero-logo" data-logo></div><h1>NAVIRE <span class="nv-grad">Lib</span></h1>' +
-      '<p>Les cours, dissertations et fiches de la prépa, à lire comme un jeu : chaque étape validée débloque la suite et te rapporte de l\'Elo.</p></div>' +
+      '<p>Les cours, dissertations et fiches de la prépa, à lire librement. Avec Lib+, le cours devient un parcours : une question à chaque étape, puis NAVIRE AI pour aller plus loin.</p></div>' +
       '<div class="nv-steps">' +
-        '<div class="nv-step"><i>01</i><b>Lis l\'étape</b><span>Le cours complet, surligné : articles, arrêts, textes.</span></div>' +
-        '<div class="nv-step"><i>02</i><b>Passe le point de passage</b><span>QCM et questions à points sur ce que tu viens de lire.</span></div>' +
-        '<div class="nv-step"><i>03</i><b>Débloque et gagne</b><span>La suite s\'ouvre, ton Elo monte. Certaines étapes demandent un Elo minimal.</span></div>' +
+        '<div class="nv-step"><i>LIB</i><b>Consulte</b><span>Le cours complet, surligné : articles, arrêts, textes.</span></div>' +
+        '<div class="nv-step"><i>LIB+</i><b>Réponds au point de passage</b><span>Une question sur ce que tu viens de lire, trois essais.</span></div>' +
+        '<div class="nv-step"><i>LIB+</i><b>Demande à NAVIRE AI</b><span>Un doute sur le passage ? Pose ta question sous le cours.</span></div>' +
       '</div>' +
       '<div class="nv-card" style="max-width:420px;margin:18px auto 0">' +
         '<label class="nv-field" style="margin-top:0"><span>Email</span><input class="nv-input" id="l-email" type="email" autocomplete="email"></label>' +
@@ -595,9 +675,32 @@
       '</div>', true);
   }
 
+  // ================= OFFRE LIB+ (compte gratuit) =================
+  function viewUpsell() {
+    S.doc = null; S.docId = null; setPageParam("doc", null);
+    root.classList.remove("is-solo");
+    setTitle("NAVIRE Lib+");
+    el("hl-btn").style.display = "none";
+    el("readbar").style.width = "0";
+    sideLibrary();
+    var n = ((S.cat && S.cat.items) || []).filter(function (d) { return d.plus; }).length;
+    setPage(
+      '<div class="nv-hero"><div class="nv-hero-logo" data-logo></div><h1>NAVIRE <span class="nv-grad">Lib+</span></h1>' +
+      '<p>Lib+ est inclus dans les abonnements NAVIRE AI, NAVIRE AI+ et AdJuris.</p></div>' +
+      '<div class="nl-compare">' +
+        '<div><b>Lib</b><ul><li>Consultation des cours</li><li>Surlignage des références</li><li class="no">Points de passage</li><li class="no">Chat NAVIRE AI sur le cours</li></ul></div>' +
+        '<div class="is-plus"><b>Lib+</b><ul><li>Tout Lib</li><li>' + (n ? n + " document" + (n > 1 ? "s" : "") + " en plus" : "Des cours en plus") + '</li><li>Une question par point de passage, dans le cours</li><li>NAVIRE AI répond sur le passage lu</li><li>Elo à gagner</li></ul></div>' +
+      '</div>' +
+      '<div class="nl-gate-btns"><a class="nv-btn is-block is-blue" href="' + CONFIG.OFFRES_URL + '" data-go>Voir les offres</a><button class="nv-chip" data-mode-set="lib">Rester sur Lib</button></div>');
+  }
+
   // ================= BIBLIOTHÈQUE =================
-  function sideLibrary() {
+  function visibleItems() {
     var items = (S.cat && S.cat.items) || [];
+    return plus() ? items : items.filter(function (d) { return !d.plus; });
+  }
+  function sideLibrary() {
+    var items = visibleItems();
     var counts = { all: items.length };
     items.forEach(function (d) { counts[d.kind] = (counts[d.kind] || 0) + 1; });
     var nav = [["all", "Toute la bibliothèque", ICON.grid]].concat(Object.keys(KINDS).filter(function (k) { return counts[k]; }).map(function (k) { return [k, KINDS_PL[k], ICON.book]; }));
@@ -609,38 +712,48 @@
   }
   function actions() {
     return '<div class="nl-actions">' +
-      '<a class="nl-action is-qcm" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'QCM</a>' +
-      '<a class="nl-action is-ai" href="' + CONFIG.AI_URL + '" data-go data-ai>' + ICON.ai + 'NAVIRE AI</a>' +
-      '<a class="nl-action is-news" href="' + CONFIG.ACTUS_URL + '" data-go>' + ICON.news + 'Actus</a>' +
+      '<a class="nl-action" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'QCM</a>' +
+      '<a class="nl-action" href="' + CONFIG.AI_URL + '" data-go data-ai>' + ICON.ai + 'NAVIRE AI</a>' +
+      '<a class="nl-action" href="' + CONFIG.ACTUS_URL + '" data-go>' + ICON.news + 'Actus</a>' +
     '</div>';
   }
 
   function viewLibrary() {
+    if (plus() && !hasPlus()) return viewUpsell();
     S.doc = null; S.docId = null; setPageParam("doc", null);
     root.classList.remove("is-solo");
-    setTitle("Bibliothèque");
+    setTitle(plus() ? "Bibliothèque Lib+" : "Bibliothèque");
     el("hl-btn").style.display = "none";
     el("readbar").style.width = "0";
     sideLibrary();
-    var items = (S.cat && S.cat.items) || [];
+    var items = visibleItems();
     var q = S.query.toLowerCase();
     var list = items.filter(function (d) {
       return (S.filter === "all" || d.kind === S.filter) &&
         (!q || [d.titre, d.matiere, d.niveau, d.sous_titre].join(" ").toLowerCase().indexOf(q) !== -1);
     });
-    var done = items.filter(function (d) { return d.nb_points_passage && d.valides === d.nb_points_passage; }).length;
-    var cps = items.reduce(function (a, d) { return a + d.valides; }, 0);
-    var html =
-      '<div class="nv-page-head"><h2>Bibliothèque</h2><p>Lis, valide chaque point de passage, débloque la suite.</p></div>' +
-      '<div class="nl-stats">' +
-        '<div class="nl-stat"><small>Elo</small><b>' + (S.user ? S.user.elo : 0) + '</b></div>' +
-        '<div class="nl-stat"><small>Points de passage</small><b>' + cps + '</b></div>' +
-        '<div class="nl-stat"><small>Terminés</small><b>' + done + ' / ' + items.length + '</b></div>' +
-      '</div>' +
-      '<div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="Rechercher un cours, une matière…" value="' + esc(S.query) + '"></div>';
+    var html;
+    if (plus()) {
+      var done = items.filter(function (d) { return d.nb_points_passage && d.valides === d.nb_points_passage; }).length;
+      var cps = items.reduce(function (a, d) { return a + d.valides; }, 0);
+      html = '<div class="nv-page-head"><h2>Bibliothèque Lib+</h2><p>Lis, réponds à chaque point de passage, débloque la suite.</p></div>' +
+        '<div class="nl-stats">' +
+          '<div class="nl-stat"><small>Elo</small><b>' + (S.user ? S.user.elo : 0) + '</b></div>' +
+          '<div class="nl-stat"><small>Points de passage</small><b>' + cps + '</b></div>' +
+          '<div class="nl-stat"><small>Terminés</small><b>' + done + ' / ' + items.length + '</b></div>' +
+        '</div>';
+    } else {
+      html = '<div class="nv-page-head"><h2>Bibliothèque</h2><p>Les cours en libre consultation.</p></div>';
+    }
+    html += '<div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="Rechercher un cours, une matière…" value="' + esc(S.query) + '"></div>';
     if (!items.length) html += '<div class="nv-empty"><b>La bibliothèque arrive</b>Les premiers cours sont en préparation.</div>';
     else if (!list.length) html += '<div class="nv-empty"><b>Aucun résultat</b>Essaie un autre mot.</div>';
-    else html += '<div class="nl-grid" data-el="grid">' + list.map(bookCard).join("") + '</div>';
+    else html += '<div class="nl-grid">' + list.map(bookCard).join("") + '</div>';
+    if (!plus()) {
+      var extra = ((S.cat && S.cat.items) || []).filter(function (d) { return d.plus; }).length;
+      html += '<button class="nl-banner" data-mode-set="plus"><span class="nl-qico">' + ICON.ai + '</span><div><b>Passe à Lib+</b><span>' +
+        (extra ? extra + " document" + (extra > 1 ? "s" : "") + " en plus, " : "") + 'une question à chaque étape et NAVIRE AI sous le cours.</span></div><span class="nv-tag solid">LIB+</span></button>';
+    }
     setPage(html);
     var s = document.getElementById("lib-search");
     if (s) s.addEventListener("input", function (e) {
@@ -651,30 +764,39 @@
     });
   }
   function bookCard(d, i) {
-    var lock = d.verrouille ? '<span class="nv-tag warn nl-lockbadge">' + ICON.lock.replace('class="nl-ico-lock"', 'style="width:11px;height:11px"') + d.elo_requis + ' Elo</span>' : "";
-    var state = d.nb_points_passage && d.valides === d.nb_points_passage ? '<span class="nv-tag ok">Terminé</span>' : d.valides ? '<span class="nv-tag blue">En cours</span>' : "";
-    return '<button class="nl-book' + (d.verrouille ? " is-locked" : "") + '" data-open="' + d.id + '" style="animation-delay:' + (i * 0.04) + 's;--accent:' + (KIND_ACCENT[d.kind] || "") + '">' + lock +
-      '<div class="nl-book-top"><span class="nv-tag violet">' + esc(KINDS[d.kind] || d.kind) + '</span>' + (d.niveau ? '<span class="nv-tag">' + esc(d.niveau) + '</span>' : "") + state + '</div>' +
+    var p = plus();
+    var lock = p && d.verrouille ? '<span class="nv-tag white nl-lockbadge">' + ico("lock", 11) + d.elo_requis + ' Elo</span>' : "";
+    var state = !p ? "" : d.nb_points_passage && d.valides === d.nb_points_passage ? '<span class="nv-tag solid">Terminé</span>' : d.valides ? '<span class="nv-tag blue">En cours</span>' : "";
+    var foot = p && d.nb_points_passage
+      ? bar(d.progression_pct) + '<span>' + d.valides + '/' + d.nb_points_passage + '</span>'
+      : '<span>' + (d.minutes || "?") + ' min de lecture</span>';
+    return '<button class="nl-book' + (p && d.verrouille ? " is-locked" : "") + (d.plus ? " is-plus" : "") + '" data-open="' + d.id + '" style="animation-delay:' + (i * 0.04) + 's">' + lock +
+      '<div class="nl-book-top"><span class="nv-tag blue">' + esc(KINDS[d.kind] || d.kind) + '</span>' + (d.niveau ? '<span class="nv-tag">' + esc(d.niveau) + '</span>' : "") + (d.plus ? '<span class="nv-tag solid">LIB+</span>' : "") + (d.brouillon ? '<span class="nv-tag white">Brouillon</span>' : "") + state + '</div>' +
       '<h3>' + esc(d.titre) + '</h3>' +
       '<p>' + esc(d.description || d.sous_titre || d.matiere || "") + '</p>' +
-      '<div class="nl-book-foot">' + (d.nb_points_passage ? bar(d.progression_pct) + '<span>' + d.valides + '/' + d.nb_points_passage + '</span>' : '<span>' + (d.minutes || "?") + ' min de lecture</span>') + '</div>' +
+      '<div class="nl-book-foot">' + foot + '</div>' +
     '</button>';
   }
 
   // ================= LECTURE =================
   function openDoc(id, opts) {
     opts = opts || {};
+    if (plus() && !hasPlus()) return viewUpsell();
+    if (S.docId !== id) { S.Q = {}; S.redo = {}; S.after = {}; S.chat = {}; }
     S.docId = id; setPageParam("doc", id);
     root.classList.remove("is-solo");
     root.classList.remove("is-drawer");
     el("hl-btn").style.display = "";
     el("hl-btn").classList.toggle("is-on", !S.plain);
-    if (!opts.keep) el("page").innerHTML = '<div class="nv-page-inner"><div class="nv-skel" style="height:160px;margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div><div class="nv-skel"></div></div>';
-    return api("GET", "/lib/documents/" + id).then(function (d) {
+    var page = el("page"), keepTop = opts.keep ? page.scrollTop : null;
+    if (!opts.keep) page.innerHTML = '<div class="nv-page-inner"><div class="nv-skel" style="height:160px;margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div><div class="nv-skel"></div></div>';
+    return api("GET", "/lib/documents/" + id + "?mode=" + S.mode).then(function (d) {
       S.doc = d; S.user = d.user || S.user; renderElo();
       renderReader(opts);
+      if (keepTop != null && !opts.scrollTo) page.scrollTop = keepTop;
     }).catch(function (x) {
       if (x.status === 404) { toast("Ce document n'est plus disponible.", true); return refreshCatalogue().then(viewLibrary); }
+      if (x.status === 403 && !plus()) { toast("Ce document est dans Lib+."); return setMode("plus"); }
       setPage('<div class="nv-empty"><b>Lecture impossible</b>' + esc(x.message) + '</div>');
     });
   }
@@ -700,7 +822,7 @@
     el("side").innerHTML =
       '<button class="nv-nav" data-act="library">' + ICON.back + 'Bibliothèque</button>' +
       '<div class="nl-doc-head"><small>' + esc(KINDS[doc.kind] || doc.kind) + (doc.niveau ? " · " + esc(doc.niveau) : "") + '</small><b>' + esc(doc.titre) + '</b>' +
-        (doc.nb_points_passage ? bar(doc.progression_pct) + '<div class="nl-bar-label"><span>' + doc.valides + ' / ' + doc.nb_points_passage + ' points de passage</span><span>' + doc.progression_pct + ' %</span></div>' : "") +
+        (plus() && doc.nb_points_passage ? bar(doc.progression_pct) + '<div class="nl-bar-label"><span>' + doc.valides + ' / ' + doc.nb_points_passage + ' points de passage</span><span>' + doc.progression_pct + ' %</span></div>' : "") +
       '</div>' +
       '<div class="nv-group-label">Plan</div>' +
       '<div class="nl-plan nv-scroll" data-el="plan">' + items.join("") + '</div>' +
@@ -708,9 +830,9 @@
   }
   function planCp(c) {
     if (!c) return "";
-    var label = c.status === "passed" ? c.best_score_pct + " %" : c.status === "elo" ? c.elo_requis + " Elo" : c.status === "open" ? "+" + c.recompense_elo : "";
-    return '<button class="nl-plan-cp ' + c.status + '" data-cp="' + c.id + '"><i>' + (c.status === "passed" ? "✓" : c.status === "elo" ? "!" : "") + '</i>' +
-      (c.final ? "Quiz final" : "Point de passage") + '<b>' + label + '</b></button>';
+    var label = c.status === "passed" ? (c.skipped ? "passé" : "✓") : c.status === "elo" ? c.elo_requis + " Elo" : c.status === "open" ? "+" + c.recompense_elo : "";
+    return '<button class="nl-plan-cp ' + c.status + '" data-goto-cp="' + c.id + '"><i>' + (c.status === "passed" ? "✓" : c.status === "elo" ? "!" : "") + '</i>' +
+      (c.final ? "Question finale" : "Point de passage") + '<b>' + label + '</b></button>';
   }
 
   function blockHtml(b) {
@@ -722,82 +844,234 @@
       case "h4": return '<h5 class="nl-h4"' + id + '>' + b.html + '</h5>';
       case "goal": return '<div class="nl-goal"' + id + '>' + b.html + '</div>';
       case "quote": return '<blockquote class="nl-quote"' + id + '>' + b.html + '</blockquote>';
-      case "pdp": return '<div class="nl-pdp"' + id + '>' + ICON.flag.replace("<svg", '<svg style="width:14px;height:14px"') + b.html + '</div>';
+      // En Lib (sans révision), le tableau « Points de passage » sert de récapitulatif.
+      case "pdp": return '<div class="nl-pdp"' + id + '>' + ico("flag", 14) + (plus() ? b.html : "À retenir") + '</div>';
       case "table": return '<div class="nl-table"' + id + '>' + b.html + '</div>';
       default: return '<p' + id + '>' + b.html + '</p>';
     }
   }
 
   function renderReader(opts) {
-    var d = S.doc, doc = d.document;
+    var d = S.doc, doc = d.document, p = plus();
     setTitle(doc.titre);
     sideReader();
     var cps = {};
     (d.checkpoints || []).forEach(function (c) { cps[c.anchor] = c; });
     var gate = d.gate;
     var html = '<article class="nl-article">' +
-      '<header class="nl-cover">' + (doc.kicker ? '<small>' + esc(doc.kicker) + '</small>' : '<small>NAVIRE Lib · ' + esc(KINDS[doc.kind] || "") + '</small>') +
+      '<header class="nl-cover">' + (doc.kicker ? '<small>' + esc(doc.kicker) + '</small>' : '<small>NAVIRE Lib' + (p ? "+" : "") + ' · ' + esc(KINDS[doc.kind] || "") + '</small>') +
         '<h1>' + esc(doc.titre) + '</h1>' + (doc.sous_titre ? '<p>' + esc(doc.sous_titre) + '</p>' : "") +
         '<div class="nl-cover-meta">' + (doc.maj ? '<span class="nv-tag">' + esc(doc.maj) + '</span>' : "") +
           (doc.minutes ? '<span class="nv-tag">' + doc.minutes + ' min</span>' : "") +
-          (doc.nb_points_passage ? '<span class="nv-tag blue">' + doc.nb_points_passage + ' points de passage</span>' : "") + '</div>' +
+          (p && doc.nb_points_passage ? '<span class="nv-tag blue">' + doc.nb_points_passage + ' points de passage</span>' : "") + '</div>' +
       '</header>' +
-      '<div class="nl-legend"><span><i style="background:rgba(122,167,255,0.35)"></i>Articles</span><span><i style="background:rgba(255,209,102,0.35)"></i>Jurisprudence</span><span><i style="background:rgba(91,227,163,0.3)"></i>Lois, règlements</span></div>';
+      '<div class="nl-legend"><span><i style="background:rgba(122,167,255,0.4)"></i>Articles</span><span><i style="background:rgba(255,255,255,0.25)"></i>Jurisprudence</span><span><i style="background:rgba(79,125,255,0.45)"></i>Lois, règlements</span></div>';
 
     d.blocks.forEach(function (b) {
       html += blockHtml(b);
-      var idx = +b.id.slice(1), c = cps[idx];
-      if (!c) return;
-      if (c.status === "passed") {
-        html += '<div class="nl-done"><span class="nl-done-ico">' + ICON.tick + '</span><div><b>' + esc(c.final ? "Quiz final validé" : "Point de passage validé") + '</b><small>Meilleur score ' + c.best_score_pct + ' % · ' + c.attempts + ' tentative' + (c.attempts > 1 ? "s" : "") + '</small></div><button class="nv-chip" data-cp="' + c.id + '">Refaire</button></div>';
-      } else if (c.final && gate && gate.id === c.id) {
-        html += gate.status === "elo" ? gateCard(gate, true) :
-          '<div class="nl-final"><span class="nl-gate-ico">' + ICON.flag + '</span><div><b>Quiz final</b><span>' + c.nb_questions + ' questions · ' + c.seuil_pct + ' % pour valider · +' + c.recompense_elo + ' Elo</span></div><button class="nv-btn" data-cp="' + c.id + '">Commencer</button></div>';
-      }
+      var c = cps[+b.id.slice(1)];
+      if (c && (c.status === "passed" || (gate && gate.id === c.id))) html += '<div class="nl-cp" data-slot="' + c.id + '" id="nl-cp-' + c.id + '">' + slotHtml(c) + '</div>';
     });
 
     if (gate && gate.type === "document") {
-      html += '<div class="nl-gate"><div class="nl-teaser">' + (d.teaser || []).map(blockHtml).join("") + '</div>' + docGateCard(gate) + '</div>';
+      html += '<div class="nl-cp">' + docGateCard(gate) + '</div><div class="nl-teaser" aria-hidden="true">' + (d.teaser || []).map(blockHtml).join("") + '</div>';
     } else if (gate && !gate.final) {
-      html += '<div class="nl-gate"><div class="nl-teaser" aria-hidden="true">' + (d.teaser || []).map(blockHtml).join("") + '</div>' + gateCard(gate) + '</div>';
-    } else if (!gate && (d.checkpoints || []).length) {
-      html += '<div class="nl-final" style="border-color:rgba(91,227,163,0.3)"><span class="nl-gate-ico" style="background:rgba(91,227,163,0.15);border-color:rgba(91,227,163,0.35);color:var(--ok)">' + ICON.tick + '</span><div><b>Cours terminé</b><span>Tous les points de passage sont validés. Bravo !</span></div><button class="nv-chip" data-act="library">Bibliothèque</button></div>';
+      html += '<div class="nl-teaser" aria-hidden="true">' + (d.teaser || []).map(blockHtml).join("") + '</div>';
+    } else if (p && !gate && (d.checkpoints || []).length) {
+      html += '<div class="nl-end"><span class="nl-qico">' + ICON.tick + '</span><div><b>Cours terminé</b><span>Tous les points de passage sont franchis. Bravo !</span></div><button class="nv-chip" data-act="library">Bibliothèque</button></div>';
     }
     html += '</article>';
     setPage(html);
     bindReader(opts || {});
+    (d.checkpoints || []).forEach(function (c) { if (needsQuestion(c)) loadQuestion(c.id); });
   }
 
-  function gateCard(g, inline) {
-    var elo = g.status === "elo";
-    var pct = elo ? Math.round(100 * (g.elo || 0) / Math.max(1, g.elo_requis)) : 0;
-    var card = '<div class="nl-gate-card"' + (inline ? ' style="position:relative;left:auto;top:auto;transform:none;margin:24px auto;animation:none"' : "") + '>' +
-      '<div class="nl-gate-ico' + (elo ? " is-elo" : "") + '">' + (elo ? ICON.lock : ICON.flag) + '</div>' +
-      '<small>' + (elo ? "Elo insuffisant" : "Point de passage") + '</small>' +
-      '<h3>' + esc(g.titre || "Point de passage") + '</h3>' +
-      '<p>' + (elo ? "Pour ouvrir la suite, il te faut " + g.elo_requis + " Elo. Gagne des points sur les QCM NAVIRE, puis reviens." : "Vérifie que tu as retenu l'essentiel : réussis " + g.seuil_pct + " % des points pour débloquer la suite du cours.") + '</p>' +
-      '<div class="nl-gate-facts"><div><b>' + g.nb_questions + '</b><span>questions</span></div><div><b>' + g.seuil_pct + ' %</b><span>pour valider</span></div><div class="is-reward"><b>+' + g.recompense_elo + '</b><span>Elo</span></div></div>' +
-      (elo ? '<div class="nl-elo-need"><div><span>Ton Elo</span><b>' + g.elo + ' / ' + g.elo_requis + '</b></div>' + bar(pct) + '</div>' : "") +
-      '<div class="nl-gate-btns">' +
-        (elo ? '<a class="nv-btn is-block" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'Gagner de l\'Elo sur les QCM</a>'
-             : '<button class="nv-btn is-block" data-cp="' + g.id + '">Commencer · ' + g.nb_questions + ' questions</button>') +
-        '<a class="nv-chip" href="' + CONFIG.AI_URL + '" data-go data-ai>' + ICON.ai + 'Réviser avec NAVIRE AI</a>' +
-      '</div></div>';
-    return card;
+  function cpById(id) { return S.doc && (S.doc.checkpoints || []).filter(function (x) { return x.id === id; })[0]; }
+  function needsQuestion(c) { return (c.status === "open" || (c.status === "passed" && S.redo[c.id])) && !(S.Q[c.id] && (S.Q[c.id].q || S.Q[c.id].loading)); }
+
+  // ----- Contenu d'un point de passage : question, verrou d'Elo ou validé (+ chat) -----
+  function slotHtml(c) {
+    if (c.status === "elo") return eloCard(c);
+    if (c.status === "passed" && !S.redo[c.id]) return doneRow(c) + chatHtml(c);
+    return questionCard(c);
+  }
+  function refreshSlot(id) {
+    var slot = root.querySelector('[data-slot="' + id + '"]'), c = cpById(id);
+    if (!slot || !c) return;
+    slot.innerHTML = slotHtml(c);
+    applyLogos(slot);
+    var m = slot.querySelector(".nl-msgs"); if (m) m.scrollTop = m.scrollHeight;
+  }
+
+  function tries(c, res) {
+    var used = res ? res.essais : c.attempts, max = c.essais_max || 3, out = "";
+    for (var k = 0; k < max; k++) out += '<i class="' + (k < used ? "is-used" : k === used ? "is-cur" : "") + '"></i>';
+    return '<span class="nl-tries" title="Essais">' + out + '</span>';
+  }
+  function questionCard(c) {
+    var st = S.Q[c.id] || {}, q = st.q, res = st.res, redo = c.status === "passed";
+    var head = '<div class="nl-qhead"><span class="nl-qico">' + ICON.flag + '</span><div><small>' + (c.final ? "Question finale" : "Point de passage") + (redo ? " · révision" : "") + '</small><b>' + esc(nodash(c.titre || "Point de passage", " · ")) + '</b></div>' + (redo ? "" : tries(c, res)) + '</div>';
+    if (!q) return '<div class="nl-qcard">' + head + '<div class="nv-skel" style="height:90px"></div></div>';
+    var done = !!res; // une réponse corrigée : on fige les choix
+    var body;
+    if (q.type === "qcm") {
+      var corr = res && res.correction, right = corr && corr.answer_index != null ? +corr.answer_index : null;
+      body = q.choices.map(function (ch, i) {
+        var cls = st.a === i ? " is-on" : "";
+        if (done && st.a === i && !(corr && corr.correct)) cls = " is-wrong";
+        if (done && right === i) cls = " is-right";
+        return '<button class="nl-choice' + cls + '" data-choice="' + c.id + ':' + i + '"' + (done ? " disabled" : "") + '><kbd>' + "ABCDEFGH"[i] + '</kbd><span>' + esc(nodash(ch)) + '</span></button>';
+      }).join("");
+    } else {
+      body = '<input class="nv-input" data-short="' + c.id + '" placeholder="Ta réponse…" autocomplete="off" value="' + esc(st.a || "") + '"' + (done ? " disabled" : "") + '>' +
+        '<div class="nl-qhint">Un mot ou une référence suffit. Accents et majuscules ne comptent pas.</div>';
+    }
+    var html = '<div class="nl-qcard">' + head + '<p class="nl-q-text">' + esc(nodash(q.question)) + '</p>' + body;
+    var answered = q.type === "qcm" ? st.a != null : !!(st.a && String(st.a).trim());
+    if (!res) {
+      html += '<div class="nl-qfoot"><span class="nl-qmeta">' + (redo ? "Révision : sans Elo." : c.recompense_elo ? "+" + c.recompense_elo + " Elo à la clé" : "") + '</span>' +
+        (!redo && c.peut_passer ? '<button class="nv-chip" data-cp-skip="' + c.id + '">' + (isAdmin() && c.attempts < (c.essais_max || 3) ? "Passer (admin)" : "Passer à la suite") + '</button>' : "") +
+        '<button class="nv-btn is-blue" data-cp-submit="' + c.id + '"' + (answered && !st.busy ? "" : " disabled") + '>' + (st.busy ? "Correction…" : "Valider") + '</button></div>';
+    } else if (res.peut_passer) {
+      var cr = res.correction || {};
+      html += '<div class="nl-qfb"><b>Toujours pas.</b> La réponse attendue : <b>' + esc(nodash(cr.expected)) + '</b>.' + (cr.explication ? '<div class="nl-qfb-exp">' + esc(nodash(cr.explication)) + '</div>' : "") + '</div>' +
+        '<div class="nl-qfoot"><span class="nl-qmeta">' + res.essais + ' essais. Tu peux passer à la suite (sans Elo) ou retenter.</span>' +
+        '<button class="nv-chip" data-cp-next="' + c.id + '">Autre question</button><button class="nv-btn is-blue" data-cp-skip="' + c.id + '">Passer à la suite</button></div>';
+    } else if (redo && !res.reussi) {
+      html += '<div class="nl-qfb"><b>Raté.</b> ' + (res.correction && res.correction.expected ? 'La réponse : <b>' + esc(nodash(res.correction.expected)) + '</b>.' : "") + '</div>' +
+        '<div class="nl-qfoot"><span class="nl-qmeta"></span><button class="nv-chip" data-cp-close="' + c.id + '">Fermer</button><button class="nv-btn is-blue" data-cp-next="' + c.id + '">Autre question</button></div>';
+    } else {
+      var left = res.essais_restants;
+      html += '<div class="nl-qfb"><b>Pas tout à fait.</b> Relis le passage au-dessus, puis réponds à une autre question. ' +
+        (left ? 'Encore ' + left + ' essai' + (left > 1 ? "s" : "") + ' avant de pouvoir passer à la suite.' : "") + '</div>' +
+        '<div class="nl-qfoot"><span class="nl-qmeta"></span><button class="nv-btn is-blue" data-cp-next="' + c.id + '">Question suivante</button></div>';
+    }
+    return html + '</div>';
+  }
+  function doneRow(c) {
+    var a = S.after[c.id], sk = c.skipped;
+    var title = sk ? "Point de passage franchi" : (c.final ? "Question finale réussie" : "Point de passage réussi");
+    var sub = a && a.message ? a.message : sk ? (c.attempts < (c.essais_max || 3) ? "Passé avec le pass admin." : "Passé après " + c.attempts + " essais : prends le temps de revoir ce passage.") : "Réussi en " + c.attempts + " essai" + (c.attempts > 1 ? "s" : "") + ".";
+    var gain = a && a.elo_gagne ? '<span class="nl-gain">' + ico("bolt", 11) + '+' + a.elo_gagne + ' Elo</span>' : "";
+    var chatOpen = S.chat[c.id] && S.chat[c.id].open;
+    return '<div class="nl-done"><span class="nl-done-ico' + (sk ? " is-skip" : "") + '">' + (sk ? ICON.skip : ICON.tick) + '</span><div><b>' + title + gain + '</b><small>' + esc(sub) + '</small></div>' +
+      '<div class="nl-done-btns">' + (chatOpen ? "" : '<button class="nv-chip" data-chat-open="' + c.id + '">' + ico("ai", 13) + 'NAVIRE AI</button>') + '<button class="nv-chip" data-cp-redo="' + c.id + '">Refaire</button></div></div>';
+  }
+  function eloCard(g) {
+    var elo = S.user ? S.user.elo : 0;
+    var pct = Math.round(100 * elo / Math.max(1, g.elo_requis));
+    return '<div class="nl-gate-card"><div class="nl-gate-ico">' + ICON.lock + '</div><small>Elo insuffisant</small>' +
+      '<h3>' + esc(nodash(g.titre || "Point de passage", " · ")) + '</h3>' +
+      '<p>Pour ouvrir la suite, il te faut ' + g.elo_requis + ' Elo. Gagne des points sur les QCM NAVIRE, puis reviens.</p>' +
+      '<div class="nl-elo-need"><div><span>Ton Elo</span><b>' + elo + ' / ' + g.elo_requis + '</b></div>' + bar(pct) + '</div>' +
+      '<div class="nl-gate-btns"><a class="nv-btn is-block" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'Gagner de l\'Elo sur les QCM</a></div></div>';
   }
   function docGateCard(g) {
     var pct = Math.round(100 * (g.elo || 0) / Math.max(1, g.elo_requis));
-    return '<div class="nl-gate-card"><div class="nl-gate-ico is-elo">' + ICON.lock + '</div><small>Document verrouillé</small>' +
+    return '<div class="nl-gate-card"><div class="nl-gate-ico">' + ICON.lock + '</div><small>Document verrouillé</small>' +
       '<h3>' + g.elo_requis + ' Elo pour ouvrir ce document</h3><p>Ce document est réservé aux étudiants qui ont déjà fait leurs preuves. Monte ton Elo sur les QCM et les autres cours de la bibliothèque.</p>' +
       '<div class="nl-elo-need"><div><span>Ton Elo</span><b>' + g.elo + ' / ' + g.elo_requis + '</b></div>' + bar(pct) + '</div>' +
       '<div class="nl-gate-btns"><a class="nv-btn is-block" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'Gagner de l\'Elo</a><button class="nv-chip" data-act="library">Retour à la bibliothèque</button></div></div>';
+  }
+
+  // ----- Question : chargement, réponse, essai suivant, passage -----
+  function loadQuestion(id) {
+    S.Q[id] = { loading: true };
+    api("GET", "/lib/checkpoints/" + id + "/question").then(function (r) {
+      S.Q[id] = { q: r.question, a: null, busy: false, res: null };
+      refreshSlot(id);
+    }).catch(function (x) { delete S.Q[id]; toast(x.message, true); });
+  }
+  function submitQuestion(id) {
+    var st = S.Q[id];
+    if (!st || !st.q || st.busy || st.res) return;
+    if (st.a == null || st.a === "") return;
+    st.busy = true; refreshSlot(id);
+    var c = cpById(id), redo = c && c.status === "passed";
+    api("POST", "/lib/checkpoints/" + id + "/submit", { question_id: st.q.id, answer: st.a }).then(function (r) {
+      st.busy = false; st.res = r;
+      if (S.user) S.user.elo = r.elo;
+      if (r.reussi && redo) {
+        S.after[id] = { message: "Révision réussie." };
+        delete S.redo[id]; delete S.Q[id];
+        return refreshSlot(id);
+      }
+      if (r.reussi) return unlocked(id, { elo_gagne: r.elo_gagne, message: r.unlocked ? "La suite du cours est ouverte." : "Bien vu." });
+      if (c && !redo) { c.attempts = r.essais; c.peut_passer = r.peut_passer; }
+      refreshSlot(id);
+      if (!r.peut_passer && !redo) {
+        var fb = root.querySelector('[data-slot="' + id + '"] .nl-qfb'); if (fb) fb.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }).catch(function (x) {
+      st.busy = false;
+      if (x.status === 409) { delete S.Q[id]; loadQuestion(id); }
+      else refreshSlot(id);
+      toast(x.message, true);
+    });
+  }
+  function nextQuestion(id) { delete S.Q[id]; refreshSlot(id); loadQuestion(id); }
+  function skipCheckpoint(id) {
+    var c = cpById(id), admin = isAdmin() && c && c.attempts < (c.essais_max || 3);
+    api("POST", "/lib/checkpoints/" + id + "/passer").then(function () {
+      unlocked(id, { message: admin ? "Passé avec le pass admin." : "La suite est ouverte. Une question sur ce passage ? NAVIRE AI est juste en dessous." });
+    }).catch(function (x) { toast(x.message, true); });
+  }
+  // Après la question : la suite s'ouvre et le chat NAVIRE AI apparaît dessous.
+  function unlocked(id, after) {
+    S.after[id] = after;
+    delete S.Q[id]; delete S.redo[id];
+    S.chat[id] = S.chat[id] || { msgs: [], conv: null, busy: false, draft: "" };
+    S.chat[id].open = true;
+    renderElo();
+    openDoc(S.docId, { keep: true });
+    refreshCatalogue();
+  }
+
+  // ----- Chat NAVIRE AI sous le point de passage -----
+  var SUGG = ["Explique-moi ce passage autrement", "Donne-moi un exemple concret", "Pourquoi la bonne réponse ?"];
+  function chatHtml(c) {
+    var ch = S.chat[c.id];
+    if (!ch || !ch.open) return "";
+    var msgs = '<div class="nl-msg ai"><span class="nl-bubble is-sm" data-logo></span><div class="nl-txt"><p>Une question sur ce passage ? Je te réponds à partir du cours.</p></div></div>' +
+      ch.msgs.map(function (m) {
+        return m.role === "user"
+          ? '<div class="nl-msg me"><div class="nl-txt">' + esc(m.content) + '</div></div>'
+          : '<div class="nl-msg ai"><span class="nl-bubble is-sm" data-logo></span><div class="nl-txt">' + md(m.content) + '</div></div>';
+      }).join("") +
+      (ch.busy ? '<div class="nl-msg ai"><span class="nl-bubble is-sm" data-logo></span><div class="nl-txt"><span class="nl-typing"><i></i><i></i><i></i></span></div></div>' : "");
+    return '<div class="nl-chat">' +
+      '<div class="nl-chat-head"><span class="nl-bubble" data-logo></span><div><b>NAVIRE AI</b><span>Sur « ' + esc(nodash(c.titre || S.doc.document.titre, " · ")) + ' »</span></div>' +
+        '<button class="nv-icon-btn" data-chat-close="' + c.id + '" aria-label="Fermer le chat">' + ICON.x + '</button></div>' +
+      '<div class="nl-msgs nv-scroll">' + msgs + '</div>' +
+      (ch.msgs.length ? "" : '<div class="nl-sugg">' + SUGG.map(function (s) { return '<button class="nv-chip" data-chat-sugg="' + c.id + '">' + esc(s) + '</button>'; }).join("") + '</div>') +
+      '<form class="nl-chat-form" data-chat-form="' + c.id + '"><input data-chat-input="' + c.id + '" placeholder="Pose ta question à NAVIRE AI…" autocomplete="off" maxlength="2000" value="' + esc(ch.draft || "") + '"' + (ch.busy ? " disabled" : "") + '>' +
+        '<button class="nl-send" type="submit" aria-label="Envoyer"' + (ch.busy ? " disabled" : "") + '>' + ICON.send + '</button></form>' +
+    '</div>';
+  }
+  function sendChat(id, text) {
+    var ch = S.chat[id];
+    text = String(text || "").trim();
+    if (!ch || ch.busy || !text) return;
+    ch.msgs.push({ role: "user", content: text });
+    ch.busy = true; ch.draft = "";
+    refreshSlot(id);
+    api("POST", "/lib/chat", { document_id: S.docId, checkpoint_id: id, message: text, conversation_id: ch.conv }).then(function (r) {
+      ch.conv = r.conversation_id;
+      ch.msgs.push({ role: "assistant", content: r.reply });
+    }).catch(function (x) {
+      ch.msgs.push({ role: "assistant", content: x.message });
+    }).then(function () {
+      ch.busy = false;
+      refreshSlot(id);
+      var inp = root.querySelector('[data-chat-input="' + id + '"]'); if (inp) inp.focus({ preventScroll: true });
+    });
   }
 
   var spy = null;
   function bindReader(opts) {
     var page = el("page");
     // Position de lecture : reprise au dernier titre vu, ou au bloc demandé.
-    var target = opts.scrollTo || load("navire_lib_pos_" + S.docId);
+    var target = opts.scrollTo || (opts.keep ? null : load("navire_lib_pos_" + S.docId));
     if (target) {
       var t = document.getElementById("nl-" + target);
       if (t) { page.scrollTop = Math.max(0, t.offsetTop - 20); if (opts.flash) flashFrom(target); }
@@ -836,162 +1110,66 @@
     var n = document.getElementById("nl-" + id), k = 0;
     while (n && k < 3) { n.classList.add("nl-flash"); n = n.nextElementSibling; k++; }
   }
-  function gotoBlock(id) {
-    var t = document.getElementById("nl-" + id);
+  function scrollToEl(t) {
     if (t) el("page").scrollTo({ top: t.offsetTop - 16, behavior: "smooth" });
     root.classList.remove("is-drawer");
   }
 
-  // ================= QUIZ =================
-  function startQuiz(cpId) {
-    root.classList.remove("is-drawer");
-    api("GET", "/lib/checkpoints/" + cpId + "/questions").then(function (r) {
-      S.quiz = { cp: r.checkpoint, questions: r.questions, idx: 0, answers: {}, result: null, busy: false };
-      renderQuiz();
-    }).catch(function (x) { toast(x.message, true); });
-  }
-  function closeQuiz() { S.quiz = null; el("modal").innerHTML = ""; }
-  function renderQuiz() {
-    var Q = S.quiz;
-    if (!Q) return;
-    if (Q.result) return renderResult();
-    var q = Q.questions[Q.idx], n = Q.questions.length;
-    var a = Q.answers[q.id];
-    var body;
-    if (q.type === "qcm") {
-      body = q.choices.map(function (c, i) {
-        return '<button class="nl-choice' + (a === i ? " is-on" : "") + '" data-choice="' + i + '"><kbd>' + "ABCDEFGH"[i] + '</kbd><span>' + esc(c) + '</span></button>';
-      }).join("");
-    } else {
-      body = '<input class="nv-input" id="q-short" placeholder="Ta réponse…" autocomplete="off" value="' + esc(a || "") + '">' +
-        '<div style="font-size:11.5px;color:var(--text-4);margin-top:8px">Un mot ou une référence suffit. Accents et majuscules ne comptent pas.</div>';
-    }
-    var answered = q.type === "qcm" ? a != null : !!(a && String(a).trim());
-    el("modal").innerHTML = '<div class="nl-modal"><div class="nl-quiz">' +
-      '<div class="nl-quiz-head"><div><small>' + (Q.cp.final ? "Quiz final" : "Point de passage") + ' · ' + (Q.idx + 1) + ' / ' + n + '</small><b>' + esc(Q.cp.titre) + '</b></div><button class="nv-icon-btn" data-act="quiz-close" aria-label="Fermer">' + ICON.x + '</button></div>' +
-      '<div class="nl-pips">' + Q.questions.map(function (x, i) { return '<i class="' + (i === Q.idx ? "is-cur" : Q.answers[x.id] != null && Q.answers[x.id] !== "" ? "is-done" : "") + '"></i>'; }).join("") + '</div>' +
-      '<div class="nl-quiz-body"><div class="nl-q-kind">' + (q.type === "qcm" ? '<span class="nv-tag blue">QCM</span>' : '<span class="nv-tag violet">Question à points</span>') + '<span class="nv-tag">' + q.points + ' pt' + (q.points > 1 ? "s" : "") + '</span></div>' +
-        '<p class="nl-q-text">' + esc(q.question) + '</p>' + body + '</div>' +
-      '<div class="nl-quiz-foot"><span class="nv-hint">' + (q.type === "qcm" ? "Touches 1 à " + q.choices.length + " · Entrée pour valider" : "Entrée pour valider") + '</span>' +
-        (Q.idx > 0 ? '<button class="nv-chip" data-act="quiz-prev">Précédent</button>' : "") +
-        '<button class="nv-btn" data-act="quiz-next"' + (answered && !Q.busy ? "" : " disabled") + '>' + (Q.idx === n - 1 ? (Q.busy ? "Correction…" : "Terminer") : "Suivant") + '</button></div>' +
-    '</div></div>';
-    var inp = document.getElementById("q-short");
-    if (inp) {
-      inp.focus();
-      inp.addEventListener("input", function (e) {
-        Q.answers[q.id] = e.target.value;
-        var b = $('[data-act="quiz-next"]'); if (b) b.disabled = !e.target.value.trim();
-      });
-    }
-  }
-  function quizNext() {
-    var Q = S.quiz;
-    if (!Q || Q.busy) return;
-    var q = Q.questions[Q.idx];
-    var a = Q.answers[q.id];
-    if (a == null || a === "") return;
-    if (Q.idx < Q.questions.length - 1) { Q.idx++; renderQuiz(); return; }
-    Q.busy = true; renderQuiz();
-    api("POST", "/lib/checkpoints/" + Q.cp.id + "/submit", { answers: Q.answers }).then(function (r) {
-      Q.result = r; Q.busy = false;
-      if (S.user) { S.user.elo = r.elo; }
-      renderQuiz();
-      if (r.reussi) confetti();
-    }).catch(function (x) { Q.busy = false; renderQuiz(); toast(x.message, true); });
-  }
-  function renderResult() {
-    var Q = S.quiz, r = Q.result;
-    var C = 2 * Math.PI * 56, color = r.passed ? "var(--ok)" : "var(--danger)";
-    var qs = {};
-    Q.questions.forEach(function (q) { qs[q.id] = q; });
-    var title = r.reussi ? (r.deja_valide ? "Toujours au point" : r.unlocked ? "Suite débloquée !" : "Validé !") : "Pas encore…";
-    var sub = r.reussi
-      ? (r.unlocked ? "La prochaine étape du cours est ouverte." : r.deja_valide ? "Révision réussie." : "Tu as validé ce point de passage.")
-      : "Il faut " + r.seuil_pct + " % des points. Relis l'étape (les corrections ci-dessous t'aident) et retente.";
-    var corr = r.corrections.map(function (c) {
-      var q = qs[c.id] || {};
-      return '<div class="nl-corr-item ' + (c.correct ? "ok" : "ko") + '"><div class="nl-corr-top"><span class="nl-corr-ico">' + (c.correct ? "✓" : "✕") + '</span><span class="nl-corr-q">' + esc(q.question) + '</span><b class="nv-tag">' + c.points + '/' + c.max + '</b></div>' +
-        (c.correct ? "" : '<div class="nl-corr-exp">Réponse : <b>' + esc(c.expected) + '</b></div>') +
-        (c.explication ? '<div class="nl-corr-exp">' + esc(c.explication) + '</div>' : "") + '</div>';
-    }).join("");
-    el("modal").innerHTML = '<div class="nl-modal"><div class="nl-quiz" style="position:relative">' +
-      '<div class="nl-quiz-head"><div><small>Résultat</small><b>' + esc(Q.cp.titre) + '</b></div><button class="nv-icon-btn" data-act="quiz-done" aria-label="Fermer">' + ICON.x + '</button></div>' +
-      '<div class="nl-quiz-body"><div class="nl-result">' +
-        '<div class="nl-ring"><svg viewBox="0 0 132 132"><circle class="bg" cx="66" cy="66" r="56"/><circle class="fg" cx="66" cy="66" r="56" stroke="' + color + '" stroke-dasharray="' + C + '" stroke-dashoffset="' + C + '" data-el="ring"/></svg><b>' + r.score_pct + ' %<small>' + r.points + ' / ' + r.total + ' pts</small></b></div>' +
-        '<h3>' + title + '</h3><p>' + sub + '</p>' +
-        (r.elo_gagne ? '<span class="nl-gain">' + ICON.bolt.replace("<svg", '<svg style="width:14px;height:14px"') + '+' + r.elo_gagne + ' Elo · ' + r.elo + ' au total</span>' : "") +
-      '</div><div class="nl-corr">' + corr + '</div></div>' +
-      '<div class="nl-quiz-foot"><span class="nv-hint"></span>' +
-        (r.passed ? "" : '<button class="nv-chip" data-act="quiz-retry">Réessayer</button>') +
-        '<button class="nv-btn" data-act="quiz-done">' + (r.unlocked ? "Lire la suite" : "Revenir au cours") + '</button></div>' +
-      '<div class="nl-confetti" data-el="confetti"></div>' +
-    '</div></div>';
-    requestAnimationFrame(function () { requestAnimationFrame(function () {
-      var ring = el("ring"); if (ring) ring.style.strokeDashoffset = C * (1 - r.score_pct / 100);
-    }); });
-  }
-  function confetti() {
-    var box = el("confetti"); if (!box) return;
-    var colors = ["#5BE3A3", "#7AA7FF", "#9B6FFF", "#FFD166", "#fff"];
-    for (var k = 0; k < 40; k++) {
-      var i = document.createElement("i");
-      i.style.left = Math.random() * 100 + "%";
-      i.style.background = colors[k % colors.length];
-      i.style.animationDelay = Math.random() * 0.5 + "s";
-      i.style.animationDuration = 1.4 + Math.random() * 1.2 + "s";
-      box.appendChild(i);
-    }
-  }
-  function quizDone() {
-    var r = S.quiz && S.quiz.result, cp = S.quiz && S.quiz.cp;
-    closeQuiz();
-    if (!r) return;
-    var next = r.unlocked ? "b" + (cp.anchor + 1) : null;
-    openDoc(S.docId, { keep: true, scrollTo: next || "b" + cp.anchor, flash: !!next });
-    refreshCatalogue();
-  }
-
   // ================= ÉVÉNEMENTS =================
   root.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-cp],[data-choice],[data-go]");
+    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg]");
     if (!t || !root.contains(t)) return;
+    var a = function (n) { return +t.getAttribute(n); };
     if (t.hasAttribute("data-go")) {
       e.preventDefault();
       var href = t.getAttribute("href");
       if (t.hasAttribute("data-ai") && S.doc) {
         var cur = S.current ? (el("plan") && el("plan").querySelector('[data-goto="' + S.current + '"]')) : null;
-        var topic = (cur ? cur.textContent + " — " : "") + S.doc.document.titre;
+        var topic = (cur ? cur.textContent + " · " : "") + S.doc.document.titre;
         href += (href.indexOf("?") === -1 ? "?" : "&") + "q=" + encodeURIComponent("Explique-moi : " + topic);
       }
       return go(href);
     }
-    if (t.hasAttribute("data-open")) return openDoc(+t.getAttribute("data-open"));
+    if (t.hasAttribute("data-mode")) { e.stopPropagation(); return setMode(t.getAttribute("data-mode")); }
+    if (t.hasAttribute("data-mode-set")) return setMode(t.getAttribute("data-mode-set"));
+    if (t.hasAttribute("data-open")) return openDoc(a("data-open"));
     if (t.hasAttribute("data-filter")) { S.filter = t.getAttribute("data-filter"); root.classList.remove("is-drawer"); return viewLibrary(); }
     if (t.hasAttribute("data-goto")) {
       if (t.hasAttribute("data-locked")) {
         var g = S.doc && S.doc.gate;
-        toast(g && g.status === "elo" ? "Il te faut " + g.elo_requis + " Elo pour cette partie." : "Valide le point de passage pour ouvrir cette partie.");
-        var gate = $(".nl-gate"); if (gate) el("page").scrollTo({ top: gate.offsetTop - 20, behavior: "smooth" });
-        root.classList.remove("is-drawer");
-        return;
+        toast(g && g.status === "elo" ? "Il te faut " + g.elo_requis + " Elo pour cette partie." : "Réponds au point de passage pour ouvrir cette partie.");
+        return scrollToEl(g ? (document.getElementById("nl-cp-" + g.id) || $(".nl-cp")) : null);
       }
-      return gotoBlock(t.getAttribute("data-goto"));
+      return scrollToEl(document.getElementById("nl-" + t.getAttribute("data-goto")));
     }
-    if (t.hasAttribute("data-cp")) {
-      var id = +t.getAttribute("data-cp");
-      var c = S.doc && (S.doc.checkpoints || []).filter(function (x) { return x.id === id; })[0];
-      if (c && c.status === "locked") return toast("Valide d'abord les points de passage précédents.");
-      if (c && c.status === "elo") { toast("Il te faut " + c.elo_requis + " Elo (tu en as " + (S.user ? S.user.elo : 0) + ")."); var gc = $(".nl-gate-card"); if (gc) el("page").scrollTo({ top: gc.closest(".nl-gate, .nl-article").offsetTop, behavior: "smooth" }); return; }
-      return startQuiz(id);
+    if (t.hasAttribute("data-goto-cp")) {
+      var c = cpById(a("data-goto-cp"));
+      if (c && c.status === "locked") return toast("Franchis d'abord les points de passage précédents.");
+      return scrollToEl(document.getElementById("nl-cp-" + a("data-goto-cp")));
     }
     if (t.hasAttribute("data-choice")) {
-      var Q = S.quiz, q = Q.questions[Q.idx];
-      Q.answers[q.id] = +t.getAttribute("data-choice");
-      return renderQuiz();
+      var parts = t.getAttribute("data-choice").split(":"), st = S.Q[+parts[0]];
+      if (!st || st.res) return;
+      st.a = +parts[1];
+      return refreshSlot(+parts[0]);
     }
+    if (t.hasAttribute("data-cp-submit")) return submitQuestion(a("data-cp-submit"));
+    if (t.hasAttribute("data-cp-next")) return nextQuestion(a("data-cp-next"));
+    if (t.hasAttribute("data-cp-skip")) return skipCheckpoint(a("data-cp-skip"));
+    if (t.hasAttribute("data-cp-redo")) { var r = a("data-cp-redo"); S.redo[r] = true; delete S.Q[r]; delete S.after[r]; refreshSlot(r); return loadQuestion(r); }
+    if (t.hasAttribute("data-cp-close")) { var k = a("data-cp-close"); delete S.redo[k]; delete S.Q[k]; return refreshSlot(k); }
+    if (t.hasAttribute("data-chat-open")) {
+      var o = a("data-chat-open");
+      S.chat[o] = S.chat[o] || { msgs: [], conv: null, busy: false, draft: "" };
+      S.chat[o].open = true; refreshSlot(o);
+      var inp = root.querySelector('[data-chat-input="' + o + '"]'); if (inp) inp.focus({ preventScroll: true });
+      return;
+    }
+    if (t.hasAttribute("data-chat-close")) { var z = a("data-chat-close"); if (S.chat[z]) S.chat[z].open = false; return refreshSlot(z); }
+    if (t.hasAttribute("data-chat-sugg")) return sendChat(a("data-chat-sugg"), t.textContent);
     var act = t.getAttribute("data-act");
-    if (act === "open-drawer") root.classList.add("is-drawer");
+    if (act === "toggle-mode") setMode(plus() ? "lib" : "plus");
+    else if (act === "open-drawer") root.classList.add("is-drawer");
     else if (act === "close-drawer") root.classList.remove("is-drawer");
     else if (act === "library") { root.classList.remove("is-drawer"); refreshCatalogue().then(viewLibrary); }
     else if (act === "toggle-hl") { S.plain = !S.plain; root.classList.toggle("is-plain", S.plain); t.classList.toggle("is-on", !S.plain); store("navire_lib_plain", S.plain ? "1" : null); toast(S.plain ? "Surlignage masqué" : "Surlignage affiché"); }
@@ -999,21 +1177,31 @@
     else if (act === "login") login(t);
     else if (act === "google") google();
     else if (act === "signup") { e.preventDefault(); go(CONFIG.SIGNUP_URL); }
-    else if (act === "quiz-close") { if (!S.quiz.result && Object.keys(S.quiz.answers).length && !confirm("Abandonner ce point de passage ?")) return; closeQuiz(); }
-    else if (act === "quiz-next") quizNext();
-    else if (act === "quiz-prev") { S.quiz.idx = Math.max(0, S.quiz.idx - 1); renderQuiz(); }
-    else if (act === "quiz-retry") { var cpId = S.quiz.cp.id; closeQuiz(); startQuiz(cpId); }
-    else if (act === "quiz-done") quizDone();
+  });
+  root.addEventListener("submit", function (e) {
+    var f = e.target.closest("[data-chat-form]");
+    if (!f) return;
+    e.preventDefault();
+    var id = +f.getAttribute("data-chat-form"), inp = f.querySelector("input");
+    sendChat(id, inp ? inp.value : "");
+  });
+  root.addEventListener("input", function (e) {
+    var t = e.target;
+    if (t.hasAttribute("data-short")) {
+      var id = +t.getAttribute("data-short"), st = S.Q[id];
+      if (!st) return;
+      st.a = t.value;
+      var b = root.querySelector('[data-cp-submit="' + id + '"]'); if (b) b.disabled = !t.value.trim();
+    } else if (t.hasAttribute("data-chat-input")) {
+      var ch = S.chat[+t.getAttribute("data-chat-input")]; if (ch) ch.draft = t.value;
+    }
   });
   root.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && (e.target.id === "l-email" || e.target.id === "l-pass")) login($('[data-act="login"]'));
+    if (e.key === "Enter" && e.target.hasAttribute && e.target.hasAttribute("data-short")) { e.preventDefault(); submitQuestion(+e.target.getAttribute("data-short")); }
   });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") { root.classList.remove("is-drawer"); if (S.quiz && S.quiz.result) quizDone(); }
-    if (!S.quiz || S.quiz.result) return;
-    var q = S.quiz.questions[S.quiz.idx];
-    if (q.type === "qcm" && /^[1-8]$/.test(e.key) && +e.key <= q.choices.length) { S.quiz.answers[q.id] = +e.key - 1; renderQuiz(); }
-    else if (e.key === "Enter") { e.preventDefault(); quizNext(); }
+    if (e.key === "Escape") root.classList.remove("is-drawer");
   });
 
   function login(b) {
@@ -1044,12 +1232,21 @@
     setPage('<div class="nv-skel" style="margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div>', true);
     refreshCatalogue().then(function () {
       if (!S.cat.user) { S.token = null; store(CONFIG.TOKEN_KEY, null); return viewLoggedOut(); }
+      // Mode : celui du lien, sinon le dernier choisi, sinon Lib+ pour les abonnés.
+      var m = pageParam("mode") || load("navire_lib_mode");
+      S.mode = m === "lib" || m === "plus" ? m : (hasPlus() ? "plus" : "lib");
+      renderMode();
       var want = +(pageParam("doc") || 0);
-      if (want) { viewLibrary(); return openDoc(want); }
       viewLibrary();
+      if (want) {
+        var d = (S.cat.items || []).filter(function (x) { return x.id === want; })[0];
+        if (d && d.plus && !plus()) { S.mode = "plus"; renderMode(); }
+        return openDoc(want);
+      }
     }).catch(function (x) { setPage('<div class="nv-empty"><b>Bibliothèque indisponible</b>' + esc(x.message) + '</div>', true); });
   }
   S.token = load(CONFIG.TOKEN_KEY);
+  renderMode();
   boot();
 })();
 </script>

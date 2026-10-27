@@ -5,7 +5,7 @@
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
-| `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, points de passage (QCM + questions à points), Elo |
+| `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI) |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
@@ -13,7 +13,7 @@
 
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
 panneaux blancs translucides, bouton principal blanc, états vert / jaune /
-rouge `#5BE3A3` / `#FFD166` / `#FF6B6B`). La section console reprend les
+rouge `#5BE3A3` / `#FFD166` / `#FF6B6B`), sauf NAVIRE Lib : bleu et blanc. La section console reprend les
 design tokens de la console.
 
 ## `/rejoindre` et `/ambassadeur`
@@ -45,31 +45,51 @@ Deux Code Files Framer, à coller tels quels :
    {section === "lib" && <LibSection />}                  // rendu de ConsoleUI
    ```
 
-## `/lib` — NAVIRE Lib
+## `/lib` : NAVIRE Lib et Lib+
 
 **Embed HTML, comme NAVIRE AI.** Coller `lib.html` dans un Embed HTML de la
-page `/lib`. Les liens des boutons QCM, NAVIRE AI et Actus sont dans le bloc
-`CONFIG` du script. Un lien vers un cours précis : `/lib?doc=12` (si l'Embed
-ne voit pas l'adresse de la page, utiliser `NavireEmbed` réglé sur « NAVIRE
-Lib », qui la lui transmet).
+page `/lib`. Les liens (QCM, NAVIRE AI, Actus, offres) sont dans le bloc
+`CONFIG` du script. Un lien vers un cours précis : `/lib?doc=12`, avec
+`&mode=lib` pour l'ouvrir dans Lib (si l'Embed ne voit pas l'adresse de la
+page, utiliser `NavireEmbed` réglé sur « NAVIRE Lib », qui la lui transmet).
+
+Charte : bleu et blanc uniquement (pas de violet ni de jaune).
+
+Un curseur en haut à droite passe de l'un à l'autre :
+
+- **Lib** (tout compte) : consultation. Le cours entier, sans point de
+  passage ni Elo. Les documents réservés à Lib+ n'y figurent pas.
+- **Lib+** (abonnés NAVIRE AI, NAVIRE AI+, ou inscrits AdJuris actifs ; les
+  comptes gratuits voient la page d'offre) : tous les documents, et les points
+  de passage intégrés au cours, sans fenêtre. Chaque point de passage pose
+  **une seule question** ; tant qu'elle n'est pas réussie, la suite reste
+  floutée. Un nouvel essai tire une autre question de la réserve du point de
+  passage. Après **3 échecs** (`LIB_ESSAIS_MAX`), l'élève peut passer à la
+  suite, sans gagner d'Elo. Une fois le point de passage franchi, un chat
+  NAVIRE AI s'ouvre dessous : il répond à partir de l'extrait lu
+  (`POST /lib/chat`, même quota quotidien que NAVIRE AI).
+- **Pass admin** (comptes admin) : Lib+ ouvert sans abonnement, aucun verrou
+  d'Elo, bouton « Passer (admin) » sur chaque point de passage dès la première
+  question, et les brouillons s'ouvrent en aperçu (étiquette « Brouillon »).
 
 Côté console, onglet « Lib » : importer un `.docx` (conseillé : gras,
-italiques, tableaux et surlignage sont repris) ou un `.pdf`. Le serveur :
+italiques, tableaux et surlignage sont repris) ou un `.pdf`, et cocher
+« Réservé à Lib+ » pour les documents en plus (modifiable ensuite avec
+« Réserver à Lib+ » / « Ouvrir à Lib »). Le serveur :
 
 - découpe le cours en blocs (étapes, titres, chapitres, paragraphes numérotés
   « 3. Intitulé.- », textes cités, tableaux) et refait le plan ;
 - surligne articles, décisions et textes (lois, règlements, directives) ;
-- place un point de passage à chaque « POINTS DE PASSAGE » et tire les
-  questions du tableau qui suit (sinon : fin de chaque grande partie) ;
+- place un point de passage à chaque « POINTS DE PASSAGE » et tire la réserve
+  de questions du tableau qui suit (sinon : fin de chaque grande partie) ;
 - le k-ième point de passage demande k × palier Elo et en rapporte une
   récompense (réglables à l'import puis point par point).
 
-Tant qu'un point de passage n'est pas validé (seuil 60 % par défaut), l'API
-n'envoie pas la suite : l'embed n'en reçoit que quelques blocs, affichés
-floutés sous la fenêtre du point de passage. Les questions s'éditent dans la
-console, ou se génèrent avec l'IA (`OPENAI_MODEL_LIB`, sinon `OPENAI_MODEL`).
-« Nouvelle version » remplace le fichier en gardant points de passage et
-progression des élèves.
+Tant qu'un point de passage n'est pas franchi, l'API n'envoie pas la suite :
+l'embed n'en reçoit que quelques blocs, affichés floutés sous la question. Les
+questions s'éditent dans la console, ou se génèrent avec l'IA
+(`OPENAI_MODEL_LIB`, sinon `OPENAI_MODEL`). « Nouvelle version » remplace le
+fichier en gardant points de passage et progression des élèves.
 
 ## Côté Stripe
 
