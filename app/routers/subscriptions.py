@@ -9,6 +9,9 @@ Endpoints utilisateur :
   POST /subscriptions/cancel           → résilie via Stripe
   POST /subscriptions/reactivate       → annule une résiliation programmée
   POST /subscriptions/portal           → ouvre le Stripe Customer Portal
+  GET  /subscriptions/billing          → paramètres : abonnements, cartes,
+                                         prochains prélèvements, factures
+  POST /subscriptions/payment-method   → page Stripe pour changer de carte
   GET  /subscriptions/promo/{code}     → valide un code promo
 
 Cycle de vie d'un abonnement (exemple mensuel) :
@@ -39,9 +42,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Literal
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, and_, or_
@@ -65,7 +69,9 @@ from app.core.config import (
     STRIPE_PRICES,
     STRIPE_SUCCESS_URL,
     STRIPE_CANCEL_URL,
+    STRIPE_ACCOUNT_RETURN_URL,
     FRONTEND_URL,
+    CORS_ORIGINS,
 )
 from app.core.prepa_adjuris_config import (
     PREPA_PRICES,
@@ -97,6 +103,7 @@ from app.services.prepa_adjuris_billing import (
     date_prelevement,
     devis_depuis_metadata,
     parse_mois,
+    prelevements,
     recalculer,
 )
 from app.services import prepa_adjuris_facturation as facturation_adjuris
@@ -296,6 +303,19 @@ class CheckoutIn(BaseModel):
 
 class CheckoutPrepaIn(BaseModel):
     annee: Literal["L1", "L2", "L3"]
+
+
+class PortalIn(BaseModel):
+    # Adresse de la page profil, pour y revenir après Stripe (même domaine
+    # que le site, sinon STRIPE_ACCOUNT_RETURN_URL).
+    return_url: str | None = Field(None, max_length=2000)
+
+
+class PaymentMethodIn(BaseModel):
+    # "navire" : l'abonnement NAVIRE AI. Sinon, l'id d'un abonnement
+    # Prép'AdJuris de l'élève, tel que renvoyé par GET /billing.
+    target: str = Field("navire", max_length=100)
+    return_url: str | None = Field(None, max_length=2000)
 
 
 class SetPlanIn(BaseModel):
@@ -589,11 +609,16 @@ def reactivate_subscription(
 
 @router.post("/portal")
 def create_portal_session(
+    payload: PortalIn | None = Body(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """
     Stripe Customer Portal : l'user gère lui-même sa CB, ses factures, son abonnement.
+
+    Le retour se fait sur la page profil (et non plus sur /login, l'adresse de
+    retour d'un paiement). Le corps est facultatif : un appel sans corps
+    garde le comportement d'avant.
     """
     _stripe()  # force la clé NAVIRE
 
@@ -608,12 +633,414 @@ def create_portal_session(
     try:
         session = stripe.billing_portal.Session.create(
             customer=sub.stripe_customer_id,
-            return_url=STRIPE_SUCCESS_URL,
+            return_url=_url_retour(payload.return_url if payload else None, "portal"),
         )
     except stripe.StripeError as e:
         raise HTTPException(502, detail=f"Erreur Stripe : {str(e)}")
 
     return {"portal_url": session.url}
+
+
+# ============================================================
+# Paramètres de facturation (page profil)
+# ============================================================
+#
+# Deux familles d'abonnements Stripe peuvent coexister pour un même élève :
+#   - NAVIRE AI (Membre, Membre+) : une ligne Subscription, un client Stripe ;
+#   - Prép'AdJuris : un abonnement par paiement, chacun sur SON client Stripe
+#     (voir _creer_abonnement_adjuris), sa carte posée au niveau de
+#     l'abonnement. Le Customer Portal ouvert sur le client NAVIRE ne les voit
+#     donc pas : la page profil passe par les routes ci-dessous.
+
+ADJURIS_STATUTS_SUIVIS = ("active", "payment_failed", "suspendu")
+
+
+def _origines_autorisees() -> set[str]:
+    origines = set()
+    for url in [FRONTEND_URL, *CORS_ORIGINS]:
+        parts = urlsplit((url or "").strip())
+        if parts.scheme in ("http", "https") and parts.netloc:
+            origines.add(f"{parts.scheme}://{parts.netloc}".lower())
+    return origines
+
+
+def _url_retour(demandee: str | None, etat: str) -> str:
+    """
+    Adresse de retour après Stripe, avec ?billing=<etat> pour que la page
+    profil rouvre ses paramètres et affiche le résultat.
+
+    L'adresse proposée par le front n'est retenue que sur un domaine du site :
+    sans ce contrôle, la route servirait de redirection ouverte vers n'importe
+    quel site, derrière une page Stripe d'apparence officielle.
+    """
+    base = STRIPE_ACCOUNT_RETURN_URL
+    if demandee:
+        parts = urlsplit(demandee.strip())
+        if f"{parts.scheme}://{parts.netloc}".lower() in _origines_autorisees():
+            base = demandee.strip()
+    parts = urlsplit(base)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "billing"]
+    query.append(("billing", etat))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
+
+
+def _abonnements_adjuris(db: Session, user: User) -> list[dict]:
+    """
+    Abonnements Prép'AdJuris payés de l'élève, regroupés par abonnement
+    Stripe (plusieurs matières payées ensemble en partagent un). Les accès
+    accordés à la main n'ont rien à facturer et n'y figurent pas.
+    """
+    lignes = db.execute(
+        select(PrepaAdjurisEnrollment)
+        .where(
+            PrepaAdjurisEnrollment.user_id == user.id,
+            PrepaAdjurisEnrollment.status.in_(ADJURIS_STATUTS_SUIVIS),
+            PrepaAdjurisEnrollment.stripe_subscription_id.is_not(None),
+        )
+        .order_by(PrepaAdjurisEnrollment.id)
+    ).scalars().all()
+
+    groupes: dict[str, dict] = {}
+    for e in lignes:
+        g = groupes.setdefault(e.stripe_subscription_id, {
+            "subscription_id": e.stripe_subscription_id,
+            "customer_id": e.stripe_customer_id,
+            "inscriptions": [],
+        })
+        g["customer_id"] = g["customer_id"] or e.stripe_customer_id
+        g["inscriptions"].append(e)
+    return list(groupes.values())
+
+
+def _etat_adjuris(groupe: dict) -> dict:
+    inscriptions = groupe["inscriptions"]
+    statuts = {e.status for e in inscriptions}
+    # Le pire état l'emporte : une matière suspendue suffit à alerter.
+    statut = next(s for s in ("suspendu", "payment_failed", "active") if s in statuts)
+    depuis = [e.impaye_depuis for e in inscriptions if e.impaye_depuis]
+    return {
+        "subscription_id": groupe["subscription_id"],
+        "label": "Prép'AdJuris",
+        "matieres": [
+            {"key": e.matiere_key, "label": matiere_label(e.matiere_key)} for e in inscriptions
+        ],
+        "status": statut,
+        "unpaid_since": min(depuis) if depuis else None,
+    }
+
+
+def billing_status(db: Session, user: User) -> dict:
+    """
+    État des abonnements lu en base seulement, sans appel Stripe : sert au
+    résumé du profil (badge du plan, alerte d'impayé) à chaque chargement.
+    """
+    sub = get_or_create_subscription(db, user)
+    _sync_expired_plan(db, user, sub)
+    adjuris = [_etat_adjuris(g) for g in _abonnements_adjuris(db, user)]
+
+    if sub.stripe_subscription_id:
+        managed_by = "stripe"
+    elif sub.plan != "free":
+        managed_by = "manual"  # plan posé par un admin : rien à facturer
+    else:
+        managed_by = None
+
+    return {
+        "plan": user.plan,
+        "plan_label": plan_label(user.plan),
+        "navire": {
+            "plan": sub.plan,
+            "plan_label": plan_label(sub.plan),
+            "status": sub.status,
+            "billing_cycle": sub.billing_cycle,
+            "current_period_end": sub.current_period_end,
+            "access_until": _paid_access_until(sub),
+            "cancelled_at": sub.cancelled_at,
+            "renews": sub.status == "active" and sub.plan != "free",
+            "managed_by": managed_by,
+        },
+        "adjuris": adjuris,
+        "payment_issue": (
+            (sub.status == "past_due" and sub.plan != "free")
+            or any(a["status"] != "active" for a in adjuris)
+        ),
+    }
+
+
+def _carte(pm) -> dict | None:
+    """Moyen de paiement Stripe (déjà déplié) → ce que la page peut afficher."""
+    if not pm or isinstance(pm, str):
+        return None
+    card = pm.get("card")
+    if card:
+        exp_month, exp_year = card.get("exp_month"), card.get("exp_year")
+        expired = expires_soon = False
+        if exp_month and exp_year:
+            # Une carte reste valable jusqu'au dernier jour de son mois.
+            fin = datetime(exp_year + (exp_month == 12), exp_month % 12 + 1, 1, tzinfo=timezone.utc)
+            expired = fin <= utcnow()
+            expires_soon = not expired and fin <= utcnow() + timedelta(days=45)
+        return {
+            "type": "card",
+            "brand": card.get("brand"),
+            "last4": card.get("last4"),
+            "exp_month": exp_month,
+            "exp_year": exp_year,
+            "expired": expired,
+            "expires_soon": expires_soon,
+        }
+    sepa = pm.get("sepa_debit")
+    if sepa:
+        return {"type": "sepa_debit", "brand": "sepa", "last4": sepa.get("last4"),
+                "exp_month": None, "exp_year": None, "expired": False, "expires_soon": False}
+    return {"type": pm.get("type"), "brand": pm.get("type"), "last4": None,
+            "exp_month": None, "exp_year": None, "expired": False, "expires_soon": False}
+
+
+def _abonnement_stripe(sub_id: str):
+    """Abonnement Stripe avec sa carte et celle du client dépliées."""
+    return stripe.Subscription.retrieve(
+        sub_id,
+        expand=["default_payment_method", "customer.invoice_settings.default_payment_method"],
+    )
+
+
+def _carte_abonnement(stripe_sub) -> dict | None:
+    """Carte réellement débitée : celle de l'abonnement, sinon celle du client."""
+    carte = _carte(stripe_sub.get("default_payment_method"))
+    if carte:
+        return carte
+    client = stripe_sub.get("customer")
+    if isinstance(client, str) or not client:
+        return None
+    return _carte((client.get("invoice_settings") or {}).get("default_payment_method"))
+
+
+def _montant_prochaine_facture(stripe_sub) -> int | None:
+    """Montant de la prochaine facture, remises comprises (aperçu Stripe),
+    à défaut le prix catalogue des items."""
+    try:
+        apercu = stripe.Invoice.create_preview(subscription=stripe_sub["id"])
+        return int(apercu.get("amount_due") or 0)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Aperçu de facture indisponible pour %s : %s", stripe_sub.get("id"), exc)
+    items = ((stripe_sub.get("items") or {}).get("data") or [])
+    if not items:
+        return None
+    return sum(
+        int(((i.get("price") or {}).get("unit_amount") or 0)) * int(i.get("quantity") or 1)
+        for i in items
+    )
+
+
+def _prochain_adjuris(groupe: dict) -> dict | None:
+    """Prochain prélèvement Prép'AdJuris, lu dans l'échéancier (la source de
+    vérité du montant, mois par mois)."""
+    echeanciers = [
+        x for x in (facturation_adjuris.echeancier_de(e) for e in groupe["inscriptions"]) if x
+    ]
+    maintenant = utcnow()
+    for ligne in prelevements(echeanciers):
+        quand = datetime.fromisoformat(ligne["date"])
+        if quand > maintenant and ligne["montant_cents"] > 0:
+            return {"date": quand, "amount_cents": ligne["montant_cents"], "currency": "eur",
+                    "sessions": ligne["seances"]}
+    return None
+
+
+def _id_abonnement_facture(inv) -> str | None:
+    """Abonnement d'une facture (champ déplacé sous parent à partir de l'API 2025-03)."""
+    direct = inv.get("subscription")
+    if direct:
+        return direct if isinstance(direct, str) else direct.get("id")
+    details = ((inv.get("parent") or {}).get("subscription_details") or {})
+    return details.get("subscription")
+
+
+@router.get("/billing")
+def get_billing(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Tout ce qu'affichent les paramètres « Abonnement » et « Factures » du
+    profil : chaque abonnement avec sa carte, son prochain prélèvement et ce
+    qu'on peut y faire, puis les dernières factures, tous abonnements confondus.
+
+    Stripe injoignable : la partie lue en base est quand même renvoyée,
+    `stripe_ok` vaut false et la page l'indique au lieu d'échouer.
+    """
+    _stripe()  # force la clé NAVIRE
+
+    etat = billing_status(db, user)
+    sub = get_or_create_subscription(db, user)
+    groupes = _abonnements_adjuris(db, user)
+    stripe_ok = True
+
+    # ── NAVIRE AI ─────────────────────────────────────────────
+    navire = etat["navire"]
+    navire.update({"card": None, "next_payment": None, "unpaid_invoice_url": None})
+    if sub.stripe_subscription_id:
+        try:
+            s = _abonnement_stripe(sub.stripe_subscription_id)
+            navire["card"] = _carte_abonnement(s)
+            fin = _stripe_period(s)[1]
+            if (
+                not s.get("cancel_at_period_end")
+                and s.get("status") in ("active", "trialing", "past_due")
+                and fin
+            ):
+                navire["next_payment"] = {
+                    "date": fin,
+                    "amount_cents": _montant_prochaine_facture(s),
+                    "currency": (s.get("currency") or "eur"),
+                }
+            if sub.status == "past_due":
+                navire["unpaid_invoice_url"] = facturation_adjuris._url_facture_ouverte(sub.stripe_subscription_id)
+        except stripe.StripeError as exc:
+            stripe_ok = False
+            logger.warning("Paramètres : abonnement %s illisible : %s", sub.stripe_subscription_id, exc)
+    navire["actions"] = {
+        "update_card": bool(sub.stripe_subscription_id and sub.stripe_customer_id),
+        "cancel": sub.plan != "free" and sub.status in ("active", "past_due"),
+        "reactivate": sub.plan != "free" and sub.status == "cancelled" and bool(navire["access_until"]),
+        "portal": bool(sub.stripe_customer_id),
+        "subscribe": sub.plan == "free",
+    }
+
+    # ── Prép'AdJuris ──────────────────────────────────────────
+    adjuris = []
+    for groupe, bloc in zip(groupes, etat["adjuris"]):
+        bloc.update({
+            "card": None,
+            "next_payment": _prochain_adjuris(groupe),
+            "unpaid_invoice_url": None,
+            "actions": {"update_card": True},
+        })
+        try:
+            s = _abonnement_stripe(groupe["subscription_id"])
+            bloc["card"] = _carte_abonnement(s)
+            if s.get("status") in ("canceled", "incomplete_expired"):
+                bloc["next_payment"] = None
+                bloc["actions"]["update_card"] = False
+            if bloc["status"] != "active":
+                bloc["unpaid_invoice_url"] = facturation_adjuris._url_facture_ouverte(groupe["subscription_id"])
+        except stripe.StripeError as exc:
+            stripe_ok = False
+            logger.warning("Paramètres : abonnement %s illisible : %s", groupe["subscription_id"], exc)
+        adjuris.append(bloc)
+
+    # ── Factures ──────────────────────────────────────────────
+    ids_adjuris = {g["subscription_id"] for g in groupes}
+    clients = [c for c in dict.fromkeys(
+        [sub.stripe_customer_id] + [g["customer_id"] for g in groupes]
+    ) if c]
+    factures = []
+    for client in clients:
+        try:
+            for inv in stripe.Invoice.list(customer=client, limit=12).get("data", []):
+                if inv.get("status") in ("draft", None):
+                    continue
+                abonnement = _id_abonnement_facture(inv)
+                payee = inv.get("status") == "paid"
+                factures.append({
+                    "id": inv.get("id"),
+                    "number": inv.get("number"),
+                    "date": datetime.fromtimestamp(inv.get("created") or 0, tz=timezone.utc),
+                    "amount_cents": int((inv.get("amount_paid") if payee else inv.get("amount_due")) or 0),
+                    "currency": inv.get("currency") or "eur",
+                    "status": inv.get("status"),
+                    "label": "Prép'AdJuris" if abonnement in ids_adjuris else "NAVIRE AI",
+                    "pdf_url": inv.get("invoice_pdf"),
+                    "url": inv.get("hosted_invoice_url"),
+                })
+        except stripe.StripeError as exc:
+            stripe_ok = False
+            logger.warning("Paramètres : factures du client %s illisibles : %s", client, exc)
+    factures.sort(key=lambda f: f["date"], reverse=True)
+
+    return {
+        "plan": etat["plan"],
+        "plan_label": etat["plan_label"],
+        "payment_issue": etat["payment_issue"],
+        "navire": navire,
+        "adjuris": adjuris,
+        "invoices": factures[:12],
+        "stripe_ok": stripe_ok,
+    }
+
+
+@router.post("/payment-method")
+def create_payment_method_session(
+    payload: PaymentMethodIn | None = Body(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Ouvre une page Stripe (Checkout en mode setup) où l'élève enregistre une
+    nouvelle carte, sans rien payer. Au retour, le webhook en fait la carte
+    de l'abonnement visé et représente aussitôt une facture restée impayée
+    (voir _appliquer_nouvelle_carte).
+
+    Passer par Checkout plutôt que par le Customer Portal : la carte d'un
+    abonnement Prép'AdJuris est posée sur l'abonnement lui-même, sur un
+    client Stripe à part, ce que le portail du client NAVIRE ne voit pas.
+    Le chemin est le même pour les deux familles d'abonnements.
+    """
+    _stripe()  # force la clé NAVIRE
+    payload = payload or PaymentMethodIn()
+    target = (payload.target or "navire").strip()
+
+    if target == "navire":
+        sub = get_or_create_subscription(db, user)
+        if not (sub.stripe_subscription_id and sub.stripe_customer_id):
+            raise HTTPException(400, detail={
+                "code": "NO_STRIPE_SUBSCRIPTION",
+                "message": "Aucun abonnement payé par carte sur ce compte.",
+            })
+        customer_id, subscription_id = sub.stripe_customer_id, sub.stripe_subscription_id
+    else:
+        # Uniquement un abonnement de l'élève lui-même : l'id vient du front.
+        groupe = next((g for g in _abonnements_adjuris(db, user) if g["subscription_id"] == target), None)
+        if not groupe:
+            raise HTTPException(404, detail={
+                "code": "SUBSCRIPTION_NOT_FOUND",
+                "message": "Abonnement introuvable sur ce compte.",
+            })
+        subscription_id = groupe["subscription_id"]
+        customer_id = groupe["customer_id"]
+        if not customer_id:
+            try:
+                client = stripe.Subscription.retrieve(subscription_id).get("customer")
+            except stripe.StripeError as e:
+                raise HTTPException(502, detail=f"Erreur Stripe : {str(e)}")
+            customer_id = client if isinstance(client, str) else (client or {}).get("id")
+        if not customer_id:
+            raise HTTPException(400, detail={
+                "code": "NO_STRIPE_CUSTOMER",
+                "message": "Aucun compte de facturation trouvé.",
+            })
+
+    metadata = {
+        "navire_action": "payment_method",
+        "user_id": str(user.id),
+        "subscription_ids": subscription_id,
+    }
+    try:
+        session = stripe.checkout.Session.create(
+            mode="setup",
+            customer=customer_id,
+            currency="eur",
+            client_reference_id=str(user.id),
+            success_url=_url_retour(payload.return_url, "card_updated"),
+            cancel_url=_url_retour(payload.return_url, "card_cancelled"),
+            metadata=metadata,
+            setup_intent_data={"metadata": metadata},
+        )
+    except stripe.StripeError as e:
+        raise HTTPException(502, detail=f"Erreur Stripe : {str(e)}")
+
+    return {"checkout_url": session.url, "session_id": session.id}
 
 
 @router.get("/promo/{code}")
@@ -772,6 +1199,59 @@ def _moyen_de_paiement_checkout(session: dict) -> str | None:
         return None
     pm = intent.get("payment_method")
     return pm if isinstance(pm, str) or pm is None else pm["id"]
+
+
+def _appliquer_nouvelle_carte(session: dict) -> None:
+    """
+    checkout.session.completed d'un changement de carte (POST /payment-method).
+
+    La carte devient celle du client ET de l'abonnement : un abonnement
+    Prép'AdJuris porte sa propre carte, qui primerait sinon sur celle du
+    client. Une facture restée impayée est représentée tout de suite : c'est
+    le plus souvent pour ça que l'élève change de carte, et le paiement
+    réussi déclenche invoice.payment_succeeded, qui rend l'accès.
+
+    Un échec de Stripe sur la carte elle-même remonte (le webhook répond 500,
+    Stripe relivre ; les écritures sont idempotentes). Un refus de la
+    nouvelle carte sur la facture impayée, lui, est seulement journalisé.
+    """
+    meta = session.get("metadata") or {}
+    customer = session.get("customer")
+    pm = _moyen_de_paiement_checkout(session)
+    if not customer or not pm:
+        logger.error("Changement de carte %s sans client ou sans carte.", session.get("id"))
+        return
+
+    stripe.Customer.modify(customer, invoice_settings={"default_payment_method": pm})
+
+    for sub_id in [x.strip() for x in (meta.get("subscription_ids") or "").split(",") if x.strip()]:
+        stripe_sub = stripe.Subscription.modify(sub_id, default_payment_method=pm)
+
+        # Abonnement piloté par un échéancier (Prép'AdJuris) : sa carte par
+        # défaut suit aussi, pour qu'un changement de phase ne la remplace pas.
+        schedule = stripe_sub.get("schedule") if stripe_sub else None
+        schedule_id = schedule if isinstance(schedule, str) else (schedule or {}).get("id")
+        if schedule_id:
+            try:
+                stripe.SubscriptionSchedule.modify(
+                    schedule_id, default_settings={"default_payment_method": pm}
+                )
+            except stripe.StripeError as exc:
+                logger.warning("Carte non posée sur l'échéancier %s : %s", schedule_id, exc)
+
+        try:
+            ouvertes = stripe.Invoice.list(subscription=sub_id, status="open", limit=5).get("data", [])
+        except stripe.StripeError as exc:
+            logger.warning("Factures ouvertes illisibles pour %s : %s", sub_id, exc)
+            ouvertes = []
+        for inv in ouvertes:
+            try:
+                stripe.Invoice.pay(inv["id"], payment_method=pm)
+                logger.info("Facture %s réglée avec la nouvelle carte.", inv["id"])
+            except stripe.StripeError as exc:
+                logger.warning("Facture %s refusée sur la nouvelle carte : %s", inv["id"], exc)
+
+    logger.info("Carte mise à jour pour user %s (%s).", meta.get("user_id"), meta.get("subscription_ids"))
 
 
 def _creer_abonnement_adjuris(session: dict, devis: list, meta: dict) -> str:
@@ -1060,6 +1540,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
     Events gérés :
       checkout.session.completed      → activer le plan après paiement
+                                        (ou poser la nouvelle carte, si la
+                                        session vient de /payment-method)
       invoice.payment_succeeded       → renouvellement → prolonger la période
                                         (Prép'AdJuris : régularise un impayé)
       invoice.payment_failed          → passer en past_due
@@ -1085,6 +1567,11 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     # ── checkout.session.completed ─────────────────────────
     if event_type == "checkout.session.completed":
         meta = data.get("metadata") or {}
+
+        # Changement de carte depuis le profil (mode setup, aucun paiement).
+        if meta.get("navire_action") == "payment_method":
+            _appliquer_nouvelle_carte(data)
+            return {"ok": True}
 
         # Branche Prép'AdJuris — metadata dédiée, pas de "plan". Traitée à part
         # et en premier pour ne pas retomber dans la logique membre/membre+/prepa

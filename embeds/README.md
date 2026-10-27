@@ -4,6 +4,7 @@
 |---|---|---|
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
+| `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
 | `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, points de passage (QCM + questions à points), Elo |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
@@ -75,3 +76,27 @@ progression des élèves.
 Le webhook `/subscriptions/webhook` doit aussi recevoir `charge.refunded` et
 `charge.dispute.created` (annulation de la commission d'un paiement remboursé
 ou contesté).
+
+## Page profil — paramètres du compte
+
+**Embed HTML.** Coller `profil.html` dans l'Embed HTML de la page profil
+(remplace la version précédente). Le lien « Voir les offres » est dans le bloc
+`CONFIG` du script.
+
+La roue ouvre trois onglets :
+
+- **Abonnement** : NAVIRE AI et Prép'AdJuris, avec l'état, la carte, le
+  prochain prélèvement, et les actions (changer de carte, résilier, réactiver,
+  changer de formule). Source : `GET /subscriptions/billing`.
+- **Factures** : les 12 dernières, avec le PDF et le lien de règlement.
+- **Sécurité** : adresse, méthode de connexion, mot de passe.
+
+« Changer de carte » ouvre une page Stripe (`POST /subscriptions/payment-method`)
+où l'élève enregistre sa carte sans payer. Stripe le ramène sur la page profil
+avec `?billing=card_updated`, et l'onglet Abonnement se rouvre. L'adresse de
+retour est celle de la page (si elle est sur le domaine du site), sinon
+`STRIPE_ACCOUNT_RETURN_URL` (par défaut `{FRONTEND_URL}/profil`).
+
+En cas d'impayé, une alerte rouge s'affiche sous l'en-tête du profil et mène
+directement à l'onglet Abonnement.
+
