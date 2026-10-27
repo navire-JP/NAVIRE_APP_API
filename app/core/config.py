@@ -106,6 +106,13 @@ STRIPE_CANCEL_URL = os.getenv(
     "STRIPE_CANCEL_URL",
     f"{FRONTEND_URL}/offres?subscription=cancelled",
 )
+# Retour sur la page profil après le changement de carte ou le portail Stripe.
+# L'embed profil envoie l'adresse de sa page (même domaine que FRONTEND_URL) :
+# cette valeur ne sert que s'il ne la donne pas.
+STRIPE_ACCOUNT_RETURN_URL = os.getenv(
+    "STRIPE_ACCOUNT_RETURN_URL",
+    f"{FRONTEND_URL}/profil",
+)
 
 
 # ============================================================
