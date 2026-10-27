@@ -118,6 +118,7 @@
 #nv-lib .nl-action { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px 8px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 11px; font-weight: 600; color: var(--text-2); text-decoration: none; transition: background .15s, color .15s, transform .15s; }
 #nv-lib .nl-action:hover { background: var(--panel-3); color: #fff; transform: translateY(-1px); }
 #nv-lib .nl-action svg { width: 18px; height: 18px; color: var(--blue); }
+#nv-lib .nl-pp { display: inline-block; flex-shrink: 0; border-radius: 50%; background: #0c0c18 center/62% no-repeat; border: 1px solid var(--blue-line); box-shadow: 0 0 0 2px rgba(122,167,255,0.08); }
 
 /* Carte Elo */
 #nv-lib .nl-elo { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
@@ -560,7 +561,6 @@
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
     qcm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
-    ai: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>',
     news: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>',
     bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>',
     flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>',
@@ -568,6 +568,8 @@
     send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
     grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>'
   };
+  // Photo de profil de NAVIRE AI (même image que la bulle du chat).
+  function pp(size) { return '<span class="nl-pp" style="width:' + size + 'px;height:' + size + 'px;background-image:url(&quot;' + LOGO + '&quot;)"></span>'; }
   function ico(name, size) { return ICON[name].replace("<svg", '<svg style="width:' + size + 'px;height:' + size + 'px"'); }
 
   // ================= HAUTEUR (comme NAVIRE AI) =================
@@ -713,7 +715,7 @@
   function actions() {
     return '<div class="nl-actions">' +
       '<a class="nl-action" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'QCM</a>' +
-      '<a class="nl-action" href="' + CONFIG.AI_URL + '" data-go data-ai>' + ICON.ai + 'NAVIRE AI</a>' +
+      '<a class="nl-action" href="' + CONFIG.AI_URL + '" data-go data-ai>' + pp(18) + 'NAVIRE AI</a>' +
       '<a class="nl-action" href="' + CONFIG.ACTUS_URL + '" data-go>' + ICON.news + 'Actus</a>' +
     '</div>';
   }
@@ -751,7 +753,7 @@
     else html += '<div class="nl-grid">' + list.map(bookCard).join("") + '</div>';
     if (!plus()) {
       var extra = ((S.cat && S.cat.items) || []).filter(function (d) { return d.plus; }).length;
-      html += '<button class="nl-banner" data-mode-set="plus"><span class="nl-qico">' + ICON.ai + '</span><div><b>Passe à Lib+</b><span>' +
+      html += '<button class="nl-banner" data-mode-set="plus"><span class="nl-qico">' + pp(24) + '</span><div><b>Passe à Lib+</b><span>' +
         (extra ? extra + " document" + (extra > 1 ? "s" : "") + " en plus, " : "") + 'une question à chaque étape et NAVIRE AI sous le cours.</span></div><span class="nv-tag solid">LIB+</span></button>';
     }
     setPage(html);
@@ -955,7 +957,7 @@
     var gain = a && a.elo_gagne ? '<span class="nl-gain">' + ico("bolt", 11) + '+' + a.elo_gagne + ' Elo</span>' : "";
     var chatOpen = S.chat[c.id] && S.chat[c.id].open;
     return '<div class="nl-done"><span class="nl-done-ico' + (sk ? " is-skip" : "") + '">' + (sk ? ICON.skip : ICON.tick) + '</span><div><b>' + title + gain + '</b><small>' + esc(sub) + '</small></div>' +
-      '<div class="nl-done-btns">' + (chatOpen ? "" : '<button class="nv-chip" data-chat-open="' + c.id + '">' + ico("ai", 13) + 'NAVIRE AI</button>') + '<button class="nv-chip" data-cp-redo="' + c.id + '">Refaire</button></div></div>';
+      '<div class="nl-done-btns">' + (chatOpen ? "" : '<button class="nv-chip" data-chat-open="' + c.id + '">' + pp(16) + 'NAVIRE AI</button>') + '<button class="nv-chip" data-cp-redo="' + c.id + '">Refaire</button></div></div>';
   }
   function eloCard(g) {
     var elo = S.user ? S.user.elo : 0;
