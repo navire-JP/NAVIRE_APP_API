@@ -1,6 +1,6 @@
 # app/db/lib_migration.py
 """
-NAVIRE Lib : colonnes ajoutées après la création des tables (create_all ne
+NAVIRE Lib (et classement) : colonnes ajoutées après la création des tables (create_all ne
 modifie pas une table existante). Idempotent, Postgres comme SQLite.
 """
 
@@ -13,6 +13,8 @@ _COLONNES = {
     ("lib_progress", "skipped"): "BOOLEAN NOT NULL DEFAULT FALSE",
     ("lib_documents", "owner_id"): "INTEGER REFERENCES users(id) ON DELETE CASCADE",
     ("lib_documents", "source_file_id"): "INTEGER REFERENCES files(id) ON DELETE CASCADE",
+    # Classement (leaderboard.py) : stats visibles par les autres, oui par défaut
+    ("users", "stats_public"): "BOOLEAN NOT NULL DEFAULT TRUE",
 }
 
 _INDEX = [

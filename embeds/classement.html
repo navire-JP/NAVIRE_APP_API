@@ -1,0 +1,702 @@
+<!--
+  NAVIRE, embed de la page /classement
+  ====================================
+  Charte NAVIRE en bleu et blanc (comme NAVIRE Lib). Même structure que les
+  embeds NAVIRE AI : prend la hauteur de l'écran sous sa position, seule la
+  liste défile ; sous 760 px de conteneur, la fiche joueur s'ouvre en plein
+  écran.
+
+  Joueurs   → GET /leaderboard/classement?periode=general|30j|7j[&fac=…]
+              podium du top 3, liste, ta place toujours visible en bas.
+  Facs      → GET /leaderboard/universities
+  Fiche     → GET /leaderboard/joueurs/{id} : rang, palier, courbe d'Elo sur
+              30 jours, QCM, séries, Lib. Si le joueur a masqué ses stats :
+              nom, Elo et rang seulement.
+  Curseur   → PATCH /leaderboard/me/visibilite : « Mes stats visibles »
+              (activé par défaut).
+
+  Réglages : bloc CONFIG du script.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+#nv-rank {
+  --panel: rgba(255,255,255,0.035);
+  --panel-2: rgba(255,255,255,0.06);
+  --panel-3: rgba(255,255,255,0.1);
+  --line: rgba(255,255,255,0.07);
+  --line-2: rgba(255,255,255,0.14);
+  --text: #fff;
+  --text-2: rgba(255,255,255,0.72);
+  --text-3: rgba(255,255,255,0.45);
+  --text-4: rgba(255,255,255,0.28);
+  --blue: #7AA7FF;
+  --blue-hi: #B5CDFF;
+  --blue-deep: #4F7DFF;
+  --blue-soft: rgba(122,167,255,0.1);
+  --blue-line: rgba(122,167,255,0.35);
+  --ink: #0a0a12;
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --mono: 'IBM Plex Mono', monospace;
+
+  position: relative;
+  width: 100%;
+  height: 640px;          /* remplacé par la hauteur de l'écran au chargement */
+  min-height: 460px;
+  display: flex;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+  background: transparent;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+#nv-rank *, #nv-rank *::before, #nv-rank *::after { box-sizing: border-box; }
+#nv-rank button { font-family: inherit; color: inherit; }
+#nv-rank svg { flex-shrink: 0; }
+#nv-rank ::selection { background: rgba(122,167,255,0.3); }
+#nv-rank .nv-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+#nv-rank .nv-scroll::-webkit-scrollbar { width: 6px; }
+#nv-rank .nv-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9px; }
+@keyframes nr-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes nr-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes nr-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@keyframes nr-glow { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes nr-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+/* ================= COLONNE PRINCIPALE ================= */
+#nv-rank .nr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+#nv-rank .nr-head { padding: 18px 20px 12px; display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; flex-shrink: 0; }
+#nv-rank .nr-title { flex: 1; min-width: 200px; }
+#nv-rank .nr-title small { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 1.4px; color: var(--blue); text-transform: uppercase; }
+#nv-rank .nr-title h1 { margin: 4px 0 2px; font-size: 26px; font-weight: 800; letter-spacing: -.6px; line-height: 1.15; }
+#nv-rank .nr-title p { margin: 0; font-size: 13px; color: var(--text-3); }
+
+/* Curseur « Mes stats visibles » */
+#nv-rank .nr-switch { display: inline-flex; align-items: center; gap: 10px; height: 38px; padding: 0 6px 0 14px; border-radius: 99px; border: 1px solid var(--line-2); background: var(--panel); cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text-2); transition: border-color .2s, background .2s; user-select: none; }
+#nv-rank .nr-switch:hover { background: var(--panel-2); }
+#nv-rank .nr-switch i { position: relative; width: 42px; height: 26px; border-radius: 99px; background: var(--panel-3); transition: background .25s; flex-shrink: 0; }
+#nv-rank .nr-switch i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.35); transition: transform .28s var(--ease); }
+#nv-rank .nr-switch.is-on { border-color: var(--blue-line); color: #fff; }
+#nv-rank .nr-switch.is-on i { background: var(--blue); }
+#nv-rank .nr-switch.is-on i::after { transform: translateX(16px); }
+#nv-rank .nr-switch[aria-busy="true"] { opacity: .6; pointer-events: none; }
+
+/* Onglets, périodes, recherche */
+#nv-rank .nr-bar { display: flex; gap: 8px; padding: 0 20px 12px; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
+#nv-rank .nr-seg { position: relative; display: inline-flex; padding: 3px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); }
+#nv-rank .nr-seg button { position: relative; z-index: 1; border: 0; background: transparent; height: 30px; padding: 0 14px; border-radius: 99px; font-size: 12.5px; font-weight: 600; color: var(--text-3); cursor: pointer; transition: color .2s; white-space: nowrap; }
+#nv-rank .nr-seg button:hover { color: #fff; }
+#nv-rank .nr-seg button.is-on { color: var(--ink); }
+#nv-rank .nr-seg .nr-thumb { position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 99px; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.25); transition: transform .3s var(--ease), width .3s var(--ease); }
+#nv-rank .nr-seg.is-blue .nr-thumb { background: var(--blue); }
+#nv-rank .nr-search { flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); }
+#nv-rank .nr-search svg { width: 15px; height: 15px; color: var(--text-3); }
+#nv-rank .nr-search input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: #fff; font: inherit; font-size: 13.5px; }
+#nv-rank .nr-search input::placeholder { color: var(--text-4); }
+
+#nv-rank .nr-list-wrap { flex: 1; min-height: 0; position: relative; }
+#nv-rank .nr-list { height: 100%; padding: 4px 20px 96px; }
+
+/* ================= PODIUM ================= */
+#nv-rank .nr-podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 10px; align-items: end; margin: 6px 0 18px; }
+#nv-rank .nr-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 12px 16px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; transition: transform .25s var(--ease), border-color .2s, background .2s; animation: nr-rise .55s var(--ease) both; overflow: hidden; min-width: 0; }
+#nv-rank .nr-step:hover { transform: translateY(-3px); background: var(--panel-2); border-color: var(--line-2); }
+#nv-rank .nr-step.p1 { padding-top: 26px; padding-bottom: 22px; background: linear-gradient(180deg, rgba(122,167,255,0.16), rgba(122,167,255,0.03)); border-color: var(--blue-line); animation-delay: .08s; }
+#nv-rank .nr-step.p2 { animation-delay: .16s; }
+#nv-rank .nr-step.p3 { animation-delay: .24s; }
+#nv-rank .nr-step.p1::before { content: ''; position: absolute; left: 50%; top: -60px; width: 220px; height: 160px; transform: translateX(-50%); background: radial-gradient(ellipse at center, rgba(122,167,255,0.35), transparent 70%); pointer-events: none; animation: nr-glow 3.5s ease-in-out infinite; }
+#nv-rank .nr-step.is-me { box-shadow: 0 0 0 2px var(--blue) inset; }
+#nv-rank .nr-crown { position: relative; color: var(--blue); margin-bottom: 4px; animation: nr-float 4s ease-in-out infinite; }
+#nv-rank .nr-crown svg { width: 26px; height: 26px; }
+#nv-rank .nr-step .nr-av { width: 64px; height: 64px; }
+#nv-rank .nr-step.p1 .nr-av { width: 84px; height: 84px; }
+#nv-rank .nr-medal { position: absolute; right: -2px; bottom: -2px; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--ink); background: #fff; border: 2px solid #0c0c16; }
+#nv-rank .p1 .nr-medal { background: var(--blue); width: 28px; height: 28px; font-size: 12px; }
+#nv-rank .p3 .nr-medal { background: var(--blue-hi); }
+#nv-rank .nr-step b { display: block; max-width: 100%; margin-top: 10px; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-rank .nr-step.p1 b { font-size: 16px; }
+#nv-rank .nr-step .nr-fac { max-width: 100%; font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; min-height: 1.3em; }
+#nv-rank .nr-step .nr-big { margin-top: 10px; font-size: 22px; font-weight: 800; letter-spacing: -.6px; line-height: 1; }
+#nv-rank .nr-step.p1 .nr-big { font-size: 28px; }
+#nv-rank .nr-step .nr-big small { font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0; margin-left: 3px; }
+#nv-rank .nr-step .nr-tags { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+
+/* Avatars */
+#nv-rank .nr-av { position: relative; flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: var(--panel-3) center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; }
+#nv-rank .nr-av > span.nr-ini { font-size: .42em; }
+#nv-rank .nr-av.ring { box-shadow: 0 0 0 2px #0c0c16, 0 0 0 4px var(--line-2); }
+#nv-rank .p1 .nr-av.ring { box-shadow: 0 0 0 3px #0c0c16, 0 0 0 5px var(--blue), 0 12px 40px rgba(79,125,255,0.45); }
+#nv-rank .p2 .nr-av.ring { box-shadow: 0 0 0 3px #0c0c16, 0 0 0 5px #fff; }
+#nv-rank .p3 .nr-av.ring { box-shadow: 0 0 0 3px #0c0c16, 0 0 0 5px var(--blue-hi); }
+
+/* Puces */
+#nv-rank .nr-tag { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); white-space: nowrap; }
+#nv-rank .nr-tag.blue { color: var(--blue); background: var(--blue-soft); }
+#nv-rank .nr-tag.solid { color: var(--ink); background: var(--blue); }
+#nv-rank .nr-tag.white { color: var(--ink); background: #fff; }
+#nv-rank .nr-tag svg { width: 10px; height: 10px; }
+#nv-rank .nr-up { color: var(--blue); font-family: var(--mono); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+#nv-rank .nr-up.is-down { color: var(--text-3); }
+#nv-rank .nr-up.is-flat { color: var(--text-4); }
+
+/* ================= LISTE ================= */
+#nv-rank .nr-label { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 4px 4px 8px; }
+#nv-rank .nr-label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+#nv-rank .nr-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; margin-bottom: 6px; border-radius: 14px; border: 1px solid transparent; background: var(--panel); cursor: pointer; text-align: left; transition: background .15s, border-color .15s, transform .2s var(--ease); animation: nr-rise .45s var(--ease) both; }
+#nv-rank .nr-row:hover { background: var(--panel-2); border-color: var(--line); transform: translateX(2px); }
+#nv-rank .nr-row.is-me { border-color: var(--blue-line); background: var(--blue-soft); }
+#nv-rank .nr-row.is-open { border-color: var(--line-2); background: var(--panel-2); }
+#nv-rank .nr-rank { width: 34px; flex-shrink: 0; text-align: center; font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--text-2); }
+#nv-rank .nr-who { flex: 1; min-width: 0; }
+#nv-rank .nr-who b { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-rank .nr-who b span { overflow: hidden; text-overflow: ellipsis; }
+#nv-rank .nr-who b svg { width: 12px; height: 12px; color: var(--text-4); }
+#nv-rank .nr-who small { display: block; font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+#nv-rank .nr-score { text-align: right; flex-shrink: 0; min-width: 64px; }
+#nv-rank .nr-score b { display: block; font-size: 16px; font-weight: 800; letter-spacing: -.3px; }
+#nv-rank .nr-score small { font-size: 10.5px; color: var(--text-3); font-family: var(--mono); }
+#nv-rank .nr-mid { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+#nv-rank .nr-empty { text-align: center; padding: 44px 20px; color: var(--text-3); font-size: 13px; line-height: 1.6; }
+#nv-rank .nr-empty b { display: block; color: #fff; font-size: 15px; margin-bottom: 4px; }
+#nv-rank .nr-skel { height: 60px; border-radius: 14px; margin-bottom: 6px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nr-shimmer 1.4s linear infinite; }
+#nv-rank .nr-skel.tall { height: 190px; border-radius: 20px; }
+
+/* Ta place, toujours visible */
+#nv-rank .nr-mebar { position: absolute; left: 20px; right: 20px; bottom: 14px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; background: rgba(16,20,40,0.92); border: 1px solid var(--blue-line); box-shadow: 0 20px 50px rgba(0,0,0,0.5); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); cursor: pointer; animation: nr-rise .45s var(--ease) both; z-index: 5; }
+#nv-rank .nr-mebar .nr-rank { color: var(--blue); }
+#nv-rank .nr-mebar .nr-gap { font-size: 11.5px; color: var(--text-3); }
+#nv-rank .nr-mebar .nr-gap strong { color: #fff; font-weight: 600; }
+#nv-rank .nr-cta { position: absolute; left: 20px; right: 20px; bottom: 14px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: rgba(16,20,40,0.92); border: 1px solid var(--line-2); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 5; font-size: 13px; color: var(--text-2); }
+#nv-rank .nr-cta span { flex: 1; }
+
+/* Facs */
+#nv-rank .nr-uni-ico { width: 38px; height: 38px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--blue-soft); border: 1px solid var(--blue-line); color: var(--blue); flex-shrink: 0; }
+#nv-rank .nr-uni-ico svg { width: 18px; height: 18px; }
+#nv-rank .nr-row.top1 .nr-uni-ico { background: var(--blue); color: var(--ink); }
+#nv-rank .nr-meter { width: 90px; height: 4px; border-radius: 99px; background: var(--panel-3); overflow: hidden; }
+#nv-rank .nr-meter i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--blue-deep), var(--blue-hi)); }
+
+/* Boutons */
+#nv-rank .nr-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 16px; border-radius: 99px; border: 0; background: #fff; color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .15s; }
+#nv-rank .nr-btn:hover { transform: translateY(-1px); }
+#nv-rank .nr-btn.is-blue { background: var(--blue); }
+#nv-rank .nr-icon { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: 0; background: transparent; color: var(--text-3); cursor: pointer; transition: background .15s, color .15s; padding: 0; }
+#nv-rank .nr-icon:hover { background: var(--panel-2); color: #fff; }
+#nv-rank .nr-icon svg { width: 18px; height: 18px; }
+
+/* ================= FICHE JOUEUR ================= */
+#nv-rank .nr-side { width: 0; flex-shrink: 0; overflow: hidden; border-left: 1px solid transparent; transition: width .38s var(--ease), border-color .3s; position: relative; }
+#nv-rank.is-panel .nr-side { width: 390px; border-left-color: var(--line); }
+#nv-rank .nr-side-in { width: 390px; height: 100%; display: flex; flex-direction: column; }
+#nv-rank .nr-side-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 0 18px; flex-shrink: 0; }
+#nv-rank .nr-side-top small { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 1.2px; color: var(--text-4); text-transform: uppercase; }
+#nv-rank .nr-prof { flex: 1; min-height: 0; padding: 6px 18px 24px; }
+#nv-rank .nr-hero { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 14px 0 18px; animation: nr-fade .35s var(--ease); }
+#nv-rank .nr-hero::before { content: ''; position: absolute; top: -10px; left: 50%; width: 260px; height: 170px; transform: translateX(-50%); background: radial-gradient(ellipse at center, rgba(122,167,255,0.22), transparent 70%); pointer-events: none; }
+#nv-rank .nr-hero .nr-av { width: 84px; height: 84px; box-shadow: 0 0 0 3px #0c0c16, 0 0 0 5px var(--blue), 0 14px 44px rgba(79,125,255,0.35); }
+#nv-rank .nr-hero h2 { position: relative; margin: 14px 0 2px; font-size: 21px; font-weight: 800; letter-spacing: -.4px; }
+#nv-rank .nr-hero p { position: relative; margin: 0; font-size: 12.5px; color: var(--text-3); }
+#nv-rank .nr-hero .nr-tags { position: relative; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+#nv-rank .nr-rankbox { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; animation: nr-rise .4s var(--ease) both; }
+#nv-rank .nr-tile { padding: 13px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); min-width: 0; }
+#nv-rank .nr-tile small { display: block; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-rank .nr-tile b { display: block; margin-top: 5px; font-size: 21px; font-weight: 800; letter-spacing: -.5px; line-height: 1.1; }
+#nv-rank .nr-tile b span { font-size: 12px; font-weight: 600; color: var(--text-3); letter-spacing: 0; margin-left: 3px; }
+#nv-rank .nr-tile.is-blue { background: var(--blue-soft); border-color: var(--blue-line); }
+#nv-rank .nr-tile.is-blue b { color: var(--blue); }
+#nv-rank .nr-card { padding: 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 10px; animation: nr-rise .45s var(--ease) both; }
+#nv-rank .nr-card h4 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
+#nv-rank .nr-card h4 em { font-style: normal; color: var(--blue); letter-spacing: 0; text-transform: none; font-size: 11.5px; }
+#nv-rank .nr-tierbar { height: 6px; border-radius: 99px; background: var(--panel-3); overflow: hidden; }
+#nv-rank .nr-tierbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--blue-deep), var(--blue-hi)); transition: width 1s var(--ease); }
+#nv-rank .nr-tierlab { display: flex; justify-content: space-between; margin-top: 7px; font-size: 11.5px; color: var(--text-3); }
+#nv-rank .nr-tierlab b { color: #fff; font-weight: 600; text-transform: capitalize; }
+#nv-rank .nr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+#nv-rank .nr-chart { position: relative; height: 120px; }
+#nv-rank .nr-chart svg { width: 100%; height: 100%; overflow: visible; }
+#nv-rank .nr-chart .nr-tip { position: absolute; top: -6px; transform: translateX(-50%); padding: 4px 8px; border-radius: 8px; background: #fff; color: var(--ink); font-size: 11px; font-weight: 700; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s; }
+#nv-rank .nr-chart.is-hover .nr-tip { opacity: 1; }
+#nv-rank .nr-chart-x { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--mono); font-size: 10px; color: var(--text-4); }
+#nv-rank .nr-src { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; font-size: 12.5px; }
+#nv-rank .nr-src:last-child { margin-bottom: 0; }
+#nv-rank .nr-src span { width: 90px; color: var(--text-2); flex-shrink: 0; }
+#nv-rank .nr-src .nr-meter { flex: 1; width: auto; height: 6px; }
+#nv-rank .nr-src b { width: 46px; text-align: right; font-family: var(--mono); font-size: 12px; }
+#nv-rank .nr-ring { display: flex; align-items: center; gap: 14px; }
+#nv-rank .nr-ring svg { width: 74px; height: 74px; transform: rotate(-90deg); flex-shrink: 0; }
+#nv-rank .nr-ring circle { fill: none; stroke-width: 7; stroke-linecap: round; }
+#nv-rank .nr-ring .bg { stroke: var(--panel-3); }
+#nv-rank .nr-ring .fg { stroke: var(--blue); transition: stroke-dashoffset 1.1s var(--ease); }
+#nv-rank .nr-ring div b { display: block; font-size: 24px; font-weight: 800; letter-spacing: -.5px; }
+#nv-rank .nr-ring div span { font-size: 12px; color: var(--text-3); }
+#nv-rank .nr-lock { text-align: center; padding: 26px 18px; border-radius: 16px; border: 1px dashed var(--line-2); color: var(--text-3); font-size: 13px; line-height: 1.6; animation: nr-rise .4s var(--ease) both; }
+#nv-rank .nr-lock .nr-uni-ico { margin: 0 auto 12px; width: 46px; height: 46px; border-radius: 14px; }
+#nv-rank .nr-lock b { display: block; color: #fff; font-size: 14px; margin-bottom: 2px; }
+#nv-rank .nr-me-note { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: var(--blue-soft); border: 1px solid var(--blue-line); font-size: 12.5px; color: var(--text-2); display: flex; align-items: center; gap: 10px; }
+#nv-rank .nr-me-note span { flex: 1; }
+
+/* Toasts */
+#nv-rank .nr-toasts { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 3000; pointer-events: none; }
+#nv-rank .nr-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,32,50,0.96); border: 1px solid var(--line-2); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nr-toast 2.6s var(--ease) both; white-space: nowrap; }
+@keyframes nr-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* ================= COMPACT ================= */
+#nv-rank.is-compact .nr-head { padding: 14px 16px 10px; }
+#nv-rank.is-compact .nr-title h1 { font-size: 22px; }
+#nv-rank.is-compact .nr-bar { padding: 0 16px 10px; }
+#nv-rank.is-compact .nr-list { padding: 4px 16px 96px; }
+#nv-rank.is-compact .nr-mebar, #nv-rank.is-compact .nr-cta { left: 16px; right: 16px; }
+#nv-rank.is-compact .nr-podium { gap: 6px; }
+#nv-rank.is-compact .nr-step { padding: 14px 6px 12px; border-radius: 16px; }
+#nv-rank.is-compact .nr-step.p1 { padding-top: 18px; }
+#nv-rank.is-compact .nr-step .nr-av { width: 50px; height: 50px; }
+#nv-rank.is-compact .nr-step.p1 .nr-av { width: 64px; height: 64px; }
+#nv-rank.is-compact .nr-step b { font-size: 12.5px; }
+#nv-rank.is-compact .nr-step.p1 b { font-size: 13.5px; }
+#nv-rank.is-compact .nr-step .nr-big { font-size: 18px; }
+#nv-rank.is-compact .nr-step.p1 .nr-big { font-size: 22px; }
+#nv-rank.is-compact .nr-step .nr-tags .nr-tier { display: none; }
+#nv-rank.is-compact .nr-mid .nr-tier, #nv-rank.is-compact .nr-mid .nr-meter { display: none; }
+#nv-rank.is-compact .nr-search { order: 3; flex-basis: 100%; }
+#nv-rank.is-compact .nr-search input { font-size: 16px; }
+#nv-rank.is-compact .nr-side { position: absolute; inset: 0; width: 100% !important; z-index: 1000; background: #0b0b14; border: 0; transform: translateY(100%); transition: transform .38s var(--ease); }
+#nv-rank.is-compact.is-panel .nr-side { transform: none; }
+#nv-rank.is-compact .nr-side-in { width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  #nv-rank *, #nv-rank *::before, #nv-rank *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+
+<div id="nv-rank">
+  <div class="nr-main">
+    <div class="nr-head">
+      <div class="nr-title">
+        <small>NAVIRE</small>
+        <h1>Classement</h1>
+        <p data-el="sub">Les meilleurs étudiants de NAVIRE, à l'Elo.</p>
+      </div>
+      <div data-el="switch"></div>
+    </div>
+    <div class="nr-bar">
+      <div class="nr-seg" data-el="tabs"></div>
+      <div class="nr-seg is-blue" data-el="periods"></div>
+      <label class="nr-search" data-el="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input data-el="search" placeholder="Chercher un joueur, une fac…" autocomplete="off">
+      </label>
+    </div>
+    <div class="nr-list-wrap">
+      <div class="nr-list nv-scroll" data-el="list"></div>
+      <div data-el="bottom"></div>
+    </div>
+  </div>
+  <aside class="nr-side">
+    <div class="nr-side-in">
+      <div class="nr-side-top"><small>Fiche joueur</small>
+        <button class="nr-icon" data-act="close" aria-label="Fermer la fiche">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="nr-prof nv-scroll" data-el="prof"></div>
+    </div>
+  </aside>
+  <div class="nr-toasts" data-el="toasts"></div>
+</div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",                     // même clé que les autres embeds
+    SIGNUP_URL: "https://navire-ai.com/register",  // bouton des visiteurs non connectés
+    QCM_URL: "https://navire-ai.com/qcm",           // « Gagner de l'Elo »
+    LIMIT: 100
+  };
+  var SOURCES = { qcm: "QCM", lib: "NAVIRE Lib", flashcards: "Flashcards", flash: "Flashcards", discord: "Discord", deepwork: "Deep work" };
+
+  var root = document.getElementById("nv-rank");
+  var S = { token: null, tab: "joueurs", periode: "general", query: "", data: null, unis: null, moi: null, openId: null, prof: null, loading: false };
+
+  // ================= OUTILS =================
+  function el(n) { return root.querySelector('[data-el="' + n + '"]'); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return x.msg || ""; }).join(" · "); return "Une erreur est survenue."; }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" };
+    if (S.token) h.Authorization = "Bearer " + S.token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(detail(j.detail)); e.status = r.status; throw e; } return j; }); });
+  }
+  function go(url) { try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
+  function toast(msg) {
+    var t = document.createElement("div");
+    t.className = "nr-toast"; t.textContent = msg;
+    el("toasts").appendChild(t);
+    setTimeout(function () { t.remove(); }, 2700);
+  }
+  function fmt(n) { return String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+  function cap(s) { s = String(s || ""); return s.charAt(0).toUpperCase() + s.slice(1); }
+  function nb(n, mot) { return fmt(n) + " " + mot + (Math.abs(n) > 1 ? "s" : ""); }
+  function ordinal(n) { return n === 1 ? "1re" : n + "e"; }
+  function gain(n, suffix) {
+    n = n || 0;
+    var cls = n > 0 ? "" : n < 0 ? " is-down" : " is-flat";
+    return '<span class="nr-up' + cls + '">' + (n > 0 ? "+" : n < 0 ? "−" : "") + fmt(Math.abs(n)) + (suffix || "") + '</span>';
+  }
+  function avatar(u, extra) {
+    var ini = esc((u.username || "?").charAt(0).toUpperCase());
+    var bg = u.avatar_url ? ' style="background-image:url(&quot;' + esc(u.avatar_url) + '&quot;)"' : "";
+    return '<span class="nr-av' + (extra ? " " + extra : "") + '"' + bg + '>' + (u.avatar_url ? "" : '<span class="nr-ini">' + ini + '</span>') + '</span>';
+  }
+  var ICON = {
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    crown: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"/></svg>',
+    uni: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 5l9 5-9 5z"/><path d="M7 12v5c3 2 7 2 10 0v-5"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'
+  };
+
+  // ================= HAUTEUR (comme NAVIRE AI) =================
+  var FRAMED = window.self !== window.top;
+  var HOST = null, frameEl = null, wrappers = [];
+  if (FRAMED) {
+    var hideBar = document.createElement("style");
+    hideBar.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    document.head.appendChild(hideBar);
+    try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+    if (frameEl) for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+  }
+  function sizeApp() {
+    var win = HOST || window, h;
+    if (HOST || !FRAMED) {
+      var anchor = frameEl || root;
+      var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
+      h = Math.max(560, Math.round(win.innerHeight - top - 12));
+    } else {
+      h = Math.max(560, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+    }
+    root.style.height = h + "px";
+    if (frameEl) {
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; });
+    } else if (FRAMED) {
+      try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+    }
+  }
+  sizeApp();
+  (HOST || window).addEventListener("resize", sizeApp);
+  window.addEventListener("load", sizeApp);
+  setTimeout(sizeApp, 600);
+  function updateCompact() { root.classList.toggle("is-compact", root.clientWidth < 760); placeThumbs(); }
+  if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
+  else window.addEventListener("resize", updateCompact);
+
+  // ================= COMMANDES =================
+  var TABS = [["joueurs", "Joueurs"], ["fac", "Ma fac"], ["facs", "Facs"]];
+  var PERIODS = [["general", "Général"], ["30j", "30 jours"], ["7j", "7 jours"]];
+  function seg(name, items, cur) {
+    el(name).innerHTML = '<span class="nr-thumb"></span>' + items.map(function (t) {
+      return '<button data-' + name + '="' + t[0] + '" class="' + (t[0] === cur ? "is-on" : "") + '">' + t[1] + '</button>';
+    }).join("");
+  }
+  function placeThumbs() {
+    ["tabs", "periods"].forEach(function (name) {
+      var box = el(name), on = box && box.querySelector(".is-on"), th = box && box.querySelector(".nr-thumb");
+      if (!on || !th) return;
+      th.style.width = on.offsetWidth + "px";
+      th.style.transform = "translateX(" + on.offsetLeft + "px)";
+    });
+  }
+  function renderControls() {
+    var tabs = S.moi && S.moi.university ? TABS : TABS.filter(function (t) { return t[0] !== "fac"; });
+    seg("tabs", tabs, S.tab);
+    seg("periods", PERIODS, S.periode);
+    el("periods").style.display = S.tab === "facs" ? "none" : "";
+    el("search").placeholder = S.tab === "facs" ? "Chercher une fac…" : "Chercher un joueur, une fac…";
+    var sub = S.tab === "facs" ? "Les facs, à la somme de l'Elo de leurs étudiants."
+      : S.tab === "fac" ? "Les étudiants de " + (S.moi && S.moi.university || "ta fac") + "."
+      : S.periode === "general" ? "Les meilleurs étudiants de NAVIRE, à l'Elo."
+      : "Les plus gros gains d'Elo des " + (S.periode === "7j" ? "7" : "30") + " derniers jours.";
+    el("sub").textContent = sub;
+    requestAnimationFrame(placeThumbs);
+  }
+  function renderSwitch() {
+    if (!S.moi) { el("switch").innerHTML = ""; return; }
+    var on = S.moi.stats_public;
+    el("switch").innerHTML = '<div class="nr-switch' + (on ? " is-on" : "") + '" role="switch" tabindex="0" aria-checked="' + on + '" data-act="toggle" title="Les autres joueurs peuvent ouvrir tes stats détaillées">' +
+      '<span class="nr-switch-label">Mes stats visibles</span><i></i></div>';
+  }
+
+  // ================= LISTE DES JOUEURS =================
+  function scoreLabel() { return S.periode === "general" ? "Elo" : "Elo gagnés"; }
+  function filtered(items) {
+    var q = S.query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(function (u) { return (u.username + " " + (u.university || "") + " " + (u.study_level || "")).toLowerCase().indexOf(q) !== -1; });
+  }
+  function podium(top) {
+    var order = [top[1], top[0], top[2]], cls = ["p2", "p1", "p3"];
+    return '<div class="nr-podium">' + order.map(function (u, k) {
+      if (!u) return '<div></div>';
+      return '<button class="nr-step ' + cls[k] + (u.is_current_user ? " is-me" : "") + '" data-open="' + u.id + '">' +
+        (cls[k] === "p1" ? '<span class="nr-crown">' + ICON.crown + '</span>' : "") +
+        '<span style="position:relative">' + avatar(u, "ring") + '<span class="nr-medal">' + u.rank + '</span></span>' +
+        '<b>' + esc(u.username) + '</b><span class="nr-fac">' + esc(u.university || u.study_level || "") + '</span>' +
+        '<div class="nr-big">' + (S.periode === "general" ? "" : "+") + fmt(u.score) + '<small>' + scoreLabel() + '</small></div>' +
+        '<div class="nr-tags"><span class="nr-tag ' + (cls[k] === "p1" ? "solid" : "blue") + ' nr-tier">' + esc(cap(u.tier)) + '</span>' +
+          (S.periode === "general" ? '<span class="nr-tag">' + (u.gain_7j > 0 ? "+" : "") + fmt(u.gain_7j) + ' · 7 j</span>' : "") + '</div>' +
+      '</button>';
+    }).join("") + '</div>';
+  }
+  function row(u, k) {
+    var sub = [u.university, u.study_level].filter(Boolean).join(" · ") || "Étudiant NAVIRE";
+    return '<button class="nr-row' + (u.is_current_user ? " is-me" : "") + (S.openId === u.id ? " is-open" : "") + '" data-open="' + u.id + '" style="animation-delay:' + Math.min(k, 14) * 0.025 + 's">' +
+      '<span class="nr-rank">' + u.rank + '</span>' + avatar(u) +
+      '<span class="nr-who"><b><span>' + esc(u.username) + '</span>' + (u.is_current_user ? '<span class="nr-tag solid">Toi</span>' : "") + (u.stats_public ? "" : ICON.lock) + '</b><small>' + esc(sub) + '</small></span>' +
+      '<span class="nr-mid"><span class="nr-tag blue nr-tier">' + esc(cap(u.tier)) + '</span>' + (S.periode === "general" ? gain(u.gain_7j, " · 7 j") : "") + '</span>' +
+      '<span class="nr-score"><b>' + (S.periode === "general" ? "" : "+") + fmt(u.score) + '</b><small>' + scoreLabel() + '</small></span>' +
+    '</button>';
+  }
+  function renderPlayers() {
+    var d = S.data, list = el("list");
+    if (!d) { list.innerHTML = '<div class="nr-podium"><div class="nr-skel tall"></div><div class="nr-skel tall" style="height:220px"></div><div class="nr-skel tall"></div></div><div class="nr-skel"></div><div class="nr-skel"></div><div class="nr-skel"></div>'; return; }
+    var items = filtered(d.items), html = "";
+    if (!d.items.length) {
+      html = '<div class="nr-empty"><b>' + (S.periode === "general" ? "Personne au classement pour l'instant" : "Aucun gain d'Elo sur la période") + '</b>Les points se gagnent sur les QCM et dans NAVIRE Lib.</div>';
+    } else if (!items.length) {
+      html = '<div class="nr-empty"><b>Aucun résultat</b>Essaie un autre nom.</div>';
+    } else {
+      var rest = items;
+      if (!S.query && items.length >= 3) { html += podium(items.slice(0, 3)); rest = items.slice(3); }
+      if (rest.length) html += '<div class="nr-label">' + (S.query ? nb(items.length, "joueur") : "Classement · " + nb(d.total_joueurs, "joueur")) + '</div>' + rest.map(row).join("");
+    }
+    list.innerHTML = html;
+    renderBottom();
+  }
+  function renderBottom() {
+    var b = el("bottom");
+    if (S.tab === "facs") { b.innerHTML = ""; return; }
+    if (!S.token) {
+      b.innerHTML = '<div class="nr-cta"><span>Connecte-toi sur NAVIRE pour apparaître au classement.</span><a class="nr-btn is-blue" href="' + CONFIG.SIGNUP_URL + '" data-go>Rejoindre</a></div>';
+      return;
+    }
+    var d = S.data, me = d && d.me;
+    if (!d) { b.innerHTML = ""; return; }
+    if (!me) {
+      b.innerHTML = '<div class="nr-cta"><span>' + (S.periode === "general" ? "Tu n'es pas encore classé : gagne tes premiers points d'Elo." : "Pas encore de gain d'Elo sur la période.") + '</span><a class="nr-btn is-blue" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.bolt.replace("<svg", '<svg style="width:13px;height:13px"') + 'Faire un QCM</a></div>';
+      return;
+    }
+    // Écart avec la place du dessus
+    var above = null;
+    for (var k = 0; k < d.items.length; k++) { if (d.items[k].score > me.score) above = d.items[k]; }
+    var gap = above ? above.score - me.score : 0;
+    var txt = me.rank === 1 ? "Tu es en tête. Bravo !"
+      : above ? "<strong>" + nb(gap, "point") + "</strong> d'Elo avant la " + ordinal(above.rank) + " place"
+      : ordinal(me.rank) + " sur " + fmt(d.total_joueurs);
+    b.innerHTML = '<div class="nr-mebar" data-open="' + me.id + '"><span class="nr-rank">' + me.rank + '</span>' + avatar(me) +
+      '<span class="nr-who"><b><span>Ta place</span></b><small class="nr-gap">' + txt + '</small></span>' +
+      '<span class="nr-score"><b>' + (S.periode === "general" ? "" : "+") + fmt(me.score) + '</b><small>' + scoreLabel() + '</small></span></div>';
+  }
+
+  // ================= FACS =================
+  function renderFacs() {
+    var list = el("list");
+    if (!S.unis) { list.innerHTML = '<div class="nr-skel"></div><div class="nr-skel"></div><div class="nr-skel"></div><div class="nr-skel"></div>'; return; }
+    var q = S.query.trim().toLowerCase();
+    var all = (S.unis.top || []).slice();
+    var mine = S.unis.current_user_university;
+    if (mine && !all.some(function (u) { return u.university === mine.university; })) all.push(mine);
+    var items = all.filter(function (u) { return !q || u.university.toLowerCase().indexOf(q) !== -1; });
+    var max = Math.max.apply(null, all.map(function (u) { return u.total_elo; }).concat([1]));
+    if (!all.length) { list.innerHTML = '<div class="nr-empty"><b>Aucune fac pour l\'instant</b>Ajoute ta fac à ton profil pour la faire apparaître.</div>'; return; }
+    if (!items.length) { list.innerHTML = '<div class="nr-empty"><b>Aucun résultat</b>Essaie un autre nom.</div>'; return; }
+    list.innerHTML = '<div class="nr-label">' + nb(all.length, "fac") + '</div>' + items.map(function (u, k) {
+      var moy = u.member_count ? u.total_elo / u.member_count : 0;
+      return '<div class="nr-row' + (u.rank === 1 ? " top1" : "") + (u.is_current_user_university ? " is-me" : "") + '" style="cursor:default;animation-delay:' + Math.min(k, 14) * 0.025 + 's">' +
+        '<span class="nr-rank">' + u.rank + '</span><span class="nr-uni-ico">' + ICON.uni + '</span>' +
+        '<span class="nr-who"><b><span>' + esc(u.university) + '</span>' + (u.is_current_user_university ? '<span class="nr-tag solid">Ta fac</span>' : "") + '</b><small>' + nb(u.member_count, "étudiant") + ' · ' + fmt(moy) + ' Elo en moyenne</small></span>' +
+        '<span class="nr-mid"><span class="nr-meter"><i style="width:' + Math.round(100 * u.total_elo / max) + '%"></i></span></span>' +
+        '<span class="nr-score"><b>' + fmt(u.total_elo) + '</b><small>Elo</small></span></div>';
+    }).join("");
+  }
+
+  function render() {
+    renderControls();
+    if (S.tab === "facs") { renderFacs(); renderBottom(); } else renderPlayers();
+  }
+
+  // ================= CHARGEMENT =================
+  var seq = 0;
+  function refresh() {
+    var my = ++seq;
+    if (S.tab === "facs") {
+      if (!S.unis) render();
+      return api("GET", "/leaderboard/universities?limit=50").then(function (r) { if (my !== seq) return; S.unis = r; render(); })
+        .catch(function (x) { el("list").innerHTML = '<div class="nr-empty"><b>Classement indisponible</b>' + esc(x.message) + '</div>'; });
+    }
+    S.data = null; render();
+    var q = "/leaderboard/classement?limit=" + CONFIG.LIMIT + "&periode=" + S.periode + (S.tab === "fac" && S.moi && S.moi.university ? "&fac=" + encodeURIComponent(S.moi.university) : "");
+    return api("GET", q).then(function (r) {
+      if (my !== seq) return;
+      S.data = r;
+      if (r.moi) { var first = !S.moi; S.moi = r.moi; renderSwitch(); if (first) renderControls(); }
+      render();
+    }).catch(function (x) {
+      if (x.status === 401 && S.token) { S.token = null; store(CONFIG.TOKEN_KEY, null); return refresh(); }
+      el("list").innerHTML = '<div class="nr-empty"><b>Classement indisponible</b>' + esc(x.message) + '</div>';
+    });
+  }
+
+  // ================= FICHE JOUEUR =================
+  function openProfile(id) {
+    S.openId = id;
+    root.classList.add("is-panel");
+    root.querySelectorAll(".nr-row.is-open").forEach(function (n) { n.classList.remove("is-open"); });
+    var r = root.querySelector('.nr-row[data-open="' + id + '"]'); if (r) r.classList.add("is-open");
+    el("prof").innerHTML = '<div style="padding-top:20px"><div class="nr-skel" style="height:150px;border-radius:20px"></div><div class="nr-skel"></div><div class="nr-skel" style="height:140px"></div></div>';
+    api("GET", "/leaderboard/joueurs/" + id).then(function (p) {
+      if (S.openId !== id) return;
+      S.prof = p; renderProfile();
+    }).catch(function (x) { el("prof").innerHTML = '<div class="nr-empty"><b>Fiche indisponible</b>' + esc(x.message) + '</div>'; });
+  }
+  function closeProfile() {
+    S.openId = null; S.prof = null;
+    root.classList.remove("is-panel");
+    root.querySelectorAll(".nr-row.is-open").forEach(function (n) { n.classList.remove("is-open"); });
+  }
+  function chart(points) {
+    var W = 340, H = 110, pad = 6;
+    var vals = points.map(function (p) { return p.elo; });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if (hi === lo) { hi += 5; lo = Math.max(0, lo - 5); }
+    var x = function (i) { return pad + (W - 2 * pad) * i / Math.max(1, points.length - 1); };
+    var y = function (v) { return pad + (H - 2 * pad) * (1 - (v - lo) / (hi - lo)); };
+    var line = points.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.elo).toFixed(1); }).join(" ");
+    var area = line + " L" + x(points.length - 1).toFixed(1) + " " + H + " L" + x(0).toFixed(1) + " " + H + " Z";
+    var last = points[points.length - 1];
+    var gid = "nrg" + Math.random().toString(36).slice(2, 7);
+    return '<div class="nr-chart" data-chart>' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
+        '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7AA7FF" stop-opacity=".45"/><stop offset="1" stop-color="#7AA7FF" stop-opacity="0"/></linearGradient></defs>' +
+        '<line x1="0" x2="' + W + '" y1="' + y(hi).toFixed(1) + '" y2="' + y(hi).toFixed(1) + '" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 4"/>' +
+        '<path d="' + area + '" fill="url(#' + gid + ')"/>' +
+        '<path d="' + line + '" fill="none" stroke="#7AA7FF" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="1" style="stroke-dasharray:1;stroke-dashoffset:1;animation:nr-draw 1.2s cubic-bezier(.2,.8,.2,1) .15s forwards"/>' +
+        '<circle cx="' + x(points.length - 1).toFixed(1) + '" cy="' + y(last.elo).toFixed(1) + '" r="4" fill="#fff" stroke="#7AA7FF" stroke-width="2" vector-effect="non-scaling-stroke"/>' +
+        '<line data-cur x1="0" x2="0" y1="0" y2="' + H + '" stroke="rgba(255,255,255,0.25)" style="display:none"/>' +
+      '</svg><span class="nr-tip" data-tip></span></div>' +
+      '<div class="nr-chart-x"><span>il y a 30 j</span><span>' + fmt(lo) + ' – ' + fmt(hi) + ' Elo</span><span>aujourd\'hui</span></div>' +
+      '<style>@keyframes nr-draw{to{stroke-dashoffset:0}}</style>';
+  }
+  function renderProfile() {
+    var p = S.prof, s = p.stats;
+    var place = p.rank ? ordinal(p.rank) + '<span>/ ' + fmt(p.total_joueurs) + '</span>' : '<span style="margin:0">Non classé</span>';
+    var tierPct = Math.round((p.progress || 0) * 100);
+    var html = '<div class="nr-hero">' + avatar(p) + '<h2>' + esc(p.username) + '</h2>' +
+      '<p>' + esc([p.university, p.study_level].filter(Boolean).join(" · ") || "Étudiant NAVIRE") + '</p>' +
+      '<div class="nr-tags"><span class="nr-tag solid">' + esc(cap(p.tier)) + '</span>' + (p.is_current_user ? '<span class="nr-tag white">Toi</span>' : "") +
+        (p.membre_depuis ? '<span class="nr-tag">Depuis ' + new Date(p.membre_depuis).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) + '</span>' : "") + '</div></div>' +
+      '<div class="nr-rankbox"><div class="nr-tile is-blue"><small>Elo</small><b>' + fmt(p.elo) + '</b></div><div class="nr-tile"><small>Place</small><b>' + place + '</b></div></div>' +
+      '<div class="nr-card" style="animation-delay:.05s"><h4>Palier<em>' + (p.next_tier ? fmt(p.next_tier_min - p.elo) + " Elo avant " + esc(cap(p.next_tier)) : "Palier maximal") + '</em></h4>' +
+        '<div class="nr-tierbar"><i data-w="' + tierPct + '"></i></div><div class="nr-tierlab"><b>' + esc(p.tier) + '</b><span>' + (p.next_tier ? esc(cap(p.next_tier)) : "") + '</span></div></div>';
+
+    if (!s) {
+      html += '<div class="nr-lock"><span class="nr-uni-ico">' + ICON.lock + '</span><b>Stats masquées</b>' + esc(p.username) + ' a choisi de garder ses stats pour lui.</div>';
+    } else {
+      var C = 2 * Math.PI * 30, rate = s.success_rate_pct || 0;
+      html += '<div class="nr-grid" style="animation:nr-rise .45s var(--ease) .08s both">' +
+        '<div class="nr-tile"><small>7 derniers jours</small><b>' + (s.gain_7j > 0 ? "+" : "") + fmt(s.gain_7j) + '<span>Elo</span></b></div>' +
+        '<div class="nr-tile"><small>30 derniers jours</small><b>' + (s.gain_30j > 0 ? "+" : "") + fmt(s.gain_30j) + '<span>Elo</span></b></div>' +
+        '<div class="nr-tile"><small>Série actuelle</small><b>' + fmt(s.current_streak) + '<span>j</span></b></div>' +
+        '<div class="nr-tile"><small>Record de série</small><b>' + fmt(s.longest_streak) + '<span>j</span></b></div>' +
+      '</div>' +
+      '<div class="nr-card" style="animation-delay:.12s"><h4>Elo sur 30 jours<em>' + (s.gain_30j >= 0 ? "+" : "−") + fmt(Math.abs(s.gain_30j)) + '</em></h4>' + chart(s.elo_30j) + '</div>' +
+      '<div class="nr-card" style="animation-delay:.16s"><h4>QCM</h4><div class="nr-ring"><svg viewBox="0 0 74 74"><circle class="bg" cx="37" cy="37" r="30"/><circle class="fg" cx="37" cy="37" r="30" stroke-dasharray="' + C + '" stroke-dashoffset="' + C + '" data-ring="' + (C * (1 - rate / 100)) + '"/></svg>' +
+        '<div><b>' + rate + ' %</b><span>de bonnes réponses · ' + nb(s.total_answered || 0, "question") + ' · ' + nb(s.complete_sessions || 0, "session") + ' complète' + ((s.complete_sessions || 0) > 1 ? "s" : "") + '</span></div></div></div>';
+      var src = s.elo_par_source || [], maxSrc = Math.max.apply(null, src.map(function (x) { return Math.abs(x.elo); }).concat([1]));
+      if (src.length) html += '<div class="nr-card" style="animation-delay:.2s"><h4>D\'où vient son Elo</h4>' + src.map(function (x) {
+        return '<div class="nr-src"><span>' + esc(SOURCES[x.source] || cap(x.source)) + '</span><span class="nr-meter"><i style="width:' + Math.max(3, Math.round(100 * Math.abs(x.elo) / maxSrc)) + '%"></i></span><b>' + (x.elo > 0 ? "+" : "") + fmt(x.elo) + '</b></div>';
+      }).join("") + '</div>';
+      html += '<div class="nr-grid" style="animation:nr-rise .45s var(--ease) .24s both"><div class="nr-tile"><small>Points de passage</small><b>' + fmt(s.lib_points_passage) + '</b></div><div class="nr-tile"><small>Cours Lib</small><b>' + fmt(s.lib_documents) + '</b></div></div>';
+    }
+    if (p.is_current_user) {
+      html += '<div class="nr-me-note">' + ICON.eye.replace("<svg", '<svg style="width:18px;height:18px;color:var(--blue)"') + '<span>' + (p.stats_public ? "Tes stats sont visibles par les autres joueurs." : "Tes stats sont masquées : les autres ne voient que ton nom, ton Elo et ta place.") + '</span></div>';
+    }
+    var box = el("prof");
+    box.innerHTML = html; box.scrollTop = 0;
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
+      var bar = box.querySelector("[data-w]"); if (bar) bar.style.width = bar.getAttribute("data-w") + "%";
+      var ring = box.querySelector("[data-ring]"); if (ring) ring.style.strokeDashoffset = ring.getAttribute("data-ring");
+    }); });
+    bindChart(box, s && s.elo_30j);
+  }
+  function bindChart(box, points) {
+    var ch = box.querySelector("[data-chart]");
+    if (!ch || !points) return;
+    var tip = ch.querySelector("[data-tip]"), cur = ch.querySelector("[data-cur]");
+    ch.addEventListener("mousemove", function (e) {
+      var r = ch.getBoundingClientRect(), f = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      var i = Math.round(f * (points.length - 1)), p = points[i];
+      var d = new Date(p.date);
+      tip.textContent = fmt(p.elo) + " Elo · " + d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) + (p.gain ? " (" + (p.gain > 0 ? "+" : "−") + fmt(Math.abs(p.gain)) + ")" : "");
+      tip.style.left = (100 * i / (points.length - 1)) + "%";
+      var vx = 6 + 328 * i / (points.length - 1);
+      cur.setAttribute("x1", vx); cur.setAttribute("x2", vx); cur.style.display = "";
+      ch.classList.add("is-hover");
+    });
+    ch.addEventListener("mouseleave", function () { cur.style.display = "none"; ch.classList.remove("is-hover"); });
+  }
+
+  // ================= VISIBILITÉ DE MES STATS =================
+  function toggleStats() {
+    if (!S.moi) return;
+    var next = !S.moi.stats_public;
+    S.moi.stats_public = next; renderSwitch();
+    root.querySelector(".nr-switch").setAttribute("aria-busy", "true");
+    api("PATCH", "/leaderboard/me/visibilite", { stats_public: next }).then(function (r) {
+      S.moi.stats_public = r.stats_public; renderSwitch();
+      toast(r.stats_public ? "Tes stats sont visibles" : "Tes stats sont masquées");
+      if (S.data) S.data.items.forEach(function (u) { if (u.is_current_user) u.stats_public = r.stats_public; });
+      if (S.data && S.data.me) S.data.me.stats_public = r.stats_public;
+      if (S.tab !== "facs") renderPlayers();
+      if (S.prof && S.prof.is_current_user) openProfile(S.prof.id);
+    }).catch(function (x) {
+      S.moi.stats_public = !next; renderSwitch();
+      toast(x.message);
+    });
+  }
+
+  // ================= ÉVÉNEMENTS =================
+  root.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-tabs],[data-periods],[data-open],[data-act],[data-go]");
+    if (!t || !root.contains(t)) return;
+    if (t.hasAttribute("data-go")) { e.preventDefault(); return go(t.getAttribute("href")); }
+    if (t.hasAttribute("data-tabs")) { var v = t.getAttribute("data-tabs"); if (v !== S.tab) { S.tab = v; S.query = ""; el("search").value = ""; store("navire_rank_tab", v); refresh(); } return; }
+    if (t.hasAttribute("data-periods")) { var p = t.getAttribute("data-periods"); if (p !== S.periode) { S.periode = p; refresh(); } return; }
+    if (t.hasAttribute("data-open")) { var id = +t.getAttribute("data-open"); return S.openId === id && !root.classList.contains("is-compact") ? closeProfile() : openProfile(id); }
+    var act = t.getAttribute("data-act");
+    if (act === "close") closeProfile();
+    else if (act === "toggle") toggleStats();
+  });
+  root.addEventListener("keydown", function (e) {
+    if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("nr-switch")) { e.preventDefault(); toggleStats(); }
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeProfile(); });
+  el("search").addEventListener("input", function (e) {
+    S.query = e.target.value;
+    if (S.tab === "facs") renderFacs(); else renderPlayers();
+  });
+
+  // ================= DÉMARRAGE =================
+  S.token = load(CONFIG.TOKEN_KEY);
+  var t0 = load("navire_rank_tab");
+  if (t0 === "facs" || t0 === "joueurs") S.tab = t0;
+  updateCompact();
+  render();
+  refresh();
+})();
+</script>
