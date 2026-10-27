@@ -104,7 +104,7 @@ STRIPE_SUCCESS_URL = os.getenv(
 )
 STRIPE_CANCEL_URL = os.getenv(
     "STRIPE_CANCEL_URL",
-    f"{FRONTEND_URL}/offres?subscription=cancelled",
+    f"{FRONTEND_URL}/subscribe?subscription=cancelled",
 )
 # Retour sur la page profil après le changement de carte ou le portail Stripe.
 # L'embed profil envoie l'adresse de sa page (même domaine que FRONTEND_URL) :
