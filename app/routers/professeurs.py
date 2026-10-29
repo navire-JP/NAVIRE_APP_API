@@ -418,9 +418,18 @@ def admin_changer_groupe(
         c = _classe_or_404(db, payload.classe_id)
         if c.matiere_key != e.matiere_key:
             raise HTTPException(400, detail="Ce groupe n'est pas dans la matière de l'inscription.")
-    e.classe_id = payload.classe_id
+    # Toutes les lignes de l'étudiant dans la matière : sinon une ligne restée
+    # sans groupe le laisserait aussi dans le premier groupe.
+    lignes = svc.lignes_de_l_etudiant(db, e)
+    for x in lignes:
+        x.classe_id = payload.classe_id
     db.commit()
-    return {"ok": True, "enrollment_id": e.id, "classe_id": svc.groupe_de(e, svc.groupes_par_matiere(db))}
+    return {
+        "ok": True,
+        "enrollment_id": e.id,
+        "lignes": len(lignes),
+        "classe_id": svc.groupe_de(e, svc.groupes_par_matiere(db)),
+    }
 
 
 # ============================================================
