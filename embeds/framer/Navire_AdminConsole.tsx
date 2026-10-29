@@ -15,11 +15,15 @@
 //
 // NAVIRE Lib : onglet « Lib » (import des cours .docx / .pdf, points de
 // passage, Elo, questions). Le code de la section est dans Navire_Lib.tsx.
+//
+// Professeurs : onglet « Prof. » (chargés de TD, groupes, salons Discord et
+// liens, rémunération). Le code de la section est dans Navire_Professeurs.tsx.
 
 import type { Override } from "framer"
 import * as React from "react"
 import { AmbassadeursSection } from "./Navire_Ambassadeurs.tsx"
 import { LibSection } from "./Navire_Lib.tsx"
+import { ProfesseursSection } from "./Navire_Professeurs.tsx"
 
 // ── Hide all scrollbars globally ──
 if (typeof document !== "undefined") {
@@ -152,6 +156,7 @@ type Section =
     | "adjuris"
     | "ambassadeurs"
     | "lib"
+    | "professeurs"
 
 type Onglet =
     | "etudiants"
@@ -7504,6 +7509,7 @@ const SECTIONS: { id: Section; label: string }[] = [
     { id: "adjuris", label: "AdJuris" },
     { id: "ambassadeurs", label: "Amb." },
     { id: "lib", label: "Lib" },
+    { id: "professeurs", label: "Prof." },
     { id: "carts", label: "Carts" },
     { id: "terminal", label: "Terminal" },
 ]
@@ -7612,6 +7618,7 @@ function ConsoleUI() {
                 {section === "adjuris" && <AdjurisSection />}
                 {section === "ambassadeurs" && <AmbassadeursSection />}
                 {section === "lib" && <LibSection />}
+                {section === "professeurs" && <ProfesseursSection />}
             </div>
         </div>
     )

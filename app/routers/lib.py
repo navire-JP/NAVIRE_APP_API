@@ -29,6 +29,7 @@ passage peut être passé sans répondre, et les brouillons s'ouvrent en aperçu
   POST /lib/checkpoints/{id}/submit       → correction, progression, Elo
   POST /lib/checkpoints/{id}/passer       → suite ouverte après les échecs
   POST /lib/chat                          → question à NAVIRE AI sur le cours
+  GET  /lib/adjuris                       → PDF Prép'AdJuris de l'étudiant (dont ceux du chargé de TD)
   GET  /lib/embed                         → page d'embed servie par l'API
 
 Admin (header X-Admin-Code) :
@@ -70,7 +71,16 @@ from sqlalchemy.orm import Session
 from app.core.config import STORAGE_PATH
 from app.db.database import get_db
 from app.core.limits import check_navire_daily_limit
-from app.db.models import File, LibCheckpoint, LibDocument, LibProgress, PrepaAdjurisEnrollment, User
+from app.core.prepa_adjuris_config import matiere_label
+from app.db.models import (
+    File,
+    LibCheckpoint,
+    LibDocument,
+    LibProgress,
+    PrepaAdjurisEnrollment,
+    PrepaAdjurisRessource,
+    User,
+)
 from app.routers.admin import verify_admin_code
 from app.routers.auth import get_current_user, get_current_user_optional
 from app.services import lib_parser as parser
@@ -401,6 +411,49 @@ def catalogue(db: Session = Depends(get_db), user: User | None = Depends(get_cur
     return {
         "items": [{**_summary(d, prog, elo), "brouillon": not d.is_published and d.owner_id is None} for d in docs],
         "user": _user_card(user, has_plus(db, user)),
+    }
+
+
+@router.get("/adjuris")
+def adjuris(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Section « Prép'AdJuris » de la bibliothèque : les PDF des matières de
+    l'étudiant, dont ceux déposés par son chargé de TD (pour son groupe).
+    Le PDF se lit par GET /prepa/adjuris/ressources/{id}/download.
+    """
+    from app.services.professeurs import groupes_de_l_etudiant, ressource_visible
+
+    actives = set(db.execute(
+        select(PrepaAdjurisEnrollment.matiere_key).where(
+            PrepaAdjurisEnrollment.user_id == user.id, PrepaAdjurisEnrollment.status == "active"
+        )
+    ).scalars().all())
+    if not actives:
+        return {"items": []}
+    groupes = groupes_de_l_etudiant(db, user.id)
+    rows = db.execute(
+        select(PrepaAdjurisRessource)
+        .where(
+            PrepaAdjurisRessource.matiere_key.in_(actives),
+            PrepaAdjurisRessource.is_published.is_(True),
+        )
+        .order_by(PrepaAdjurisRessource.created_at.desc(), PrepaAdjurisRessource.id.desc())
+    ).scalars().all()
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "matiere_key": r.matiere_key,
+                "matiere_label": matiere_label(r.matiere_key),
+                "titre": r.titre,
+                "description": r.description,
+                "size_bytes": r.size_bytes,
+                "professeur": r.uploaded_by_id is not None,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "url": f"/prepa/adjuris/ressources/{r.id}/download",
+            }
+            for r in rows if ressource_visible(r, groupes)
+        ]
     }
 
 
