@@ -1,4 +1,4 @@
-# Embeds — programme ambassadeur et NAVIRE Lib
+# Embeds — programme ambassadeur, NAVIRE Lib et professeurs
 
 | Fichier | Où | Rôle |
 |---|---|---|
@@ -6,11 +6,13 @@
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
 | `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI) |
+| `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, rémunération prévisionnelle |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
 | `framer/Navire_Lib.tsx` | `/console` | Section « Lib » importée par la console (import des cours) |
+| `framer/Navire_Professeurs.tsx` | `/console` | Section « Prof. » importée par la console (professeurs, groupes, rémunération) |
 | `framer/FlashcardsApp.tsx` | page Flashcards | Decks, cartes, révision, génération depuis un PDF ; charte bleu et blanc. Code File `FlashcardsApp`, le composant remplit son cadre |
 
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
@@ -46,6 +48,41 @@ Deux Code Files Framer, à coller tels quels :
    { id: "lib", label: "Lib" },                           // SECTIONS
    {section === "lib" && <LibSection />}                  // rendu de ConsoleUI
    ```
+
+4. `framer/Navire_Professeurs.tsx` → Code File nommé `Navire_Professeurs`
+   (section « Prof. »), déjà importé par `Navire_AdminConsole`.
+
+## `/professeurs` : espace des chargés de TD
+
+**Embed HTML, comme l'ambassadeur.** Coller `professeurs.html` dans un Embed
+HTML de la page `/professeurs` (servi aussi par l'API :
+`GET /professeurs/embed`). Même charte que `ambassadeur.html`.
+
+Côté console, onglet « Prof. » :
+
+- **Groupes** : un groupe par matière est créé au premier démarrage, avec son
+  salon Discord. On peut en ajouter d'autres (plusieurs groupes pour une même
+  matière), renommer, changer le salon Discord, ajouter des liens (Drive,
+  visio…), désactiver ou supprimer (refusé si le groupe a des documents). Un
+  étudiant est dans le premier groupe actif de sa matière, sauf si on le
+  change de groupe depuis la liste des étudiants du groupe.
+- **Professeurs** : attacher un compte NAVIRE existant par son email, avec le
+  grade « ChargéTD » (repris sur le compte), et un ou plusieurs groupes.
+  Rémunération par groupe : € par séance + € par étudiant et par séance
+  (défauts : `PROF_REMU_SEANCE_CENTS`, `PROF_REMU_ETUDIANT_CENTS`, 0 € et
+  10 €). Suspendre coupe l'accès à l'espace ; détacher rend au compte le grade
+  « Primo ».
+
+Côté professeur : vue d'ensemble, groupes (bouton Discord, liens),
+étudiants (recherche, filtre par groupe), documents et rémunération. Le
+prévisionnel suit le calendrier des séances de la facturation (agenda de la
+matière) : par séance, le montant fixe plus le montant par étudiant inscrit
+avant la séance, mois par mois jusqu'à la fin du programme.
+
+Un PDF déposé est publié tout de suite pour les étudiants du groupe : dans
+leur espace Prép'AdJuris, et sur NAVIRE Lib via `GET /lib/adjuris` (section
+« Prép'AdJuris », à ajouter à `lib.html`). Les autres groupes de la matière ne
+le voient pas. Seul le professeur qui l'a déposé peut le retirer.
 
 ## `/lib` : NAVIRE Lib et Lib+
 

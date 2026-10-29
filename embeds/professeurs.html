@@ -1,0 +1,808 @@
+<!--
+  NAVIRE — Embed page /professeurs (espace des chargés de TD Prép'AdJuris)
+  =========================================================================
+  Même DA et même structure que l'embed ambassadeur :
+    - s'adapte à la largeur de SON conteneur : >= 760px barre latérale,
+      < 760px menu tiroir ;
+    - prend toute la hauteur de l'écran sous sa position, seule la page
+      ouverte défile.
+
+  Selon GET /professeurs/me :
+    - non connecté          → présentation + connexion (email ou Google)
+    - compte non rattaché   → message (l'admin attache le compte dans la console)
+    - professeur suspendu   → message
+    - professeur actif      → application : vue d'ensemble, mes groupes
+                              (Discord, liens), étudiants, documents (dépôt
+                              PDF), rémunération (prévisionnel)
+
+  Un document déposé est publié pour les étudiants du groupe (espace
+  Prép'AdJuris et NAVIRE Lib, section Prép'AdJuris).
+
+  Réglages : bloc CONFIG du script.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+#nv-prof {
+  --bg: transparent;
+  --panel: rgba(255,255,255,0.035);
+  --panel-2: rgba(255,255,255,0.06);
+  --panel-3: rgba(255,255,255,0.1);
+  --line: rgba(255,255,255,0.07);
+  --text: #fff;
+  --text-2: rgba(255,255,255,0.72);
+  --text-3: rgba(255,255,255,0.45);
+  --text-4: rgba(255,255,255,0.28);
+  --danger: #FF6B6B;
+  --ok: #5BE3A3;
+  --warn: #FFD166;
+  --blue: #7AA7FF;
+  --radius: 14px;
+  --ease: cubic-bezier(.2,.8,.2,1);
+
+  position: relative;
+  width: 100%;
+  height: 640px;          /* remplacé par la hauteur de l'écran au chargement */
+  min-height: 460px;
+  display: flex;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+  background: var(--bg);
+  box-sizing: border-box;
+  font-size: 14px;
+}
+#nv-prof *, #nv-prof *::before, #nv-prof *::after { box-sizing: border-box; }
+#nv-prof button { font-family: inherit; color: inherit; }
+#nv-prof ::selection { background: rgba(255,255,255,0.22); }
+#nv-prof svg { flex-shrink: 0; }
+#nv-prof .nv-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+#nv-prof .nv-scroll::-webkit-scrollbar { width: 6px; }
+#nv-prof .nv-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9px; }
+
+/* ================= SIDEBAR ================= */
+#nv-prof .nv-side {
+  width: 264px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  padding: 14px 10px 12px; gap: 4px;
+  border-right: 1px solid var(--line);
+  z-index: 30;
+}
+#nv-prof.is-solo .nv-side, #nv-prof.is-solo .nv-scrim, #nv-prof.is-solo .nv-topbar { display: none !important; }
+#nv-prof .nv-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 12px; }
+#nv-prof .nv-logo { width: 32px; height: 32px; background: center/contain no-repeat; flex-shrink: 0; }
+#nv-prof .nv-brand-name { font-weight: 800; font-size: 15px; letter-spacing: .6px; }
+#nv-prof .nv-brand-sub { font-size: 10.5px; color: var(--text-3); margin-top: 1px; }
+#nv-prof .nv-side-close { margin-left: auto; }
+#nv-prof:not(.is-compact) .nv-side-close { display: none; }
+
+#nv-prof .nv-cta {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 12px; border-radius: 11px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  cursor: pointer; font-size: 13px; font-weight: 600;
+  transition: background .15s, transform .15s; margin-bottom: 8px;
+}
+#nv-prof .nv-cta:hover { background: var(--panel-3); }
+#nv-prof .nv-cta:active { transform: scale(.98); }
+#nv-prof .nv-cta svg { width: 16px; height: 16px; }
+
+#nv-prof .nv-nav {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 12px; border-radius: 10px;
+  border: none; background: transparent; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  transition: background .15s, color .15s; text-align: left;
+}
+#nv-prof .nv-nav svg { width: 17px; height: 17px; opacity: .8; }
+#nv-prof .nv-nav:hover { background: var(--panel); color: var(--text); }
+#nv-prof .nv-nav.is-active { background: var(--panel-2); color: var(--text); }
+#nv-prof .nv-nav .nv-badge { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-3); }
+
+#nv-prof .nv-side-fill { flex: 1; }
+#nv-prof .nv-wallet { padding: 12px; border-radius: 11px; background: var(--panel); font-size: 11.5px; color: var(--text-3); }
+#nv-prof .nv-wallet b { display: block; font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -.4px; margin: 2px 0 6px; }
+#nv-prof .nv-wallet-bar { height: 4px; border-radius: 9px; background: var(--panel-2); overflow: hidden; }
+#nv-prof .nv-wallet-bar i { display: block; height: 100%; background: var(--ok); border-radius: 9px; transition: width .4s var(--ease); }
+#nv-prof .nv-logout { margin-top: 8px; font-size: 11.5px; color: var(--text-4); background: none; border: 0; cursor: pointer; padding: 4px 12px; text-align: left; }
+#nv-prof .nv-logout:hover { color: var(--text-2); }
+
+#nv-prof .nv-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 25; }
+
+/* ================= MAIN ================= */
+#nv-prof .nv-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+#nv-prof .nv-topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; min-height: 52px; flex-shrink: 0; }
+#nv-prof .nv-topbar-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+#nv-prof .nv-icon-btn {
+  width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; border: none; background: transparent; color: var(--text-3);
+  cursor: pointer; transition: background .15s, color .15s; padding: 0;
+}
+#nv-prof .nv-icon-btn:hover { background: var(--panel-2); color: var(--text); }
+#nv-prof .nv-icon-btn svg { width: 18px; height: 18px; }
+#nv-prof .nv-menu-btn { display: none; }
+
+#nv-prof .nv-page { flex: 1; min-height: 0; animation: nv-fade .28s var(--ease); }
+#nv-prof .nv-page-inner { max-width: 760px; margin: 0 auto; padding: 8px 20px 34px; }
+#nv-prof.is-solo .nv-page-inner { padding-top: 24px; }
+@keyframes nv-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes nv-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes nv-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes nv-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+#nv-prof .nv-page-head { margin: 6px 0 18px; }
+#nv-prof .nv-page-head h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+#nv-prof .nv-page-head p { margin: 4px 0 0; font-size: 13px; color: var(--text-3); line-height: 1.55; }
+
+/* Accueil (non connecté, candidature, attente) */
+#nv-prof .nv-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 10px 6px; gap: 6px; }
+#nv-prof .nv-hero-logo { width: 64px; height: 64px; border-radius: 15px; background: center/contain no-repeat; margin-bottom: 14px; box-shadow: 0 20px 60px rgba(120,150,255,0.18); animation: nv-float 6s ease-in-out infinite; }
+#nv-prof .nv-hero h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.6px; line-height: 1.2; }
+#nv-prof .nv-hero p { margin: 0; font-size: 13.5px; color: var(--text-3); max-width: 460px; line-height: 1.55; }
+#nv-prof .nv-grad { background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#nv-prof .nv-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin: 24px 0 8px; }
+#nv-prof .nv-step { text-align: left; padding: 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); animation: nv-rise .5s var(--ease) both; }
+#nv-prof .nv-step:nth-child(2) { animation-delay: .05s; }
+#nv-prof .nv-step:nth-child(3) { animation-delay: .1s; }
+#nv-prof .nv-step i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; color: var(--text-4); }
+#nv-prof .nv-step b { display: block; font-size: 13px; font-weight: 600; margin: 4px 0 3px; }
+#nv-prof .nv-step span { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+
+/* Cartes */
+#nv-prof .nv-card { padding: 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; animation: nv-rise .4s var(--ease) both; }
+#nv-prof .nv-card.is-on { border-color: rgba(255,255,255,0.14); background: var(--panel-2); }
+#nv-prof .nv-card-title { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+#nv-prof .nv-card-sub { font-size: 12px; color: var(--text-3); margin: 0 0 12px; line-height: 1.5; }
+#nv-prof .nv-group-label { font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 22px 4px 8px; }
+#nv-prof .nv-notice { padding: 12px 14px; border-radius: 12px; background: rgba(255,209,102,0.08); border: 1px solid rgba(255,209,102,0.2); font-size: 12.5px; color: #ffe2a3; margin: 12px 0; line-height: 1.5; }
+#nv-prof .nv-notice.is-bad { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.2); color: #ffb3b3; }
+
+/* Statistiques */
+#nv-prof .nv-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+#nv-prof .nv-stat { padding: 14px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); animation: nv-rise .4s var(--ease) both; min-width: 0; }
+#nv-prof .nv-stat:nth-child(2) { animation-delay: .04s; }
+#nv-prof .nv-stat:nth-child(3) { animation-delay: .08s; }
+#nv-prof .nv-stat:nth-child(4) { animation-delay: .12s; }
+#nv-prof .nv-stat small { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.5px; margin-top: 6px; }
+#nv-prof .nv-stat.is-ok b { color: var(--ok); }
+
+/* Lien */
+#nv-prof .nv-link { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-radius: 99px; background: rgba(0,0,0,0.25); border: 1px solid var(--line); }
+#nv-prof .nv-link code { flex: 1; min-width: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-share { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+/* Boutons */
+#nv-prof .nv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 18px; border-radius: 99px; border: none; background: #fff; color: #0a0a12; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .15s, background .2s; }
+#nv-prof .nv-btn:hover:not(:disabled) { transform: translateY(-1px); }
+#nv-prof .nv-btn:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; transform: none; }
+#nv-prof .nv-btn svg { width: 15px; height: 15px; }
+#nv-prof .nv-btn.is-block { width: 100%; height: 42px; }
+#nv-prof .nv-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: transparent; font-size: 12px; color: var(--text-2); cursor: pointer; text-decoration: none; white-space: nowrap; transition: background .15s, color .15s; }
+#nv-prof .nv-chip:hover { background: var(--panel-2); color: #fff; }
+#nv-prof .nv-chip svg { width: 14px; height: 14px; }
+#nv-prof .nv-link-btn { background: none; border: none; color: var(--text-2); font-size: 12.5px; cursor: pointer; padding: 4px 6px; border-radius: 6px; text-decoration: underline; text-underline-offset: 3px; }
+#nv-prof .nv-link-btn:hover { color: #fff; }
+
+/* Formulaires */
+#nv-prof .nv-field { display: block; margin-top: 12px; }
+#nv-prof .nv-field > span { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin-bottom: 6px; }
+#nv-prof .nv-field em { font-style: normal; color: var(--text-4); }
+#nv-prof .nv-input { width: 100%; height: 42px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: #fff; font: inherit; font-size: 13.5px; outline: none; transition: border-color .15s, background .15s; }
+#nv-prof textarea.nv-input { height: auto; min-height: 92px; padding: 11px 14px; line-height: 1.55; resize: vertical; }
+#nv-prof select.nv-input option { background: #111118; color: #fff; }
+#nv-prof .nv-input::placeholder { color: var(--text-4); }
+#nv-prof .nv-input:focus { border-color: rgba(255,255,255,0.22); background: var(--panel-2); }
+#nv-prof .nv-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#nv-prof .nv-err { color: var(--danger); font-size: 12.5px; margin-top: 10px; min-height: 1em; }
+#nv-prof .nv-sep { display: flex; align-items: center; gap: 10px; color: var(--text-4); font-size: 11.5px; margin: 14px 0; }
+#nv-prof .nv-sep::before, #nv-prof .nv-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* Case à cocher (comme NAVIRE AI) */
+#nv-prof .nv-check-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 6px; border-radius: 9px; cursor: pointer; font-size: 13px; color: var(--text-2); line-height: 1.5; transition: background .15s; }
+#nv-prof .nv-check-row:hover { background: var(--panel); }
+#nv-prof .nv-check { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; transition: background .15s, border-color .15s; }
+#nv-prof .nv-check svg { width: 12px; height: 12px; color: #0a0a12; opacity: 0; transform: scale(.5); transition: opacity .15s, transform .2s var(--ease); }
+#nv-prof .nv-check-row.is-on .nv-check { background: #fff; border-color: #fff; }
+#nv-prof .nv-check-row.is-on .nv-check svg { opacity: 1; transform: none; }
+
+#nv-prof .nv-terms { margin: 0; padding: 0 0 0 20px; font-size: 13px; line-height: 1.65; color: var(--text-2); }
+#nv-prof .nv-terms li { margin-bottom: 6px; }
+#nv-prof .nv-terms li::marker { color: var(--text-4); }
+
+/* Lignes (filleuls) */
+#nv-prof .nv-search { display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 42px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 14px; }
+#nv-prof .nv-search svg { width: 16px; height: 16px; color: var(--text-3); }
+#nv-prof .nv-search input { flex: 1; background: none; border: none; outline: none; color: #fff; font: inherit; font-size: 13.5px; }
+#nv-prof .nv-search input::placeholder { color: var(--text-4); }
+#nv-prof .nv-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+#nv-prof .nv-filters .nv-chip.is-active { background: var(--panel-3); color: #fff; border-color: rgba(255,255,255,0.14); }
+#nv-prof .nv-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid transparent; margin-bottom: 6px; animation: nv-rise .35s var(--ease) both; }
+#nv-prof .nv-row-ico { width: 36px; height: 36px; border-radius: 10px; background: var(--panel-2); display: flex; align-items: center; justify-content: center; color: var(--text-2); flex-shrink: 0; font-weight: 700; font-size: 13px; }
+#nv-prof .nv-row-body { flex: 1; min-width: 0; }
+#nv-prof .nv-row-title { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-row-meta { font-size: 11.5px; color: var(--text-3); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+#nv-prof .nv-row-amount { font-size: 14px; font-weight: 700; flex-shrink: 0; }
+#nv-prof .nv-tag { display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); white-space: nowrap; }
+#nv-prof .nv-tag i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+#nv-prof .nv-tag.ok { color: var(--ok); background: rgba(91,227,163,0.1); }
+#nv-prof .nv-tag.warn { color: var(--warn); background: rgba(255,209,102,0.1); }
+#nv-prof .nv-tag.bad { color: var(--danger); background: rgba(255,107,107,0.1); }
+#nv-prof .nv-empty { text-align: center; padding: 34px 20px; font-size: 13px; color: var(--text-3); line-height: 1.6; }
+#nv-prof .nv-empty b { display: block; color: var(--text-2); font-size: 14px; margin-bottom: 4px; }
+#nv-prof .nv-skel { height: 62px; border-radius: 12px; margin-bottom: 6px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nv-shimmer 1.4s linear infinite; }
+
+/* Simulateur */
+#nv-prof .nv-range { width: 100%; accent-color: #fff; margin: 6px 0 2px; }
+#nv-prof .nv-sim-total { display: flex; align-items: baseline; justify-content: space-between; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+#nv-prof .nv-sim-total b { font-size: 30px; font-weight: 800; letter-spacing: -.8px; }
+
+/* Toasts */
+#nv-prof .nv-toasts { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 50; pointer-events: none; }
+#nv-prof .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,30,44,0.95); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
+#nv-prof .nv-toast.is-error { color: #ffb3b3; }
+@keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* ================= COMPACT (téléphone / embed étroit) ================= */
+#nv-prof.is-compact .nv-side {
+  position: absolute; top: 0; bottom: 0; left: 0; overflow-y: auto;
+  visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s;
+  z-index: 1001; width: min(300px, 86%); transform: translateX(-102%);
+  background: #0c0c14; box-shadow: 20px 0 60px rgba(0,0,0,0.4);
+}
+#nv-prof.is-compact.is-drawer .nv-side { transform: none; visibility: visible; transition: transform .32s var(--ease); }
+#nv-prof.is-compact .nv-scrim { z-index: 1000; }
+#nv-prof.is-compact.is-drawer .nv-scrim { opacity: 1; pointer-events: auto; }
+#nv-prof.is-compact .nv-side-close, #nv-prof.is-compact .nv-menu-btn { display: inline-flex; }
+#nv-prof.is-compact .nv-topbar { padding: 8px; border-bottom: 1px solid var(--line); min-height: 58px; }
+#nv-prof.is-compact .nv-topbar-title { text-align: center; font-size: 15px; }
+#nv-prof.is-compact .nv-page-inner { padding-left: 14px; padding-right: 14px; }
+#nv-prof.is-compact .nv-stats { grid-template-columns: 1fr 1fr; }
+#nv-prof.is-compact .nv-steps { grid-template-columns: 1fr; }
+#nv-prof.is-compact .nv-row2 { grid-template-columns: 1fr; }
+#nv-prof.is-compact .nv-hero h1 { font-size: 22px; }
+#nv-prof.is-compact .nv-icon-btn { width: 42px; height: 42px; border-radius: 12px; }
+#nv-prof.is-compact .nv-icon-btn svg { width: 22px; height: 22px; }
+#nv-prof.is-compact .nv-nav { padding: 12px; font-size: 15px; gap: 12px; }
+#nv-prof.is-compact .nv-nav svg { width: 21px; height: 21px; }
+#nv-prof.is-compact .nv-input { font-size: 16px; } /* 16px : évite le zoom auto d'iOS */
+#nv-prof.is-compact .nv-btn { height: 42px; }
+#nv-prof.is-compact .nv-chip { height: 38px; padding: 0 14px; }
+#nv-prof.is-compact .nv-check { width: 22px; height: 22px; }
+
+@media (prefers-reduced-motion: reduce) {
+  #nv-prof *, #nv-prof *::before, #nv-prof *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ================= PROFESSEURS ================= */
+#nv-prof .nv-grade { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .6px; padding: 3px 8px; border-radius: 99px; background: rgba(122,167,255,0.12); color: var(--blue); }
+#nv-prof .nv-class-head { display: flex; align-items: flex-start; gap: 12px; }
+#nv-prof .nv-class-head > div { flex: 1; min-width: 0; }
+#nv-prof .nv-class-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+#nv-prof .nv-discord { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 99px; border: none; background: #5865F2; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .15s, filter .15s; }
+#nv-prof .nv-discord:hover { transform: translateY(-1px); filter: brightness(1.08); }
+#nv-prof .nv-discord svg { width: 16px; height: 16px; }
+#nv-prof .nv-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+#nv-prof .nv-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 22px 14px; border-radius: 14px; border: 1.5px dashed rgba(255,255,255,0.16); background: rgba(0,0,0,0.15); text-align: center; cursor: pointer; font-size: 12.5px; color: var(--text-3); transition: border-color .15s, background .15s; }
+#nv-prof .nv-drop:hover, #nv-prof .nv-drop.is-over { border-color: rgba(255,255,255,0.35); background: var(--panel); }
+#nv-prof .nv-drop b { color: var(--text); font-size: 13.5px; }
+#nv-prof .nv-drop svg { width: 22px; height: 22px; color: var(--text-2); }
+#nv-prof .nv-month { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: var(--panel); margin-bottom: 6px; }
+#nv-prof .nv-month-name { width: 130px; flex-shrink: 0; white-space: nowrap; font-size: 13px; font-weight: 600; text-transform: capitalize; }
+#nv-prof .nv-month-bar { flex: 1; height: 6px; border-radius: 9px; background: var(--panel-2); overflow: hidden; }
+#nv-prof .nv-month-bar i { display: block; height: 100%; border-radius: 9px; background: var(--blue); }
+#nv-prof .nv-month.is-past .nv-month-bar i { background: var(--ok); }
+#nv-prof .nv-month-amount { width: 96px; text-align: right; font-size: 13.5px; font-weight: 700; flex-shrink: 0; }
+#nv-prof .nv-month small { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4); width: 70px; flex-shrink: 0; }
+#nv-prof .nv-icon-mini { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; border: 1px solid var(--line); background: transparent; color: var(--text-3); cursor: pointer; flex-shrink: 0; transition: background .15s, color .15s; padding: 0; }
+#nv-prof .nv-icon-mini:hover { background: var(--panel-2); color: #fff; }
+#nv-prof .nv-icon-mini.is-bad:hover { color: var(--danger); }
+#nv-prof .nv-icon-mini svg { width: 15px; height: 15px; }
+#nv-prof .nv-row-ico svg { width: 17px; height: 17px; }
+#nv-prof.is-compact .nv-month small { display: none; }
+#nv-prof.is-compact .nv-month-name { width: auto; flex: 1; }
+#nv-prof.is-compact .nv-month-bar { display: none; }
+#nv-prof.is-compact .nv-class-head { flex-direction: column; }
+</style>
+
+<div id="nv-prof" class="is-solo">
+  <aside class="nv-side">
+    <div class="nv-brand">
+      <div class="nv-logo" data-logo></div>
+      <div>
+        <div class="nv-brand-name">NAVIRE</div>
+        <div class="nv-brand-sub">Espace professeurs</div>
+      </div>
+      <button class="nv-icon-btn nv-side-close" data-act="close-drawer" aria-label="Fermer le menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <button class="nv-cta" data-view="documents">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+      Déposer un document
+    </button>
+    <button class="nv-nav is-active" data-view="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      Vue d'ensemble
+    </button>
+    <button class="nv-nav" data-view="classes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></svg>
+      Mes groupes
+      <span class="nv-badge" data-el="class-count"></span>
+    </button>
+    <button class="nv-nav" data-view="students">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+      Étudiants
+      <span class="nv-badge" data-el="student-count"></span>
+    </button>
+    <button class="nv-nav" data-view="documents">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+      Documents
+      <span class="nv-badge" data-el="doc-count"></span>
+    </button>
+    <button class="nv-nav" data-view="earnings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Rémunération
+    </button>
+    <div class="nv-side-fill"></div>
+    <div class="nv-wallet" data-el="wallet"></div>
+    <button class="nv-logout" data-act="logout">Se déconnecter</button>
+  </aside>
+  <div class="nv-scrim" data-act="close-drawer"></div>
+
+  <main class="nv-main">
+    <div class="nv-topbar">
+      <button class="nv-icon-btn nv-menu-btn" data-act="open-drawer" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      </button>
+      <div class="nv-topbar-title" data-el="title">Vue d'ensemble</div>
+      <button class="nv-icon-btn" data-act="refresh" aria-label="Actualiser" title="Actualiser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      </button>
+    </div>
+    <div class="nv-page nv-scroll" data-el="page"></div>
+    <div class="nv-toasts" data-el="toasts"></div>
+  </main>
+  <input type="file" accept="application/pdf,.pdf" data-el="file" style="display:none">
+</div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",           // même clé que les autres embeds
+    SIGNUP_URL: "https://navire-ai.com/register",
+    CONTACT_URL: ""                      // ex. "mailto:…" : bouton « Contacter l'équipe »
+  };
+  var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
+  var TITLES = { home: "Vue d'ensemble", classes: "Mes groupes", students: "Étudiants", documents: "Documents", earnings: "Rémunération" };
+
+  var root = document.getElementById("nv-prof");
+  var S = { token: null, me: null, dash: null, view: "home", q: "", classFilter: "all", uploadClass: null, uploadFile: null };
+
+  // ================= OUTILS =================
+  function $(sel) { return root.querySelector(sel); }
+  function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function eur(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",") + " €"; }
+  function date(iso) { return iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : "—"; }
+  function mois(cle) { var p = cle.split("-"); return new Date(+p[0], +p[1] - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); }
+  function taille(b) { return b > 1048576 ? (b / 1048576).toFixed(1).replace(".", ",") + " Mo" : Math.max(1, Math.round(b / 1024)) + " Ko"; }
+  function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return String(x.msg || "").replace(/^Value error, /, ""); }).join(" · "); return "Une erreur est survenue."; }
+  function handle(r) {
+    return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(detail(j.detail)); e.status = r.status; throw e; } return j; });
+  }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" };
+    if (S.token) h.Authorization = "Bearer " + S.token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined }).then(handle);
+  }
+  function go(url) { try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
+  function val(id) { var n = document.getElementById(id); return n ? n.value.trim() : ""; }
+  function err(msg) { var e = el("err"); if (e) e.textContent = msg || ""; }
+  function toast(msg, isError) {
+    var t = document.createElement("div");
+    t.className = "nv-toast" + (isError ? " is-error" : "");
+    t.textContent = msg;
+    el("toasts").appendChild(t);
+    setTimeout(function () { t.remove(); }, 2700);
+  }
+  function applyLogos(scope) {
+    (scope || root).querySelectorAll("[data-logo]").forEach(function (n) { n.style.backgroundImage = 'url("' + LOGO + '")'; });
+  }
+  function initiales(e) { var s = e.username || e.email || "?"; return esc(s.charAt(0).toUpperCase()); }
+
+  var ICON = {
+    discord: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.3 4.4A19.6 19.6 0 0 0 15.4 3l-.6 1.3a18 18 0 0 0-5.6 0L8.6 3a19.6 19.6 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18a19.8 19.8 0 0 0 6 3l1.3-2a12.8 12.8 0 0 1-2-1l.5-.4a14 14 0 0 0 12.2 0l.5.4-2 1 1.3 2a19.7 19.7 0 0 0 6-3c.5-5.1-.8-9.6-3.6-13.6zM8 15.3c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.5 8 10.5s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4z"/></svg>',
+    link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
+    upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'
+  };
+
+  // ================= HAUTEUR (comme NAVIRE AI) =================
+  var FRAMED = window.self !== window.top;
+  var HOST = null, frameEl = null, wrappers = [];
+  if (FRAMED) {
+    var hideBar = document.createElement("style");
+    hideBar.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    document.head.appendChild(hideBar);
+    try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+    if (frameEl) for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+  }
+  function sizeApp() {
+    var win = HOST || window, h;
+    if (HOST || !FRAMED) {
+      var anchor = frameEl || root;
+      var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
+      h = Math.max(560, Math.round(win.innerHeight - top - 12));
+    } else {
+      h = Math.max(560, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+    }
+    root.style.height = h + "px";
+    if (frameEl) {
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; });
+    } else if (FRAMED) {
+      try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+    }
+  }
+  sizeApp();
+  (HOST || window).addEventListener("resize", sizeApp);
+  window.addEventListener("load", sizeApp);
+  setTimeout(sizeApp, 600);
+
+  // ================= RESPONSIVE (largeur du conteneur) =================
+  function updateCompact() {
+    var compact = root.clientWidth < 760;
+    root.classList.toggle("is-compact", compact);
+    if (!compact) root.classList.remove("is-drawer");
+  }
+  if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
+  else window.addEventListener("resize", updateCompact);
+  updateCompact();
+  applyLogos();
+
+  // ================= RENDU =================
+  function setPage(html, solo) {
+    root.classList.toggle("is-solo", !!solo);
+    var p = el("page");
+    p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
+    p.scrollTop = 0;
+    applyLogos(p);
+  }
+  function hero(title, sub) {
+    return '<div class="nv-hero"><div class="nv-hero-logo" data-logo></div><h1>' + title + '</h1><p>' + sub + '</p></div>';
+  }
+  function head(title, sub) { return '<div class="nv-page-head"><h2>' + title + '</h2>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>'; }
+  function stat(label, value, ok) { return '<div class="nv-stat' + (ok ? " is-ok" : "") + '"><small>' + esc(label) + '</small><b>' + esc(value) + '</b></div>'; }
+  function field(label, inner, opt) {
+    return '<label class="nv-field"><span>' + label + (opt ? ' <em>· facultatif</em>' : '') + '</span>' + inner + '</label>';
+  }
+  function input(id, value, attrs) {
+    return '<input class="nv-input" id="' + id + '" value="' + esc(value || "") + '" ' + (attrs || "") + '>';
+  }
+  function discordBtn(c) {
+    return c.discord_url ? '<a class="nv-discord" href="' + esc(c.discord_url) + '" target="_blank" rel="noopener">' + ICON.discord + 'Salon Discord</a>' : '';
+  }
+  function liens(c) {
+    return (c.liens || []).map(function (l) {
+      return '<a class="nv-chip" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + ICON.link + esc(l.label) + '</a>';
+    }).join("");
+  }
+  function classe(id) { return S.dash.classes.filter(function (c) { return c.id === id; })[0]; }
+  function empty(title, sub) { return '<div class="nv-empty"><b>' + title + '</b>' + (sub || "") + '</div>'; }
+
+  // ----- Non connecté -----
+  function viewLoggedOut() {
+    setPage(hero('Espace <span class="nv-grad">professeurs</span>',
+      'Tes groupes Prép\'AdJuris, tes étudiants, tes documents et ta rémunération, au même endroit.') +
+      '<div class="nv-steps">' +
+      '<div class="nv-step"><i>01</i><b>Tes groupes</b><span>Le salon Discord et les liens de chaque groupe.</span></div>' +
+      '<div class="nv-step"><i>02</i><b>Tes documents</b><span>Un PDF déposé arrive chez tes étudiants, sur NAVIRE Lib.</span></div>' +
+      '<div class="nv-step"><i>03</i><b>Ta rémunération</b><span>Le prévisionnel, séance par séance, mois par mois.</span></div></div>' +
+      '<div class="nv-card" style="margin-top:14px"><div class="nv-card-title">Connexion</div>' +
+      '<div class="nv-card-sub">Avec ton compte NAVIRE habituel.</div>' +
+      '<div class="nv-row2">' + field("Email", input("l-email", "", 'type="email" autocomplete="email"')) +
+      field("Mot de passe", input("l-pass", "", 'type="password" autocomplete="current-password"')) + '</div>' +
+      '<div style="margin-top:16px"><button class="nv-btn is-block" data-act="login">Me connecter</button></div>' +
+      '<div class="nv-sep">ou</div>' +
+      '<button class="nv-chip" style="width:100%;justify-content:center;height:42px" data-act="google">Continuer avec Google</button>' +
+      '<div class="nv-err" data-el="err"></div>' +
+      '<div style="font-size:12.5px;color:var(--text-3)">Pas encore de compte ? <button class="nv-link-btn" data-act="signup">Crée-le ici</button>, puis demande à l\'équipe de le rattacher.</div>' +
+      '</div>', true);
+  }
+
+  function viewNotProf(suspendu) {
+    setPage(hero(suspendu ? 'Accès suspendu' : 'Espace réservé aux professeurs',
+      suspendu
+        ? 'Ton accès à l\'espace professeurs est suspendu. Contacte l\'équipe NAVIRE pour en savoir plus.'
+        : 'Ton compte n\'est pas encore rattaché à un groupe Prép\'AdJuris. L\'équipe NAVIRE le fait depuis la console : envoie-lui l\'adresse de ton compte.') +
+      '<div style="display:flex;gap:8px;justify-content:center;margin-top:18px">' +
+      (CONFIG.CONTACT_URL ? '<a class="nv-btn" href="' + esc(CONFIG.CONTACT_URL) + '">Contacter l\'équipe</a>' : '') +
+      '<button class="nv-chip" data-act="logout">Changer de compte</button></div>', true);
+  }
+
+  // ----- Vue d'ensemble -----
+  function viewHome() {
+    var d = S.dash, t = d.totaux, p = d.professeur;
+    var nom = (p.prenom || "").trim();
+    var html = head('Bonjour' + (nom ? ' ' + esc(nom) : '') + ' 👋', 'Tu es <span class="nv-grade">' + esc(p.grade) + '</span>') +
+      '<div class="nv-stats">' + stat("Groupes", t.classes) + stat("Étudiants", t.etudiants) +
+      stat("Déjà gagné", eur(t.realise_cents), true) + stat("À venir", eur(t.a_venir_cents)) + '</div>';
+    if (!d.classes.length) return setPage(html + empty("Aucun groupe pour l'instant", "L'équipe NAVIRE t'ajoutera bientôt à un groupe."));
+    html += '<div class="nv-group-label">Tes groupes</div>';
+    d.classes.forEach(function (c) {
+      html += '<div class="nv-card"><div class="nv-class-head"><div><div class="nv-card-title">' + esc(c.nom) + '</div>' +
+        '<div class="nv-card-sub" style="margin:0">' + esc(c.matiere_label) + ' · ' + c.etudiants.length + ' étudiant' + (c.etudiants.length > 1 ? 's' : '') +
+        ' · ' + c.documents.length + ' document' + (c.documents.length > 1 ? 's' : '') + '</div></div>' + discordBtn(c) + '</div>' +
+        (c.liens && c.liens.length ? '<div class="nv-class-meta">' + liens(c) + '</div>' : '') + '</div>';
+    });
+    setPage(html);
+  }
+
+  // ----- Mes groupes -----
+  function viewClasses() {
+    var d = S.dash;
+    var html = head("Mes groupes", "Le salon Discord, les liens et l'effectif de chaque groupe.");
+    if (!d.classes.length) return setPage(html + empty("Aucun groupe", "L'équipe NAVIRE t'ajoutera bientôt à un groupe."));
+    d.classes.forEach(function (c) {
+      var pr = c.previsionnel;
+      html += '<div class="nv-card"><div class="nv-class-head"><div>' +
+        '<div class="nv-card-title">' + esc(c.nom) + '</div>' +
+        '<div class="nv-card-sub" style="margin:0">' + esc(c.matiere_label) + '</div></div>' + discordBtn(c) + '</div>' +
+        '<div class="nv-stats" style="margin:14px 0 0">' + stat("Étudiants", c.etudiants.length) + stat("Documents", c.documents.length) +
+        stat("Séances à venir", pr.seances_a_venir) + stat("Par séance", eur(pr.par_seance_cents)) + '</div>' +
+        (c.liens && c.liens.length ? '<div class="nv-group-label" style="margin-top:14px">Liens</div><div class="nv-share">' + liens(c) + '</div>' : '') +
+        '<div class="nv-actions">' +
+        '<button class="nv-chip" data-act="see-students" data-id="' + c.id + '">Voir les étudiants</button>' +
+        '<button class="nv-chip" data-act="upload-for" data-id="' + c.id + '">' + ICON.upload + 'Déposer un document</button></div></div>';
+    });
+    setPage(html);
+  }
+
+  // ----- Étudiants -----
+  function filters() {
+    var cs = S.dash.classes;
+    if (cs.length < 2) return '';
+    return '<div class="nv-filters"><button class="nv-chip' + (S.classFilter === "all" ? " is-active" : "") + '" data-filter="all">Tous</button>' +
+      cs.map(function (c) { return '<button class="nv-chip' + (S.classFilter === c.id ? " is-active" : "") + '" data-filter="' + c.id + '">' + esc(c.nom) + '</button>'; }).join("") + '</div>';
+  }
+  function viewStudents() {
+    var rows = [];
+    S.dash.classes.forEach(function (c) {
+      if (S.classFilter !== "all" && S.classFilter !== c.id) return;
+      c.etudiants.forEach(function (e) { rows.push({ e: e, c: c }); });
+    });
+    var q = S.q.toLowerCase();
+    var vis = rows.filter(function (r) { return !q || [r.e.username, r.e.email, r.e.university].some(function (v) { return String(v || "").toLowerCase().indexOf(q) >= 0; }); });
+    var html = head("Étudiants", rows.length + " étudiant" + (rows.length > 1 ? "s" : "") + " inscrit" + (rows.length > 1 ? "s" : "") + (S.classFilter === "all" ? "" : " dans ce groupe") + ".") +
+      '<div class="nv-search">' + ICON.search + '<input data-el="q" placeholder="Rechercher un étudiant…" value="' + esc(S.q) + '"></div>' + filters();
+    if (!vis.length) html += empty(rows.length ? "Aucun résultat" : "Pas encore d'étudiant", rows.length ? "" : "Les inscrits apparaîtront ici.");
+    vis.forEach(function (r, i) {
+      var e = r.e;
+      html += '<div class="nv-row" style="animation-delay:' + Math.min(i, 10) * .02 + 's"><div class="nv-row-ico">' + initiales(e) + '</div>' +
+        '<div class="nv-row-body"><div class="nv-row-title" style="font-size:13.5px;font-weight:600">' + esc(e.username || e.email) + '</div>' +
+        '<div class="nv-row-meta"><span>' + esc(e.email || "") + '</span>' + (e.university ? '<span>' + esc(e.university) + '</span>' : '') +
+        (S.dash.classes.length > 1 ? '<span>' + esc(r.c.nom) + '</span>' : '') + '<span>depuis le ' + date(e.inscrit_le) + '</span></div></div>' +
+        (e.status === "payment_failed" ? '<span class="nv-tag warn"><i></i>impayé</span>' : '') +
+        (e.discord_lie ? '<span class="nv-tag ok"><i></i>Discord</span>' : '<span class="nv-tag"><i></i>sans Discord</span>') + '</div>';
+    });
+    setPage(html);
+  }
+
+  // ----- Documents -----
+  function viewDocuments() {
+    var cs = S.dash.classes;
+    var html = head("Documents", "Un PDF déposé est publié tout de suite pour les étudiants du groupe, dans leur espace Prép'AdJuris et sur NAVIRE Lib.");
+    if (!cs.length) return setPage(html + empty("Aucun groupe", "Tu pourras déposer des documents dès que tu auras un groupe."));
+    if (!S.uploadClass || !classe(S.uploadClass)) S.uploadClass = cs[0].id;
+    html += '<div class="nv-card"><div class="nv-card-title">Nouveau document</div>' +
+      (cs.length > 1 ? field("Groupe", '<select class="nv-input" id="u-classe">' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === S.uploadClass ? " selected" : "") + '>' + esc(c.nom) + '</option>'; }).join("") + '</select>') : '') +
+      field("Titre", input("u-titre", "", 'maxlength="200" placeholder="Ex. TD 3 — la responsabilité du fait d\'autrui"')) +
+      field("Description", '<textarea class="nv-input" id="u-desc" maxlength="2000" style="min-height:64px"></textarea>', true) +
+      '<div class="nv-drop" data-act="pick" data-el="drop" style="margin-top:12px">' + ICON.upload +
+      (S.uploadFile ? '<b>' + esc(S.uploadFile.name) + '</b><span>' + taille(S.uploadFile.size) + ' · cliquer pour changer</span>'
+        : '<b>Choisir un PDF</b><span>ou le glisser ici · 50 Mo max.</span>') + '</div>' +
+      '<div style="margin-top:14px"><button class="nv-btn is-block" data-act="upload"' + (S.uploadFile ? '' : ' disabled') + '>Publier pour le groupe</button></div>' +
+      '<div class="nv-err" data-el="err"></div></div>';
+    cs.forEach(function (c) {
+      html += '<div class="nv-group-label">' + esc(c.nom) + ' · ' + c.documents.length + '</div>';
+      if (!c.documents.length) html += '<div class="nv-row" style="color:var(--text-3);font-size:12.5px">Aucun document déposé.</div>';
+      c.documents.forEach(function (doc) {
+        var mine = doc.uploaded_by_id === S.dash.professeur.user_id;
+        html += '<div class="nv-row"><div class="nv-row-ico">' + ICON.file + '</div><div class="nv-row-body">' +
+          '<div style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(doc.titre) + '</div>' +
+          '<div class="nv-row-meta"><span>' + date(doc.created_at) + '</span><span>' + taille(doc.size_bytes) + '</span>' + (doc.description ? '<span>' + esc(doc.description) + '</span>' : '') + '</div></div>' +
+          '<button class="nv-icon-mini" data-act="open-doc" data-id="' + doc.id + '" title="Ouvrir">' + ICON.eye + '</button>' +
+          (mine ? '<button class="nv-icon-mini is-bad" data-act="del-doc" data-id="' + doc.id + '" title="Retirer">' + ICON.trash + '</button>' : '') + '</div>';
+      });
+    });
+    setPage(html);
+    bindDrop();
+  }
+  function bindDrop() {
+    var d = el("drop");
+    if (!d) return;
+    d.addEventListener("dragover", function (e) { e.preventDefault(); d.classList.add("is-over"); });
+    d.addEventListener("dragleave", function () { d.classList.remove("is-over"); });
+    d.addEventListener("drop", function (e) { e.preventDefault(); d.classList.remove("is-over"); var f = e.dataTransfer.files[0]; if (f) pickFile(f); });
+  }
+  function pickFile(f) {
+    if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") return toast("Seuls les PDF sont acceptés.", true);
+    var keep = { titre: val("u-titre"), desc: val("u-desc"), classe: val("u-classe") };
+    S.uploadFile = f;
+    if (keep.classe) S.uploadClass = +keep.classe;
+    viewDocuments();
+    document.getElementById("u-titre").value = keep.titre || f.name.replace(/\.pdf$/i, "");
+    document.getElementById("u-desc").value = keep.desc;
+  }
+
+  // ----- Rémunération -----
+  function viewEarnings() {
+    var d = S.dash, t = d.totaux;
+    var now = new Date(), cur = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    var max = Math.max.apply(null, t.mois.map(function (m) { return m.montant_cents; }).concat([1]));
+    var html = head("Rémunération", "Prévisionnel calculé sur le calendrier des séances et tes étudiants inscrits. Il évolue avec les inscriptions et l'agenda.") +
+      '<div class="nv-stats" style="grid-template-columns:repeat(3,1fr)">' + stat("Déjà gagné", eur(t.realise_cents), true) + stat("À venir", eur(t.a_venir_cents)) + stat("Total prévu", eur(t.total_cents)) + '</div>';
+    html += '<div class="nv-group-label">Par mois</div>';
+    if (!t.mois.length) html += empty("Pas encore de séance", "Les mois apparaîtront dès que l'agenda sera saisi.");
+    t.mois.forEach(function (m) {
+      html += '<div class="nv-month' + (m.mois < cur ? " is-past" : "") + '"><span class="nv-month-name">' + mois(m.mois) + '</span>' +
+        '<small>' + m.seances + ' séance' + (m.seances > 1 ? 's' : '') + '</small>' +
+        '<span class="nv-month-bar"><i style="width:' + Math.round(m.montant_cents / max * 100) + '%"></i></span>' +
+        '<span class="nv-month-amount">' + eur(m.montant_cents) + '</span></div>';
+    });
+    html += '<div class="nv-group-label">Par groupe</div>';
+    d.classes.forEach(function (c) {
+      var p = c.previsionnel, parts = [];
+      if (p.remu_seance_cents) parts.push(eur(p.remu_seance_cents) + " par séance");
+      if (p.remu_etudiant_cents) parts.push(eur(p.remu_etudiant_cents) + " par étudiant et par séance");
+      html += '<div class="nv-card"><div class="nv-card-title">' + esc(c.nom) + '</div>' +
+        '<div class="nv-card-sub">' + (parts.join(" + ") || "Rémunération non renseignée") + ' · ' + c.etudiants.length + ' étudiant' + (c.etudiants.length > 1 ? 's' : '') + '</div>' +
+        '<div class="nv-stats" style="margin:0">' + stat("Séances faites", p.seances_passees) + stat("À venir", p.seances_a_venir) +
+        stat("Déjà gagné", eur(p.realise_cents), true) + stat("Prévu", eur(p.a_venir_cents)) + '</div></div>';
+    });
+    setPage(html);
+  }
+
+  var VIEWS = { home: viewHome, classes: viewClasses, students: viewStudents, documents: viewDocuments, earnings: viewEarnings };
+
+  function renderApp() {
+    var d = S.dash, t = d.totaux;
+    el("class-count").textContent = t.classes || "";
+    el("student-count").textContent = t.etudiants || "";
+    el("doc-count").textContent = t.documents || "";
+    el("wallet").innerHTML = 'Déjà gagné<b>' + eur(t.realise_cents) + '</b>' +
+      '<div class="nv-wallet-bar"><i style="width:' + (t.total_cents ? Math.round(t.realise_cents / t.total_cents * 100) : 0) + '%"></i></div>' +
+      '<div style="margin-top:6px">' + eur(t.total_cents) + ' prévus au total</div>';
+    setView(S.view);
+  }
+
+  function setView(v) {
+    S.view = v;
+    root.querySelectorAll(".nv-nav").forEach(function (b) { b.classList.toggle("is-active", b.getAttribute("data-view") === v); });
+    root.classList.remove("is-drawer");
+    el("title").textContent = TITLES[v];
+    VIEWS[v]();
+  }
+
+  // ================= ACTIONS =================
+  root.addEventListener("click", function (e) {
+    var v = e.target.closest("[data-view]");
+    if (v && root.contains(v) && S.dash) { setView(v.getAttribute("data-view")); return; }
+    var f = e.target.closest("[data-filter]");
+    if (f && root.contains(f)) { var x = f.getAttribute("data-filter"); S.classFilter = x === "all" ? "all" : +x; viewStudents(); return; }
+    var a = e.target.closest("[data-act]");
+    if (!a || !root.contains(a)) return;
+    var act = a.getAttribute("data-act"), id = +a.getAttribute("data-id");
+    if (act === "open-drawer") root.classList.add("is-drawer");
+    else if (act === "close-drawer") root.classList.remove("is-drawer");
+    else if (act === "refresh") loadDash().then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
+    else if (act === "logout") { S.token = null; S.dash = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); }
+    else if (act === "signup") go(CONFIG.SIGNUP_URL);
+    else if (act === "login") login(a);
+    else if (act === "google") google();
+    else if (act === "see-students") { S.classFilter = id; setView("students"); }
+    else if (act === "upload-for") { S.uploadClass = id; setView("documents"); }
+    else if (act === "pick") el("file").click();
+    else if (act === "upload") upload(a);
+    else if (act === "open-doc") openDoc(id);
+    else if (act === "del-doc") delDoc(a, id);
+  });
+  root.addEventListener("input", function (e) {
+    if (e.target.getAttribute("data-el") === "q") {
+      S.q = e.target.value; var pos = e.target.selectionStart;
+      viewStudents();
+      var n = el("q"); n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {}
+    }
+  });
+  root.addEventListener("change", function (e) {
+    if (e.target.getAttribute("data-el") === "file" && e.target.files[0]) { pickFile(e.target.files[0]); e.target.value = ""; }
+    if (e.target.id === "u-classe") S.uploadClass = +e.target.value;
+  });
+  root.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.target.id === "l-email" || e.target.id === "l-pass")) login($('[data-act="login"]'));
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") root.classList.remove("is-drawer"); });
+
+  function login(b) {
+    b.disabled = true;
+    api("POST", "/auth/login", { email: val("l-email").toLowerCase(), password: (document.getElementById("l-pass") || {}).value || "" })
+      .then(loggedIn).catch(function (x) { b.disabled = false; err(x.message); });
+  }
+  // Google : fenêtre sur l'API (l'iframe ne peut pas parler à Google), qui
+  // renvoie un ticket par postMessage.
+  function google() {
+    var w = window.open(CONFIG.API + "/auth/google/start", "navire_oauth", "width=480,height=640");
+    if (!w) return err("Autorise les fenêtres pop-up pour continuer avec Google.");
+    function onMsg(ev) {
+      var d = ev.data || {};
+      if (d.type === "NAVIRE_OAUTH_ERROR") { window.removeEventListener("message", onMsg); err(d.message || "Connexion Google interrompue."); }
+      if (d.type !== "NAVIRE_OAUTH_TICKET") return;
+      window.removeEventListener("message", onMsg);
+      api("POST", "/auth/oauth", { provider: "google", ticket: d.ticket }).then(loggedIn).catch(function (x) { err(x.message); });
+    }
+    window.addEventListener("message", onMsg);
+  }
+  function loggedIn(r) { S.token = r.access_token; store(CONFIG.TOKEN_KEY, r.access_token); boot(); }
+
+  function upload(b) {
+    if (!S.uploadFile) return err("Choisis un PDF.");
+    var cid = val("u-classe") ? +val("u-classe") : S.uploadClass;
+    var fd = new FormData();
+    fd.append("file", S.uploadFile);
+    fd.append("titre", val("u-titre"));
+    fd.append("description", val("u-desc"));
+    b.disabled = true; b.textContent = "Envoi…";
+    fetch(CONFIG.API + "/professeurs/classes/" + cid + "/documents", { method: "POST", headers: { Authorization: "Bearer " + S.token }, body: fd })
+      .then(handle)
+      .then(function () { S.uploadFile = null; S.uploadClass = cid; return loadDash(); })
+      .then(function () { renderApp(); toast("Document publié pour le groupe"); })
+      .catch(function (x) { b.disabled = false; b.textContent = "Publier pour le groupe"; err(x.message); });
+  }
+
+  // Le PDF demande le jeton : on le récupère puis on l'ouvre dans un onglet.
+  function openDoc(id) {
+    var w = window.open("", "_blank");
+    fetch(CONFIG.API + "/professeurs/documents/" + id + "/download", { headers: { Authorization: "Bearer " + S.token } })
+      .then(function (r) { if (!r.ok) throw new Error("Document indisponible."); return r.blob(); })
+      .then(function (blob) { var url = URL.createObjectURL(blob); if (w) w.location.href = url; else window.open(url, "_blank"); })
+      .catch(function (x) { if (w) w.close(); toast(x.message, true); });
+  }
+
+  function delDoc(b, id) {
+    if (!confirm("Retirer ce document ? Les étudiants ne le verront plus.")) return;
+    b.disabled = true;
+    api("DELETE", "/professeurs/documents/" + id)
+      .then(loadDash).then(function () { renderApp(); toast("Document retiré"); })
+      .catch(function (x) { b.disabled = false; toast(x.message, true); });
+  }
+
+  // ================= DÉMARRAGE =================
+  function loadDash() { return api("GET", "/professeurs/me/dashboard").then(function (d) { S.dash = d; }); }
+
+  function route() {
+    var s = S.me.status;
+    if (s === "none") return viewNotProf(false);
+    if (s !== "active") return viewNotProf(true);
+    root.classList.remove("is-solo");
+    el("page").innerHTML = '<div class="nv-page-inner"><div class="nv-skel"></div><div class="nv-skel"></div><div class="nv-skel" style="height:120px"></div></div>';
+    return loadDash().then(renderApp).catch(function (x) { setPage(empty("Espace indisponible", esc(x.message)), true); });
+  }
+
+  function boot() {
+    if (!S.token) { viewLoggedOut(); return; }
+    setPage('<div class="nv-skel" style="margin-top:20px"></div><div class="nv-skel"></div>', true);
+    api("GET", "/professeurs/me").then(function (m) { S.me = m; }).then(route)
+      .catch(function (x) { if (x.status === 401) { S.token = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); } else setPage(empty("Erreur", esc(x.message)), true); });
+  }
+  S.token = load(CONFIG.TOKEN_KEY);
+  boot();
+})();
+</script>

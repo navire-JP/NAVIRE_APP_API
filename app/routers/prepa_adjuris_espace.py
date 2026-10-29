@@ -76,6 +76,7 @@ from app.core.prepa_adjuris_config import (
     matiere_niveau,
 )
 from app.services.prepa_adjuris_facturation import resynchroniser_matieres
+from app.services.professeurs import groupes_de_l_etudiant, ressource_visible
 from app.routers.auth import get_current_user
 from app.routers.admin import verify_admin_code
 from app.bot_discord.role_sync import (
@@ -163,6 +164,7 @@ def _serialize_ressource(r: PrepaAdjurisRessource) -> dict:
         "size_bytes": r.size_bytes,
         "ordre": r.ordre,
         "is_published": r.is_published,
+        "classe_id": r.classe_id,
         "created_at": r.created_at.isoformat() if r.created_at else None,
     }
 
@@ -234,6 +236,10 @@ def mon_espace_adjuris(
         )
         .order_by(PrepaAdjurisRessource.ordre, PrepaAdjurisRessource.id)
     ).scalars().all()
+
+    # Documents des chargés de TD : seulement ceux du groupe de l'étudiant.
+    groupes = groupes_de_l_etudiant(db, user.id)
+    ressources = [r for r in ressources if ressource_visible(r, groupes)]
 
     par_matiere: dict[str, list] = {}
     methodo = []
@@ -318,6 +324,8 @@ def telecharger_ressource(
         # Ressource de matière : réservée aux inscrits de cette matière.
         if r.matiere_key not in actives:
             raise HTTPException(status_code=403, detail="Matière non débloquée.")
+        if not ressource_visible(r, groupes_de_l_etudiant(db, user.id)):
+            raise HTTPException(status_code=403, detail="Document réservé à un autre groupe.")
     elif r.niveau not in niveaux:
         # Méthodo : réservée aux étudiants du niveau.
         raise HTTPException(status_code=403, detail="Niveau non autorisé.")

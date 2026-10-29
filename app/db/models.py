@@ -1398,6 +1398,12 @@ class PrepaAdjurisEnrollment(Base):
     source: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # "stripe" (paiement) | "admin" (accès accordé à la main) | NULL (legacy)
 
+    classe_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_classes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Groupe de la matière, choisi dans la console. NULL = premier groupe
+    # actif de la matière (voir app/services/professeurs.py).
+
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Échéance d'un accès accordé à la main (source="admin"). NULL pour un
     # accès payé (Stripe) — celui-ci n'expire que par annulation/impayé.
@@ -1431,6 +1437,15 @@ class PrepaAdjurisRessource(Base):
 
     ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Déposée par un chargé de TD pour son groupe (espace /professeurs) :
+    # seuls les étudiants de ce groupe la voient. NULL = toute la matière.
+    classe_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_classes.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    uploaded_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -1972,3 +1987,99 @@ class LibProgress(Base):
     last_attempt_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
+
+# ============================================================
+# Professeurs (chargés de TD) — espace /professeurs
+# ============================================================
+# Règles et calculs : app/services/professeurs.py.
+
+class PrepaAdjurisClasse(Base):
+    """
+    Groupe d'étudiants d'une matière AdJuris, avec son salon Discord et ses
+    liens. Une matière peut avoir plusieurs groupes ; un étudiant sans groupe
+    choisi est dans le premier groupe actif de sa matière.
+    """
+    __tablename__ = "prepa_adjuris_classes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    matiere_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    nom: Mapped[str] = mapped_column(String(120), nullable=False)
+
+    discord_url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    # Autres liens du groupe : [{"label": "Drive", "url": "https://…"}]
+    liens: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class PrepaAdjurisProfesseur(Base):
+    """
+    Professeur attaché par un admin dans la console. Une ligne par compte.
+    status : active | suspendu (plus d'accès à l'espace, affectations gardées).
+    """
+    __tablename__ = "prepa_adjuris_professeurs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
+
+    grade: Mapped[str] = mapped_column(String(64), default="ChargéTD", nullable=False)
+    prenom: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    nom: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False, index=True)
+
+    created_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+    affectations: Mapped[list["PrepaAdjurisAffectation"]] = relationship(
+        "PrepaAdjurisAffectation",
+        back_populates="professeur",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class PrepaAdjurisAffectation(Base):
+    """
+    Un professeur sur un groupe, avec sa rémunération. Par séance du groupe :
+    remu_seance_cents + remu_etudiant_cents × étudiants inscrits.
+    """
+    __tablename__ = "prepa_adjuris_affectations"
+    __table_args__ = (
+        UniqueConstraint("professeur_id", "classe_id", name="uq_prepa_adjuris_affectation"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    professeur_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_professeurs.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    classe_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_classes.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    remu_seance_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    remu_etudiant_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    professeur: Mapped["PrepaAdjurisProfesseur"] = relationship(
+        "PrepaAdjurisProfesseur", back_populates="affectations"
+    )
+    classe: Mapped["PrepaAdjurisClasse"] = relationship("PrepaAdjurisClasse")

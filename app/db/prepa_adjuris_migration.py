@@ -153,6 +153,14 @@ _STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_inscriptions_created_at ON prepa_adjuris_inscriptions (created_at)",
     # Téléphone, saisi sur la page de paiement Stripe (octobre 2026).
     "ALTER TABLE prepa_adjuris_inscriptions ADD COLUMN IF NOT EXISTS telephone VARCHAR(30)",
+
+    # ── Professeurs : groupes (prepa_adjuris_classes, créée par create_all) ──
+    # Groupe de l'étudiant, et ressources déposées par un chargé de TD.
+    "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS classe_id INTEGER REFERENCES prepa_adjuris_classes (id) ON DELETE SET NULL",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_enrollments_classe_id ON prepa_adjuris_enrollments (classe_id)",
+    "ALTER TABLE prepa_adjuris_ressources ADD COLUMN IF NOT EXISTS classe_id INTEGER REFERENCES prepa_adjuris_classes (id) ON DELETE CASCADE",
+    "ALTER TABLE prepa_adjuris_ressources ADD COLUMN IF NOT EXISTS uploaded_by_id INTEGER REFERENCES users (id) ON DELETE SET NULL",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_ressources_classe_id ON prepa_adjuris_ressources (classe_id)",
 ]
 
 

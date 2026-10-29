@@ -47,6 +47,7 @@ from app.services.prepa_adjuris_facturation import job_facturation_adjuris
 from app.routers.navire import router as navire_router
 from app.routers.ambassadors import router as ambassadors_router
 from app.routers.lib import router as lib_router
+from app.routers.professeurs import router as professeurs_router
 # ============================================================
 # MEOLES — import isolé
 # ============================================================
@@ -165,6 +166,25 @@ scheduler.add_job(
     id="expire_deepwork_sessions",
     replace_existing=True,
 )
+
+# ============================================================
+# Professeurs — groupes par défaut
+# ============================================================
+
+def _creer_groupes_professeurs() -> None:
+    """Groupes AdJuris par défaut (un par matière, avec son salon Discord)."""
+    from app.services.professeurs import creer_groupes_par_defaut
+
+    db = SessionLocal()
+    try:
+        n = creer_groupes_par_defaut(db)
+        if n:
+            print(f"✅ {n} groupes professeurs créés")
+    except Exception as exc:  # ne doit jamais empêcher le démarrage
+        print(f"⚠️  Groupes professeurs non créés : {exc}")
+    finally:
+        db.close()
+
 
 # ============================================================
 # Discord bot — thread daemon
@@ -290,6 +310,9 @@ async def lifespan(app: FastAPI):
     print("🚀 Startup: running lib migration...")
     run_lib_migration()
 
+    print("🚀 Startup: creating default professor groups...")
+    _creer_groupes_professeurs()
+
     print("🚀 Startup: starting scheduler...")
     scheduler.start()
 
@@ -348,6 +371,7 @@ app.include_router(prepa_adjuris_agenda_router)
 app.include_router(navire_router)
 app.include_router(ambassadors_router)
 app.include_router(lib_router)
+app.include_router(professeurs_router)
 
 # ============================================================
 # MEOLES — Routers
