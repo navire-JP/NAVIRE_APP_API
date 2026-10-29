@@ -540,7 +540,7 @@
     html += '<div class="nv-group-label">Tes groupes</div>';
     d.classes.forEach(function (c) {
       html += '<div class="nv-card"><div class="nv-class-head"><div><div class="nv-card-title">' + esc(c.nom) + '</div>' +
-        '<div class="nv-card-sub" style="margin:0">' + esc(c.matiere_label) + ' · ' + c.etudiants.length + ' étudiant' + (c.etudiants.length > 1 ? 's' : '') +
+        '<div class="nv-card-sub" style="margin:0">' + (c.nom !== c.matiere_label ? esc(c.matiere_label) + ' · ' : '') + c.etudiants.length + ' étudiant' + (c.etudiants.length > 1 ? 's' : '') +
         ' · ' + c.documents.length + ' document' + (c.documents.length > 1 ? 's' : '') + '</div></div>' + discordBtn(c) + '</div>' +
         (c.liens && c.liens.length ? '<div class="nv-class-meta">' + liens(c) + '</div>' : '') + '</div>';
     });
@@ -556,9 +556,10 @@
       var pr = c.previsionnel;
       html += '<div class="nv-card"><div class="nv-class-head"><div>' +
         '<div class="nv-card-title">' + esc(c.nom) + '</div>' +
-        '<div class="nv-card-sub" style="margin:0">' + esc(c.matiere_label) + '</div></div>' + discordBtn(c) + '</div>' +
+        (c.nom !== c.matiere_label ? '<div class="nv-card-sub" style="margin:0">' + esc(c.matiere_label) + '</div>' : '') +
+        '</div>' + discordBtn(c) + '</div>' +
         '<div class="nv-stats" style="margin:14px 0 0">' + stat("Étudiants", c.etudiants.length) + stat("Documents", c.documents.length) +
-        stat("Séances à venir", pr.seances_a_venir) + stat("Par séance", eur(pr.par_seance_cents)) + '</div>' +
+        stat("Séances à venir", pr.seances_a_venir) + stat("À venir", eur(pr.a_venir_cents)) + '</div>' +
         (c.liens && c.liens.length ? '<div class="nv-group-label" style="margin-top:14px">Liens</div><div class="nv-share">' + liens(c) + '</div>' : '') +
         '<div class="nv-actions">' +
         '<button class="nv-chip" data-act="see-students" data-id="' + c.id + '">Voir les étudiants</button>' +
@@ -673,7 +674,7 @@
       if (p.remu_seance_cents) parts.push(eur(p.remu_seance_cents) + " par séance");
       if (p.remu_etudiant_cents) parts.push(eur(p.remu_etudiant_cents) + " par étudiant et par séance");
       html += '<div class="nv-card"><div class="nv-card-title">' + esc(c.nom) + '</div>' +
-        '<div class="nv-card-sub">' + (parts.join(" + ") || "Rémunération non renseignée") + ' · ' + c.etudiants.length + ' étudiant' + (c.etudiants.length > 1 ? 's' : '') + '</div>' +
+        '<div class="nv-card-sub">' + (parts.join(" + ") || (p.mois.some(function (m) { return m.fixe_cents !== null; }) ? "Montants fixés par l'équipe NAVIRE" : "Rémunération en cours de définition par l'équipe NAVIRE")) + ' · ' + c.etudiants.length + ' étudiant' + (c.etudiants.length > 1 ? 's' : '') + '</div>' +
         '<div class="nv-stats" style="margin:0">' + stat("Séances faites", p.seances_passees) + stat("À venir", p.seances_a_venir) +
         stat("Déjà gagné", eur(p.realise_cents), true) + stat("Prévu", eur(p.a_venir_cents)) + '</div></div>';
     });
