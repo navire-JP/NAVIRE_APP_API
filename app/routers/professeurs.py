@@ -29,8 +29,15 @@ Console (auth NAVIRE, is_admin) :
   PATCH  /professeurs/admin/{id}                  (grade, nom, statut)
   DELETE /professeurs/admin/{id}
   POST   /professeurs/admin/{id}/affectations     (ajouter un groupe)
-  PATCH  /professeurs/admin/affectations/{id}     (rémunération)
+  PATCH  /professeurs/admin/affectations/{id}     (taux de rémunération)
   DELETE /professeurs/admin/affectations/{id}
+  GET    /professeurs/admin/remunerations?mois=   (tableau de pilotage)
+  PUT    /professeurs/admin/remunerations         (montant fixé d'un mois, note)
+  POST   /professeurs/admin/remunerations/verser  (virement fait : montant figé)
+  POST   /professeurs/admin/remunerations/annuler-versement
+
+La rémunération ne passe pas par Stripe : la console calcule et pilote, le
+virement est fait à la main puis marqué « versé ».
 """
 
 from __future__ import annotations
@@ -38,7 +45,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File as FastAPIFile, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File as FastAPIFile, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
@@ -51,6 +58,7 @@ from app.db.models import (
     PrepaAdjurisClasse,
     PrepaAdjurisEnrollment,
     PrepaAdjurisProfesseur,
+    PrepaAdjurisRemuneration,
     PrepaAdjurisRessource,
     User,
 )
@@ -171,6 +179,7 @@ def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depe
             "etudiants": sum(len(c["etudiants"]) for c in classes),
             "documents": sum(len(c["documents"]) for c in classes),
             "realise_cents": sum(c["previsionnel"]["realise_cents"] for c in classes),
+            "verse_cents": sum(c["previsionnel"]["verse_cents"] for c in classes),
             "a_venir_cents": sum(c["previsionnel"]["a_venir_cents"] for c in classes),
             "total_cents": sum(c["previsionnel"]["total_cents"] for c in classes),
             "mois": sorted(mois.values(), key=lambda m: m["mois"]),
@@ -490,6 +499,20 @@ def _affecter(db: Session, p: PrepaAdjurisProfesseur, payload: AffectationIn) ->
     return a
 
 
+def _refuser_si_verse(db: Session, affectation_ids: list[int]) -> None:
+    """Les versements sont l'historique des virements : on ne les efface pas."""
+    if affectation_ids and db.execute(
+        select(PrepaAdjurisRemuneration.id).where(
+            PrepaAdjurisRemuneration.affectation_id.in_(affectation_ids),
+            PrepaAdjurisRemuneration.verse_le.is_not(None),
+        ).limit(1)
+    ).first():
+        raise HTTPException(
+            400,
+            detail="Des mois ont déjà été versés : suspends le professeur ou mets ses taux à 0 plutôt que de supprimer.",
+        )
+
+
 @router.get("/admin/list")
 def admin_list(db: Session = Depends(get_db), _: User = Depends(require_admin)):
     par_matiere = svc.groupes_par_matiere(db)
@@ -545,10 +568,152 @@ def admin_delete_affectation(affectation_id: int, db: Session = Depends(get_db),
     a = db.get(PrepaAdjurisAffectation, affectation_id)
     if a is None:
         raise HTTPException(404, detail="Affectation introuvable.")
+    _refuser_si_verse(db, [a.id])
     p = a.professeur
     p.affectations.remove(a)
     db.commit()
     return _prof_admin_row(db, p)
+
+
+# ============================================================
+# Console — pilotage des rémunérations (virements manuels)
+# ============================================================
+
+def _tableau(db: Session) -> list[dict]:
+    """Une ligne par affectation et par mois, avec le calculé, le fixé et le
+    montant retenu."""
+    par_matiere = svc.groupes_par_matiere(db)
+    affectations = db.execute(
+        select(PrepaAdjurisAffectation).order_by(PrepaAdjurisAffectation.professeur_id, PrepaAdjurisAffectation.classe_id)
+    ).scalars().all()
+    lignes = svc.pilotage(db, [a.id for a in affectations])
+    out = []
+    for a in affectations:
+        p, c = a.professeur, a.classe
+        inscriptions = svc.inscriptions_du_groupe(db, c, par_matiere) if c.is_active else []
+        prev = svc.previsionnel(db, a, inscriptions, lignes=lignes)
+        for m in prev["mois"]:
+            out.append({
+                "affectation_id": a.id,
+                "professeur_id": p.id,
+                "professeur": f"{p.prenom} {p.nom}".strip() or (p.user.username if p.user else ""),
+                "email": p.user.email if p.user else None,
+                "professeur_status": p.status,
+                "classe_id": c.id,
+                "classe": c.nom,
+                "matiere_key": c.matiere_key,
+                "nb_etudiants": len(inscriptions),
+                **m,
+            })
+    return out
+
+
+@router.get("/admin/remunerations")
+def admin_remunerations(
+    mois: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    tout = _tableau(db)
+    items = [l for l in tout if mois is None or l["mois"] == mois]
+    return {
+        "mois": sorted({l["mois"] for l in tout}),
+        "items": items,
+        "totaux": {
+            "calcule_cents": sum(l["calcule_cents"] for l in items),
+            "montant_cents": sum(l["montant_cents"] for l in items),
+            "verse_cents": sum(l["montant_cents"] for l in items if l["verse_le"]),
+            "a_verser_cents": sum(l["montant_cents"] for l in items if not l["verse_le"]),
+        },
+    }
+
+
+class RemunerationIn(BaseModel):
+    affectation_id: int
+    mois: str = Field(..., pattern=r"^\d{4}-\d{2}$")
+    montant_cents: int | None = Field(None, ge=0, le=100_000_000, description="NULL : revenir au montant calculé")
+    note: str | None = Field(None, max_length=300)
+
+
+class LigneIn(BaseModel):
+    affectation_id: int
+    mois: str = Field(..., pattern=r"^\d{4}-\d{2}$")
+
+
+class VerserIn(BaseModel):
+    lignes: list[LigneIn] = Field(..., min_length=1, max_length=500)
+    reference: str | None = Field(None, max_length=120)
+
+
+def _ligne(db: Session, affectation_id: int, mois: str, creer: bool = True) -> PrepaAdjurisRemuneration | None:
+    if db.get(PrepaAdjurisAffectation, affectation_id) is None:
+        raise HTTPException(404, detail="Affectation introuvable.")
+    r = db.execute(
+        select(PrepaAdjurisRemuneration).where(
+            PrepaAdjurisRemuneration.affectation_id == affectation_id,
+            PrepaAdjurisRemuneration.mois == mois,
+        )
+    ).scalar_one_or_none()
+    if r is None and creer:
+        r = PrepaAdjurisRemuneration(affectation_id=affectation_id, mois=mois)
+        db.add(r)
+    return r
+
+
+def _ligne_du_tableau(db: Session, affectation_id: int, mois: str) -> dict | None:
+    return next((l for l in _tableau(db) if l["affectation_id"] == affectation_id and l["mois"] == mois), None)
+
+
+@router.put("/admin/remunerations")
+def admin_fixer_remuneration(payload: RemunerationIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Fixe le montant d'un mois (remplace le calcul) et/ou sa note.
+    montant_cents: null revient au montant calculé."""
+    r = _ligne(db, payload.affectation_id, payload.mois)
+    if "montant_cents" in payload.model_fields_set:
+        if r.verse_le:
+            raise HTTPException(400, detail="Mois déjà versé : annule le versement avant de changer le montant.")
+        r.montant_cents = payload.montant_cents
+    if payload.note is not None:
+        r.note = payload.note.strip()
+    r.updated_by_id = admin.id
+    db.commit()
+    return _ligne_du_tableau(db, payload.affectation_id, payload.mois)
+
+
+@router.post("/admin/remunerations/verser")
+def admin_verser(payload: VerserIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """À appeler après le virement : le montant retenu est figé et le mois
+    marqué versé. Les mois déjà versés sont ignorés."""
+    tableau = {(l["affectation_id"], l["mois"]): l for l in _tableau(db)}
+    now = svc.utcnow()
+    verses, ignores = [], []
+    for l in payload.lignes:
+        cle = (l.affectation_id, l.mois)
+        t = tableau.get(cle)
+        if t is None or t["verse_le"]:
+            ignores.append({"affectation_id": l.affectation_id, "mois": l.mois})
+            continue
+        r = _ligne(db, *cle)
+        r.montant_cents = t["montant_cents"]
+        r.verse_le = now
+        r.reference = (payload.reference or "").strip() or None
+        r.updated_by_id = admin.id
+        verses.append({"affectation_id": l.affectation_id, "mois": l.mois, "montant_cents": t["montant_cents"]})
+    db.commit()
+    return {"verses": verses, "ignores": ignores, "total_cents": sum(v["montant_cents"] for v in verses)}
+
+
+@router.post("/admin/remunerations/annuler-versement")
+def admin_annuler_versement(payload: LigneIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Le mois redevient à verser ; le montant reste fixé à ce qui avait été versé."""
+    r = _ligne(db, payload.affectation_id, payload.mois, creer=False)
+    if r is None or not r.verse_le:
+        raise HTTPException(400, detail="Ce mois n'est pas marqué versé.")
+    r.verse_le = None
+    r.reference = None
+    r.updated_by_id = admin.id
+    db.commit()
+    return _ligne_du_tableau(db, payload.affectation_id, payload.mois)
 
 
 @router.patch("/admin/{professeur_id}")
@@ -574,6 +739,7 @@ def admin_delete(professeur_id: int, db: Session = Depends(get_db), _: User = De
     """Détache le professeur. Ses documents restent aux étudiants ; le compte
     reprend le grade de départ."""
     p = _prof_or_404(db, professeur_id)
+    _refuser_si_verse(db, [a.id for a in p.affectations])
     if p.user and p.user.grade == p.grade:
         p.user.grade = "Primo"
     db.delete(p)

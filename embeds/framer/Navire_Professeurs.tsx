@@ -1,6 +1,10 @@
 // Navire_Professeurs.tsx
 // Section « Professeurs » de la console admin (Navire_AdminConsole.tsx).
 //
+// Rémunérations : tableau de pilotage de tous les professeurs, mois par mois
+// (montant calculé, montant fixé à la main, versé). Aucun lien avec Stripe :
+// le virement se fait à la main, puis « Marquer versé » fige le montant.
+//
 // Professeurs : attacher un compte NAVIRE (grade « ChargéTD » par défaut), lui
 // donner un ou plusieurs groupes avec sa rémunération (par séance et par
 // étudiant), suspendre, détacher. Groupes : un ou plusieurs par matière, avec
@@ -293,7 +297,26 @@ const INPUT: React.CSSProperties = {
 
 
 // ── Types ──
-type Vue = "professeurs" | "groupes"
+type Vue = "professeurs" | "groupes" | "remunerations"
+
+interface LigneRemu {
+    affectation_id: number
+    professeur_id: number
+    professeur: string
+    email: string | null
+    professeur_status: string
+    classe: string
+    matiere_key: string
+    nb_etudiants: number
+    mois: string
+    seances: number
+    calcule_cents: number
+    fixe_cents: number | null
+    montant_cents: number
+    note: string
+    verse_le: string | null
+    reference: string | null
+}
 
 interface Lien {
     label: string
@@ -529,7 +552,7 @@ function ProfesseurRow({
                             marginTop: 4,
                         }}
                     >
-                        Groupes et rémunération (€ par séance + € par étudiant et par séance)
+                        Groupes et taux du prévisionnel (€ par séance + € par étudiant et par séance) · montants du mois ajustables dans « Rémunérations »
                     </div>
                     {p.affectations.length === 0 && (
                         <div style={{ fontSize: 10, fontFamily: mono, color: t1 }}>Aucun groupe.</div>
@@ -1075,6 +1098,335 @@ function NouveauGroupe({ onCreated, setMsg }: { onCreated: () => void; setMsg: (
     )
 }
 
+// ── Rémunérations (pilotage, virements manuels) ──
+
+function moisFr(cle: string): string {
+    const [a, m] = cle.split("-").map(Number)
+    return new Date(a, m - 1, 1).toLocaleDateString("fr-FR", { month: "short", year: "2-digit" })
+}
+function moisCourant(): string {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
+function LigneRemuRow({
+    l,
+    coche,
+    onCoche,
+    onChanged,
+    setMsg,
+}: {
+    l: LigneRemu
+    coche: boolean
+    onCoche: () => void
+    onChanged: () => void
+    setMsg: (m: string) => void
+}) {
+    const [montant, setMontant] = React.useState(l.fixe_cents === null ? "" : versEuros(l.fixe_cents))
+    const [note, setNote] = React.useState(l.note)
+    const [busy, setBusy] = React.useState(false)
+    React.useEffect(() => {
+        setMontant(l.fixe_cents === null ? "" : versEuros(l.fixe_cents))
+        setNote(l.note)
+    }, [l.fixe_cents, l.note])
+
+    const modifie = montant !== (l.fixe_cents === null ? "" : versEuros(l.fixe_cents)) || note !== l.note
+
+    async function appel(chemin: string, method: string, corps: any, ok: string) {
+        setBusy(true)
+        try {
+            await api(chemin, method, corps)
+            setMsg(`✓ ${ok}`)
+            onChanged()
+        } catch (e: any) {
+            setMsg(`ERR: ${e.message}`)
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const qui = `${l.professeur} · ${l.classe} · ${moisFr(l.mois)}`
+    return (
+        <div
+            style={{
+                display: "grid",
+                gridTemplateColumns: "16px 1fr 62px 70px 62px 56px",
+                gap: 6,
+                alignItems: "center",
+                padding: "6px 14px",
+                borderBottom: `1px solid rgba(255,255,255,0.04)`,
+                fontSize: 10,
+                fontFamily: mono,
+                color: t0,
+            }}
+        >
+            <input type="checkbox" checked={coche} disabled={!!l.verse_le} onChange={onCoche} />
+            <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontFamily: "inherit", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                    {l.professeur}
+                    <span style={{ color: t1 }}> · {MATIERE_LABELS[l.matiere_key] || l.classe}</span>
+                </div>
+                <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 2 }}>
+                    <span style={{ color: t1, flexShrink: 0 }}>
+                        {moisFr(l.mois)} · {l.seances} séance(s) · {l.nb_etudiants} étud.
+                    </span>
+                    <input
+                        value={note}
+                        disabled={busy}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder="note…"
+                        style={{ ...INPUT, height: 20, flex: 1, minWidth: 40, fontSize: 9 }}
+                    />
+                </div>
+            </div>
+            <span style={{ color: t1, textAlign: "right" as const }} title="Montant calculé">
+                {euros(l.calcule_cents)}
+            </span>
+            <input
+                value={montant}
+                disabled={busy || !!l.verse_le}
+                onChange={(e) => setMontant(e.target.value)}
+                placeholder="calculé"
+                title="Montant fixé (vide = montant calculé)"
+                style={{ ...INPUT, width: "100%", textAlign: "right" as const, borderColor: l.fixe_cents !== null ? b2 : b0 }}
+            />
+            <span
+                style={{ textAlign: "right" as const, fontWeight: 700, color: l.verse_le ? VERT.color : t0 }}
+                title={l.verse_le ? `Versé le ${fmtDate(l.verse_le)}${l.reference ? ` · ${l.reference}` : ""}` : "Montant retenu"}
+            >
+                {euros(l.montant_cents)}
+            </span>
+            {modifie ? (
+                <Btn
+                    primary
+                    disabled={busy}
+                    onClick={() =>
+                        appel(
+                            "/professeurs/admin/remunerations",
+                            "PUT",
+                            {
+                                affectation_id: l.affectation_id,
+                                mois: l.mois,
+                                montant_cents: montant.trim() === "" ? null : versCentimes(montant),
+                                note,
+                            },
+                            `Montant enregistré · ${qui}`
+                        )
+                    }
+                >
+                    OK
+                </Btn>
+            ) : l.verse_le ? (
+                <Btn
+                    disabled={busy}
+                    onClick={() =>
+                        confirm(`Annuler le versement · ${qui} ?`) &&
+                        appel(
+                            "/professeurs/admin/remunerations/annuler-versement",
+                            "POST",
+                            { affectation_id: l.affectation_id, mois: l.mois },
+                            `Versement annulé · ${qui}`
+                        )
+                    }
+                    style={{ color: VERT.color }}
+                >
+                    VERSÉ
+                </Btn>
+            ) : (
+                <Tag color={l.fixe_cents !== null ? JAUNE.color : t1} border={l.fixe_cents !== null ? JAUNE.border : b0}>
+                    {l.fixe_cents !== null ? "FIXÉ" : "CALC."}
+                </Tag>
+            )}
+        </div>
+    )
+}
+
+function RemunerationsPanel({ tick, setMsg }: { tick: number; setMsg: (m: string) => void }) {
+    const [mois, setMois] = React.useState<string>(moisCourant())
+    const [liste, setListe] = React.useState<string[]>([])
+    const [items, setItems] = React.useState<LigneRemu[]>([])
+    const [totaux, setTotaux] = React.useState<any>({})
+    const [loading, setLoading] = React.useState(true)
+    const [sel, setSel] = React.useState<string[]>([])
+    const [reference, setReference] = React.useState("")
+    const [busy, setBusy] = React.useState(false)
+    const [version, setVersion] = React.useState(0)
+
+    React.useEffect(() => {
+        setLoading(true)
+        setSel([])
+        api(`/professeurs/admin/remunerations${mois ? `?mois=${mois}` : ""}`)
+            .then((d) => {
+                setListe(d?.mois || [])
+                setItems(d?.items || [])
+                setTotaux(d?.totaux || {})
+            })
+            .catch((e) => setMsg(`ERR: ${e.message}`))
+            .finally(() => setLoading(false))
+    }, [mois, tick, version])
+
+    const recharger = () => setVersion((v) => v + 1)
+    const cle = (l: LigneRemu) => `${l.affectation_id}|${l.mois}`
+    const aVerser = items.filter((l) => !l.verse_le && l.montant_cents > 0)
+    const totalSel = items.filter((l) => sel.includes(cle(l))).reduce((t, l) => t + l.montant_cents, 0)
+    const moisAffiches = Array.from(new Set([...liste, moisCourant()])).sort()
+
+    async function verser() {
+        if (!confirm(`Confirmer le virement de ${sel.length} ligne(s) · ${euros(totalSel)} ?`)) return
+        setBusy(true)
+        try {
+            const r = await api("/professeurs/admin/remunerations/verser", "POST", {
+                lignes: sel.map((k) => {
+                    const [a, m] = k.split("|")
+                    return { affectation_id: Number(a), mois: m }
+                }),
+                reference: reference.trim() || null,
+            })
+            setMsg(`✓ ${r.verses.length} ligne(s) marquée(s) versée(s) · ${euros(r.total_cents)}`)
+            setReference("")
+            recharger()
+        } catch (e: any) {
+            setMsg(`ERR: ${e.message}`)
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    function exporter() {
+        const lignes = [["Mois", "Professeur", "Email", "Groupe", "Séances", "Étudiants", "Calculé", "Fixé", "Retenu", "Versé le", "Référence", "Note"]]
+        items.forEach((l) =>
+            lignes.push([
+                l.mois, l.professeur, l.email || "", l.classe, String(l.seances), String(l.nb_etudiants),
+                versEuros(l.calcule_cents), l.fixe_cents === null ? "" : versEuros(l.fixe_cents),
+                versEuros(l.montant_cents), l.verse_le ? fmtDate(l.verse_le) : "", l.reference || "", l.note,
+            ])
+        )
+        const csv = lignes.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n")
+        const a = document.createElement("a")
+        a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }))
+        a.download = `remunerations-professeurs-${mois || "tout"}.csv`
+        a.click()
+    }
+
+    return (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <div
+                style={{
+                    display: "flex",
+                    gap: 4,
+                    padding: "6px 14px",
+                    borderBottom: `1px solid ${b0}`,
+                    overflowX: "auto" as const,
+                    flexShrink: 0,
+                }}
+            >
+                {moisAffiches.map((m) => (
+                    <MiniBtn key={m} actif={mois === m} onClick={() => setMois(m)}>
+                        {moisFr(m)}
+                    </MiniBtn>
+                ))}
+                <MiniBtn actif={mois === ""} onClick={() => setMois("")}>
+                    Tout
+                </MiniBtn>
+            </div>
+            <div
+                style={{
+                    display: "flex",
+                    gap: 12,
+                    padding: "6px 14px",
+                    borderBottom: `1px solid ${b0}`,
+                    fontSize: 10,
+                    fontFamily: mono,
+                    color: t1,
+                    flexShrink: 0,
+                    flexWrap: "wrap" as const,
+                    alignItems: "center",
+                }}
+            >
+                <span>calculé {euros(totaux.calcule_cents || 0)}</span>
+                <span style={{ color: t0 }}>retenu {euros(totaux.montant_cents || 0)}</span>
+                <span style={{ color: (totaux.a_verser_cents || 0) > 0 ? "#FFD166" : t1 }}>
+                    à verser {euros(totaux.a_verser_cents || 0)}
+                </span>
+                <span style={{ color: VERT.color }}>versé {euros(totaux.verse_cents || 0)}</span>
+                <span style={{ flex: 1 }} />
+                <Btn onClick={exporter} disabled={!items.length}>
+                    CSV
+                </Btn>
+            </div>
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "16px 1fr 62px 70px 62px 56px",
+                    gap: 6,
+                    padding: "5px 14px",
+                    borderBottom: `1px solid ${b0}`,
+                    fontSize: 8,
+                    fontFamily: mono,
+                    color: t2,
+                    textTransform: "uppercase" as const,
+                    letterSpacing: 0.8,
+                    flexShrink: 0,
+                }}
+            >
+                <input
+                    type="checkbox"
+                    checked={aVerser.length > 0 && sel.length === aVerser.length}
+                    onChange={() => setSel(sel.length === aVerser.length ? [] : aVerser.map(cle))}
+                />
+                <span>Professeur · groupe</span>
+                <span style={{ textAlign: "right" as const }}>Calculé</span>
+                <span style={{ textAlign: "right" as const }}>Fixé €</span>
+                <span style={{ textAlign: "right" as const }}>Retenu</span>
+                <span />
+            </div>
+            {loading ? (
+                <div style={VIDE}>Chargement…</div>
+            ) : items.length === 0 ? (
+                <div style={VIDE}>Rien à rémunérer sur ce mois.</div>
+            ) : (
+                <div style={{ flex: 1, overflowY: "auto" }}>
+                    {items.map((l) => (
+                        <LigneRemuRow
+                            key={cle(l)}
+                            l={l}
+                            coche={sel.includes(cle(l))}
+                            onCoche={() => setSel(sel.includes(cle(l)) ? sel.filter((x) => x !== cle(l)) : [...sel, cle(l)])}
+                            onChanged={recharger}
+                            setMsg={setMsg}
+                        />
+                    ))}
+                </div>
+            )}
+            {sel.length > 0 && (
+                <div
+                    style={{
+                        display: "flex",
+                        gap: 6,
+                        padding: "8px 14px",
+                        borderTop: `1px solid ${b0}`,
+                        alignItems: "center",
+                        flexShrink: 0,
+                    }}
+                >
+                    <span style={{ fontSize: 10, fontFamily: mono, color: t0 }}>
+                        {sel.length} ligne(s) · {euros(totalSel)}
+                    </span>
+                    <input
+                        value={reference}
+                        onChange={(e) => setReference(e.target.value)}
+                        placeholder="Référence du virement"
+                        style={{ ...INPUT, flex: 1 }}
+                    />
+                    <Btn primary disabled={busy} onClick={verser}>
+                        Marquer versé
+                    </Btn>
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ── Section ──
 
 export function ProfesseursSection() {
@@ -1130,17 +1482,24 @@ export function ProfesseursSection() {
                     <MiniBtn actif={vue === "groupes"} onClick={() => setVue("groupes")}>
                         Groupes ({groupes.length})
                     </MiniBtn>
+                    <MiniBtn actif={vue === "remunerations"} onClick={() => setVue("remunerations")}>
+                        Rémunérations
+                    </MiniBtn>
                 </span>
                 <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Rechercher…"
-                        style={{ ...INPUT, width: 110, height: 28, fontSize: 12 }}
-                    />
-                    <Btn onClick={() => setAjout((v) => !v)} style={{ fontSize: 10, padding: "4px 10px" }}>
-                        {ajout ? "×" : "+"}
-                    </Btn>
+                    {vue !== "remunerations" && (
+                        <input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Rechercher…"
+                            style={{ ...INPUT, width: 110, height: 28, fontSize: 12 }}
+                        />
+                    )}
+                    {vue !== "remunerations" && (
+                        <Btn onClick={() => setAjout((v) => !v)} style={{ fontSize: 10, padding: "4px 10px" }}>
+                            {ajout ? "×" : "+"}
+                        </Btn>
+                    )}
                     <Btn onClick={recharger} style={{ fontSize: 10, padding: "4px 10px" }}>
                         ↻
                     </Btn>
@@ -1168,14 +1527,16 @@ export function ProfesseursSection() {
 
             <Msg text={msg} />
 
-            {ajout &&
+            {vue === "remunerations" ? (
+                <RemunerationsPanel tick={tick} setMsg={setMsg} />
+            ) : ajout &&
                 (vue === "professeurs" ? (
                     <NouveauProfesseur groupes={groupes} onCreated={recharger} setMsg={setMsg} />
                 ) : (
                     <NouveauGroupe onCreated={recharger} setMsg={setMsg} />
                 ))}
 
-            {loading ? (
+            {vue === "remunerations" ? null : loading ? (
                 <div style={VIDE}>Chargement…</div>
             ) : vue === "professeurs" ? (
                 profsVisibles.length === 0 ? (

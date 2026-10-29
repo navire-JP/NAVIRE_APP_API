@@ -2083,3 +2083,39 @@ class PrepaAdjurisAffectation(Base):
         "PrepaAdjurisProfesseur", back_populates="affectations"
     )
     classe: Mapped["PrepaAdjurisClasse"] = relationship("PrepaAdjurisClasse")
+
+
+class PrepaAdjurisRemuneration(Base):
+    """
+    Pilotage manuel de la rémunération d'une affectation pour un mois (pas de
+    Stripe : le versement se fait par virement). montant_cents fixé par un
+    admin remplace le montant calculé ; NULL = montant calculé. Au versement,
+    le montant versé est figé dans montant_cents.
+    """
+    __tablename__ = "prepa_adjuris_remunerations"
+    __table_args__ = (
+        UniqueConstraint("affectation_id", "mois", name="uq_prepa_adjuris_remuneration"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    affectation_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_affectations.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    mois: Mapped[str] = mapped_column(String(7), nullable=False, index=True)   # AAAA-MM
+
+    montant_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    note: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+
+    verse_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reference: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    updated_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

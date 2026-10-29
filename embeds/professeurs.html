@@ -293,6 +293,7 @@
 #nv-prof .nv-month-bar i { display: block; height: 100%; border-radius: 9px; background: var(--blue); }
 #nv-prof .nv-month.is-past .nv-month-bar i { background: var(--ok); }
 #nv-prof .nv-month-amount { width: 96px; text-align: right; font-size: 13.5px; font-weight: 700; flex-shrink: 0; }
+#nv-prof .nv-month .nv-tag { min-width: 62px; justify-content: center; }
 #nv-prof .nv-month small { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4); width: 70px; flex-shrink: 0; }
 #nv-prof .nv-icon-mini { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; border: 1px solid var(--line); background: transparent; color: var(--text-3); cursor: pointer; flex-shrink: 0; transition: background .15s, color .15s; padding: 0; }
 #nv-prof .nv-icon-mini:hover { background: var(--panel-2); color: #fff; }
@@ -648,15 +649,23 @@
     var d = S.dash, t = d.totaux;
     var now = new Date(), cur = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
     var max = Math.max.apply(null, t.mois.map(function (m) { return m.montant_cents; }).concat([1]));
-    var html = head("Rémunération", "Prévisionnel calculé sur le calendrier des séances et tes étudiants inscrits. Il évolue avec les inscriptions et l'agenda.") +
-      '<div class="nv-stats" style="grid-template-columns:repeat(3,1fr)">' + stat("Déjà gagné", eur(t.realise_cents), true) + stat("À venir", eur(t.a_venir_cents)) + stat("Total prévu", eur(t.total_cents)) + '</div>';
+    // Un mois est versé quand il l'est dans tous les groupes ; ajusté si l'un d'eux a un montant fixé.
+    function monthTag(cle) {
+      var ls = [];
+      d.classes.forEach(function (c) { c.previsionnel.mois.forEach(function (m) { if (m.mois === cle) ls.push(m); }); });
+      if (ls.length && ls.every(function (m) { return m.verse_le; })) return '<span class="nv-tag ok"><i></i>versé</span>';
+      if (ls.some(function (m) { return m.fixe_cents !== null; })) return '<span class="nv-tag warn"><i></i>ajusté</span>';
+      return '<span class="nv-tag" style="visibility:hidden"><i></i>versé</span>';
+    }
+    var html = head("Rémunération", "Prévisionnel calculé sur le calendrier des séances et tes étudiants inscrits, ajusté par l'équipe NAVIRE. Versée par virement.") +
+      '<div class="nv-stats">' + stat("Déjà gagné", eur(t.realise_cents), true) + stat("Versé", eur(t.verse_cents)) + stat("À venir", eur(t.a_venir_cents)) + stat("Total prévu", eur(t.total_cents)) + '</div>';
     html += '<div class="nv-group-label">Par mois</div>';
     if (!t.mois.length) html += empty("Pas encore de séance", "Les mois apparaîtront dès que l'agenda sera saisi.");
     t.mois.forEach(function (m) {
       html += '<div class="nv-month' + (m.mois < cur ? " is-past" : "") + '"><span class="nv-month-name">' + mois(m.mois) + '</span>' +
         '<small>' + m.seances + ' séance' + (m.seances > 1 ? 's' : '') + '</small>' +
         '<span class="nv-month-bar"><i style="width:' + Math.round(m.montant_cents / max * 100) + '%"></i></span>' +
-        '<span class="nv-month-amount">' + eur(m.montant_cents) + '</span></div>';
+        '<span class="nv-month-amount">' + eur(m.montant_cents) + '</span>' + monthTag(m.mois) + '</div>';
     });
     html += '<div class="nv-group-label">Par groupe</div>';
     d.classes.forEach(function (c) {
@@ -680,7 +689,7 @@
     el("doc-count").textContent = t.documents || "";
     el("wallet").innerHTML = 'Déjà gagné<b>' + eur(t.realise_cents) + '</b>' +
       '<div class="nv-wallet-bar"><i style="width:' + (t.total_cents ? Math.round(t.realise_cents / t.total_cents * 100) : 0) + '%"></i></div>' +
-      '<div style="margin-top:6px">' + eur(t.total_cents) + ' prévus au total</div>';
+      '<div style="margin-top:6px">' + eur(t.verse_cents) + ' versés · ' + eur(t.total_cents) + ' prévus</div>';
     setView(S.view);
   }
 

@@ -68,10 +68,18 @@ Côté console, onglet « Prof. » :
   change de groupe depuis la liste des étudiants du groupe.
 - **Professeurs** : attacher un compte NAVIRE existant par son email, avec le
   grade « ChargéTD » (repris sur le compte), et un ou plusieurs groupes.
-  Rémunération par groupe : € par séance + € par étudiant et par séance
-  (défauts : `PROF_REMU_SEANCE_CENTS`, `PROF_REMU_ETUDIANT_CENTS`, 0 € et
-  10 €). Suspendre coupe l'accès à l'espace ; détacher rend au compte le grade
-  « Primo ».
+  Taux du prévisionnel par groupe : € par séance + € par étudiant et par
+  séance (0 € par défaut, `PROF_REMU_SEANCE_CENTS`, `PROF_REMU_ETUDIANT_CENTS`).
+  Suspendre coupe l'accès à l'espace ; détacher rend au compte le grade
+  « Primo » (refusé dès qu'un mois a été versé : suspendre à la place).
+- **Rémunérations** : tableau de pilotage de tous les professeurs, mois par
+  mois et groupe par groupe : montant calculé, montant fixé (saisi à la main,
+  il remplace le calcul ; vide = retour au calcul), montant retenu, note.
+  **Rien ne passe par Stripe** : on fait le virement, puis on coche les lignes
+  et « Marquer versé » (avec la référence du virement) fige le montant.
+  « VERSÉ » annule un versement. Un mois sans séance peut aussi recevoir un
+  montant (prime, rattrapage). Export CSV. Le professeur voit les montants
+  retenus, et les mois « versé » ou « ajusté ».
 
 Côté professeur : vue d'ensemble, groupes (bouton Discord, liens),
 étudiants (recherche, filtre par groupe), documents et rémunération. Le

@@ -17,6 +17,10 @@ Règles :
     facturation, dates_seances), remu_seance_cents + remu_etudiant_cents ×
     étudiants inscrits avant le début de la séance. Estimation : les
     séances passées sont comptées avec les étudiants inscrits aujourd'hui.
+  - Pilotage (console) : un montant fixé pour un mois
+    (PrepaAdjurisRemuneration) remplace le montant calculé. Aucun lien avec
+    Stripe : le versement est un virement manuel, marqué « versé » dans la
+    console, qui fige le montant.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ from app.db.models import (
     PrepaAdjurisClasse,
     PrepaAdjurisEnrollment,
     PrepaAdjurisProfesseur,
+    PrepaAdjurisRemuneration,
     PrepaAdjurisRessource,
     User,
 )
@@ -47,7 +52,7 @@ STATUTS_ETUDIANT = ("active", "payment_failed")
 
 # Rémunération proposée à l'affectation, modifiable groupe par groupe.
 REMU_SEANCE_CENTS = int(os.getenv("PROF_REMU_SEANCE_CENTS", "0"))
-REMU_ETUDIANT_CENTS = int(os.getenv("PROF_REMU_ETUDIANT_CENTS", "1000"))
+REMU_ETUDIANT_CENTS = int(os.getenv("PROF_REMU_ETUDIANT_CENTS", "0"))
 
 # Salons Discord des groupes créés au premier démarrage.
 _DISCORD_GUILD = "1131156852265201715"
@@ -183,34 +188,80 @@ def matiere_valide(key: str) -> bool:
 # Rémunération
 # ============================================================
 
+def pilotage(db: Session, affectation_ids: list[int]) -> dict[tuple[int, str], PrepaAdjurisRemuneration]:
+    """Lignes de pilotage des affectations, par (affectation_id, mois)."""
+    if not affectation_ids:
+        return {}
+    rows = db.execute(
+        select(PrepaAdjurisRemuneration).where(PrepaAdjurisRemuneration.affectation_id.in_(affectation_ids))
+    ).scalars()
+    return {(r.affectation_id, r.mois): r for r in rows}
+
+
 def previsionnel(
     db: Session,
     affectation: PrepaAdjurisAffectation,
     inscriptions: list[PrepaAdjurisEnrollment],
     maintenant: datetime | None = None,
+    lignes: dict[tuple[int, str], PrepaAdjurisRemuneration] | None = None,
 ) -> dict:
     """Gains par séance et par mois d'une affectation, jusqu'à la fin du
-    programme. `realise` = séances déjà commencées, `a_venir` = les autres."""
+    programme. `realise` = séances déjà commencées, `a_venir` = les autres.
+    Un mois au montant fixé dans la console prend ce montant : il est réparti
+    entre réalisé et à venir comme le montant calculé (au prorata), ou, si le
+    calcul donne 0, compté réalisé une fois le mois commencé."""
     maintenant = maintenant or utcnow()
     fin = fin_programme()
     debuts = [aware(e.inscrit_le or e.created_at) for e in inscriptions]
+    lignes = lignes if lignes is not None else pilotage(db, [affectation.id])
 
     mois: dict[str, dict] = {}
-    realise = a_venir = nb_passees = nb_futures = 0
+    nb_passees = nb_futures = 0
     for d in sorted(dates_seances(db, affectation.classe.matiere_key)):
         if mois_de(d) > fin:
             continue
         nb = sum(1 for x in debuts if x is None or x < d)
         montant = affectation.remu_seance_cents + affectation.remu_etudiant_cents * nb
-        m = mois.setdefault(cle_mois(mois_de(d)), {"mois": cle_mois(mois_de(d)), "seances": 0, "montant_cents": 0})
+        cle = cle_mois(mois_de(d))
+        m = mois.setdefault(cle, {"mois": cle, "seances": 0, "calcule_cents": 0, "_realise": 0})
         m["seances"] += 1
-        m["montant_cents"] += montant
+        m["calcule_cents"] += montant
         if d <= maintenant:
-            realise += montant
+            m["_realise"] += montant
             nb_passees += 1
         else:
-            a_venir += montant
             nb_futures += 1
+
+    # Mois fixés à la main sans séance au calendrier (prime, rattrapage…).
+    for (aff_id, cle), r in lignes.items():
+        if aff_id == affectation.id and cle not in mois:
+            mois[cle] = {"mois": cle, "seances": 0, "calcule_cents": 0, "_realise": 0}
+
+    en_cours = cle_mois(mois_de(maintenant))
+    realise = a_venir = 0
+    for cle in sorted(mois):
+        m = mois[cle]
+        r = lignes.get((affectation.id, cle))
+        fixe = r.montant_cents if r is not None else None
+        final = m["calcule_cents"] if fixe is None else fixe
+        if fixe is None:
+            part = m["_realise"]
+        elif m["calcule_cents"]:
+            part = round(fixe * m["_realise"] / m["calcule_cents"])
+        else:
+            part = fixe if cle <= en_cours else 0
+        if r is not None and r.verse_le:
+            part = final
+        realise += part
+        a_venir += final - part
+        m.update({
+            "fixe_cents": fixe,
+            "montant_cents": final,
+            "note": r.note if r is not None else "",
+            "verse_le": _iso(aware(r.verse_le)) if r is not None else None,
+            "reference": r.reference if r is not None else None,
+        })
+        del m["_realise"]
 
     return {
         "remu_seance_cents": affectation.remu_seance_cents,
@@ -221,7 +272,8 @@ def previsionnel(
         "realise_cents": realise,
         "a_venir_cents": a_venir,
         "total_cents": realise + a_venir,
-        "mois": list(mois.values()),
+        "verse_cents": sum(m["montant_cents"] for m in mois.values() if m["verse_le"]),
+        "mois": [mois[k] for k in sorted(mois)],
     }
 
 

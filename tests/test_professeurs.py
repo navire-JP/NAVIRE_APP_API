@@ -45,13 +45,13 @@ def base_propre(env, tmp_path, monkeypatch):
     from app.db.database import SessionLocal
     from app.db.models import (
         PrepaAdjurisAffectation, PrepaAdjurisClasse, PrepaAdjurisEnrollment,
-        PrepaAdjurisProfesseur, PrepaAdjurisRessource, PrepaAdjurisSeance,
+        PrepaAdjurisProfesseur, PrepaAdjurisRemuneration, PrepaAdjurisRessource, PrepaAdjurisSeance,
     )
     import app.routers.professeurs as r
     import app.services.professeurs as svc
 
     db = SessionLocal()
-    for m in (PrepaAdjurisAffectation, PrepaAdjurisProfesseur, PrepaAdjurisRessource, PrepaAdjurisSeance):
+    for m in (PrepaAdjurisRemuneration, PrepaAdjurisAffectation, PrepaAdjurisProfesseur, PrepaAdjurisRessource, PrepaAdjurisSeance):
         db.query(m).delete()
     db.query(PrepaAdjurisEnrollment).filter(PrepaAdjurisEnrollment.matiere_key == MATIERE).delete()
     db.query(PrepaAdjurisClasse).delete()
@@ -248,3 +248,52 @@ def test_groupes_par_defaut(env):
     assert societes.discord_url == "https://discord.com/channels/1131156852265201715/1533886138119356416"
     assert societes.nom == "L3 – Droit des sociétés"
     db.close()
+
+
+def test_pilotage_des_remunerations(monde):
+    """Montant calculé, montant fixé à la main, versement (figé), annulation."""
+    from app.services.prepa_adjuris_billing import cle_mois, mois_de
+
+    c, A, P = monde["c"], monde["A"], _headers(monde["prof"])
+    aff = monde["p"]["affectations"][0]["id"]
+    c.patch(f"/professeurs/admin/affectations/{aff}", headers=A, json={"remu_seance_cents": 0, "remu_etudiant_cents": 1000})
+    assert c.get("/professeurs/admin/remunerations", headers=_headers(monde["alice"])).status_code == 403
+
+    t = c.get("/professeurs/admin/remunerations", headers=A).json()
+    assert sum(l["calcule_cents"] for l in t["items"]) == 3000          # 3 séances × 1 étudiant × 10 €
+    assert t["totaux"]["montant_cents"] == t["totaux"]["a_verser_cents"] == 3000
+    m = t["items"][0]["mois"]
+
+    # Montant fixé : remplace le calcul, côté console et côté professeur.
+    r = c.put("/professeurs/admin/remunerations", headers=A,
+              json={"affectation_id": aff, "mois": m, "montant_cents": 5000, "note": "prime TD"})
+    assert r.status_code == 200, r.text
+    assert (r.json()["fixe_cents"], r.json()["montant_cents"], r.json()["note"]) == (5000, 5000, "prime TD")
+    calc_m = r.json()["calcule_cents"]
+    d = c.get("/professeurs/me/dashboard", headers=P).json()
+    assert d["totaux"]["total_cents"] == 3000 - calc_m + 5000
+
+    # Un mois sans séance peut aussi être fixé (prime, rattrapage).
+    c.put("/professeurs/admin/remunerations", headers=A, json={"affectation_id": aff, "mois": "2099-01", "montant_cents": 700})
+    assert c.get("/professeurs/admin/remunerations?mois=2099-01", headers=A).json()["totaux"]["montant_cents"] == 700
+
+    # Versé : montant figé, plus modifiable ; l'affectation ne se supprime plus.
+    v = c.post("/professeurs/admin/remunerations/verser", headers=A,
+               json={"lignes": [{"affectation_id": aff, "mois": m}], "reference": "VIR-1"}).json()
+    assert v["total_cents"] == 5000
+    assert c.post("/professeurs/admin/remunerations/verser", headers=A,
+                  json={"lignes": [{"affectation_id": aff, "mois": m}]}).json()["ignores"]
+    assert c.put("/professeurs/admin/remunerations", headers=A,
+                 json={"affectation_id": aff, "mois": m, "montant_cents": 1}).status_code == 400
+    assert c.delete(f"/professeurs/admin/affectations/{aff}", headers=A).status_code == 400
+    assert c.delete(f"/professeurs/admin/{monde['p']['id']}", headers=A).status_code == 400
+    d = c.get("/professeurs/me/dashboard", headers=P).json()
+    assert d["totaux"]["verse_cents"] == 5000
+    assert next(x for x in d["classes"][0]["previsionnel"]["mois"] if x["mois"] == m)["verse_le"]
+
+    # Annulation du versement, puis retour au montant calculé.
+    assert c.post("/professeurs/admin/remunerations/annuler-versement", headers=A,
+                  json={"affectation_id": aff, "mois": m}).json()["verse_le"] is None
+    r = c.put("/professeurs/admin/remunerations", headers=A, json={"affectation_id": aff, "mois": m, "montant_cents": None})
+    assert (r.json()["fixe_cents"], r.json()["montant_cents"]) == (None, calc_m)
+    assert r.json()["note"] == "prime TD"
