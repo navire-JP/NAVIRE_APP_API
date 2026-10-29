@@ -28,7 +28,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.prepa_adjuris_config import PREPA_PRICES, matiere_label, matiere_niveau
@@ -117,31 +117,113 @@ def groupe_de(e: PrepaAdjurisEnrollment, par_matiere: dict[str, list[PrepaAdjuri
     return groupes[0].id if groupes else None
 
 
+def _compte(e: PrepaAdjurisEnrollment, comptes: dict[str, int]) -> str:
+    """Une personne = un compte NAVIRE, sinon un email. Une inscription payée
+    avant la création du compte (user_id NULL) rejoint le compte du même email."""
+    if e.user_id:
+        return f"u{e.user_id}"
+    email = (e.email or "").strip().lower()
+    return f"u{comptes[email]}" if email in comptes else f"e{email}"
+
+
+def _comptes_par_email(db: Session, rows: list[PrepaAdjurisEnrollment]) -> dict[str, int]:
+    emails = {(e.email or "").strip().lower() for e in rows if not e.user_id and e.email}
+    if not emails:
+        return {}
+    return {
+        email.lower(): uid
+        for uid, email in db.execute(select(User.id, User.email).where(func.lower(User.email).in_(emails)))
+    }
+
+
+def _encore_valide(e: PrepaAdjurisEnrollment, maintenant: datetime) -> bool:
+    """Inscription qui donne accès : active ou en impayé (accès conservé), et
+    pas un accès accordé à la main arrivé à échéance (le job horaire passe
+    ensuite le statut à expired)."""
+    if e.status not in STATUTS_ETUDIANT:
+        return False
+    fin = aware(e.expires_at)
+    return fin is None or fin > maintenant
+
+
+def eleves_de_la_matiere(
+    db: Session, matiere_key: str, par_matiere: dict | None = None
+) -> list[tuple[int | None, list[PrepaAdjurisEnrollment]]]:
+    """
+    Une entrée par étudiant de la matière : (groupe, ses inscriptions). Un même
+    étudiant peut avoir plusieurs lignes (accès accordé puis payé, paiement
+    avant le compte, réinscription) : il ne compte qu'une fois. Son groupe est
+    le dernier groupe choisi dans la console sur l'une de ses lignes, sinon le
+    premier groupe actif de la matière.
+    """
+    par_matiere = par_matiere if par_matiere is not None else groupes_par_matiere(db)
+    maintenant = utcnow()
+    rows = [
+        e for e in db.execute(
+            select(PrepaAdjurisEnrollment)
+            .where(PrepaAdjurisEnrollment.matiere_key == matiere_key)
+            .order_by(PrepaAdjurisEnrollment.id)
+        ).scalars().all()
+        if _encore_valide(e, maintenant)
+    ]
+    comptes = _comptes_par_email(db, rows)
+    personnes: dict[str, list[PrepaAdjurisEnrollment]] = {}
+    for e in rows:
+        personnes.setdefault(_compte(e, comptes), []).append(e)
+
+    actifs = {c.id for c in par_matiere.get(matiere_key) or []}
+    defaut = (par_matiere.get(matiere_key) or [None])[0]
+    out = []
+    for lignes in personnes.values():
+        choisis = [e.classe_id for e in sorted(lignes, key=lambda x: x.id) if e.classe_id in actifs]
+        groupe = choisis[-1] if choisis else (defaut.id if defaut else None)
+        out.append((groupe, lignes))
+    return out
+
+
+def principale(lignes: list[PrepaAdjurisEnrollment]) -> PrepaAdjurisEnrollment:
+    """La ligne qui représente l'étudiant : active, rattachée à un compte, la
+    plus ancienne (sa vraie date d'arrivée)."""
+    return min(lignes, key=lambda e: (e.status != "active", e.user_id is None, e.id))
+
+
 def inscriptions_du_groupe(
     db: Session, classe: PrepaAdjurisClasse, par_matiere: dict | None = None
 ) -> list[PrepaAdjurisEnrollment]:
-    par_matiere = par_matiere if par_matiere is not None else groupes_par_matiere(db)
+    """Les étudiants du groupe, une inscription chacun."""
+    return [
+        principale(lignes)
+        for groupe, lignes in eleves_de_la_matiere(db, classe.matiere_key, par_matiere)
+        if groupe == classe.id
+    ]
+
+
+def lignes_de_l_etudiant(db: Session, e: PrepaAdjurisEnrollment) -> list[PrepaAdjurisEnrollment]:
+    """Toutes les inscriptions de la même personne dans la même matière (pour
+    la changer de groupe d'un coup)."""
     rows = db.execute(
-        select(PrepaAdjurisEnrollment)
-        .where(
-            PrepaAdjurisEnrollment.matiere_key == classe.matiere_key,
-            PrepaAdjurisEnrollment.status.in_(STATUTS_ETUDIANT),
-        )
-        .order_by(PrepaAdjurisEnrollment.id)
+        select(PrepaAdjurisEnrollment).where(PrepaAdjurisEnrollment.matiere_key == e.matiere_key)
     ).scalars().all()
-    return [e for e in rows if groupe_de(e, par_matiere) == classe.id]
+    comptes = _comptes_par_email(db, rows + [e])
+    cle = _compte(e, comptes)
+    return [x for x in rows if _compte(x, comptes) == cle]
 
 
 def groupes_de_l_etudiant(db: Session, user_id: int) -> set[int]:
     """Groupes de l'étudiant, toutes matières confondues (inscriptions actives)."""
     par_matiere = groupes_par_matiere(db)
-    rows = db.execute(
-        select(PrepaAdjurisEnrollment).where(
+    matieres = set(db.execute(
+        select(PrepaAdjurisEnrollment.matiere_key).where(
             PrepaAdjurisEnrollment.user_id == user_id,
             PrepaAdjurisEnrollment.status == "active",
         )
-    ).scalars().all()
-    return {g for g in (groupe_de(e, par_matiere) for e in rows) if g is not None}
+    ).scalars().all())
+    groupes = set()
+    for key in matieres:
+        for groupe, lignes in eleves_de_la_matiere(db, key, par_matiere):
+            if groupe is not None and any(e.user_id == user_id for e in lignes):
+                groupes.add(groupe)
+    return groupes
 
 
 def ressource_visible(r: PrepaAdjurisRessource, groupes: set[int]) -> bool:

@@ -297,3 +297,57 @@ def test_pilotage_des_remunerations(monde):
     r = c.put("/professeurs/admin/remunerations", headers=A, json={"affectation_id": aff, "mois": m, "montant_cents": None})
     assert (r.json()["fixe_cents"], r.json()["montant_cents"]) == (None, calc_m)
     assert r.json()["note"] == "prime TD"
+
+
+def test_un_etudiant_compte_une_fois_et_change_de_groupe_entierement(monde):
+    """Lignes en double (accès accordé puis payé, paiement avant le compte),
+    accès accordé expiré : chaque étudiant compte une fois, dans un seul groupe."""
+    from app.db.database import SessionLocal
+    from app.db.models import PrepaAdjurisEnrollment
+
+    c, A = monde["c"], monde["A"]
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    alice, bob = monde["alice"], monde["bob"]
+    # Alice : un accès accordé à la main en plus de son inscription
+    db.add(PrepaAdjurisEnrollment(user_id=alice.id, email=alice.email, matiere_key=MATIERE,
+                                  status="active", source="admin", inscrit_le=now - timedelta(days=90),
+                                  expires_at=now + timedelta(days=5)))
+    # Bob : un paiement fait avec son email avant d'être rattaché au compte
+    db.add(PrepaAdjurisEnrollment(user_id=None, email=bob.email.upper(), matiere_key=MATIERE,
+                                  status="active", source="stripe", inscrit_le=now - timedelta(days=10)))
+    # Chloé : accès accordé arrivé à échéance (le job horaire ne l'a pas encore expiré)
+    chloe = _user(db, "chloe")
+    db.add(PrepaAdjurisEnrollment(user_id=chloe.id, email=chloe.email, matiere_key=MATIERE,
+                                  status="active", source="admin", inscrit_le=now - timedelta(days=20),
+                                  expires_at=now - timedelta(hours=1)))
+    db.commit()
+    db.close()
+
+    def ids(groupe):
+        r = c.get(f"/professeurs/admin/classes/{groupe}/etudiants", headers=A).json()["items"]
+        return sorted(e["user_id"] for e in r)
+
+    assert ids(monde["g1"]) == [alice.id]          # une seule fois, et sans Chloé
+    assert ids(monde["g2"]) == [bob.id]            # sa ligne sans compte suit son groupe
+
+    # Changer Alice de groupe déplace toutes ses lignes : elle quitte le groupe 1.
+    r = c.patch(f"/professeurs/admin/inscriptions/{monde['ea']}", headers=A, json={"classe_id": monde["g2"]})
+    assert r.json()["lignes"] == 2
+    assert ids(monde["g1"]) == []
+    assert ids(monde["g2"]) == sorted([alice.id, bob.id])
+
+    # Côté étudiant, le document du groupe 2 lui est visible, celui du groupe 1 non.
+    from app.services.professeurs import groupes_de_l_etudiant
+    db = SessionLocal()
+    assert groupes_de_l_etudiant(db, alice.id) == {monde["g2"]}
+    assert groupes_de_l_etudiant(db, bob.id) == {monde["g2"]}
+    db.close()
+
+    # Le prévisionnel compte Alice une fois (taux 10 € par étudiant).
+    aff = monde["p"]["affectations"][0]["id"]
+    c.post(f"/professeurs/admin/{monde['p']['id']}/affectations", headers=A, json={"classe_id": monde["g2"]})
+    prof = c.get("/professeurs/admin/list", headers=A).json()["items"][0]
+    g2 = next(a for a in prof["affectations"] if a["classe"]["id"] == monde["g2"])
+    assert g2["nb_etudiants"] == 2
+    assert aff  # l'affectation du groupe 1 reste, sans étudiant
