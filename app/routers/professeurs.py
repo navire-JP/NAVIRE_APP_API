@@ -11,6 +11,12 @@ Professeur (auth NAVIRE, attaché par un admin) :
   POST   /professeurs/classes/{id}/documents     → dépôt d'un PDF pour le groupe
   DELETE /professeurs/documents/{id}             → retrait d'un document déposé
   GET    /professeurs/documents/{id}/download
+  GET    /professeurs/me/devoirs                 → copies rendues par les étudiants de ses groupes
+  GET    /professeurs/devoirs/{id}/download      → la copie
+  PATCH  /professeurs/devoirs/{id}               → commentaire, note (copie « corrigée »)
+  POST   /professeurs/devoirs/{id}/correction    → joindre une copie corrigée (PDF)
+  GET    /professeurs/devoirs/{id}/correction
+  DELETE /professeurs/devoirs/{id}/correction
   GET    /professeurs/embed                      → page d'embed servie par l'API
 
 Un document déposé est une PrepaAdjurisRessource publiée de la matière,
@@ -45,7 +51,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File as FastAPIFile, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File as FastAPIFile, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
@@ -56,6 +62,7 @@ from app.db.database import get_db
 from app.db.models import (
     PrepaAdjurisAffectation,
     PrepaAdjurisClasse,
+    PrepaAdjurisDevoir,
     PrepaAdjurisEnrollment,
     PrepaAdjurisProfesseur,
     PrepaAdjurisRemuneration,
@@ -64,6 +71,7 @@ from app.db.models import (
 )
 from app.core.prepa_adjuris_config import matiere_niveau
 from app.routers.auth import get_current_user
+from app.services import devoirs as dsvc
 from app.services import professeurs as svc
 
 router = APIRouter(prefix="/professeurs", tags=["professeurs"])
@@ -154,9 +162,15 @@ def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depe
             .where(PrepaAdjurisRessource.classe_id == c.id)
             .order_by(PrepaAdjurisRessource.created_at.desc(), PrepaAdjurisRessource.id.desc())
         ).scalars().all()
+        a_corriger = db.execute(
+            select(func.count(PrepaAdjurisDevoir.id)).where(
+                PrepaAdjurisDevoir.classe_id == c.id, PrepaAdjurisDevoir.statut == "depose"
+            )
+        ).scalar_one()
         classes.append({
             **svc.classe_row(c),
             "affectation_id": a.id,
+            "devoirs_a_corriger": a_corriger,
             "etudiants": [svc.etudiant_row(db, e) for e in inscriptions],
             "documents": [_document_row(r) for r in documents],
             "previsionnel": svc.previsionnel(db, a, inscriptions),
@@ -178,6 +192,7 @@ def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depe
             "classes": len(classes),
             "etudiants": sum(len(c["etudiants"]) for c in classes),
             "documents": sum(len(c["documents"]) for c in classes),
+            "devoirs_a_corriger": sum(c["devoirs_a_corriger"] for c in classes),
             "realise_cents": sum(c["previsionnel"]["realise_cents"] for c in classes),
             "verse_cents": sum(c["previsionnel"]["verse_cents"] for c in classes),
             "a_venir_cents": sum(c["previsionnel"]["a_venir_cents"] for c in classes),
@@ -259,6 +274,137 @@ def telecharger_document(
     return FileResponse(
         r.path, media_type="application/pdf", filename=r.filename_original, content_disposition_type="inline"
     )
+
+
+# ============================================================
+# Devoirs rendus par les étudiants (vue Prépa de NAVIRE Lib)
+# ============================================================
+
+def require_correcteur(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> tuple[User, set[int] | None]:
+    """Professeur actif (ses groupes) ou admin (tous les groupes : None)."""
+    if getattr(user, "is_admin", False):
+        return user, None
+    prof = svc.get_professeur(db, user.id)
+    if prof is None or prof.status != "active":
+        raise HTTPException(403, detail="Réservé aux professeurs NAVIRE.")
+    return user, {a.classe_id for a in prof.affectations}
+
+
+def _devoir_a_corriger(db: Session, acces: tuple[User, set[int] | None], devoir_id: int) -> PrepaAdjurisDevoir:
+    _, classes = acces
+    d = db.get(PrepaAdjurisDevoir, devoir_id)
+    if d is None or (classes is not None and d.classe_id not in classes):
+        raise HTTPException(404, detail="Copie introuvable.")
+    return d
+
+
+class CorrectionIn(BaseModel):
+    commentaire: str | None = Field(None, max_length=8000)
+    note: str | None = Field(None, max_length=40)
+    statut: Literal["depose", "corrige"] | None = None
+
+
+def _marquer_corrige(db: Session, d: PrepaAdjurisDevoir, user: User, background: BackgroundTasks) -> None:
+    deja = d.statut == "corrige"
+    d.statut = "corrige"
+    d.corrige_par_id = user.id
+    d.corrige_le = svc.utcnow()
+    if not deja:
+        etudiant = db.get(User, d.user_id)
+        if etudiant and etudiant.email:
+            background.add_task(
+                dsvc.mail_copie_corrigee, etudiant.email, etudiant.username or "",
+                dsvc.devoir_row(db, d)["matiere"], d.titre,
+            )
+
+
+@router.get("/me/devoirs")
+def mes_devoirs(db: Session = Depends(get_db), acces=Depends(require_correcteur)):
+    _, classes = acces
+    q = select(PrepaAdjurisDevoir).order_by(PrepaAdjurisDevoir.created_at.desc(), PrepaAdjurisDevoir.id.desc())
+    if classes is not None:
+        if not classes:
+            return {"items": [], "a_corriger": 0}
+        q = q.where(PrepaAdjurisDevoir.classe_id.in_(classes))
+    rows = db.execute(q).scalars().all()
+    return {
+        "items": [dsvc.devoir_row(db, d, pour_prof=True) for d in rows],
+        "a_corriger": sum(1 for d in rows if d.statut == "depose"),
+    }
+
+
+@router.get("/devoirs/{devoir_id}/download")
+def telecharger_copie(devoir_id: int, db: Session = Depends(get_db), acces=Depends(require_correcteur)):
+    d = _devoir_a_corriger(db, acces, devoir_id)
+    if not Path(d.path).exists():
+        raise HTTPException(404, detail="Fichier introuvable sur le disque.")
+    return FileResponse(d.path, media_type="application/pdf", filename=d.filename_original,
+                        content_disposition_type="inline")
+
+
+@router.patch("/devoirs/{devoir_id}")
+def corriger_devoir(
+    devoir_id: int,
+    payload: CorrectionIn,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    acces=Depends(require_correcteur),
+):
+    d = _devoir_a_corriger(db, acces, devoir_id)
+    if payload.commentaire is not None:
+        d.commentaire = payload.commentaire.strip()
+    if payload.note is not None:
+        d.note = payload.note.strip()
+    if payload.statut == "depose":
+        d.statut = "depose"           # rouvrir la copie (correction à reprendre)
+    elif payload.statut == "corrige" or d.commentaire or d.note or d.correction_path:
+        _marquer_corrige(db, d, acces[0], background)
+    db.commit()
+    db.refresh(d)
+    return dsvc.devoir_row(db, d, pour_prof=True)
+
+
+@router.post("/devoirs/{devoir_id}/correction")
+async def joindre_correction(
+    devoir_id: int,
+    background: BackgroundTasks,
+    file: UploadFile = FastAPIFile(...),
+    db: Session = Depends(get_db),
+    acces=Depends(require_correcteur),
+):
+    d = _devoir_a_corriger(db, acces, devoir_id)
+    meta = await save_prepa_pdf(file, PREPA_ADJURIS_DIR / "corrections" / str(d.user_id),
+                                max_bytes=PREPA_COURSE_MAX_BYTES)
+    if d.correction_path:
+        delete_prepa_file(d.correction_path)
+    d.correction_path = meta["path"]
+    d.correction_filename = meta["filename_original"][:255]
+    _marquer_corrige(db, d, acces[0], background)
+    db.commit()
+    db.refresh(d)
+    return dsvc.devoir_row(db, d, pour_prof=True)
+
+
+@router.get("/devoirs/{devoir_id}/correction")
+def telecharger_correction(devoir_id: int, db: Session = Depends(get_db), acces=Depends(require_correcteur)):
+    d = _devoir_a_corriger(db, acces, devoir_id)
+    if not d.correction_path or not Path(d.correction_path).exists():
+        raise HTTPException(404, detail="Pas de copie corrigée.")
+    return FileResponse(d.correction_path, media_type="application/pdf",
+                        filename=d.correction_filename or "correction.pdf", content_disposition_type="inline")
+
+
+@router.delete("/devoirs/{devoir_id}/correction")
+def retirer_correction(devoir_id: int, db: Session = Depends(get_db), acces=Depends(require_correcteur)):
+    d = _devoir_a_corriger(db, acces, devoir_id)
+    if d.correction_path:
+        delete_prepa_file(d.correction_path)
+    d.correction_path, d.correction_filename = "", ""
+    db.commit()
+    db.refresh(d)
+    return dsvc.devoir_row(db, d, pour_prof=True)
 
 
 # ============================================================

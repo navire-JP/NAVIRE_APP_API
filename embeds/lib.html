@@ -18,7 +18,15 @@
   Question      → GET /lib/checkpoints/{id}/question, POST …/submit, POST …/passer
   Chat          → POST /lib/chat
 
+  Prépa (inscrits Prép'AdJuris, dans Lib comme dans Lib+) : un encart sous
+  les raccourcis (emploi du temps, cours de la classe) et une vue Prépa à
+  onglets : emploi du temps, cours, documents (PDF), devoirs à rendre.
+                → GET /lib/prepa, POST /lib/prepa/devoirs
+  Pass admin : « Voir comme » L1, L2, L3, M1 (bas du menu, comptes admin
+  seulement) : la bibliothèque et la vue Prépa d'un étudiant de ce niveau.
+
   Un lien vers un cours précis : /lib?doc=12 (et &mode=lib pour forcer Lib)
+  La vue Prépa : /lib?prepa=edt|cours|docs|devoirs
   Réglages : bloc CONFIG du script (liens QCM, NAVIRE AI, actus, offres).
 -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
@@ -76,6 +84,8 @@
 #nv-lib .nv-side-close { margin-left: auto; }
 #nv-lib:not(.is-compact) .nv-side-close { display: none; }
 #nv-lib .nv-side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+/* Sans plan de cours (bibliothèque, Prépa) : rien ne se compresse, la barre latérale défile. */
+#nv-lib .nv-side-body:not(:has(.nl-plan)) { flex: 1 0 auto; }
 
 #nv-lib .nv-nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 10px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-2); transition: background .15s, color .15s; text-align: left; text-decoration: none; }
 #nv-lib .nv-nav svg { width: 17px; height: 17px; opacity: .8; }
@@ -385,6 +395,96 @@
 #nv-lib .nl-send:hover:not(:disabled) { transform: scale(1.05); }
 #nv-lib .nl-send svg { width: 17px; height: 17px; }
 
+/* ===== Prépa (inscrits Prép'AdJuris) ===== */
+#nv-lib .nl-ps { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--blue-soft); border: 1px solid var(--blue-line); }
+#nv-lib .nl-ps-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+#nv-lib .nl-ps-head b { font-size: 12.5px; }
+#nv-lib .nl-ps-head .nv-tag { margin-left: auto; }
+#nv-lib .nl-ps small.nl-ps-label { display: block; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); margin: 10px 0 4px; }
+#nv-lib .nl-ps-item { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 5px 6px; margin: 0 -6px; border: 0; background: transparent; border-radius: 7px; text-align: left; cursor: pointer; font-size: 12px; color: var(--text-2); text-decoration: none; }
+#nv-lib .nl-ps-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+#nv-lib .nl-ps-item i { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--blue); flex-shrink: 0; min-width: 62px; }
+#nv-lib .nl-ps-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#nv-lib .nl-ps-item.is-off { color: var(--text-4); text-decoration: line-through; }
+#nv-lib .nl-ps-empty { font-size: 11.5px; color: var(--text-3); }
+#nv-lib .nl-ps .nv-btn { width: 100%; height: 34px; margin-top: 10px; font-size: 12px; }
+#nv-lib .nl-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 0 16px; padding-bottom: 2px; }
+#nv-lib .nl-tabs::-webkit-scrollbar { display: none; }
+#nv-lib .nl-tabs .nv-chip b { font-family: var(--mono); font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--blue); color: #0a0a12; }
+#nv-lib .nl-phero { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 16px; border: 1px solid var(--blue-line); background: linear-gradient(135deg, rgba(79,125,255,0.16), rgba(122,167,255,0.04)); margin-bottom: 14px; flex-wrap: wrap; }
+#nv-lib .nl-phero > div { flex: 1; min-width: 200px; }
+#nv-lib .nl-phero small { font-family: var(--mono); font-size: 10px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--blue); }
+#nv-lib .nl-phero b { display: block; font-size: 15px; margin-top: 3px; }
+#nv-lib .nl-phero span { font-size: 12.5px; color: var(--text-2); }
+#nv-lib .nl-phero .nl-phero-btns { display: flex; gap: 6px; flex: 0 0 auto; min-width: 0; flex-wrap: wrap; }
+#nv-lib .nl-sec { margin: 18px 0 8px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+#nv-lib .nl-sec small { font-weight: 500; color: var(--text-3); font-size: 11.5px; }
+#nv-lib .nl-sec .nl-sec-btns { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+#nv-lib .nl-sec .nv-chip { height: 28px; font-size: 11.5px; padding: 0 10px; }
+#nv-lib .nl-day { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); margin: 16px 0 6px; }
+#nv-lib .nl-day.is-today { color: var(--blue); }
+#nv-lib .nl-slot { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 13px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 6px; }
+#nv-lib .nl-slot.is-past { opacity: .5; }
+#nv-lib .nl-slot.is-off .nl-slot-txt b { text-decoration: line-through; color: var(--text-3); }
+#nv-lib .nl-slot-time { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--blue); width: 48px; flex-shrink: 0; }
+#nv-lib .nl-slot-txt { flex: 1; min-width: 0; }
+#nv-lib .nl-slot-txt b { display: block; font-size: 13.5px; font-weight: 600; }
+#nv-lib .nl-slot-txt span { font-size: 11.5px; color: var(--text-3); }
+#nv-lib .nl-slot .nv-chip { height: 30px; font-size: 12px; flex-shrink: 0; }
+#nv-lib .nl-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 13px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 6px; text-align: left; cursor: pointer; transition: background .15s, border-color .15s; }
+#nv-lib .nl-row:hover { background: var(--panel-2); border-color: var(--line-2); }
+#nv-lib .nl-row.is-off { cursor: default; opacity: .45; }
+#nv-lib .nl-row.is-off:hover { background: var(--panel); border-color: var(--line); }
+#nv-lib .nl-row .nl-row-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--blue-soft); color: var(--blue); flex-shrink: 0; }
+#nv-lib .nl-row .nl-row-ico svg { width: 16px; height: 16px; }
+#nv-lib .nl-row-txt { flex: 1; min-width: 0; }
+#nv-lib .nl-row-txt b { display: block; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-row-txt span { display: block; font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-form textarea, #nv-lib .nl-form select { width: 100%; padding: 11px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: #fff; font: inherit; font-size: 13.5px; outline: none; }
+#nv-lib .nl-form select { height: 42px; padding: 0 12px; }
+#nv-lib .nl-form select option { background: #12121c; }
+#nv-lib .nl-form textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
+#nv-lib .nl-form textarea:focus, #nv-lib .nl-form select:focus { border-color: var(--blue-line); }
+#nv-lib .nl-drop { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 13px; border: 1.5px dashed var(--line-2); cursor: pointer; transition: border-color .15s, background .15s; }
+#nv-lib .nl-drop:hover, #nv-lib .nl-drop.is-over { border-color: var(--blue); background: var(--blue-soft); }
+#nv-lib .nl-drop input { display: none; }
+#nv-lib .nl-drop b { display: block; font-size: 13px; }
+#nv-lib .nl-drop span { font-size: 11.5px; color: var(--text-3); }
+#nv-lib .nl-devoir { padding: 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 8px; animation: nv-rise .35s var(--ease) both; }
+#nv-lib .nl-devoir.is-done { border-color: var(--blue-line); }
+#nv-lib .nl-devoir-top { display: flex; align-items: flex-start; gap: 10px; }
+#nv-lib .nl-devoir-top > div { flex: 1; min-width: 0; }
+#nv-lib .nl-devoir-top b { display: block; font-size: 14px; }
+#nv-lib .nl-devoir-top small { font-size: 11.5px; color: var(--text-3); }
+#nv-lib .nl-note { font-family: var(--mono); font-size: 15px; font-weight: 700; color: #0a0a12; background: var(--blue); padding: 3px 10px; border-radius: 9px; white-space: nowrap; }
+#nv-lib .nl-com { margin-top: 10px; padding: 10px 12px; border-radius: 11px; background: rgba(122,167,255,0.07); border: 1px solid rgba(122,167,255,0.18); font-size: 13px; line-height: 1.55; color: #d6e4ff; white-space: pre-wrap; overflow-wrap: anywhere; }
+#nv-lib .nl-com small { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--blue); margin-bottom: 4px; white-space: normal; }
+#nv-lib .nl-devoir-msg { margin-top: 8px; font-size: 12.5px; color: var(--text-3); font-style: italic; overflow-wrap: anywhere; }
+#nv-lib .nl-devoir-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+#nv-lib .nl-devoir-btns .nv-chip { height: 30px; font-size: 12px; padding: 0 12px; }
+
+/* Aperçu admin (invisible pour les autres comptes) */
+#nv-lib .nl-admin { margin-top: 10px; padding: 10px; border-radius: 12px; border: 1px dashed var(--line-2); }
+#nv-lib .nl-admin small { display: block; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-4); margin-bottom: 6px; }
+#nv-lib .nl-seg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 3px; border-radius: 10px; background: var(--panel-2); }
+#nv-lib .nl-seg button { height: 26px; border: 0; border-radius: 7px; background: transparent; font-size: 11px; font-weight: 700; color: var(--text-3); cursor: pointer; padding: 0; }
+#nv-lib .nl-seg button:hover { color: #fff; }
+#nv-lib .nl-seg button.is-on { background: #fff; color: #0a0a12; }
+#nv-lib .nl-apercu { display: none; align-items: center; gap: 10px; padding: 8px 14px; background: var(--blue); color: #0a0a12; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+#nv-lib .nl-apercu.is-on { display: flex; }
+#nv-lib .nl-apercu span { flex: 1; min-width: 0; }
+#nv-lib .nl-apercu button { border: 0; background: #0a0a12; color: #fff; border-radius: 99px; height: 26px; padding: 0 12px; font-size: 11.5px; font-weight: 600; cursor: pointer; flex-shrink: 0; }
+
+/* Lecteur PDF (documents Prépa, devoirs) */
+#nv-lib .nl-pdf { position: absolute; inset: 0; z-index: 2000; display: none; flex-direction: column; background: #0b0b14; }
+#nv-lib .nl-pdf.is-on { display: flex; }
+#nv-lib .nl-pdf-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+#nv-lib .nl-pdf-bar b { flex: 1; min-width: 0; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-pdf-frame { flex: 1; min-height: 0; -webkit-user-select: none; user-select: none; }
+#nv-lib .nl-pdf-pages { max-width: 860px; margin: 0 auto; padding: 14px 14px 40px; }
+#nv-lib .nl-pdf-pages canvas { display: block; width: 100%; height: auto; background: #fff; border-radius: 4px; box-shadow: 0 6px 30px rgba(0,0,0,0.4); pointer-events: none; }
+#nv-lib .nl-pdf-pages canvas + canvas { margin-top: 14px; }
+
 /* Toasts */
 #nv-lib .nv-toasts { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 3000; pointer-events: none; }
 #nv-lib .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,32,50,0.95); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
@@ -415,6 +515,8 @@
 #nv-lib.is-compact .nl-qcard { padding: 16px; }
 #nv-lib.is-compact .nl-pill { display: none; }
 #nv-lib.is-compact .nl-stats b { font-size: 18px; }
+#nv-lib.is-compact .nl-form textarea, #nv-lib.is-compact .nl-form select { font-size: 16px; }
+#nv-lib.is-compact .nl-slot { flex-wrap: wrap; }
 
 @media (prefers-reduced-motion: reduce) {
   #nv-lib *, #nv-lib *::before, #nv-lib *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -435,6 +537,7 @@
     </div>
     <div class="nv-side-body" data-el="side"></div>
     <div data-el="elo"></div>
+    <div data-el="admin"></div>
     <button class="nv-logout" data-act="logout">Se déconnecter</button>
   </aside>
   <div class="nv-scrim" data-act="close-drawer"></div>
@@ -454,9 +557,18 @@
       </div>
       <div class="nl-readbar"><i data-el="readbar"></i></div>
     </div>
+    <div class="nl-apercu" data-el="apercu"></div>
     <div class="nv-page nv-scroll" data-el="page"></div>
     <div class="nv-toasts" data-el="toasts"></div>
   </main>
+
+  <div class="nl-pdf" data-el="pdf">
+    <div class="nl-pdf-bar">
+      <button class="nv-chip" data-act="pdf-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>Retour</button>
+      <b data-el="pdf-title">Document</b>
+    </div>
+    <div class="nl-pdf-frame nv-scroll" data-el="pdf-frame"></div>
+  </div>
 </div>
 
 <script>
@@ -483,7 +595,12 @@
     Q: {},         // question en cours, par point de passage : { q, a, busy, res }
     redo: {},      // points de passage validés que l'élève refait
     after: {},     // résultat qui vient d'ouvrir la suite (message sous le point de passage)
-    chat: {}       // chat NAVIRE AI, par point de passage : { open, conv, msgs, busy, draft }
+    chat: {},      // chat NAVIRE AI, par point de passage : { open, conv, msgs, busy, draft }
+    view: "library", // library | doc | prepa | upsell
+    prepa: null,   // GET /lib/prepa (inscrits Prép'AdJuris, ou aperçu admin)
+    ptab: "edt",   // onglet de la vue Prépa : edt | cours | docs | devoirs
+    voir: null,    // aperçu admin : "L1" | "L2" | "L3" | "M1"
+    dv: { matiere: "", titre: "", message: "", file: null, busy: false }  // dépôt de devoir
   };
 
   // ================= OUTILS =================
@@ -553,6 +670,9 @@
   function hasPlus() { return !!(S.user && S.user.acces_plus); }
   // Pass admin : Lib+ ouvert, pas de verrou d'Elo, points de passage à passer sans répondre, brouillons en aperçu.
   function isAdmin() { return !!(S.user && S.user.admin); }
+  // Prépa : inscrits Prép'AdJuris (ou admin en aperçu d'un niveau).
+  function hasPrepa() { return !!(S.user && S.user.prepa); }
+  function voirQ(sep) { return S.voir ? (sep || "?") + "voir_comme=" + S.voir : ""; }
 
   var ICON = {
     lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
@@ -568,6 +688,10 @@
     flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>',
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+    cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></svg>',
+    cap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>',
+    link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
     grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>'
   };
   // Photo de profil de NAVIRE AI (même image que la bulle du chat).
@@ -654,6 +778,7 @@
     // En lisant un cours : on le rouvre dans l'autre mode s'il y figure.
     var d = S.doc && S.doc.document;
     if (S.docId && d && (m === "plus" ? hasPlus() : !d.plus)) return openDoc(S.docId);
+    if (S.view === "prepa") return viewPrepa();
     viewLibrary();
   }
 
@@ -681,7 +806,8 @@
 
   // ================= OFFRE LIB+ (compte gratuit) =================
   function viewUpsell() {
-    S.doc = null; S.docId = null; setPageParam("doc", null);
+    S.doc = null; S.docId = null; setPageParam("doc", null); setPageParam("prepa", null);
+    S.view = "upsell";
     root.classList.remove("is-solo");
     setTitle("NAVIRE Lib+");
     el("hl-btn").style.display = "none";
@@ -708,10 +834,12 @@
     var counts = { all: items.length };
     items.forEach(function (d) { counts[d.kind] = (counts[d.kind] || 0) + 1; });
     var nav = [["all", "Toute la bibliothèque", ICON.grid]].concat(Object.keys(KINDS).filter(function (k) { return counts[k]; }).map(function (k) { return [k, KINDS_PL[k], k === "perso" ? ICON.file : ICON.book]; }));
+    var lib = S.view === "library";
     el("side").innerHTML =
       nav.map(function (n) {
-        return '<button class="nv-nav' + (S.filter === n[0] ? " is-active" : "") + '" data-filter="' + n[0] + '">' + n[2] + esc(n[1]) + '<span class="nv-badge">' + (counts[n[0]] || 0) + '</span></button>';
+        return '<button class="nv-nav' + (lib && S.filter === n[0] ? " is-active" : "") + '" data-filter="' + n[0] + '">' + n[2] + esc(n[1]) + '<span class="nv-badge">' + (counts[n[0]] || 0) + '</span></button>';
       }).join("") +
+      (hasPrepa() ? '<div class="nv-group-label">Prép\'AdJuris</div><button class="nv-nav' + (S.view === "prepa" ? " is-active" : "") + '" data-act="prepa">' + ICON.cap + 'Espace Prépa<span class="nv-badge">' + esc(S.user.prepa) + '</span></button>' : "") +
       '<div class="nv-group-label">Raccourcis</div>' + actions();
   }
   function actions() {
@@ -719,12 +847,13 @@
       '<a class="nl-action" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'QCM</a>' +
       '<a class="nl-action" href="' + CONFIG.AI_URL + '" data-go data-ai>' + pp(18) + 'NAVIRE AI</a>' +
       '<a class="nl-action" href="' + CONFIG.ACTUS_URL + '" data-go>' + ICON.news + 'Actus</a>' +
-    '</div>';
+    '</div><div data-el="prepa-side">' + prepaSide() + '</div>';
   }
 
   function viewLibrary() {
     if (plus() && !hasPlus()) return viewUpsell();
-    S.doc = null; S.docId = null; setPageParam("doc", null);
+    S.doc = null; S.docId = null; setPageParam("doc", null); setPageParam("prepa", null);
+    S.view = "library";
     root.classList.remove("is-solo");
     setTitle(plus() ? "Bibliothèque Lib+" : "Bibliothèque");
     el("hl-btn").style.display = "none";
@@ -749,6 +878,7 @@
     } else {
       html = '<div class="nv-page-head"><h2>Bibliothèque</h2><p>Les cours en libre consultation, et les PDF de tes fichiers.</p></div>';
     }
+    if (hasPrepa()) html += prepaBanner();
     html += '<div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="Rechercher un cours, une matière…" value="' + esc(S.query) + '"></div>';
     if (!items.length) html += '<div class="nv-empty"><b>La bibliothèque arrive</b>Les premiers cours sont en préparation.</div>';
     else if (!list.length) html += '<div class="nv-empty"><b>Aucun résultat</b>Essaie un autre mot.</div>';
@@ -788,7 +918,8 @@
     opts = opts || {};
     if (plus() && !hasPlus()) return viewUpsell();
     if (S.docId !== id) { S.Q = {}; S.redo = {}; S.after = {}; S.chat = {}; }
-    S.docId = id; setPageParam("doc", id);
+    S.docId = id; setPageParam("doc", id); setPageParam("prepa", null);
+    S.view = "doc";
     root.classList.remove("is-solo");
     root.classList.remove("is-drawer");
     el("hl-btn").style.display = "";
@@ -796,6 +927,8 @@
     var page = el("page"), keepTop = opts.keep ? page.scrollTop : null;
     if (!opts.keep) page.innerHTML = '<div class="nv-page-inner"><div class="nv-skel" style="height:160px;margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div><div class="nv-skel"></div></div>';
     return api("GET", "/lib/documents/" + id + "?mode=" + S.mode).then(function (d) {
+      // La carte de /lib/documents ne porte pas la Prépa : on la garde du catalogue.
+      if (d.user && S.user) { d.user.prepa = S.user.prepa; d.user.apercu = S.user.apercu; }
       S.doc = d; S.user = d.user || S.user; renderElo();
       renderReader(opts);
       if (keepTop != null && !opts.scrollTo) page.scrollTop = keepTop;
@@ -1125,9 +1258,294 @@
     root.classList.remove("is-drawer");
   }
 
+  // ================= PRÉPA (inscrits Prép'AdJuris) =================
+  var PTABS = [["edt", "Emploi du temps"], ["cours", "Cours"], ["docs", "Documents"], ["devoirs", "Devoirs"]];
+  var JOURS_MS = 86400000;
+  function dateOf(iso) { var d = new Date(iso); return isNaN(d.getTime()) ? null : d; }
+  function hhmm(d) { return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); }
+  function jour(d, long) {
+    var t = d.toLocaleDateString("fr-FR", long ? { weekday: "long", day: "numeric", month: "long" } : { weekday: "short", day: "numeric", month: "short" });
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+  function memeJour(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  function taille(o) { return !o ? "PDF" : o < 1048576 ? Math.max(1, Math.round(o / 1024)) + " Ko" : (o / 1048576).toFixed(1) + " Mo"; }
+  function lienSur(u) { u = String(u || "").trim(); return /^https?:\/\//i.test(u) ? u : ""; }
+  function aVenir() {
+    var now = Date.now();
+    return ((S.prepa && S.prepa.seances) || []).filter(function (x) { var d = dateOf(x.date_debut); return d && d.getTime() + (x.duree_minutes || 60) * 60000 > now; });
+  }
+  function corriges() { return ((S.prepa && S.prepa.devoirs) || []).filter(function (d) { return d.statut === "corrige"; }).length; }
+
+  function loadPrepa() {
+    if (!hasPrepa()) { S.prepa = null; refreshPrepaSide(); return Promise.resolve(); }
+    return api("GET", "/lib/prepa" + voirQ()).then(function (p) {
+      S.prepa = p && p.prepa ? p : null;
+      refreshPrepaSide();
+      if (S.view === "prepa") viewPrepa();
+      else if (S.view === "library") { var b = root.querySelector("[data-el='prepa-banner']"); if (b) b.outerHTML = prepaBanner(); }
+    }).catch(function (x) { if (S.view === "prepa") setPage('<div class="nv-empty"><b>Prépa indisponible</b>' + esc(x.message) + '</div>'); });
+  }
+  function refreshPrepaSide() { var n = el("prepa-side"); if (n) n.innerHTML = prepaSide(); }
+
+  // Encart sous les raccourcis : emploi du temps et cours de la classe.
+  function prepaSide() {
+    if (!hasPrepa()) return "";
+    var p = S.prepa;
+    var html = '<div class="nl-ps"><div class="nl-ps-head">' + ico("cap", 15) + '<b>Prépa</b><span class="nv-tag solid">' + esc(S.user.prepa) + (S.voir ? " · aperçu" : "") + '</span></div>';
+    if (!p) return html + '<div class="nv-skel" style="height:54px;margin:0"></div></div>';
+    var reading = S.view === "doc";   // en lecture : encart réduit, le plan garde sa place
+    var next = aVenir().slice(0, reading ? 2 : 3);
+    html += '<small class="nl-ps-label">Emploi du temps</small>' + (next.length ? next.map(function (x) {
+      var d = dateOf(x.date_debut);
+      return '<button class="nl-ps-item' + (x.statut === "annulee" ? " is-off" : "") + '" data-ptab="edt"><i>' + esc(jour(d).replace(/\.$/, "")) + '</i><span>' + hhmm(d) + " · " + esc(x.titre || x.matiere) + '</span></button>';
+    }).join("") : '<div class="nl-ps-empty">Aucune séance programmée.</div>');
+    var cours = reading ? [] : (p.cours_lib || []).slice(0, 4);
+    if (cours.length) html += '<small class="nl-ps-label">Cours de ta classe</small>' + cours.map(function (d) {
+      return '<button class="nl-ps-item" data-open="' + d.id + '"><i>' + esc(KINDS[d.kind] || "Cours") + '</i><span>' + esc(d.titre) + '</span></button>';
+    }).join("");
+    return html + '<button class="nv-btn is-blue" data-act="prepa">Ouvrir l\'espace Prépa</button></div>';
+  }
+
+  // Encart en tête de la bibliothèque.
+  function prepaBanner() {
+    var s = S.prepa && S.prepa.prochaine_seance, d = s && dateOf(s.date_debut);
+    var sub = !S.prepa ? "Ton emploi du temps, tes cours et tes devoirs." : d ? "Prochaine séance : " + jour(d, true) + " à " + hhmm(d) + " · " + (s.titre || s.matiere) : "Ton emploi du temps, tes cours et tes devoirs.";
+    return '<button class="nl-banner" data-el="prepa-banner" data-act="prepa" style="margin:0 0 14px"><span class="nl-qico">' + ICON.cap + '</span><div><b>Prép\'AdJuris · ' + esc(S.user.prepa) + '</b><span>' + esc(sub) + '</span></div><span class="nv-tag solid">PRÉPA</span></button>';
+  }
+
+  function viewPrepa(tab) {
+    if (!hasPrepa()) return viewLibrary();
+    if (tab) S.ptab = tab;
+    if (!PTABS.some(function (t) { return t[0] === S.ptab; })) S.ptab = "edt";
+    S.doc = null; S.docId = null; setPageParam("doc", null); setPageParam("prepa", S.ptab);
+    S.view = "prepa";
+    root.classList.remove("is-solo"); root.classList.remove("is-drawer");
+    setTitle("Prépa · " + S.user.prepa);
+    el("hl-btn").style.display = "none";
+    el("readbar").style.width = "0";
+    sideLibrary();
+    var p = S.prepa;
+    if (!p) { setPage('<div class="nv-skel" style="height:90px;margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div>'); return; }
+    var s = p.prochaine_seance, d = s && dateOf(s.date_debut), lien = s && (lienSur(s.lien) || lienSur(p.discord_url));
+    var html = '<div class="nv-page-head"><h2>Prép\'AdJuris · ' + esc(p.niveau) + '</h2><p>' +
+      (p.apercu ? "Aperçu admin : toutes les matières du niveau, tous les documents (y compris ceux d'un seul groupe)." : "Tes séances, les cours de ta classe, les documents de tes matières et tes devoirs.") + '</p></div>' +
+      '<div class="nl-phero"><span class="nl-qico">' + ICON.cal + '</span><div><small>Prochaine séance</small>' +
+        (d ? '<b>' + esc(jour(d, true)) + ' · ' + hhmm(d) + '</b><span>' + esc(s.titre ? s.titre + " · " + s.matiere : s.matiere) + '</span>' : '<b>Aucune séance programmée</b><span>Les dates arrivent sur Discord.</span>') + '</div>' +
+        '<div class="nl-phero-btns">' + (lien ? '<a class="nv-btn is-blue" href="' + esc(lien) + '" target="_blank" rel="noopener">Rejoindre</a>' : "") +
+        (lienSur(p.discord_url) && lien !== lienSur(p.discord_url) ? '<a class="nv-chip" href="' + esc(lienSur(p.discord_url)) + '" target="_blank" rel="noopener">Discord</a>' : "") + '</div></div>' +
+      '<div class="nl-tabs">' + PTABS.map(function (t) {
+        var badge = t[0] === "devoirs" && corriges() ? ' <b>' + corriges() + '</b>' : "";
+        return '<button class="nv-chip' + (S.ptab === t[0] ? " is-active" : "") + '" data-ptab="' + t[0] + '">' + esc(t[1]) + badge + '</button>';
+      }).join("") + '</div>';
+    html += S.ptab === "cours" ? prepaCours() : S.ptab === "docs" ? prepaDocs() : S.ptab === "devoirs" ? prepaDevoirs() : prepaEdt();
+    setPage(html);
+    bindDrop();
+  }
+
+  function prepaEdt() {
+    var list = S.prepa.seances || [];
+    if (!list.length) return '<div class="nv-empty"><b>Emploi du temps vide</b>Aucune séance n\'est encore programmée pour tes matières.</div>';
+    var now = new Date(), html = "", last = null;
+    list.forEach(function (x) {
+      var d = dateOf(x.date_debut); if (!d) return;
+      var key = d.toDateString();
+      if (key !== last) { html += '<div class="nl-day' + (memeJour(d, now) ? " is-today" : "") + '">' + (memeJour(d, now) ? "Aujourd'hui · " : "") + esc(jour(d, true)) + '</div>'; last = key; }
+      var fin = d.getTime() + (x.duree_minutes || 60) * 60000, passe = fin < now.getTime(), off = x.statut === "annulee";
+      var lien = lienSur(x.lien) || lienSur(S.prepa.discord_url);
+      html += '<div class="nl-slot' + (passe ? " is-past" : "") + (off ? " is-off" : "") + '"><span class="nl-slot-time">' + hhmm(d) + '</span>' +
+        '<div class="nl-slot-txt"><b>' + esc(x.titre || x.matiere) + '</b><span>' + esc(x.titre ? x.matiere : "") + (x.titre ? " · " : "") + (x.duree_minutes || 60) + ' min' + (off ? " · annulée" : "") + '</span></div>' +
+        (!passe && !off && lien ? '<a class="nv-chip" href="' + esc(lien) + '" target="_blank" rel="noopener">Rejoindre</a>' : "") + '</div>';
+    });
+    return html;
+  }
+
+  function groupeBtns(g) {
+    if (!g) return "";
+    var out = lienSur(g.discord_url) ? '<a class="nv-chip" href="' + esc(g.discord_url) + '" target="_blank" rel="noopener">Discord du groupe</a>' : "";
+    (g.liens || []).forEach(function (l) { if (lienSur(l.url)) out += '<a class="nv-chip" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + ICON.link + esc(l.label) + '</a>'; });
+    return out ? '<span class="nl-sec-btns">' + out + '</span>' : "";
+  }
+
+  function prepaCours() {
+    var p = S.prepa, byId = {}, html = "", n = 0;
+    (p.cours_lib || []).forEach(function (d) { byId[d.id] = d; });
+    p.matieres.filter(function (m) { return m.debloquee; }).forEach(function (m) {
+      var docs = m.cours_lib.map(function (id) { return byId[id]; }).filter(Boolean);
+      n += docs.length;
+      html += '<div class="nl-sec">' + esc(m.label) + (m.groupe ? ' <small>' + esc(m.groupe.nom) + '</small>' : "") + groupeBtns(m.groupe) + '</div>' +
+        (docs.length ? '<div class="nl-grid">' + docs.map(bookCard).join("") + '</div>' : '<div class="nl-ps-empty" style="padding:4px 2px 8px">Pas encore de cours NAVIRE Lib pour cette matière.</div>');
+    });
+    var autres = (p.cours_lib || []).filter(function (d) { return !d.matiere_key; });
+    if (autres.length) { n += autres.length; html += '<div class="nl-sec">Pour ton niveau <small>' + esc(p.niveau) + '</small></div><div class="nl-grid">' + autres.map(bookCard).join("") + '</div>'; }
+    if (!n) html += '<div class="nv-empty"><b>Les cours arrivent</b>Les cours NAVIRE Lib de ta classe s\'afficheront ici dès leur publication.</div>';
+    return html;
+  }
+
+  function resRow(r) {
+    var meta = [taille(r.size_bytes)];
+    if (r.professeur) meta.push("Ton chargé de TD");
+    if (r.groupe) meta.push(r.groupe);
+    if (r.description) meta.push(r.description);
+    return '<button class="nl-row" data-res="' + r.id + '" data-title="' + esc(r.titre) + '"><span class="nl-row-ico">' + ICON.file + '</span><div class="nl-row-txt"><b>' + esc(r.titre) + '</b><span>' + esc(meta.join(" · ")) + '</span></div></button>';
+  }
+  function prepaDocs() {
+    var p = S.prepa;
+    var html = '<div class="nl-sec">Méthodologie <small>' + p.methodo.length + ' document' + (p.methodo.length > 1 ? "s" : "") + '</small></div>' +
+      (p.methodo.length ? p.methodo.map(resRow).join("") : '<div class="nl-ps-empty" style="padding:4px 2px 8px">Aucun document pour le moment.</div>');
+    p.matieres.forEach(function (m) {
+      if (!m.debloquee) return;
+      html += '<div class="nl-sec">' + esc(m.label) + ' <small>' + m.ressources.length + ' document' + (m.ressources.length > 1 ? "s" : "") + '</small>' + groupeBtns(m.groupe) + '</div>' +
+        (m.ressources.length ? m.ressources.map(resRow).join("") : '<div class="nl-ps-empty" style="padding:4px 2px 8px">Les supports sont publiés au fil des séances.</div>');
+    });
+    var off = p.matieres.filter(function (m) { return !m.debloquee; });
+    if (off.length) html += '<div class="nl-sec">Autres matières du niveau</div>' + off.map(function (m) {
+      return '<div class="nl-row is-off"><span class="nl-row-ico">' + ICON.lock + '</span><div class="nl-row-txt"><b>' + esc(m.label) + '</b><span>Non souscrite</span></div></div>';
+    }).join("");
+    return html;
+  }
+
+  function prepaDevoirs() {
+    var p = S.prepa, f = S.dv;
+    var mats = p.matieres.filter(function (m) { return m.debloquee; });
+    if (!f.matiere || !mats.some(function (m) { return m.matiere_key === f.matiere; })) f.matiere = mats.length ? mats[0].matiere_key : "";
+    var html = '<div class="nv-card nl-form"><div style="font-weight:700;font-size:14px">Rendre un devoir</div>' +
+      '<div style="font-size:12px;color:var(--text-3);margin-top:3px">Ta copie part au chargé de TD de ton groupe, qui la corrige et la commente ici.</div>';
+    if (p.apercu) {
+      html += '<div class="nl-qfb">Aperçu admin : le dépôt est désactivé. Les copies des étudiants arrivent dans l\'onglet Devoirs de l\'espace professeur.</div></div>';
+    } else {
+      html += '<label class="nv-field"><span>Matière</span><select data-dv="matiere">' + mats.map(function (m) { return '<option value="' + esc(m.matiere_key) + '"' + (m.matiere_key === f.matiere ? " selected" : "") + '>' + esc(m.label) + '</option>'; }).join("") + '</select></label>' +
+        '<label class="nv-field"><span>Titre</span><input class="nv-input" data-dv="titre" maxlength="200" placeholder="Ex. Dissertation n° 2, la coutume" value="' + esc(f.titre) + '"></label>' +
+        '<label class="nv-field"><span>Un mot pour ton professeur (facultatif)</span><textarea data-dv="message" maxlength="4000" placeholder="Une question, un point à regarder…">' + esc(f.message) + '</textarea></label>' +
+        '<label class="nl-drop nv-field" data-el="drop"><input type="file" accept="application/pdf,.pdf" data-dv="file"><span class="nl-row-ico" style="width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:var(--blue-soft);color:var(--blue)">' + ico("up", 17) + '</span><div><b>' + (f.file ? esc(f.file.name) : "Choisir ma copie (PDF)") + '</b><span>' + (f.file ? taille(f.file.size) : "Glisse le fichier ici, " + taille(p.devoir_max_bytes) + " max") + '</span></div></label>' +
+        '<div class="nv-err" data-el="dv-err"></div>' +
+        '<button class="nv-btn is-blue is-block" data-act="dv-submit"' + (f.busy || !f.file || !f.matiere ? " disabled" : "") + '>' + (f.busy ? "Envoi…" : ico("up", 15) + "Envoyer ma copie") + '</button></div>';
+    }
+    var list = p.devoirs || [];
+    html += '<div class="nl-sec">Mes copies <small>' + list.length + '</small></div>';
+    if (!list.length) return html + '<div class="nl-ps-empty" style="padding:4px 2px">Aucune copie rendue pour le moment.</div>';
+    return html + list.map(function (d) {
+      var done = d.statut === "corrige", at = dateOf(d.created_at);
+      return '<div class="nl-devoir' + (done ? " is-done" : "") + '"><div class="nl-devoir-top"><div><b>' + esc(d.titre) + '</b><small>' + esc(d.matiere) + (at ? " · rendu le " + esc(jour(at)) : "") + '</small></div>' +
+        (d.note ? '<span class="nl-note">' + esc(d.note) + '</span>' : '<span class="nv-tag ' + (done ? "solid" : "") + '">' + (done ? "Corrigé" : "En attente") + '</span>') + '</div>' +
+        (d.message ? '<div class="nl-devoir-msg">« ' + esc(d.message) + ' »</div>' : "") +
+        (d.commentaire ? '<div class="nl-com"><small>' + esc(d.corrige_par ? "Commentaire de " + d.corrige_par : "Commentaire du professeur") + '</small>' + esc(d.commentaire) + '</div>' : "") +
+        '<div class="nl-devoir-btns"><button class="nv-chip" data-dv-file="' + d.id + '" data-title="' + esc(d.titre) + '">' + ICON.file + 'Ma copie</button>' +
+          (d.correction ? '<button class="nv-chip" data-dv-corr="' + d.id + '" data-title="' + esc("Correction : " + d.titre) + '">' + ICON.tick + 'Copie corrigée</button>' : "") +
+          (!done ? '<button class="nv-chip" data-dv-del="' + d.id + '">Retirer</button>' : "") + '</div></div>';
+    }).join("");
+  }
+
+  function bindDrop() {
+    var drop = el("drop"); if (!drop) return;
+    ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("is-over"); }); });
+    ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("is-over"); }); });
+    drop.addEventListener("drop", function (e) { var f = e.dataTransfer && e.dataTransfer.files[0]; if (f) pickFile(f); });
+  }
+  function pickFile(f) {
+    if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") return toast("Seuls les PDF sont acceptés.", true);
+    if (S.prepa && f.size > S.prepa.devoir_max_bytes) return toast("Fichier trop lourd (" + taille(S.prepa.devoir_max_bytes) + " max).", true);
+    S.dv.file = f;
+    if (!S.dv.titre) S.dv.titre = f.name.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ").slice(0, 200);
+    viewPrepa("devoirs");
+  }
+  function submitDevoir() {
+    var f = S.dv;
+    if (f.busy || !f.file || !f.matiere) return;
+    f.busy = true; viewPrepa("devoirs");
+    var fd = new FormData();
+    fd.append("file", f.file); fd.append("matiere_key", f.matiere); fd.append("titre", f.titre || ""); fd.append("message", f.message || "");
+    fetch(CONFIG.API + "/lib/prepa/devoirs", { method: "POST", headers: { Authorization: "Bearer " + S.token }, body: fd })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(detail(j.detail)); return j; }); })
+      .then(function (d) {
+        S.dv = { matiere: f.matiere, titre: "", message: "", file: null, busy: false };
+        S.prepa.devoirs = [d].concat(S.prepa.devoirs || []);
+        toast("Copie envoyée à ton professeur.");
+        viewPrepa("devoirs");
+      })
+      .catch(function (x) { f.busy = false; viewPrepa("devoirs"); var e = el("dv-err"); if (e) e.textContent = x.message; });
+  }
+  function deleteDevoir(id) {
+    if (!window.confirm("Retirer cette copie ?")) return;
+    api("DELETE", "/lib/prepa/devoirs/" + id).then(function () {
+      S.prepa.devoirs = (S.prepa.devoirs || []).filter(function (d) { return d.id !== id; });
+      toast("Copie retirée."); viewPrepa("devoirs");
+    }).catch(function (x) { toast(x.message, true); });
+  }
+
+  // ----- Lecteur PDF (pdf.js chargé à la demande, rendu en canvas) -----
+  var PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", pdfjsReady = null, pdfToken = 0;
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve();
+    if (pdfjsReady) return pdfjsReady;
+    pdfjsReady = new Promise(function (resolve, reject) {
+      var sc = document.createElement("script");
+      sc.src = PDFJS + "pdf.min.js";
+      sc.onload = function () { try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; } catch (e) {} resolve(); };
+      sc.onerror = function () { pdfjsReady = null; reject(new Error("pdf.js")); };
+      document.head.appendChild(sc);
+    });
+    return pdfjsReady;
+  }
+  function openPdf(path, title) {
+    var mine = ++pdfToken, frame = el("pdf-frame");
+    el("pdf-title").textContent = title || "Document";
+    frame.innerHTML = '<div class="nl-pdf-pages"><div class="nv-skel" style="height:420px"></div></div>';
+    el("pdf").classList.add("is-on");
+    loadPdfJs().then(function () {
+      return fetch(CONFIG.API + path, { headers: { Authorization: "Bearer " + S.token } });
+    }).then(function (r) {
+      if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(detail(j.detail)); });
+      return r.arrayBuffer();
+    }).then(function (buf) {
+      if (mine !== pdfToken) return;
+      return window.pdfjsLib.getDocument({ data: buf }).promise.then(function (pdf) {
+        var box = document.createElement("div"); box.className = "nl-pdf-pages";
+        frame.innerHTML = ""; frame.appendChild(box);
+        var w = box.clientWidth - 28 || 600, dpr = Math.min(window.devicePixelRatio || 1, 2), chain = Promise.resolve();
+        for (var i = 1; i <= pdf.numPages; i++) (function (n) {
+          chain = chain.then(function () {
+            if (mine !== pdfToken) return;
+            return pdf.getPage(n).then(function (pg) {
+              var vp = pg.getViewport({ scale: (w / pg.getViewport({ scale: 1 }).width) * dpr });
+              var c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height; box.appendChild(c);
+              return pg.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+            });
+          });
+        })(i);
+        return chain;
+      });
+    }).catch(function (x) {
+      if (mine !== pdfToken) return;
+      frame.innerHTML = '<div class="nv-empty"><b>Impossible d\'ouvrir ce document</b>' + esc(x.message === "pdf.js" ? "Le lecteur n'a pas pu se charger." : x.message) + '</div>';
+    });
+  }
+  function closePdf() { pdfToken++; el("pdf").classList.remove("is-on"); el("pdf-frame").innerHTML = ""; }
+
+  // ----- Pass admin : voir Lib comme un étudiant d'un niveau -----
+  function renderAdmin() {
+    var a = el("admin"), b = el("apercu");
+    if (!isAdmin()) { a.innerHTML = ""; b.classList.remove("is-on"); b.innerHTML = ""; return; }
+    a.innerHTML = '<div class="nl-admin"><small>Pass admin · voir comme</small><div class="nl-seg">' +
+      [["", "Admin"], ["L1", "L1"], ["L2", "L2"], ["L3", "L3"], ["M1", "M1"]].map(function (o) {
+        return '<button data-voir="' + o[0] + '" class="' + ((S.voir || "") === o[0] ? "is-on" : "") + '">' + o[1] + '</button>';
+      }).join("") + '</div></div>';
+    b.classList.toggle("is-on", !!S.voir);
+    b.innerHTML = S.voir ? '<span>Aperçu étudiant ' + esc(S.voir) + ' : brouillons masqués, Prépa d\'un inscrit à toutes les matières du niveau.</span><button data-voir="">Quitter l\'aperçu</button>' : "";
+  }
+  function setVoir(v) {
+    S.voir = v || null; store("navire_lib_voir", S.voir);
+    S.prepa = null;
+    renderAdmin();
+    return refreshCatalogue().then(function () {
+      loadPrepa();
+      if (S.voir && hasPrepa()) viewPrepa("cours"); else viewLibrary();
+      toast(S.voir ? "Aperçu " + S.voir : "Retour au pass admin");
+    }).catch(function (x) { toast(x.message, true); });
+  }
+
   // ================= ÉVÉNEMENTS =================
   root.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg]");
+    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg],[data-ptab],[data-voir],[data-res],[data-dv-file],[data-dv-corr],[data-dv-del]");
     if (!t || !root.contains(t)) return;
     var a = function (n) { return +t.getAttribute(n); };
     if (t.hasAttribute("data-go")) {
@@ -1142,7 +1560,18 @@
     }
     if (t.hasAttribute("data-mode")) { e.stopPropagation(); return setMode(t.getAttribute("data-mode")); }
     if (t.hasAttribute("data-mode-set")) return setMode(t.getAttribute("data-mode-set"));
-    if (t.hasAttribute("data-open")) return openDoc(a("data-open"));
+    if (t.hasAttribute("data-open")) {
+      // Un cours Lib+ ouvert depuis la vue Prépa (ou l'encart) passe en Lib+.
+      var oid = a("data-open"), od = ((S.cat && S.cat.items) || []).concat((S.prepa && S.prepa.cours_lib) || []).filter(function (x) { return x.id === oid; })[0];
+      if (od && od.plus && !plus() && hasPlus()) { S.mode = "plus"; store("navire_lib_mode", "plus"); renderMode(); }
+      return openDoc(oid);
+    }
+    if (t.hasAttribute("data-ptab")) return viewPrepa(t.getAttribute("data-ptab"));
+    if (t.hasAttribute("data-voir")) return setVoir(t.getAttribute("data-voir"));
+    if (t.hasAttribute("data-res")) return openPdf("/prepa/adjuris/ressources/" + a("data-res") + "/download", t.getAttribute("data-title"));
+    if (t.hasAttribute("data-dv-file")) return openPdf("/lib/prepa/devoirs/" + a("data-dv-file") + "/fichier", t.getAttribute("data-title"));
+    if (t.hasAttribute("data-dv-corr")) return openPdf("/lib/prepa/devoirs/" + a("data-dv-corr") + "/correction", t.getAttribute("data-title"));
+    if (t.hasAttribute("data-dv-del")) return deleteDevoir(a("data-dv-del"));
     if (t.hasAttribute("data-filter")) { S.filter = t.getAttribute("data-filter"); root.classList.remove("is-drawer"); return viewLibrary(); }
     if (t.hasAttribute("data-goto")) {
       if (t.hasAttribute("data-locked")) {
@@ -1183,11 +1612,15 @@
     else if (act === "close-drawer") root.classList.remove("is-drawer");
     else if (act === "library") { root.classList.remove("is-drawer"); refreshCatalogue().then(viewLibrary); }
     else if (act === "toggle-hl") { S.plain = !S.plain; root.classList.toggle("is-plain", S.plain); t.classList.toggle("is-on", !S.plain); store("navire_lib_plain", S.plain ? "1" : null); toast(S.plain ? "Surlignage masqué" : "Surlignage affiché"); }
-    else if (act === "logout") { S.token = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); }
+    else if (act === "prepa") viewPrepa();
+    else if (act === "pdf-close") closePdf();
+    else if (act === "dv-submit") submitDevoir();
+    else if (act === "logout") { S.token = null; S.prepa = null; S.voir = null; store(CONFIG.TOKEN_KEY, null); store("navire_lib_voir", null); renderAdmin(); viewLoggedOut(); }
     else if (act === "login") login(t);
     else if (act === "google") google();
     else if (act === "signup") { e.preventDefault(); go(CONFIG.SIGNUP_URL); }
   });
+  el("pdf").addEventListener("contextmenu", function (e) { e.preventDefault(); });
   root.addEventListener("submit", function (e) {
     var f = e.target.closest("[data-chat-form]");
     if (!f) return;
@@ -1204,14 +1637,23 @@
       var b = root.querySelector('[data-cp-submit="' + id + '"]'); if (b) b.disabled = !t.value.trim();
     } else if (t.hasAttribute("data-chat-input")) {
       var ch = S.chat[+t.getAttribute("data-chat-input")]; if (ch) ch.draft = t.value;
+    } else if (t.getAttribute("data-dv") === "titre" || t.getAttribute("data-dv") === "message") {
+      S.dv[t.getAttribute("data-dv")] = t.value;
     }
+  });
+  root.addEventListener("change", function (e) {
+    var t = e.target, k = t.getAttribute && t.getAttribute("data-dv");
+    if (k === "matiere") S.dv.matiere = t.value;
+    else if (k === "file" && t.files && t.files[0]) pickFile(t.files[0]);
   });
   root.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && (e.target.id === "l-email" || e.target.id === "l-pass")) login($('[data-act="login"]'));
     if (e.key === "Enter" && e.target.hasAttribute && e.target.hasAttribute("data-short")) { e.preventDefault(); submitQuestion(+e.target.getAttribute("data-short")); }
   });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") root.classList.remove("is-drawer");
+    if (e.key !== "Escape") return;
+    if (el("pdf").classList.contains("is-on")) closePdf();
+    else root.classList.remove("is-drawer");
   });
 
   function login(b) {
@@ -1235,7 +1677,12 @@
 
   // ================= DÉMARRAGE =================
   function refreshCatalogue() {
-    return api("GET", "/lib/catalogue").then(function (c) { S.cat = c; if (c.user) { S.user = c.user; renderElo(); } });
+    return api("GET", "/lib/catalogue" + voirQ()).then(function (c) {
+      S.cat = c;
+      if (c.user) { S.user = c.user; renderElo(); }
+      if (S.voir && !isAdmin()) { S.voir = null; store("navire_lib_voir", null); }
+      renderAdmin();
+    });
   }
   function boot() {
     if (!S.token) return viewLoggedOut();
@@ -1246,7 +1693,9 @@
       var m = pageParam("mode") || load("navire_lib_mode");
       S.mode = m === "lib" || m === "plus" ? m : (hasPlus() ? "plus" : "lib");
       renderMode();
-      var want = +(pageParam("doc") || 0);
+      var want = +(pageParam("doc") || 0), ptab = pageParam("prepa");
+      loadPrepa();
+      if (ptab && hasPrepa() && !want) return viewPrepa(ptab);
       viewLibrary();
       if (want) {
         var d = (S.cat.items || []).filter(function (x) { return x.id === want; })[0];
@@ -1256,6 +1705,8 @@
     }).catch(function (x) { setPage('<div class="nv-empty"><b>Bibliothèque indisponible</b>' + esc(x.message) + '</div>', true); });
   }
   S.token = load(CONFIG.TOKEN_KEY);
+  S.voir = load("navire_lib_voir");
+  if (["L1", "L2", "L3", "M1"].indexOf(S.voir) === -1) S.voir = null;
   renderMode();
   boot();
 })();

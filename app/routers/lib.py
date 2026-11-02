@@ -30,6 +30,7 @@ passage peut être passé sans répondre, et les brouillons s'ouvrent en aperçu
   POST /lib/checkpoints/{id}/passer       → suite ouverte après les échecs
   POST /lib/chat                          → question à NAVIRE AI sur le cours
   GET  /lib/adjuris                       → PDF Prép'AdJuris de l'étudiant (dont ceux du chargé de TD)
+  GET  /lib/prepa                         → vue Prépa (app/routers/lib_prepa.py)
   GET  /lib/embed                         → page d'embed servie par l'API
 
 Admin (header X-Admin-Code) :
@@ -395,9 +396,22 @@ def _checkpoint_for_user(db: Session, cp_id: int, user: User) -> tuple[LibCheckp
 # ============================================================
 
 @router.get("/catalogue")
-def catalogue(db: Session = Depends(get_db), user: User | None = Depends(get_current_user_optional)):
+def catalogue(
+    voir_comme: str | None = None,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    """
+    Bibliothèque de l'élève. `prepa` (carte user) : niveau Prép'AdJuris de
+    l'élève, qui ouvre la vue Prépa de l'embed. Aperçu admin (`voir_comme=L1`,
+    comptes admin seulement) : la bibliothèque d'un étudiant de ce niveau,
+    sans les brouillons.
+    """
+    from app.routers.lib_prepa import apercu_valide, niveau_prepa
+
+    apercu = apercu_valide(user, voir_comme)
     q = select(LibDocument).where(LibDocument.owner_id.is_(None)).order_by(LibDocument.ordre, LibDocument.id)
-    if not _is_admin(user):
+    if apercu or not _is_admin(user):
         q = q.where(LibDocument.is_published.is_(True))
     docs = db.execute(q).scalars().all()
     if user:
@@ -408,9 +422,13 @@ def catalogue(db: Session = Depends(get_db), user: User | None = Depends(get_cur
         ).scalars().all() + docs
     prog = _progress_map(db, user, [d.id for d in docs])
     elo = _elo(user)
+    card = _user_card(user, has_plus(db, user))
+    if card is not None:
+        card["prepa"] = apercu or niveau_prepa(db, user)
+        card["apercu"] = apercu
     return {
         "items": [{**_summary(d, prog, elo), "brouillon": not d.is_published and d.owner_id is None} for d in docs],
-        "user": _user_card(user, has_plus(db, user)),
+        "user": card,
     }
 
 
