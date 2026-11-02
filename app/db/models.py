@@ -2219,6 +2219,56 @@ class PrepaAdjurisCoursEleve(Base):
 
 
 # ============================================================
+# Devoirs Prép'AdJuris — rendus par les étudiants dans NAVIRE Lib (vue Prépa)
+# ============================================================
+
+class PrepaAdjurisDevoir(Base):
+    """
+    Copie (PDF) déposée par un étudiant pour une matière, depuis la vue Prépa
+    de NAVIRE Lib. Le groupe (classe_id) est figé au dépôt : ce sont les
+    professeurs de ce groupe qui la voient dans leur espace (onglet Devoirs),
+    la commentent, la notent et peuvent joindre une copie corrigée.
+    statut : depose | corrige
+    """
+    __tablename__ = "prepa_adjuris_devoirs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    matiere_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    classe_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_classes.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+
+    titre: Mapped[str] = mapped_column(String(200), nullable=False)
+    message: Mapped[str] = mapped_column(Text, default="", nullable=False)  # mot de l'étudiant
+
+    filename_original: Mapped[str] = mapped_column(String(255), nullable=False)
+    filename_stored: Mapped[str] = mapped_column(String(255), nullable=False)
+    path: Mapped[str] = mapped_column(String(500), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    statut: Mapped[str] = mapped_column(String(16), default="depose", nullable=False, index=True)
+    commentaire: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    note: Mapped[str] = mapped_column(String(40), default="", nullable=False)  # « 14/20 », « B+ »…
+
+    # Copie corrigée (PDF) jointe par le professeur, facultative.
+    correction_filename: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    correction_path: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+
+    corrige_par_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    corrige_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+# ============================================================
 # Mails de la console — envois groupés rédigés par un admin
 # ============================================================
 # Règles (destinataires, mise en forme, envoi Brevo) : app/services/mailing.py.

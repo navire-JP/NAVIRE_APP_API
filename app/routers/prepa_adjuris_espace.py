@@ -309,6 +309,13 @@ def telecharger_ressource(
     if not r or not r.is_published:
         raise HTTPException(status_code=404, detail="Ressource introuvable.")
 
+    # Aperçu admin de la vue Prépa (NAVIRE Lib) : tous les documents publiés.
+    if user.is_admin:
+        if not Path(r.path).exists():
+            raise HTTPException(status_code=404, detail="Fichier introuvable sur le disque.")
+        return FileResponse(r.path, media_type="application/pdf", filename=r.filename_original,
+                            content_disposition_type="inline")
+
     actives = set(db.execute(
         select(PrepaAdjurisEnrollment.matiere_key).where(
             PrepaAdjurisEnrollment.user_id == user.id,

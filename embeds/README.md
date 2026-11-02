@@ -5,8 +5,8 @@
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
-| `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI) |
-| `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, rémunération prévisionnelle |
+| `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI), et la vue Prépa des inscrits Prép'AdJuris (remplace la page Prépa) |
+| `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, devoirs à corriger, rémunération prévisionnelle |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
@@ -102,10 +102,20 @@ prévisionnel suit le calendrier des séances de la facturation (agenda de la
 matière) : par séance, le montant fixe plus le montant par étudiant inscrit
 avant la séance, mois par mois jusqu'à la fin du programme.
 
-Un PDF déposé est publié tout de suite pour les étudiants du groupe : dans
-leur espace Prép'AdJuris, et sur NAVIRE Lib via `GET /lib/adjuris` (section
-« Prép'AdJuris », à ajouter à `lib.html`). Les autres groupes de la matière ne
-le voient pas. Seul le professeur qui l'a déposé peut le retirer.
+Un PDF déposé est publié tout de suite pour les étudiants du groupe, dans la
+vue Prépa de NAVIRE Lib (onglet Documents). Les autres groupes de la matière
+ne le voient pas. Seul le professeur qui l'a déposé peut le retirer.
+
+**Devoirs** : les copies (PDF) rendues par les étudiants depuis la vue Prépa
+de NAVIRE Lib arrivent chez les professeurs de leur groupe (et par mail).
+Filtres « À corriger / Corrigées / Toutes » ; pour chaque copie : l'ouvrir,
+écrire un commentaire, mettre une note (texte libre : « 14/20 »), joindre une
+copie corrigée (PDF), puis « Rendre la correction » : l'étudiant reçoit un
+mail et retrouve tout dans son onglet Devoirs. « Remettre à corriger » rouvre
+la copie. Les admins voient toutes les copies. Routes :
+`GET /professeurs/me/devoirs`, `PATCH /professeurs/devoirs/{id}`,
+`POST|GET|DELETE /professeurs/devoirs/{id}/correction`,
+`GET /professeurs/devoirs/{id}/download`.
 
 ## `/lib` : NAVIRE Lib et Lib+
 
@@ -140,6 +150,30 @@ Un curseur en haut à droite passe de l'un à l'autre :
 - **Pass admin** (comptes admin) : Lib+ ouvert sans abonnement, aucun verrou
   d'Elo, bouton « Passer (admin) » sur chaque point de passage dès la première
   question, et les brouillons s'ouvrent en aperçu (étiquette « Brouillon »).
+
+- **Prépa** (inscrits Prép'AdJuris actifs, dans Lib comme dans Lib+ ;
+  invisible pour les autres comptes) : elle remplace la page Prépa.
+  - un encart « Prépa » sous les boutons QCM, NAVIRE AI et Actus : les
+    prochaines séances (agenda de la console) et les cours Lib de la classe ;
+  - une entrée « Espace Prépa » dans le menu et un bandeau en tête de la
+    bibliothèque ;
+  - la vue Prépa, à onglets : **Emploi du temps** (séances de la semaine
+    écoulée et des quatre prochains mois, bouton Rejoindre), **Cours** (les
+    cours Lib de chaque matière souscrite, avec le Discord et les liens du
+    groupe, puis ceux du niveau), **Documents** (méthodo et PDF des matières,
+    dont ceux du chargé de TD, lus dans un lecteur intégré non
+    téléchargeable), **Devoirs** (rendre une copie PDF, suivre la correction,
+    le commentaire, la note et la copie corrigée).
+  Lien direct : `/lib?prepa=edt|cours|docs|devoirs`. Données : `GET /lib/prepa`.
+  Un cours Lib est « de la classe » si sa matière (ou son titre) reprend le
+  nom d'une matière Prép'AdJuris de l'élève (ex. « Introduction au droit »),
+  ou si son niveau est celui de l'élève (champ niveau du document : L1…).
+- **Voir comme** (comptes admin seulement, en bas du menu) : Admin, L1, L2,
+  L3, M1. En L1, la bibliothèque est celle d'un étudiant (brouillons
+  masqués) et la vue Prépa celle d'un inscrit à toutes les matières de L1,
+  avec tous les documents, y compris ceux d'un seul groupe (étiquetés). Un
+  bandeau bleu rappelle l'aperçu ; « Quitter l'aperçu » revient au pass
+  admin. Le serveur ignore ce réglage pour tout autre compte.
 
 Côté console, onglet « Lib » : importer un `.docx` (conseillé : gras,
 italiques, tableaux et surlignage sont repris) ou un `.pdf`, et cocher
