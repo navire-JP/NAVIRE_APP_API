@@ -13,6 +13,7 @@
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
 | `framer/Navire_Lib.tsx` | `/console` | Section « Lib » importée par la console (import des cours) |
 | `framer/Navire_Professeurs.tsx` | `/console` | Section « Prof. » importée par la console (professeurs, groupes, rémunération) |
+| `framer/Navire_Mails.tsx` | `/console` | Section « Mails » importée par la console : rédaction, destinataires par catégorie, PJ, aperçu signé, test, envoi Brevo |
 | `framer/FlashcardsApp.tsx` | page Flashcards | Decks, cartes, révision, génération depuis un PDF ; charte bleu et blanc. Code File `FlashcardsApp`, le composant remplit son cadre |
 
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
@@ -54,6 +55,17 @@ Deux Code Files Framer, à coller tels quels :
 
 4. `framer/Navire_Professeurs.tsx` → Code File nommé `Navire_Professeurs`
    (section « Prof. »), déjà importé par `Navire_AdminConsole`.
+
+5. `framer/Navire_Mails.tsx` → Code File nommé `Navire_Mails` (section
+   « Mails »), déjà importé par `Navire_AdminConsole`. Rédiger un mail,
+   cocher une ou plusieurs catégories (tous les comptes, newsletter,
+   abonnés, ambassadeurs, professeurs, Prép'AdJuris par niveau, matière ou
+   groupe), joindre des fichiers (8 Mo au total), vérifier l'aperçu, s'envoyer
+   un test, puis envoyer. Le mail part de l'expéditeur Brevo de NAVIRE, dans le
+   gabarit des mails automatiques, signé avec la photo de profil et le pseudo
+   de l'admin qui envoie. Mise en forme : ligne vide = paragraphe, `## Titre`,
+   `- liste`, `**gras**`, `*italique*`, `[texte](https://…)`,
+   `[bouton: Texte](https://…)`, `{prenom}`. Routes : `/admin/mailing/*`.
 
 ## `/professeurs` : espace des chargés de TD
 

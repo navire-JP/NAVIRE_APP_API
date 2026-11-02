@@ -2216,3 +2216,61 @@ class PrepaAdjurisCoursEleve(Base):
     )
 
     cours: Mapped["PrepaAdjurisCours"] = relationship("PrepaAdjurisCours", back_populates="eleves")
+
+
+# ============================================================
+# Mails de la console — envois groupés rédigés par un admin
+# ============================================================
+# Règles (destinataires, mise en forme, envoi Brevo) : app/services/mailing.py.
+
+class MailCampaign(Base):
+    """
+    Un mail rédigé dans la console admin et envoyé à une ou plusieurs
+    catégories de destinataires (ambassadeurs, professeurs, une matière…).
+
+    status : draft (brouillon, modifiable) | sending (envoi en cours) |
+             sent | partial (une partie des lots refusée par Brevo) | failed
+
+    Les pièces jointes sont gardées en base (base64) : un brouillon doit
+    pouvoir être repris tel quel, PJ comprises. Leur taille est plafonnée
+    (voir mailing.MAX_ATTACHMENTS_BYTES).
+    """
+    __tablename__ = "mail_campaigns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    subject: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    body: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    # Texte saisi par l'admin (mise en forme légère, voir mailing.render_body).
+
+    segments: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    # Clés de catégories : ["ambassadeurs", "matiere:L1_intro_au_droit", …]
+
+    attachments: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    # [{"name": "planning.pdf", "size": 12345, "content_b64": "…"}]
+
+    status: Mapped[str] = mapped_column(String(16), default="draft", nullable=False, index=True)
+
+    recipients_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sent_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    sent_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # L'admin qui a cliqué « Envoyer » : c'est lui qui signe le mail.
+
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
