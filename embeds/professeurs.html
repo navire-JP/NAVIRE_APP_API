@@ -103,7 +103,7 @@
 
 #nv-prof .nv-side-fill { flex: 1; }
 #nv-prof .nv-wallet { padding: 12px; border-radius: 11px; background: var(--panel); font-size: 11.5px; color: var(--text-3); }
-#nv-prof .nv-wallet b { display: block; font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -.4px; margin: 2px 0 6px; }
+#nv-prof .nv-wallet b { display: block; font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -.4px; margin: 2px 0 6px; }
 #nv-prof .nv-wallet-bar { height: 4px; border-radius: 9px; background: var(--panel-2); overflow: hidden; }
 #nv-prof .nv-wallet-bar i { display: block; height: 100%; background: var(--ok); border-radius: 9px; transition: width .4s var(--ease); }
 #nv-prof .nv-logout { margin-top: 8px; font-size: 11.5px; color: var(--text-4); background: none; border: 0; cursor: pointer; padding: 4px 12px; text-align: left; }
@@ -166,7 +166,7 @@
 #nv-prof .nv-stat:nth-child(3) { animation-delay: .08s; }
 #nv-prof .nv-stat:nth-child(4) { animation-delay: .12s; }
 #nv-prof .nv-stat small { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#nv-prof .nv-stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.5px; margin-top: 6px; }
+#nv-prof .nv-stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.5px; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 #nv-prof .nv-stat.is-ok b { color: var(--ok); }
 
 /* Lien */
@@ -294,9 +294,23 @@
 #nv-prof .nv-month-bar { flex: 1; height: 6px; border-radius: 9px; background: var(--panel-2); overflow: hidden; }
 #nv-prof .nv-month-bar i { display: block; height: 100%; border-radius: 9px; background: var(--blue); }
 #nv-prof .nv-month.is-past .nv-month-bar i { background: var(--ok); }
-#nv-prof .nv-month-amount { width: 96px; text-align: right; font-size: 13.5px; font-weight: 700; flex-shrink: 0; }
-#nv-prof .nv-month .nv-tag { min-width: 62px; justify-content: center; }
-#nv-prof .nv-month small { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4); width: 70px; flex-shrink: 0; }
+#nv-prof .nv-month-amount { width: 112px; text-align: right; font-size: 13.5px; font-weight: 700; flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#nv-prof .nv-month.is-current { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14); }
+/* Solde prévisionnel du mois en cours */
+#nv-prof .nv-solde { padding: 18px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; animation: nv-rise .4s var(--ease) both; }
+#nv-prof .nv-solde-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#nv-prof .nv-solde small { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-4); }
+#nv-prof .nv-solde-amount { display: block; font-size: 30px; font-weight: 800; letter-spacing: -.8px; margin-top: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#nv-prof .nv-solde-bar { height: 6px; border-radius: 9px; background: var(--panel-2); overflow: hidden; margin: 14px 0 12px; }
+#nv-prof .nv-solde-bar i { display: block; height: 100%; border-radius: 9px; background: var(--ok); transition: width .4s var(--ease); }
+#nv-prof .nv-solde-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+#nv-prof .nv-solde-grid div { min-width: 0; }
+#nv-prof .nv-solde-grid small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-solde-grid b { display: block; font-size: 15px; font-weight: 700; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+#nv-prof .nv-solde-grid b.is-ok { color: var(--ok); }
+#nv-prof.is-compact .nv-solde-amount { font-size: 26px; }
+#nv-prof .nv-month .nv-tag { width: 78px; justify-content: center; flex-shrink: 0; }
+#nv-prof .nv-month small { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4); width: 78px; flex-shrink: 0; white-space: nowrap; }
 #nv-prof .nv-icon-mini { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; border: 1px solid var(--line); background: transparent; color: var(--text-3); cursor: pointer; flex-shrink: 0; transition: background .15s, color .15s; padding: 0; }
 #nv-prof .nv-icon-mini:hover { background: var(--panel-2); color: #fff; }
 #nv-prof .nv-icon-mini.is-bad:hover { color: var(--danger); }
@@ -410,7 +424,11 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
-  function eur(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",") + " €"; }
+  // 128 500 → « 1 285,00 € » (espaces insécables : le montant ne se coupe jamais).
+  function eur(c) {
+    var p = (Math.abs(c || 0) / 100).toFixed(2).split(".");
+    return (c < 0 ? "−" : "") + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f") + "," + p[1] + "\u00a0€";
+  }
   function date(iso) { return iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : "—"; }
   function mois(cle) { var p = cle.split("-"); return new Date(+p[0], +p[1] - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); }
   function taille(b) { return b > 1048576 ? (b / 1048576).toFixed(1).replace(".", ",") + " Mo" : Math.max(1, Math.round(b / 1024)) + " Ko"; }
@@ -558,6 +576,7 @@
     var html = head('Bonjour' + (nom ? ' ' + esc(nom) : '') + ' 👋', 'Tu es <span class="nv-grade">' + esc(p.grade) + '</span>') +
       '<div class="nv-stats">' + stat("Groupes", t.classes) + stat("Étudiants", t.etudiants) +
       stat("Déjà gagné", eur(t.realise_cents), true) + stat("À venir", eur(t.a_venir_cents)) + '</div>';
+    if (d.classes.length) html += soldeMois(t);
     if (!d.classes.length) return setPage(html + empty("Aucun groupe pour l'instant", "L'équipe NAVIRE t'ajoutera bientôt à un groupe."));
     var todo = S.devoirs.filter(function (x) { return x.statut === "depose"; }).length;
     if (todo) html += '<button class="nv-card" data-view="devoirs" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;color:inherit;font:inherit">' +
@@ -745,6 +764,23 @@
       .catch(function (x) { if (w) w.close(); toast(x.message, true); });
   }
 
+  // Solde prévisionnel du mois en cours : déjà gagné + séances restantes du mois.
+  function soldeMois(t) {
+    var m = t.mois_en_cours;
+    if (!m) return '';
+    var reste = m.seances - m.seances_passees;
+    var pct = m.montant_cents ? Math.min(100, Math.round(m.realise_cents / m.montant_cents * 100)) : 0;
+    return '<div class="nv-solde"><div class="nv-solde-top"><div><small>Solde prévisionnel · ' + esc(mois(m.mois)) + '</small>' +
+      '<span class="nv-solde-amount">' + eur(m.montant_cents) + '</span></div>' +
+      '<span class="nv-tag"><i></i>' + m.seances_passees + '/' + m.seances + ' séance' + (m.seances > 1 ? 's' : '') + '</span></div>' +
+      '<div class="nv-solde-bar"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="nv-solde-grid">' +
+      '<div><small>Déjà gagné</small><b class="is-ok">' + eur(m.realise_cents) + '</b></div>' +
+      '<div><small>Reste ce mois</small><b>' + eur(m.a_venir_cents) + '</b></div>' +
+      '<div><small>' + (m.extras ? 'Dont extras' : 'Séances à faire') + '</small><b>' + (m.extras ? eur(m.extras_cents) : reste) + '</b></div>' +
+      '</div></div>';
+  }
+
   // ----- Rémunération -----
   function viewEarnings() {
     var d = S.dash, t = d.totaux;
@@ -756,14 +792,15 @@
       d.classes.forEach(function (c) { c.previsionnel.mois.forEach(function (m) { if (m.mois === cle) ls.push(m); }); });
       if (ls.length && ls.every(function (m) { return m.verse_le; })) return '<span class="nv-tag ok"><i></i>versé</span>';
       if (ls.some(function (m) { return m.fixe_cents !== null; })) return '<span class="nv-tag warn"><i></i>ajusté</span>';
+      if (cle === cur) return '<span class="nv-tag"><i></i>en cours</span>';
       return '<span class="nv-tag" style="visibility:hidden"><i></i>versé</span>';
     }
     var html = head("Rémunération", "Prévisionnel calculé sur le calendrier des séances et tes étudiants inscrits, ajusté par l'équipe NAVIRE. Versée par virement.") +
-      '<div class="nv-stats">' + stat("Déjà gagné", eur(t.realise_cents), true) + stat("Versé", eur(t.verse_cents)) + stat("À venir", eur(t.a_venir_cents)) + stat("Total prévu", eur(t.total_cents)) + '</div>';
+      '<div class="nv-stats">' + stat("Déjà gagné", eur(t.realise_cents), true) + stat("Versé", eur(t.verse_cents)) + stat("À venir", eur(t.a_venir_cents)) + stat("Total prévu", eur(t.total_cents)) + '</div>' + soldeMois(t);
     html += '<div class="nv-group-label">Par mois</div>';
     if (!t.mois.length) html += empty("Pas encore de séance", "Les mois apparaîtront dès que l'agenda sera saisi.");
     t.mois.forEach(function (m) {
-      html += '<div class="nv-month' + (m.mois < cur ? " is-past" : "") + '"><span class="nv-month-name">' + mois(m.mois) + '</span>' +
+      html += '<div class="nv-month' + (m.mois < cur ? " is-past" : m.mois === cur ? " is-current" : "") + '"><span class="nv-month-name">' + mois(m.mois) + '</span>' +
         '<small>' + m.seances + ' séance' + (m.seances > 1 ? 's' : '') + '</small>' +
         '<span class="nv-month-bar"><i style="width:' + Math.round(m.montant_cents / max * 100) + '%"></i></span>' +
         '<span class="nv-month-amount">' + eur(m.montant_cents) + '</span>' + monthTag(m.mois) + '</div>';
@@ -795,7 +832,8 @@
     renderCounts();
     el("wallet").innerHTML = 'Déjà gagné<b>' + eur(t.realise_cents) + '</b>' +
       '<div class="nv-wallet-bar"><i style="width:' + (t.total_cents ? Math.round(t.realise_cents / t.total_cents * 100) : 0) + '%"></i></div>' +
-      '<div style="margin-top:6px">' + eur(t.verse_cents) + ' versés · ' + eur(t.total_cents) + ' prévus</div>';
+      '<div style="margin-top:6px">' + eur(t.verse_cents) + ' versés · ' + eur(t.total_cents) + ' prévus</div>' +
+      (t.mois_en_cours ? '<div style="margin-top:4px">Ce mois : ' + eur(t.mois_en_cours.montant_cents) + ' prévus</div>' : '');
     setView(S.view);
   }
 

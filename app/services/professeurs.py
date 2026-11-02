@@ -314,6 +314,7 @@ def previsionnel(
         m["calcule_cents"] += montant
         if d <= maintenant:
             m["_realise"] += montant
+            m["seances_passees"] = m.get("seances_passees", 0) + 1
             nb_passees += 1
         else:
             nb_futures += 1
@@ -354,9 +355,11 @@ def previsionnel(
         a_venir += final - part
         m.setdefault("extras", 0)
         m.setdefault("extras_cents", 0)
+        m.setdefault("seances_passees", 0)
         m.update({
             "fixe_cents": fixe,
             "montant_cents": final,
+            "realise_cents": part,
             "note": r.note if r is not None else "",
             "verse_le": _iso(aware(r.verse_le)) if r is not None else None,
             "reference": r.reference if r is not None else None,

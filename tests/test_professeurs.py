@@ -181,6 +181,15 @@ def test_tableau_de_bord_etudiants_et_previsionnel(monde):
     assert (prev["realise_cents"], prev["a_venir_cents"]) == (1500, 3000)
     assert d["totaux"]["total_cents"] == 4500
     assert sum(m["montant_cents"] for m in d["totaux"]["mois"]) == 4500
+    assert sum(m["realise_cents"] for m in d["totaux"]["mois"]) == 1500
+    # Solde prévisionnel du mois en cours : cohérent avec la ligne du mois.
+    from app.services.prepa_adjuris_billing import cle_mois, mois_de
+    from app.services.professeurs import utcnow
+    em = d["totaux"]["mois_en_cours"]
+    assert em["mois"] == cle_mois(mois_de(utcnow()))
+    ligne = next((m for m in d["totaux"]["mois"] if m["mois"] == em["mois"]), None)
+    assert em["montant_cents"] == (ligne["montant_cents"] if ligne else 0)
+    assert em["a_venir_cents"] == em["montant_cents"] - em["realise_cents"]
 
     # Un second groupe pour le même professeur
     c.post(f"/professeurs/admin/{monde['p']['id']}/affectations", headers=monde["A"], json={"classe_id": monde["g2"]})

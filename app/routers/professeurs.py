@@ -73,6 +73,7 @@ from app.core.prepa_adjuris_config import matiere_niveau
 from app.routers.auth import get_current_user
 from app.services import devoirs as dsvc
 from app.services import professeurs as svc
+from app.services.prepa_adjuris_billing import cle_mois, mois_de
 
 router = APIRouter(prefix="/professeurs", tags=["professeurs"])
 
@@ -179,9 +180,20 @@ def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depe
     mois: dict[str, dict] = {}
     for c in classes:
         for m in c["previsionnel"]["mois"]:
-            t = mois.setdefault(m["mois"], {"mois": m["mois"], "seances": 0, "montant_cents": 0})
-            t["seances"] += m["seances"]
-            t["montant_cents"] += m["montant_cents"]
+            t = mois.setdefault(m["mois"], {
+                "mois": m["mois"], "seances": 0, "seances_passees": 0, "montant_cents": 0,
+                "realise_cents": 0, "extras": 0, "extras_cents": 0,
+            })
+            for k in ("seances", "seances_passees", "montant_cents", "realise_cents", "extras", "extras_cents"):
+                t[k] += m[k]
+
+    # Solde prévisionnel du mois en cours : déjà gagné + reste des séances du mois.
+    cle_en_cours = cle_mois(mois_de(svc.utcnow()))
+    en_cours = dict(mois.get(cle_en_cours) or {
+        "mois": cle_en_cours, "seances": 0, "seances_passees": 0, "montant_cents": 0,
+        "realise_cents": 0, "extras": 0, "extras_cents": 0,
+    })
+    en_cours["a_venir_cents"] = en_cours["montant_cents"] - en_cours["realise_cents"]
 
     return {
         "professeur": {
@@ -198,6 +210,7 @@ def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depe
             "a_venir_cents": sum(c["previsionnel"]["a_venir_cents"] for c in classes),
             "total_cents": sum(c["previsionnel"]["total_cents"] for c in classes),
             "mois": sorted(mois.values(), key=lambda m: m["mois"]),
+            "mois_en_cours": en_cours,
         },
     }
 
