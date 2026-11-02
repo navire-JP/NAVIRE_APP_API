@@ -115,6 +115,14 @@ En haut, le solde prévisionnel du mois en cours ; un clic sur un mois ouvre
 le détail de ses séances (élèves comptés, extras, calcul de la part au
 centime, ajustement). Le professeur ne voit ni l'encaissé ni la part NAVIRE.
 
+**Aperçu admin** : un compte admin qui ouvre `/professeurs` choisit un
+professeur (liste de tous les professeurs, actifs ou suspendus) et voit son
+espace tel qu'il le voit : vue d'ensemble, groupes, étudiants, documents,
+devoirs, rémunération. Un bandeau bleu rappelle l'aperçu et permet de
+changer de professeur ou de le quitter. Lecture seule : dépôt, retrait et
+correction sont masqués, et l'API refuse toute écriture (seules les routes de
+lecture acceptent `voir_comme`). Le choix est retenu dans le navigateur.
+
 Un PDF déposé est publié tout de suite pour les étudiants du groupe : sur
 NAVIRE Lib, il devient un document lu comme un cours, avec la pastille
 « Prépa » (bibliothèque et vue Prépa). Les autres groupes de la matière ne

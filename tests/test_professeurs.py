@@ -143,8 +143,9 @@ def test_professeur_attache_avec_grade(monde):
     assert [a["classe"]["id"] for a in p["affectations"]] == [monde["g1"]]
 
     me = c.get("/professeurs/me", headers=_headers(monde["prof"])).json()
-    assert me == {"status": "active", "grade": "ChargéTD", "prenom": "Paul", "nom": "Prof", "nb_classes": 1}
-    assert c.get("/professeurs/me", headers=_headers(monde["alice"])).json() == {"status": "none"}
+    assert me == {"status": "active", "grade": "ChargéTD", "prenom": "Paul", "nom": "Prof", "nb_classes": 1,
+                  "admin": False, "apercu": None}
+    assert c.get("/professeurs/me", headers=_headers(monde["alice"])).json() == {"status": "none", "admin": False, "apercu": None}
 
     db = SessionLocal()
     assert db.get(User, monde["prof"].id).grade == "ChargéTD"
@@ -414,3 +415,31 @@ def test_alerte_seances_facturees_absentes_de_l_agenda(monde):
     a = [x for x in alertes(db) if x["type"] == "facture_sans_seance" and x["enrollment_id"] == e.id]
     db.close()
     assert len(a) == 1 and f"4 séance(s) facturée(s) en {k} pour 0" in a[0]["message"]
+
+
+def test_apercu_admin_lecture_seule(monde):
+    """Un admin voit l'espace d'un professeur (voir_comme), sans pouvoir y
+    écrire ; voir_comme est ignoré pour un autre compte."""
+    c, A, P = monde["c"], monde["A"], _headers(monde["prof"])
+    pid = monde["p"]["id"]
+
+    me = c.get(f"/professeurs/me?voir_comme={pid}", headers=A).json()
+    assert me["admin"] is True and me["status"] == "active"
+    assert me["apercu"]["professeur_id"] == pid and me["apercu"]["nom"] == "Paul Prof"
+    assert c.get("/professeurs/me", headers=A).json()["status"] == "none"       # l'admin n'est pas prof
+
+    vu = c.get(f"/professeurs/me/dashboard?voir_comme={pid}", headers=A).json()
+    assert vu == c.get("/professeurs/me/dashboard", headers=P).json()
+    k = vu["totaux"]["mois_en_cours"]["mois"]
+    assert c.get(f"/professeurs/me/remuneration/detail?mois={k}&voir_comme={pid}", headers=A).status_code == 200
+    assert c.get(f"/professeurs/me/devoirs?voir_comme={pid}", headers=A).status_code == 200
+    assert c.get("/professeurs/me/dashboard?voir_comme=999999", headers=A).status_code == 404
+
+    # Lecture seule : les écritures restent réservées au professeur.
+    files = {"file": ("x.pdf", b"%PDF-1.4 test", "application/pdf")}
+    r = c.post(f"/professeurs/classes/{monde['g1']}/documents?voir_comme={pid}", headers=A,
+               data={"titre": "x"}, files=files)
+    assert r.status_code == 403
+
+    # Un non-admin ne peut pas regarder l'espace d'un autre.
+    assert c.get(f"/professeurs/me/dashboard?voir_comme={pid}", headers=_headers(monde["alice"])).status_code == 403

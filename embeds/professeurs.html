@@ -113,6 +113,21 @@
 
 /* ================= MAIN ================= */
 #nv-prof .nv-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+/* Aperçu admin : voir l'espace d'un professeur, en lecture seule */
+#nv-prof .nv-apercu { display: none; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 14px; background: #7AA7FF; color: #0a0a12; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+#nv-prof .nv-apercu.is-on { display: flex; }
+#nv-prof .nv-apercu span { flex: 1; min-width: 160px; }
+#nv-prof .nv-apercu select { height: 28px; border: 0; border-radius: 99px; padding: 0 10px; background: #0a0a12; color: #fff; font: inherit; font-size: 12px; max-width: 100%; cursor: pointer; }
+#nv-prof.is-apercu [data-act="upload"], #nv-prof.is-apercu [data-act="pick"], #nv-prof.is-apercu [data-act="del-doc"],
+#nv-prof.is-apercu [data-act="upload-for"], #nv-prof.is-apercu [data-act="dv-save"], #nv-prof.is-apercu [data-act="dv-reopen"],
+#nv-prof.is-apercu [data-act="dv-corr-pick"], #nv-prof.is-apercu [data-act="dv-corr-del"], #nv-prof.is-apercu .nv-upload-card,
+#nv-prof.is-apercu .nv-cta, #nv-prof.is-apercu [data-act="logout"] { display: none !important; }
+#nv-prof.is-apercu [data-dv] { pointer-events: none; opacity: .6; }
+#nv-prof .nv-pick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin-bottom: 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+#nv-prof .nv-pick:hover { background: var(--panel-2); }
+#nv-prof .nv-pick b { display: block; font-size: 13.5px; }
+#nv-prof .nv-pick small { display: block; font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+#nv-prof .nv-pick div { flex: 1; min-width: 0; }
 #nv-prof .nv-topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; min-height: 52px; flex-shrink: 0; }
 #nv-prof .nv-topbar-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
 #nv-prof .nv-icon-btn {
@@ -410,6 +425,7 @@
   <div class="nv-scrim" data-act="close-drawer"></div>
 
   <main class="nv-main">
+    <div class="nv-apercu" data-el="apercu"></div>
     <div class="nv-topbar">
       <button class="nv-icon-btn nv-menu-btn" data-act="open-drawer" aria-label="Menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
@@ -441,7 +457,9 @@
   var root = document.getElementById("nv-prof");
   var S = { token: null, me: null, dash: null, view: "home", q: "", classFilter: "all", uploadClass: null, uploadFile: null,
     devoirs: [], dvFilter: "todo", dvOpen: null, dvDraft: {}, dvTarget: null,
-    earnMonth: null, earnDetail: {}, earnOpen: null };
+    earnMonth: null, earnDetail: {}, earnOpen: null,
+    admin: false, voir: null, profs: null };
+  var VOIR_KEY = "navire_prof_voir_comme";
 
   // ================= OUTILS =================
   function $(sel) { return root.querySelector(sel); }
@@ -461,7 +479,10 @@
   function handle(r) {
     return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(detail(j.detail)); e.status = r.status; throw e; } return j; });
   }
+  // Aperçu admin : les lectures portent voir_comme ; les écritures jamais.
+  function qs(path) { return S.voir ? path + (path.indexOf("?") < 0 ? "?" : "&") + "voir_comme=" + S.voir : path; }
   function api(method, path, body) {
+    if (method === "GET") path = qs(path);
     var h = { "Content-Type": "application/json" };
     if (S.token) h.Authorization = "Bearer " + S.token;
     return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined }).then(handle);
@@ -584,6 +605,50 @@
       '</div>', true);
   }
 
+  // ----- Aperçu admin -----
+  function nomProf(p) { return ((p.prenom || "") + " " + (p.nom || "")).trim() || p.username || p.email || ("Professeur " + p.id); }
+  function chargerProfs() {
+    if (S.profs) return Promise.resolve(S.profs);
+    return api("GET", "/professeurs/admin/list").then(function (r) { S.profs = r.items || []; return S.profs; })
+      .catch(function () { S.profs = []; return S.profs; });
+  }
+  function renderApercu() {
+    var b = el("apercu");
+    root.classList.toggle("is-apercu", !!S.voir);
+    var visible = S.admin && S.profs && S.profs.length && (S.voir || (S.me && S.me.status === "active"));
+    b.classList.toggle("is-on", !!visible);
+    if (!visible) { b.innerHTML = ""; return; }
+    var moi = S.me && S.me.status === "active" && !S.voir;
+    var opts = '<option value="">' + (S.voir ? 'Quitter l\'aperçu' : 'Mon espace') + '</option>' +
+      S.profs.map(function (p) {
+        return '<option value="' + p.id + '"' + (p.id === S.voir ? " selected" : "") + '>' + esc(nomProf(p)) + (p.status !== "active" ? " (suspendu)" : "") + '</option>';
+      }).join("");
+    b.innerHTML = '<span>' + (S.voir && S.me.apercu
+      ? 'Aperçu admin · tu vois l\'espace de ' + esc(S.me.apercu.nom || "ce professeur") + (S.me.apercu.status !== "active" ? ' (suspendu)' : '') + ', en lecture seule'
+      : 'Aperçu admin · voir l\'espace d\'un professeur') + '</span>' +
+      '<select data-el="voir" aria-label="Voir comme">' + opts + '</select>';
+    if (moi) el("voir").value = "";
+  }
+  function voirComme(id) {
+    S.voir = id || null;
+    store(VOIR_KEY, S.voir ? String(S.voir) : null);
+    S.dash = null; S.devoirs = []; S.earnDetail = {}; S.earnMonth = null; S.earnOpen = null; S.dvOpen = null; S.dvDraft = {};
+    S.view = "home"; S.classFilter = "all"; S.uploadClass = null;
+    boot();
+  }
+  function viewPickProf() {
+    var html = hero("Aperçu admin", "Choisis un professeur pour voir son espace tel qu'il le voit, en lecture seule.");
+    if (!S.profs.length) html += empty("Aucun professeur", "Attache un professeur depuis la console (onglet Prof.).");
+    S.profs.forEach(function (p) {
+      var n = p.affectations.length;
+      html += '<button class="nv-pick" data-act="voir" data-id="' + p.id + '"><div><b>' + esc(nomProf(p)) + '</b>' +
+        '<small>' + esc(p.email || "") + ' · ' + n + ' groupe' + (n > 1 ? 's' : '') + '</small></div>' +
+        (p.status !== "active" ? '<span class="nv-tag warn"><i></i>suspendu</span>' : '<span class="nv-tag ok"><i></i>actif</span>') + '</button>';
+    });
+    html += '<div style="display:flex;justify-content:center;margin-top:14px"><button class="nv-chip" data-act="logout">Changer de compte</button></div>';
+    setPage('<div style="max-width:520px;margin:0 auto">' + html + '</div>', true);
+  }
+
   function viewNotProf(suspendu) {
     setPage(hero(suspendu ? 'Accès suspendu' : 'Espace réservé aux professeurs',
       suspendu
@@ -674,7 +739,7 @@
     var html = head("Documents", "Un PDF déposé est publié tout de suite pour les étudiants du groupe, dans leur espace Prép'AdJuris et sur NAVIRE Lib.");
     if (!cs.length) return setPage(html + empty("Aucun groupe", "Tu pourras déposer des documents dès que tu auras un groupe."));
     if (!S.uploadClass || !classe(S.uploadClass)) S.uploadClass = cs[0].id;
-    html += '<div class="nv-card"><div class="nv-card-title">Nouveau document</div>' +
+    html += '<div class="nv-card nv-upload-card"><div class="nv-card-title">Nouveau document</div>' +
       (cs.length > 1 ? field("Groupe", '<select class="nv-input" id="u-classe">' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === S.uploadClass ? " selected" : "") + '>' + esc(c.nom) + '</option>'; }).join("") + '</select>') : '') +
       field("Titre", input("u-titre", "", 'maxlength="200" placeholder="Ex. TD 3 — la responsabilité du fait d\'autrui"')) +
       field("Description", '<textarea class="nv-input" id="u-desc" maxlength="2000" style="min-height:64px"></textarea>', true) +
@@ -982,10 +1047,12 @@
     var a = e.target.closest("[data-act]");
     if (!a || !root.contains(a)) return;
     var act = a.getAttribute("data-act"), id = +a.getAttribute("data-id");
+    if (S.voir && /^(upload|pick|del-doc|upload-for|dv-save|dv-reopen|dv-corr-pick|dv-corr-del)$/.test(act)) { toast("Aperçu admin : lecture seule", true); return; }
+    if (act === "voir") { voirComme(id); return; }
     if (act === "open-drawer") root.classList.add("is-drawer");
     else if (act === "close-drawer") root.classList.remove("is-drawer");
     else if (act === "refresh") (S.earnDetail = {}, loadDash()).then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
-    else if (act === "logout") { S.token = null; S.dash = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); }
+    else if (act === "logout") { S.token = null; S.dash = null; S.voir = null; S.admin = false; S.profs = null; store(CONFIG.TOKEN_KEY, null); store(VOIR_KEY, null); renderApercu(); viewLoggedOut(); }
     else if (act === "signup") go(CONFIG.SIGNUP_URL);
     else if (act === "login") login(a);
     else if (act === "google") google();
@@ -1024,6 +1091,7 @@
     }
   });
   root.addEventListener("change", function (e) {
+    if (e.target.getAttribute("data-el") === "voir") { voirComme(+e.target.value || null); return; }
     if (e.target.getAttribute("data-el") === "file" && e.target.files[0]) { pickFile(e.target.files[0]); e.target.value = ""; }
     if (e.target.id === "u-classe") S.uploadClass = +e.target.value;
     if (e.target.getAttribute("data-el") === "dv-file" && e.target.files[0]) { dvUploadCorrection(e.target.files[0]); e.target.value = ""; }
@@ -1072,7 +1140,7 @@
   // Le PDF demande le jeton : on le récupère puis on l'ouvre dans un onglet.
   function openDoc(id) {
     var w = window.open("", "_blank");
-    fetch(CONFIG.API + "/professeurs/documents/" + id + "/download", { headers: { Authorization: "Bearer " + S.token } })
+    fetch(CONFIG.API + qs("/professeurs/documents/" + id + "/download"), { headers: { Authorization: "Bearer " + S.token } })
       .then(function (r) { if (!r.ok) throw new Error("Document indisponible."); return r.blob(); })
       .then(function (blob) { var url = URL.createObjectURL(blob); if (w) w.location.href = url; else window.open(url, "_blank"); })
       .catch(function (x) { if (w) w.close(); toast(x.message, true); });
@@ -1096,6 +1164,8 @@
 
   function route() {
     var s = S.me.status;
+    renderApercu();
+    if (S.admin && !S.voir && s !== "active") return viewPickProf();
     if (s === "none") return viewNotProf(false);
     if (s !== "active") return viewNotProf(true);
     root.classList.remove("is-solo");
@@ -1106,10 +1176,17 @@
   function boot() {
     if (!S.token) { viewLoggedOut(); return; }
     setPage('<div class="nv-skel" style="margin-top:20px"></div><div class="nv-skel"></div>', true);
-    api("GET", "/professeurs/me").then(function (m) { S.me = m; }).then(route)
+    api("GET", "/professeurs/me")
+      .then(function (m) {
+        S.me = m; S.admin = !!m.admin;
+        if (S.voir && !m.apercu) { S.voir = null; store(VOIR_KEY, null); }   // pas admin, ou professeur retiré
+        return S.admin ? chargerProfs() : null;
+      })
+      .then(route)
       .catch(function (x) { if (x.status === 401) { S.token = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); } else setPage(empty("Erreur", esc(x.message)), true); });
   }
   S.token = load(CONFIG.TOKEN_KEY);
+  S.voir = +load(VOIR_KEY) || null;
   boot();
 })();
 </script>

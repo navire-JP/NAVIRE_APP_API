@@ -5,7 +5,10 @@ Espace professeurs Prép'AdJuris (page navire-ai.com/professeurs, embed
 embeds/professeurs.html). Règles : app/services/professeurs.py.
 
 Professeur (auth NAVIRE, attaché par un admin) :
-  GET    /professeurs/me                         → statut (none | active | suspendu), grade
+  GET    /professeurs/me                         → statut (none | active | suspendu), grade, admin
+  Aperçu admin (lecture seule) : ?voir_comme=<id professeur> sur /me,
+  /me/dashboard, /me/remuneration/detail, /me/devoirs et le téléchargement
+  des documents : l'espace s'affiche comme pour ce professeur.
   GET    /professeurs/me/dashboard               → groupes, étudiants, Discord, liens,
                                                    documents, prévisionnel
   GET    /professeurs/me/remuneration/detail?mois= → séances du mois, élèves comptés,
@@ -97,6 +100,30 @@ def require_professeur(
     return prof
 
 
+def _prof_vu(db: Session, user: User, voir_comme: int | None) -> PrepaAdjurisProfesseur | None:
+    """Aperçu admin : le professeur dont l'admin regarde l'espace (lecture
+    seule : les routes d'écriture n'acceptent pas voir_comme). Ignoré pour
+    tout autre compte."""
+    if voir_comme is None or not getattr(user, "is_admin", False):
+        return None
+    p = db.get(PrepaAdjurisProfesseur, voir_comme)
+    if p is None:
+        raise HTTPException(404, detail="Professeur introuvable.")
+    return p
+
+
+VOIR_COMME = Query(None, description="Aperçu admin : id du professeur dont on voit l'espace")
+
+
+def require_professeur_lecture(
+    voir_comme: int | None = VOIR_COMME,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> PrepaAdjurisProfesseur:
+    """Le professeur connecté, ou celui qu'un admin regarde (voir_comme)."""
+    return _prof_vu(db, user, voir_comme) or require_professeur(db, user)
+
+
 def _iso(dt) -> str | None:
     dt = svc.aware(dt)
     return dt.isoformat() if dt else None
@@ -140,12 +167,21 @@ def embed_page():
 # ============================================================
 
 @router.get("/me")
-def get_me(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    prof = svc.get_professeur(db, user.id)
+def get_me(
+    voir_comme: int | None = VOIR_COMME,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    admin = bool(getattr(user, "is_admin", False))
+    vu = _prof_vu(db, user, voir_comme)
+    prof = vu or svc.get_professeur(db, user.id)
     if prof is None:
-        return {"status": "none"}
+        return {"status": "none", "admin": admin, "apercu": None}
     return {
-        "status": prof.status,
+        "admin": admin,
+        # Aperçu admin : l'espace s'affiche comme pour ce professeur, actif ou non.
+        "apercu": {"professeur_id": prof.id, "nom": f"{prof.prenom} {prof.nom}".strip(), "status": prof.status} if vu else None,
+        "status": "active" if vu else prof.status,
         "grade": prof.grade,
         "prenom": prof.prenom,
         "nom": prof.nom,
@@ -154,7 +190,7 @@ def get_me(db: Session = Depends(get_db), user: User = Depends(get_current_user)
 
 
 @router.get("/me/dashboard")
-def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depends(require_professeur)):
+def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depends(require_professeur_lecture)):
     par_matiere = svc.groupes_par_matiere(db)
     classes = []
     for a in sorted(prof.affectations, key=lambda x: x.classe_id):
@@ -223,7 +259,7 @@ def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depe
 def mon_detail_remuneration(
     mois: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
     db: Session = Depends(get_db),
-    prof: PrepaAdjurisProfesseur = Depends(require_professeur),
+    prof: PrepaAdjurisProfesseur = Depends(require_professeur_lecture),
 ):
     """Détail d'un mois, groupe par groupe : séances, élèves comptés, extras et
     part du professeur (sans l'encaissé ni la part NAVIRE)."""
@@ -312,7 +348,7 @@ def retirer_document(
 def telecharger_document(
     document_id: int,
     db: Session = Depends(get_db),
-    prof: PrepaAdjurisProfesseur = Depends(require_professeur),
+    prof: PrepaAdjurisProfesseur = Depends(require_professeur_lecture),
 ):
     r = _mon_document(db, prof, document_id)
     if not Path(r.path).exists():
@@ -367,8 +403,15 @@ def _marquer_corrige(db: Session, d: PrepaAdjurisDevoir, user: User, background:
 
 
 @router.get("/me/devoirs")
-def mes_devoirs(db: Session = Depends(get_db), acces=Depends(require_correcteur)):
-    _, classes = acces
+def mes_devoirs(
+    voir_comme: int | None = VOIR_COMME,
+    db: Session = Depends(get_db),
+    acces=Depends(require_correcteur),
+):
+    user, classes = acces
+    vu = _prof_vu(db, user, voir_comme)
+    if vu is not None:
+        classes = {a.classe_id for a in vu.affectations}
     q = select(PrepaAdjurisDevoir).order_by(PrepaAdjurisDevoir.created_at.desc(), PrepaAdjurisDevoir.id.desc())
     if classes is not None:
         if not classes:
