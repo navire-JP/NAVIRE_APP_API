@@ -1,0 +1,149 @@
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+.hp-link {
+  position: relative;
+  z-index: 2147483647;
+  display: block;
+  width: 100%; height: 100%;
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: background 0.15s;
+  box-sizing: border-box;
+}
+.hp-link:hover { background: rgba(255,255,255,0.04); }
+.hp {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+}
+.hp-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%; flex-shrink: 0;
+  background: transparent;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #fff;
+}
+.hp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.hp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.hp-name {
+  font-size: 13px; font-weight: 700;
+  color: #fff; letter-spacing: -0.3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1;
+  max-width: 100%;
+}
+.hp-tags { display: flex; gap: 6px; align-items: center; }
+.hp-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; font-weight: 600;
+  padding: 4px 10px; border-radius: 99px;
+  background: #fff;
+  color: #0a1628;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.hp-tag.plan-membre-plus {
+  background: #FFD166;
+  color: #0a1628;
+}
+
+/* Pastilles de rôle : ligne dédiée, affichée seulement si au moins un rôle.
+   Les pastilles absentes sont en display:none → aucun trou (le gap ne
+   s'applique qu'entre éléments visibles). Mots jamais coupés (nowrap). */
+.hp-roles { display: none; gap: 4px; align-items: center; }
+.hp-roles.has-roles { display: flex; }
+.hp-role {
+  display: none;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5px; font-weight: 600;
+  padding: 3px 7px; border-radius: 99px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.hp-role.on { display: inline-block; }
+.hp-role-admin  { background: #EF476F; color: #fff; }
+.hp-role-td     { background: #06D6A0; color: #0a1628; }
+.hp-role-amb    { background: #8E7DFF; color: #fff; }
+
+.hp-rank {
+  flex-shrink: 0;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 1px;
+}
+.hp-rank-val {
+  font-size: 15px; font-weight: 800;
+  color: #fff; letter-spacing: -0.8px; line-height: 1;
+}
+.hp-rank-label {
+  font-size: 7px; font-weight: 500;
+  color: rgba(255,255,255,0.28);
+  text-transform: uppercase; letter-spacing: 1px;
+}
+</style>
+<a class="hp-link" href="/profile" target="_top">
+  <div class="hp">
+    <div class="hp-avatar" id="hp-av">—</div>
+    <div class="hp-info">
+      <div class="hp-name" id="hp-name">—</div>
+      <div class="hp-tags">
+        <span class="hp-tag" id="hp-elo">— elo</span>
+        <span class="hp-tag" id="hp-plan">—</span>
+      </div>
+      <div class="hp-roles" id="hp-roles">
+        <span class="hp-role hp-role-admin" id="hp-role-admin">Admin</span>
+        <span class="hp-role hp-role-td" id="hp-role-td">Chargé TD</span>
+        <span class="hp-role hp-role-amb" id="hp-role-amb">Ambassadeur</span>
+      </div>
+    </div>
+    <div class="hp-rank">
+      <div class="hp-rank-val" id="hp-rank">—</div>
+      <div class="hp-rank-label">#rang</div>
+    </div>
+  </div>
+</a>
+<script>
+(function(){
+  var API = 'https://navire-app-api.onrender.com';
+  var token = ''; try { token = localStorage.getItem('navire_token')||''; } catch(e){}
+  if (!token) return;
+  var h = { 'Authorization': 'Bearer ' + token };
+  var planLabels = { 'free':'Free','membre':'Membre','membre+':'Membre+','beta':'Bêta','prepa':'Prépa' };
+  Promise.all([
+    fetch(API+'/auth/me',{headers:h}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}),
+    fetch(API+'/elo/me',{headers:h}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}),
+  ]).then(function(d){
+    var me=d[0], elo=d[1];
+    if (!me) return;
+    var av = document.getElementById('hp-av');
+    if (me.avatar_url) { av.innerHTML='<img src="'+me.avatar_url+'" alt="">'; }
+    else { av.textContent=(me.username||'?').charAt(0).toUpperCase(); }
+    document.getElementById('hp-name').textContent = me.username||'—';
+    document.getElementById('hp-elo').textContent = (elo?elo.elo:(me.score||0))+' elo';
+    var planKey=(me.plan||'free').toLowerCase();
+    var planEl=document.getElementById('hp-plan');
+    planEl.textContent=planLabels[planKey]||planKey;
+    if(planKey==='membre+') planEl.classList.add('plan-membre-plus');
+    document.getElementById('hp-rank').textContent=elo?'#'+elo.rank:'—';
+
+    // Pastilles de rôle (cumulables)
+    var roles = [
+      ['hp-role-admin', !!me.is_admin],
+      ['hp-role-td',    !!me.is_charge_td || me.grade === 'ChargéTD'],
+      ['hp-role-amb',   !!me.is_ambassador],
+    ];
+    var any = false;
+    roles.forEach(function(r){
+      if (r[1]) { document.getElementById(r[0]).classList.add('on'); any = true; }
+    });
+    if (any) document.getElementById('hp-roles').classList.add('has-roles');
+  });
+})();
+</script>

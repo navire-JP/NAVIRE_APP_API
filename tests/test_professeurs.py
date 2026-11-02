@@ -351,3 +351,13 @@ def test_un_etudiant_compte_une_fois_et_change_de_groupe_entierement(monde):
     g2 = next(a for a in prof["affectations"] if a["classe"]["id"] == monde["g2"])
     assert g2["nb_etudiants"] == 2
     assert aff  # l'affectation du groupe 1 reste, sans étudiant
+
+
+def test_auth_me_expose_les_roles(monde):
+    c = monde["c"]
+    me_prof = c.get("/auth/me", headers=_headers(monde["prof"])).json()
+    assert me_prof["is_charge_td"] is True and me_prof["is_admin"] is False
+    assert me_prof["is_ambassador"] is False
+    me_admin = c.get("/auth/me", headers=monde["A"]).json()
+    assert me_admin["is_admin"] is True and me_admin["is_charge_td"] is False
+    assert c.get("/auth/me", headers=_headers(monde["alice"])).json()["is_charge_td"] is False

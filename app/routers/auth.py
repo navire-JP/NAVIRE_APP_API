@@ -326,8 +326,26 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
     return AuthOut(access_token=token, user=user)
 
 
+def _is_charge_td(db: Session, user: User) -> bool:
+    """Professeur Prép'AdJuris actif (ou grade ChargéTD)."""
+    from app.services.professeurs import GRADE_PROFESSEUR, get_professeur
+    prof = get_professeur(db, user.id)
+    if prof is not None:
+        return prof.status == "active"
+    return user.grade == GRADE_PROFESSEUR
+
+
+def _is_ambassador(db: Session, user: User) -> bool:
+    """Ambassadeur approuvé."""
+    from app.db.models import Ambassador
+    status_ = db.execute(
+        select(Ambassador.status).where(Ambassador.user_id == user.id)
+    ).scalar_one_or_none()
+    return status_ == "approved"
+
+
 @router.get("/me")
-def me(current_user: User = Depends(get_current_user)):
+def me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     limits = get_user_limits(current_user)
 
     return {
@@ -348,6 +366,9 @@ def me(current_user: User = Depends(get_current_user)):
 
         "plan": current_user.plan,
         "is_admin": current_user.is_admin,
+        # Rôles affichés en pastilles (header profil)
+        "is_charge_td": _is_charge_td(db, current_user),
+        "is_ambassador": _is_ambassador(db, current_user),
 
         # Limites du plan courant (source : limits.py)
         "files_limit": limits["files_total"],
