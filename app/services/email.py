@@ -209,6 +209,72 @@ def send_mail_result(to: str, subject: str, html: str) -> dict:
         }
 
 
+def send_bulk_result(
+    recipients: list[dict],
+    subject: str,
+    html: str,
+    attachments: list[dict] | None = None,
+) -> dict:
+    """
+    Envoie le même message à plusieurs destinataires en UN appel Brevo, grâce
+    aux `messageVersions` : chacun reçoit son propre mail (personne ne voit les
+    autres adresses), et les pièces jointes ne sont transmises qu'une fois.
+
+    recipients  : [{"email": "...", "params": {"prenom": "Julie"}}] — `params`
+                  alimente les {{ params.x }} présents dans `html`.
+    attachments : [{"name": "planning.pdf", "content": "<base64>"}]
+
+    Rend {"sent": bool, "detail": str, "message_ids": list[str]}. Ne lève jamais.
+    Brevo plafonne le nombre de versions par appel : l'appelant découpe en lots.
+    """
+    if not recipients:
+        return {"sent": False, "detail": "Aucun destinataire.", "message_ids": []}
+    if not BREVO_API_KEY:
+        logger.warning("BREVO_API_KEY manquant — envoi groupé non effectué")
+        return {
+            "sent": False,
+            "detail": "BREVO_API_KEY absente de l'environnement du serveur.",
+            "message_ids": [],
+        }
+
+    payload: dict = {
+        "sender": {"email": BREVO_SENDER_EMAIL, "name": BREVO_SENDER_NAME},
+        "subject": subject,
+        "htmlContent": html,
+        "messageVersions": [
+            {"to": [{"email": r["email"]}], **({"params": r["params"]} if r.get("params") else {})}
+            for r in recipients
+        ],
+    }
+    if attachments:
+        payload["attachment"] = [{"name": a["name"], "content": a["content"]} for a in attachments]
+
+    try:
+        response = httpx.post(
+            BREVO_API_URL,
+            json=payload,
+            headers={"api-key": BREVO_API_KEY, "Content-Type": "application/json"},
+            timeout=60.0,
+        )
+        if response.status_code not in (200, 201, 202):
+            logger.error("Brevo bulk error %s : %s", response.status_code, response.text)
+            return {
+                "sent": False,
+                "detail": f"Brevo HTTP {response.status_code} — {response.text[:300]}",
+                "message_ids": [],
+            }
+        ids: list[str] = []
+        try:
+            data = response.json() or {}
+            ids = list(data.get("messageIds") or ([data["messageId"]] if data.get("messageId") else []))
+        except Exception:
+            pass
+        return {"sent": True, "detail": f"Accepté par Brevo ({len(recipients)} destinataires).", "message_ids": ids}
+    except Exception as exc:
+        logger.error("Brevo bulk send failed : %s", exc)
+        return {"sent": False, "detail": f"Appel Brevo impossible — {exc}", "message_ids": []}
+
+
 def send_mail(to: str, subject: str, html: str) -> bool:
     """
     Envoie un email via l'API Brevo.
@@ -238,12 +304,15 @@ def logo_url() -> str:
     return EMAIL_LOGO_URL
 
 
-def layout(content_html: str, preheader: str = "") -> str:
+def layout(content_html: str, preheader: str = "", signature_html: str = "") -> str:
     """
     Enveloppe un contenu dans le gabarit NAVIRE (en-tête logo + pied de page).
 
     `preheader` est le texte d'aperçu affiché par la boîte de réception à côté
     de l'objet ; masqué dans le corps du message.
+
+    `signature_html` se place en bas de la carte, sous le contenu : c'est la
+    signature de l'admin (photo + pseudo) des mails rédigés dans la console.
     """
     preheader_block = ""
     if preheader:
@@ -287,6 +356,7 @@ def layout(content_html: str, preheader: str = "") -> str:
             <td style="background:#141414; border-radius:12px; padding:32px;
                        font-size:15px; line-height:1.6; color:#f0f0f0;">
               {content_html}
+              {signature_html}
             </td>
           </tr>
 

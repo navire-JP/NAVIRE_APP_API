@@ -23,12 +23,17 @@
 // Professeurs : onglet « Prof. » (chargés de TD, groupes, salons Discord et
 // liens, pilotage des rémunérations). Le code de la section est dans
 // Navire_Professeurs.tsx.
+//
+// Mails : onglet « Mails » (rédiger un mail, choisir les destinataires par
+// catégorie, pièces jointes, aperçu signé, test puis envoi par Brevo). Le
+// code de la section est dans Navire_Mails.tsx.
 
 import type { Override } from "framer"
 import * as React from "react"
 import { AmbassadeursSection } from "./Navire_Ambassadeurs.tsx"
 import { LibSection } from "./Navire_Lib.tsx"
 import { ProfesseursSection } from "./Navire_Professeurs.tsx"
+import { MailsSection } from "./Navire_Mails.tsx"
 
 // ── Hide all scrollbars globally ──
 if (typeof document !== "undefined") {
@@ -166,6 +171,7 @@ type Section =
     | "ambassadeurs"
     | "lib"
     | "professeurs"
+    | "mails"
 
 type Onglet =
     | "etudiants"
@@ -7161,6 +7167,7 @@ const SECTIONS: { id: Section; label: string }[] = [
     { id: "ambassadeurs", label: "Amb." },
     { id: "lib", label: "Lib" },
     { id: "professeurs", label: "Prof." },
+    { id: "mails", label: "Mails" },
     { id: "terminal", label: "Terminal" },
 ]
 
@@ -7276,6 +7283,7 @@ function ConsoleUI() {
                 {section === "ambassadeurs" && <AmbassadeursSection />}
                 {section === "lib" && <LibSection />}
                 {section === "professeurs" && <ProfesseursSection />}
+                {section === "mails" && <MailsSection />}
             </div>
         </div>
     )
