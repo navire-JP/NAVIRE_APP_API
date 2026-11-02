@@ -386,3 +386,198 @@ def get_professeur(db: Session, user_id: int) -> PrepaAdjurisProfesseur | None:
     return db.execute(
         select(PrepaAdjurisProfesseur).where(PrepaAdjurisProfesseur.user_id == user_id)
     ).scalar_one_or_none()
+
+
+# ============================================================
+# Détail d'un mois : séance par séance, au centime près
+# ============================================================
+
+def payant(e: PrepaAdjurisEnrollment) -> bool:
+    """Inscription réglée par Stripe. Un accès accordé à la main (source
+    « admin », sans abonnement) ne rapporte rien à NAVIRE."""
+    return bool(e.stripe_subscription_id) and e.source != "admin"
+
+
+def noms_etudiants(db: Session, inscriptions: list[PrepaAdjurisEnrollment]) -> dict[int, str]:
+    """Nom affiché de chaque inscription : prénom + nom du formulaire, sinon
+    pseudo NAVIRE, sinon début de l'email."""
+    from app.db.models import PrepaAdjurisInscription
+
+    users = {
+        u.id: u for u in db.execute(
+            select(User).where(User.id.in_([e.user_id for e in inscriptions if e.user_id]))
+        ).scalars()
+    } if any(e.user_id for e in inscriptions) else {}
+    emails = {
+        e.id: ((users[e.user_id].email if e.user_id in users else e.email) or "").strip().lower()
+        for e in inscriptions
+    }
+    formulaire = {}
+    if any(emails.values()):
+        formulaire = {
+            (email or "").lower(): f"{prenom or ''} {nom or ''}".strip()
+            for email, prenom, nom in db.execute(
+                select(PrepaAdjurisInscription.email, PrepaAdjurisInscription.prenom, PrepaAdjurisInscription.nom)
+                .where(func.lower(PrepaAdjurisInscription.email).in_(set(emails.values()) - {""}))
+            )
+        }
+    out = {}
+    for e in inscriptions:
+        u = users.get(e.user_id)
+        email = emails[e.id]
+        out[e.id] = formulaire.get(email) or (u.username if u else "") or email.partition("@")[0] or f"Étudiant {e.id}"
+    return out
+
+
+def detail_mois(
+    db: Session,
+    affectation: PrepaAdjurisAffectation,
+    inscriptions: list[PrepaAdjurisEnrollment],
+    cle: str,
+    maintenant: datetime | None = None,
+    lignes: dict[tuple[int, str], PrepaAdjurisRemuneration] | None = None,
+    avec_navire: bool = True,
+) -> dict:
+    """Séances d'un mois pour une affectation : élèves comptés, extras, part du
+    professeur, encaissé et part NAVIRE. Mêmes règles que previsionnel() : la
+    somme des parts professeur (ajustement compris) est le montant du mois.
+
+    Encaissé (estimation, avant frais Stripe) : PREPA_PRIX_SEANCE_CENTS par
+    élève payant compté à la séance, et le supplément facturé de chaque élève
+    resté à un extra (sauf accès sans paiement). Part NAVIRE = encaissé − part
+    professeur."""
+    from app.core.prepa_adjuris_config import PREPA_PRIX_SEANCE_CENTS
+    from app.db.models import PrepaAdjurisCours, PrepaAdjurisSeance
+
+    maintenant = maintenant or utcnow()
+    fin = fin_programme()
+    lignes = lignes if lignes is not None else pilotage(db, [affectation.id])
+    noms = noms_etudiants(db, inscriptions)
+    debuts = [(e, aware(e.inscrit_le or e.created_at)) for e in inscriptions]
+
+    dates = [
+        d for d in sorted(dates_seances(db, affectation.classe.matiere_key))
+        if mois_de(d) <= fin and cle_mois(mois_de(d)) == cle
+    ]
+    seances: list[dict] = []
+    for d in dates:
+        presents = sorted((e for e, x in debuts if x is None or x < d), key=lambda e: noms[e.id].lower())
+        part_prof = affectation.remu_seance_cents + affectation.remu_etudiant_cents * len(presents)
+        encaisse = PREPA_PRIX_SEANCE_CENTS * sum(1 for e in presents if payant(e))
+        seances.append({
+            "date": _iso(d),
+            "passee": d <= maintenant,
+            "hors_agenda": False,
+            "eleves": [
+                {"enrollment_id": e.id, "nom": noms[e.id], "payant": payant(e),
+                 **({"encaisse_cents": PREPA_PRIX_SEANCE_CENTS if payant(e) else 0} if avec_navire else {})}
+                for e in presents
+            ],
+            "nb_eleves": len(presents),
+            "part_prof_fixe_cents": affectation.remu_seance_cents,
+            "part_prof_eleves_cents": affectation.remu_etudiant_cents * len(presents),
+            "part_prof_cents": part_prof,
+            "encaisse_cents": encaisse,
+            "cours": None,
+            "extra": None,
+        })
+
+    # Cours lancés depuis Discord : rattachés à leur séance, extras compris.
+    cours = db.execute(
+        select(PrepaAdjurisCours).where(
+            PrepaAdjurisCours.classe_id == affectation.classe_id,
+            PrepaAdjurisCours.professeur_id == affectation.professeur_id,
+            PrepaAdjurisCours.statut == "termine",
+        ).order_by(PrepaAdjurisCours.started_at)
+    ).scalars().all()
+    cours = [c for c in cours if cle_mois(mois_de(aware(c.started_at))) == cle]
+    seance_dates = {}
+    ids = [c.seance_id for c in cours if c.seance_id]
+    if ids:
+        seance_dates = {
+            i: aware(d) for i, d in db.execute(
+                select(PrepaAdjurisSeance.id, PrepaAdjurisSeance.date_debut).where(PrepaAdjurisSeance.id.in_(ids))
+            )
+        }
+    par_date = {s["date"]: s for s in seances}
+    for c in cours:
+        cible = par_date.get(_iso(seance_dates.get(c.seance_id))) if c.seance_id else None
+        if cible is None or cible["cours"] is not None:
+            # Cours hors agenda : seul l'extra éventuel est rémunéré.
+            if not c.extra_at:
+                continue
+            cible = {
+                "date": _iso(aware(c.started_at)), "passee": True, "hors_agenda": True, "eleves": [], "nb_eleves": 0,
+                "part_prof_fixe_cents": 0, "part_prof_eleves_cents": 0, "part_prof_cents": 0, "encaisse_cents": 0,
+                "cours": None, "extra": None,
+            }
+            seances.append(cible)
+        cible["cours"] = {
+            "id": c.id,
+            "debut": _iso(aware(c.started_at)),
+            "fin": _iso(aware(c.ended_at)),
+            "duree_comptee_minutes": c.duree_comptee_minutes,
+            "cloture_auto": c.cloture_auto,
+        }
+        if not c.extra_at:
+            continue
+        eleves = sorted(c.eleves, key=lambda e: (e.nom or "").lower())
+        factures = [e for e in eleves if e.extra_cents > 0]
+        enc = sum(e.extra_cents for e in factures if e.facturation != "sans_paiement")
+        part = len(factures) * (affectation.remu_extra_etudiant_cents or 0)
+        cible["extra"] = {
+            "ajoute_a": _iso(aware(c.extra_at)),
+            "eleves": [
+                {"nom": e.nom, "reste": e.retire_le is None, "facture_cents": e.extra_cents,
+                 "facturation": e.facturation}
+                for e in eleves
+            ],
+            "nb_factures": len(factures),
+            "part_prof_cents": part,
+            "encaisse_cents": enc,
+        }
+        cible["part_prof_cents"] += part
+        cible["encaisse_cents"] += enc
+
+    seances.sort(key=lambda s: s["date"])
+    calcule = sum(s["part_prof_cents"] for s in seances)
+    r = lignes.get((affectation.id, cle))
+    fixe = r.montant_cents if r is not None else None
+    montant = calcule if fixe is None else fixe
+    encaisse = sum(s["encaisse_cents"] for s in seances)
+    for s in seances:
+        s["part_navire_cents"] = s["encaisse_cents"] - s["part_prof_cents"]
+        if not avec_navire:
+            for k in ("encaisse_cents", "part_navire_cents"):
+                s.pop(k)
+            if s["extra"]:
+                s["extra"].pop("encaisse_cents")
+
+    out = {
+        "mois": cle,
+        "affectation_id": affectation.id,
+        "classe_id": affectation.classe_id,
+        "classe": affectation.classe.nom,
+        "bareme": {
+            "remu_seance_cents": affectation.remu_seance_cents,
+            "remu_etudiant_cents": affectation.remu_etudiant_cents,
+            "remu_extra_etudiant_cents": affectation.remu_extra_etudiant_cents or 0,
+            **({"prix_seance_cents": PREPA_PRIX_SEANCE_CENTS} if avec_navire else {}),
+        },
+        "seances": seances,
+        "totaux": {
+            "seances": sum(1 for s in seances if not s["hors_agenda"]),
+            "extras": sum(1 for s in seances if s["extra"]),
+            "part_prof_seances_cents": sum(s["part_prof_cents"] - (s["extra"] or {}).get("part_prof_cents", 0) for s in seances),
+            "part_prof_extras_cents": sum((s["extra"] or {}).get("part_prof_cents", 0) for s in seances),
+            "calcule_cents": calcule,
+            "ajustement_cents": montant - calcule,
+            "note": r.note if r is not None else "",
+            "part_prof_cents": montant,
+            "verse_le": _iso(aware(r.verse_le)) if r is not None else None,
+        },
+    }
+    if avec_navire:
+        out["totaux"]["encaisse_cents"] = encaisse
+        out["totaux"]["part_navire_cents"] = encaisse - montant
+    return out

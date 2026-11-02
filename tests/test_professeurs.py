@@ -191,6 +191,22 @@ def test_tableau_de_bord_etudiants_et_previsionnel(monde):
     assert em["montant_cents"] == (ligne["montant_cents"] if ligne else 0)
     assert em["a_venir_cents"] == em["montant_cents"] - em["realise_cents"]
 
+    # Détail séance par séance : la somme des parts est le montant du mois.
+    for m in d["totaux"]["mois"]:
+        det = c.get(f"/professeurs/me/remuneration/detail?mois={m['mois']}", headers=P).json()
+        assert det["totaux"]["part_prof_cents"] == m["montant_cents"]
+        assert det["totaux"]["seances"] == m["seances"]
+        for s in det["groupes"][0]["seances"]:
+            assert s["part_prof_cents"] == 500 + 1000 * s["nb_eleves"]
+            assert [e["nom"] for e in s["eleves"]] == ["alice"]
+            assert "part_navire_cents" not in s and "encaisse_cents" not in s
+        adm = c.get(f"/professeurs/admin/remunerations/detail?affectation_id={aff}&mois={m['mois']}",
+                    headers=monde["A"]).json()
+        assert adm["totaux"]["part_prof_cents"] == m["montant_cents"]
+        assert adm["totaux"]["part_navire_cents"] == adm["totaux"]["encaisse_cents"] - m["montant_cents"]
+    assert c.get(f"/professeurs/admin/remunerations/detail?affectation_id={aff}&mois=2026-01",
+                 headers=P).status_code == 403
+
     # Un second groupe pour le même professeur
     c.post(f"/professeurs/admin/{monde['p']['id']}/affectations", headers=monde["A"], json={"classe_id": monde["g2"]})
     d = c.get("/professeurs/me/dashboard", headers=P).json()

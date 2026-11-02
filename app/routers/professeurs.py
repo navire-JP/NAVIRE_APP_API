@@ -8,6 +8,8 @@ Professeur (auth NAVIRE, attaché par un admin) :
   GET    /professeurs/me                         → statut (none | active | suspendu), grade
   GET    /professeurs/me/dashboard               → groupes, étudiants, Discord, liens,
                                                    documents, prévisionnel
+  GET    /professeurs/me/remuneration/detail?mois= → séances du mois, élèves comptés,
+                                                   extras, part du professeur
   POST   /professeurs/classes/{id}/documents     → dépôt d'un PDF pour le groupe
   DELETE /professeurs/documents/{id}             → retrait d'un document déposé
   GET    /professeurs/documents/{id}/download
@@ -38,6 +40,8 @@ Console (auth NAVIRE, is_admin) :
   PATCH  /professeurs/admin/affectations/{id}     (taux de rémunération, extras compris)
   DELETE /professeurs/admin/affectations/{id}
   GET    /professeurs/admin/remunerations?mois=   (tableau de pilotage)
+  GET    /professeurs/admin/remunerations/detail?affectation_id=&mois=
+                                                  (séances, élèves, extras, parts prof / NAVIRE)
   PUT    /professeurs/admin/remunerations         (montant fixé d'un mois, note)
   POST   /professeurs/admin/remunerations/verser  (virement fait : montant figé)
   POST   /professeurs/admin/remunerations/annuler-versement
@@ -211,6 +215,32 @@ def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depe
             "total_cents": sum(c["previsionnel"]["total_cents"] for c in classes),
             "mois": sorted(mois.values(), key=lambda m: m["mois"]),
             "mois_en_cours": en_cours,
+        },
+    }
+
+
+@router.get("/me/remuneration/detail")
+def mon_detail_remuneration(
+    mois: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    db: Session = Depends(get_db),
+    prof: PrepaAdjurisProfesseur = Depends(require_professeur),
+):
+    """Détail d'un mois, groupe par groupe : séances, élèves comptés, extras et
+    part du professeur (sans l'encaissé ni la part NAVIRE)."""
+    par_matiere = svc.groupes_par_matiere(db)
+    affectations = [a for a in sorted(prof.affectations, key=lambda x: x.classe_id) if a.classe.is_active]
+    lignes = svc.pilotage(db, [a.id for a in affectations])
+    groupes = [
+        svc.detail_mois(db, a, svc.inscriptions_du_groupe(db, a.classe, par_matiere), mois, lignes=lignes, avec_navire=False)
+        for a in affectations
+    ]
+    return {
+        "mois": mois,
+        "groupes": groupes,
+        "totaux": {
+            "seances": sum(g["totaux"]["seances"] for g in groupes),
+            "extras": sum(g["totaux"]["extras"] for g in groupes),
+            "part_prof_cents": sum(g["totaux"]["part_prof_cents"] for g in groupes),
         },
     }
 
@@ -809,6 +839,25 @@ def admin_remunerations(
             "a_verser_cents": sum(l["montant_cents"] for l in items if not l["verse_le"]),
         },
     }
+
+
+@router.get("/admin/remunerations/detail")
+def admin_detail_remuneration(
+    affectation_id: int,
+    mois: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Détail au centime d'une ligne du pilotage : séances, élèves, extras,
+    part professeur, encaissé et part NAVIRE."""
+    a = db.get(PrepaAdjurisAffectation, affectation_id)
+    if a is None:
+        raise HTTPException(404, detail="Affectation introuvable.")
+    inscriptions = svc.inscriptions_du_groupe(db, a.classe) if a.classe.is_active else []
+    d = svc.detail_mois(db, a, inscriptions, mois)
+    p = a.professeur
+    d["professeur"] = f"{p.prenom} {p.nom}".strip() or (p.user.username if p.user else "")
+    return d
 
 
 class RemunerationIn(BaseModel):

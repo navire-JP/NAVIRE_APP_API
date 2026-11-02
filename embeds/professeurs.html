@@ -309,6 +309,30 @@
 #nv-prof .nv-solde-grid b { display: block; font-size: 15px; font-weight: 700; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 #nv-prof .nv-solde-grid b.is-ok { color: var(--ok); }
 #nv-prof.is-compact .nv-solde-amount { font-size: 26px; }
+/* Détail du mois : séances, élèves, extras */
+#nv-prof button.nv-month { width: 100%; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .15s; }
+#nv-prof button.nv-month:hover { background: var(--panel-2); }
+#nv-prof .nv-month.is-selected { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.32); }
+#nv-prof .nv-seance { border-top: 1px solid var(--line); }
+#nv-prof .nv-seance:first-of-type { border-top: 0; }
+#nv-prof .nv-seance-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 2px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+#nv-prof .nv-seance-date { width: 128px; flex-shrink: 0; font-size: 13px; font-weight: 600; white-space: nowrap; }
+#nv-prof .nv-seance-date em { display: block; font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 400; color: var(--text-4); text-transform: none; margin-top: 2px; }
+#nv-prof .nv-seance-tags { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+#nv-prof .nv-seance-amount { width: 104px; flex-shrink: 0; text-align: right; font-size: 13.5px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#nv-prof .nv-seance-row .nv-chev { width: 14px; flex-shrink: 0; color: var(--text-4); transition: transform .2s; }
+#nv-prof .nv-seance.is-open .nv-chev { transform: rotate(90deg); }
+#nv-prof .nv-seance-body { padding: 2px 2px 14px; font-size: 12.5px; color: var(--text-2); }
+#nv-prof .nv-calc { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,0.18); font-variant-numeric: tabular-nums; margin-bottom: 10px; }
+#nv-prof .nv-calc span:nth-child(even) { text-align: right; white-space: nowrap; font-weight: 600; color: var(--text); }
+#nv-prof .nv-calc .is-total { border-top: 1px solid var(--line); padding-top: 6px; font-weight: 700; color: var(--text); }
+#nv-prof .nv-eleves { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0 10px; }
+#nv-prof .nv-eleve { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; background: var(--panel-2); font-size: 12px; color: var(--text); }
+#nv-prof .nv-eleve.is-out { opacity: .45; text-decoration: line-through; }
+#nv-prof .nv-sublabel { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-4); margin-top: 4px; }
+#nv-prof.is-compact .nv-seance-date { width: 96px; }
+#nv-prof.is-still .nv-stat, #nv-prof.is-still .nv-card, #nv-prof.is-still .nv-solde { animation: none; }
+#nv-prof.is-compact .nv-seance-amount { width: 84px; }
 #nv-prof .nv-month .nv-tag { width: 78px; justify-content: center; flex-shrink: 0; }
 #nv-prof .nv-month small { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4); width: 78px; flex-shrink: 0; white-space: nowrap; }
 #nv-prof .nv-icon-mini { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; border: 1px solid var(--line); background: transparent; color: var(--text-3); cursor: pointer; flex-shrink: 0; transition: background .15s, color .15s; padding: 0; }
@@ -416,7 +440,8 @@
 
   var root = document.getElementById("nv-prof");
   var S = { token: null, me: null, dash: null, view: "home", q: "", classFilter: "all", uploadClass: null, uploadFile: null,
-    devoirs: [], dvFilter: "todo", dvOpen: null, dvDraft: {}, dvTarget: null };
+    devoirs: [], dvFilter: "todo", dvOpen: null, dvDraft: {}, dvTarget: null,
+    earnMonth: null, earnDetail: {}, earnOpen: null };
 
   // ================= OUTILS =================
   function $(sel) { return root.querySelector(sel); }
@@ -781,10 +806,95 @@
       '</div></div>';
   }
 
+  // ----- Détail d'un mois : séance par séance, au centime près -----
+  function jourHeure(iso) {
+    var d = new Date(iso);
+    return {
+      jour: d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }).replace(/^./, function (c) { return c.toUpperCase(); }),
+      heure: d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    };
+  }
+  function chargerDetail(cle) {
+    if (S.earnDetail[cle]) return;
+    S.earnDetail[cle] = "loading";
+    api("GET", "/professeurs/me/remuneration/detail?mois=" + cle)
+      .then(function (r) { S.earnDetail[cle] = r; })
+      .catch(function (x) { S.earnDetail[cle] = { erreur: x.message }; })
+      .then(function () { if (S.view === "earnings" && S.earnMonth === cle) rerenderEarnings(); });
+  }
+  function seanceHtml(g, s, i) {
+    var k = g.affectation_id + "-" + i, open = S.earnOpen === k, b = g.bareme, x = s.extra;
+    var jh = jourHeure(s.date), tags = [];
+    if (s.hors_agenda) tags.push('<span class="nv-tag warn"><i></i>hors agenda</span>');
+    else tags.push(s.passee ? '<span class="nv-tag ok"><i></i>faite</span>' : '<span class="nv-tag"><i></i>à venir</span>');
+    if (!s.hors_agenda) tags.push('<span class="nv-tag"><i></i>' + s.nb_eleves + ' élève' + (s.nb_eleves > 1 ? 's' : '') + '</span>');
+    if (x) tags.push('<span class="nv-tag warn"><i></i>extra · ' + x.nb_factures + '</span>');
+    var h = '<div class="nv-seance' + (open ? ' is-open' : '') + '"><button class="nv-seance-row" data-act="earn-seance" data-k="' + k + '">' +
+      '<span class="nv-seance-date">' + esc(jh.jour) + '<em>' + esc(jh.heure) + (s.cours ? ' · lancé ' + esc(jourHeure(s.cours.debut).heure) : '') + '</em></span>' +
+      '<span class="nv-seance-tags">' + tags.join('') + '</span>' +
+      '<span class="nv-seance-amount">' + eur(s.part_prof_cents) + '</span>' +
+      '<svg class="nv-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg></button>';
+    if (!open) return h + '</div>';
+    h += '<div class="nv-seance-body"><div class="nv-calc">';
+    if (!s.hors_agenda) {
+      h += '<span>Séance</span><span>' + eur(s.part_prof_fixe_cents) + '</span>' +
+        '<span>' + s.nb_eleves + ' élève' + (s.nb_eleves > 1 ? 's' : '') + ' × ' + eur(b.remu_etudiant_cents) + '</span><span>' + eur(s.part_prof_eleves_cents) + '</span>';
+    }
+    if (x) h += '<span>Extra : ' + x.nb_factures + ' élève' + (x.nb_factures > 1 ? 's' : '') + ' resté' + (x.nb_factures > 1 ? 's' : '') + ' × ' + eur(b.remu_extra_etudiant_cents) + '</span><span>' + eur(x.part_prof_cents) + '</span>';
+    h += '<span class="is-total">Ta part</span><span class="is-total">' + eur(s.part_prof_cents) + '</span></div>';
+    if (!s.hors_agenda) {
+      h += '<div class="nv-sublabel">Élèves comptés</div>' + (s.eleves.length
+        ? '<div class="nv-eleves">' + s.eleves.map(function (e) { return '<span class="nv-eleve">' + esc(e.nom) + '</span>'; }).join('') + '</div>'
+        : '<div style="margin:6px 0 10px">Aucun élève inscrit à cette date.</div>');
+    }
+    if (s.cours) {
+      var fin = s.cours.fin ? jourHeure(s.cours.fin).heure : "—";
+      h += '<div class="nv-sublabel">Cours Discord</div><div style="margin:6px 0 10px">Lancé à ' + esc(jourHeure(s.cours.debut).heure) + ', terminé à ' + esc(fin) +
+        (s.cours.cloture_auto ? ' (clos automatiquement)' : '') + ' · compté ' + (s.cours.duree_comptee_minutes >= 90 ? '1 h 30' : '1 h') + '</div>';
+    }
+    if (x) {
+      h += '<div class="nv-sublabel">Extra · ajouté à ' + esc(jourHeure(x.ajoute_a).heure) + '</div><div class="nv-eleves">' +
+        x.eleves.map(function (e) { return '<span class="nv-eleve' + (e.reste ? '' : ' is-out') + '" title="' + (e.reste ? 'Resté' : 'Parti avant la fin') + '">' + esc(e.nom) + '</span>'; }).join('') + '</div>';
+    }
+    return h + '</div></div>';
+  }
+  function detailMois(cle) {
+    var r = S.earnDetail[cle];
+    var h = '<div class="nv-group-label">Détail · ' + esc(mois(cle)) + '</div>';
+    if (!r || r === "loading") return h + '<div class="nv-skel"></div>';
+    if (r.erreur) return h + empty("Détail indisponible", esc(r.erreur));
+    if (!r.groupes.some(function (g) { return g.seances.length; })) return h + empty("Aucune séance ce mois-ci", "");
+    r.groupes.forEach(function (g) {
+      if (!g.seances.length && !g.totaux.part_prof_cents) return;
+      var t = g.totaux;
+      h += '<div class="nv-card"><div class="nv-card-title">' + esc(g.classe) + '</div>' +
+        '<div class="nv-card-sub">' + t.seances + ' séance' + (t.seances > 1 ? 's' : '') + (t.extras ? ' · ' + t.extras + ' extra' + (t.extras > 1 ? 's' : '') : '') + ' · touche une séance pour voir le calcul et les élèves</div>';
+      g.seances.forEach(function (s, i) { h += seanceHtml(g, s, i); });
+      h += '<div class="nv-calc" style="margin:10px 0 0">' +
+        '<span>Séances</span><span>' + eur(t.part_prof_seances_cents) + '</span>' +
+        (t.part_prof_extras_cents ? '<span>Extras</span><span>' + eur(t.part_prof_extras_cents) + '</span>' : '') +
+        (t.ajustement_cents ? '<span>Ajustement NAVIRE' + (t.note ? ' · ' + esc(t.note) : '') + '</span><span>' + (t.ajustement_cents > 0 ? '+' : '') + eur(t.ajustement_cents) + '</span>' : '') +
+        '<span class="is-total">Total du mois' + (t.verse_le ? ' · versé' : '') + '</span><span class="is-total">' + eur(t.part_prof_cents) + '</span></div></div>';
+    });
+    return h;
+  }
+
+  // Re-rendu sur place (clic, détail chargé) : sans animation, à la même position.
+  function rerenderEarnings() {
+    var p = el("page"), y = p.scrollTop;
+    root.classList.add("is-still");
+    viewEarnings();
+    p.scrollTop = y;
+  }
+
   // ----- Rémunération -----
   function viewEarnings() {
     var d = S.dash, t = d.totaux;
     var now = new Date(), cur = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    if (!S.earnMonth && t.mois.length) {
+      S.earnMonth = t.mois.some(function (m) { return m.mois === cur; }) ? cur : t.mois[t.mois.length - 1].mois;
+    }
+    if (S.earnMonth) chargerDetail(S.earnMonth);
     var max = Math.max.apply(null, t.mois.map(function (m) { return m.montant_cents; }).concat([1]));
     // Un mois est versé quand il l'est dans tous les groupes ; ajusté si l'un d'eux a un montant fixé.
     function monthTag(cle) {
@@ -800,11 +910,13 @@
     html += '<div class="nv-group-label">Par mois</div>';
     if (!t.mois.length) html += empty("Pas encore de séance", "Les mois apparaîtront dès que l'agenda sera saisi.");
     t.mois.forEach(function (m) {
-      html += '<div class="nv-month' + (m.mois < cur ? " is-past" : m.mois === cur ? " is-current" : "") + '"><span class="nv-month-name">' + mois(m.mois) + '</span>' +
+      html += '<button class="nv-month' + (m.mois < cur ? " is-past" : m.mois === cur ? " is-current" : "") + (m.mois === S.earnMonth ? " is-selected" : "") +
+        '" data-act="earn-month" data-m="' + m.mois + '" title="Voir le détail des séances"><span class="nv-month-name">' + mois(m.mois) + '</span>' +
         '<small>' + m.seances + ' séance' + (m.seances > 1 ? 's' : '') + '</small>' +
         '<span class="nv-month-bar"><i style="width:' + Math.round(m.montant_cents / max * 100) + '%"></i></span>' +
-        '<span class="nv-month-amount">' + eur(m.montant_cents) + '</span>' + monthTag(m.mois) + '</div>';
+        '<span class="nv-month-amount">' + eur(m.montant_cents) + '</span>' + monthTag(m.mois) + '</button>';
     });
+    if (S.earnMonth) html += detailMois(S.earnMonth);
     html += '<div class="nv-group-label">Par groupe</div>';
     d.classes.forEach(function (c) {
       var p = c.previsionnel, parts = [];
@@ -839,6 +951,7 @@
 
   function setView(v) {
     S.view = v;
+    root.classList.remove("is-still");
     root.querySelectorAll(".nv-nav").forEach(function (b) { b.classList.toggle("is-active", b.getAttribute("data-view") === v); });
     root.classList.remove("is-drawer");
     el("title").textContent = TITLES[v];
@@ -856,7 +969,7 @@
     var act = a.getAttribute("data-act"), id = +a.getAttribute("data-id");
     if (act === "open-drawer") root.classList.add("is-drawer");
     else if (act === "close-drawer") root.classList.remove("is-drawer");
-    else if (act === "refresh") loadDash().then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
+    else if (act === "refresh") (S.earnDetail = {}, loadDash()).then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
     else if (act === "logout") { S.token = null; S.dash = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); }
     else if (act === "signup") go(CONFIG.SIGNUP_URL);
     else if (act === "login") login(a);
@@ -867,6 +980,8 @@
     else if (act === "upload") upload(a);
     else if (act === "open-doc") openDoc(id);
     else if (act === "del-doc") delDoc(a, id);
+    else if (act === "earn-month") { var cm = a.getAttribute("data-m"); S.earnMonth = S.earnMonth === cm ? null : cm; S.earnOpen = null; rerenderEarnings(); }
+    else if (act === "earn-seance") { var sk = a.getAttribute("data-k"); S.earnOpen = S.earnOpen === sk ? null : sk; rerenderEarnings(); }
     else if (act === "dv-filter") { S.dvFilter = a.getAttribute("data-f"); viewDevoirs(); }
     else if (act === "dv-toggle") { S.dvOpen = S.dvOpen === id ? null : id; viewDevoirs(); }
     else if (act === "dv-open") openPdf("/professeurs/devoirs/" + id + "/download");

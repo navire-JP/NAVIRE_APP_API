@@ -7,7 +7,8 @@
 // Groupes : un ou plusieurs par matière, avec le salon Discord et des liens ;
 // étudiants du groupe et changement de groupe.
 // Rémunérations : tableau de pilotage, mois par mois (montant calculé, montant
-// fixé à la main, versé). Aucun lien avec Stripe : le virement se fait à la
+// fixé à la main, versé), et « Détail » : séance par séance, élèves, extras,
+// encaissé, part professeur et part NAVIRE au centime. Aucun lien avec Stripe : le virement se fait à la
 // main, puis « Marquer versé » fige le montant.
 //
 // Mêmes jeton, design tokens et primitives que la console (FL, TI, SI, Btn,
@@ -90,8 +91,16 @@ const MATIERE_LABELS: Record<string, string> = {
 const MATIERES = Object.keys(MATIERE_LABELS).filter((k) => !k.startsWith("M1"))
 
 // ── Formats ──
+// 128500 → « 1 285,00 € » (espaces insécables).
 function euros(c: number): string {
-    return `${((c || 0) / 100).toFixed(2).replace(".", ",")} €`
+    const [e, d] = (Math.abs(c || 0) / 100).toFixed(2).split(".")
+    return `${c < 0 ? "−" : ""}${e.replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f")},${d}\u00a0€`
+}
+function heure(s: string | null): string {
+    return s ? new Date(s).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "—"
+}
+function jour(s: string): string {
+    return new Date(s).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" })
 }
 function versEuros(c: number): string {
     return ((c || 0) / 100).toFixed(2).replace(".", ",")
@@ -494,6 +503,27 @@ interface LigneRemu {
     note: string
     verse_le: string | null
     reference: string | null
+}
+
+interface SeanceDetail {
+    date: string
+    passee: boolean
+    hors_agenda: boolean
+    eleves: { enrollment_id: number; nom: string; payant: boolean; encaisse_cents: number }[]
+    nb_eleves: number
+    part_prof_fixe_cents: number
+    part_prof_eleves_cents: number
+    part_prof_cents: number
+    encaisse_cents: number
+    part_navire_cents: number
+    cours: { id: number; debut: string; fin: string | null; duree_comptee_minutes: number; cloture_auto: boolean } | null
+    extra: {
+        ajoute_a: string
+        eleves: { nom: string; reste: boolean; facture_cents: number; facturation: string | null }[]
+        nb_factures: number
+        part_prof_cents: number
+        encaisse_cents: number
+    } | null
 }
 
 // Appel d'écriture : message de résultat, puis rechargement.
@@ -1160,6 +1190,7 @@ function LigneRemuRow({
     const [montant, setMontant] = React.useState(fixeTexte)
     const [note, setNote] = React.useState(l.note)
     const { busy, appel } = useAppel(setMsg, onChanged)
+    const [detail, setDetail] = React.useState(false)
     React.useEffect(() => {
         setMontant(fixeTexte)
         setNote(l.note)
@@ -1240,6 +1271,9 @@ function LigneRemuRow({
                     onChange={(e: any) => setNote(e.target.value)}
                     placeholder="Note (facultatif)"
                 />
+                <Btn onClick={() => setDetail(!detail)} style={{ flexShrink: 0 }}>
+                    {detail ? "Masquer" : "Détail"}
+                </Btn>
                 {modifie ? (
                     <Btn
                         primary
@@ -1279,6 +1313,203 @@ function LigneRemuRow({
                         Annuler
                     </Btn>
                 ) : null}
+            </div>
+            {detail && <DetailRemu l={l} />}
+        </div>
+    )
+}
+
+const NUM: React.CSSProperties = {
+    fontFamily: mono,
+    fontVariantNumeric: "tabular-nums",
+    textAlign: "right",
+    whiteSpace: "nowrap",
+}
+const FACTURATION: Record<string, [string, string]> = {
+    facture: ["FACTURÉ", OK],
+    a_facturer: ["À FACTURER", WARN],
+    erreur: ["ERREUR STRIPE", BAD],
+    sans_paiement: ["SANS PAIEMENT", t2],
+}
+
+// Détail au centime d'une ligne du pilotage : séance par séance, élèves,
+// extras, encaissé, part professeur et part NAVIRE.
+function DetailRemu({ l }: { l: LigneRemu }) {
+    const [d, setD] = React.useState<any>(null)
+    const [err, setErr] = React.useState("")
+    const [ouverte, setOuverte] = React.useState<number | null>(null)
+    React.useEffect(() => {
+        api(`/professeurs/admin/remunerations/detail?affectation_id=${l.affectation_id}&mois=${l.mois}`)
+            .then(setD)
+            .catch((e) => setErr(`Erreur : ${e.message}`))
+    }, [l.affectation_id, l.mois, l.montant_cents])
+
+    if (err) return <SM text={err} />
+    if (!d) return <div style={{ ...VIDE, padding: 12 }}>Chargement du détail…</div>
+    const t = d.totaux
+    const b = d.bareme
+    const seances: SeanceDetail[] = d.seances
+    const marge = t.encaisse_cents ? Math.round((t.part_navire_cents / t.encaisse_cents) * 1000) / 10 : 0
+    const grille = "minmax(110px,1.3fr) 70px 70px 90px 90px 90px"
+    const entete: React.CSSProperties = {
+        fontSize: 8,
+        fontFamily: mono,
+        color: t2,
+        textTransform: "uppercase",
+        letterSpacing: 0.8,
+    }
+
+    function exporter() {
+        const lignes = [["Date", "Heure", "Type", "Élève", "Payant", "Encaissé", "Part prof", "Part NAVIRE"]]
+        seances.forEach((s) => {
+            const type = s.hors_agenda ? "Extra hors agenda" : "Séance"
+            lignes.push([jour(s.date), heure(s.date), type, `${s.nb_eleves} élève(s)`, "",
+                versEuros(s.encaisse_cents - (s.extra?.encaisse_cents || 0)),
+                versEuros(s.part_prof_cents - (s.extra?.part_prof_cents || 0)), ""])
+            s.eleves.forEach((e) => lignes.push(["", "", "", e.nom, e.payant ? "oui" : "non", versEuros(e.encaisse_cents), "", ""]))
+            if (s.extra) {
+                lignes.push([jour(s.date), heure(s.extra.ajoute_a), "Extra", `${s.extra.nb_factures} facturé(s)`, "",
+                    versEuros(s.extra.encaisse_cents), versEuros(s.extra.part_prof_cents), ""])
+                s.extra.eleves.forEach((e) => lignes.push(["", "", "", e.nom, e.facturation || (e.reste ? "" : "parti"),
+                    versEuros(e.facturation === "sans_paiement" ? 0 : e.facture_cents), "", ""]))
+            }
+            lignes.push(["", "", "Total séance", "", "", versEuros(s.encaisse_cents), versEuros(s.part_prof_cents), versEuros(s.part_navire_cents)])
+        })
+        if (t.ajustement_cents) lignes.push(["", "", "Ajustement", t.note || "", "", "", versEuros(t.ajustement_cents), versEuros(-t.ajustement_cents)])
+        lignes.push(["", "", "TOTAL DU MOIS", "", "", versEuros(t.encaisse_cents), versEuros(t.part_prof_cents), versEuros(t.part_navire_cents)])
+        const csv = lignes.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n")
+        const a = document.createElement("a")
+        a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }))
+        a.download = `detail-${d.professeur || "prof"}-${d.classe}-${d.mois}.csv`.replace(/[^\w.-]+/g, "_")
+        a.click()
+    }
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                <Case l="Encaissé (estim.)" v={euros(t.encaisse_cents)} />
+                <Case l="Part prof" v={euros(t.part_prof_cents)} />
+                <Case l="Part NAVIRE" v={euros(t.part_navire_cents)} color={t.part_navire_cents < 0 ? BAD : OK} />
+                <Case l="Marge NAVIRE" v={`${String(marge).replace(".", ",")} %`} color={t1} />
+            </div>
+            <div style={{ fontSize: 10, fontFamily: mono, color: t2 }}>
+                Barème : {euros(b.remu_seance_cents)} / séance + {euros(b.remu_etudiant_cents)} / élève · extra{" "}
+                {euros(b.remu_extra_etudiant_cents)} / élève resté · élève payant {euros(b.prix_seance_cents)} / séance ·
+                avant frais Stripe
+            </div>
+            <div style={{ border: `1px solid ${b0}`, borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: grille, gap: 8, padding: "6px 10px", borderBottom: `1px solid ${b0}` }}>
+                    <span style={entete}>Séance</span>
+                    <span style={{ ...entete, textAlign: "right" }}>Élèves</span>
+                    <span style={{ ...entete, textAlign: "right" }}>Extra</span>
+                    <span style={{ ...entete, textAlign: "right" }}>Encaissé</span>
+                    <span style={{ ...entete, textAlign: "right" }}>Prof</span>
+                    <span style={{ ...entete, textAlign: "right" }}>NAVIRE</span>
+                </div>
+                {seances.length === 0 && <div style={{ ...VIDE, padding: 12 }}>Aucune séance ce mois-ci.</div>}
+                {seances.map((s, i) => {
+                    const open = ouverte === i
+                    const payants = s.eleves.filter((e) => e.payant).length
+                    return (
+                        <div key={i} style={{ borderTop: i ? `1px solid rgba(255,255,255,0.04)` : "none" }}>
+                            <div
+                                onClick={() => setOuverte(open ? null : i)}
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns: grille,
+                                    gap: 8,
+                                    padding: "7px 10px",
+                                    cursor: "pointer",
+                                    background: open ? sA : "transparent",
+                                    fontSize: 11.5,
+                                    color: s.passee ? t0 : t1,
+                                    alignItems: "center",
+                                }}
+                            >
+                                <span style={{ fontFamily: mono, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {open ? "▾" : "▸"} {jour(s.date)} · {heure(s.date)}
+                                    {s.hors_agenda ? " · hors agenda" : s.passee ? "" : " · à venir"}
+                                </span>
+                                <span style={NUM} title={`${payants} payant(s)`}>
+                                    {s.hors_agenda ? "—" : `${s.nb_eleves}${payants !== s.nb_eleves ? ` (${payants}€)` : ""}`}
+                                </span>
+                                <span style={{ ...NUM, color: s.extra ? WARN : t2 }}>{s.extra ? `${s.extra.nb_factures} él.` : "—"}</span>
+                                <span style={NUM}>{euros(s.encaisse_cents)}</span>
+                                <span style={NUM}>{euros(s.part_prof_cents)}</span>
+                                <span style={{ ...NUM, color: s.part_navire_cents < 0 ? BAD : t0 }}>{euros(s.part_navire_cents)}</span>
+                            </div>
+                            {open && (
+                                <div style={{ padding: "6px 10px 10px 22px", fontSize: 11, fontFamily: mono, color: t1, display: "flex", flexDirection: "column", gap: 6 }}>
+                                    {!s.hors_agenda && (
+                                        <div>
+                                            Prof : {euros(s.part_prof_fixe_cents)} séance + {s.nb_eleves} × {euros(b.remu_etudiant_cents)} ={" "}
+                                            {euros(s.part_prof_fixe_cents + s.part_prof_eleves_cents)}
+                                            {s.extra && ` · extra ${s.extra.nb_factures} × ${euros(b.remu_extra_etudiant_cents)} = ${euros(s.extra.part_prof_cents)}`}
+                                        </div>
+                                    )}
+                                    {s.cours && (
+                                        <div>
+                                            Cours Discord : {heure(s.cours.debut)} → {heure(s.cours.fin)} · compté{" "}
+                                            {s.cours.duree_comptee_minutes} min{s.cours.cloture_auto ? " · clos automatiquement" : ""}
+                                        </div>
+                                    )}
+                                    {s.eleves.length > 0 && (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                            {s.eleves.map((e) => (
+                                                <Tag key={e.enrollment_id} color={e.payant ? t0 : t2} border={b0}>
+                                                    {e.nom} · {e.payant ? euros(e.encaisse_cents) : "OFFERT"}
+                                                </Tag>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {s.extra && (
+                                        <>
+                                            <div style={{ color: WARN }}>
+                                                Extra ajouté à {heure(s.extra.ajoute_a)} · encaissé {euros(s.extra.encaisse_cents)}
+                                            </div>
+                                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                                {s.extra.eleves.map((e, j) => {
+                                                    const [lib, col] = e.reste
+                                                        ? FACTURATION[e.facturation || ""] || ["—", t2]
+                                                        : ["PARTI", t2]
+                                                    return (
+                                                        <Tag key={j} color={col} border={b0}>
+                                                            {e.nom} · {lib}
+                                                            {e.reste && e.facture_cents ? ` ${euros(e.facture_cents)}` : ""}
+                                                        </Tag>
+                                                    )
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )
+                })}
+                {t.ajustement_cents !== 0 && (
+                    <div style={{ display: "grid", gridTemplateColumns: grille, gap: 8, padding: "7px 10px", borderTop: `1px solid ${b0}`, fontSize: 11.5, color: WARN }}>
+                        <span style={{ fontFamily: mono }}>Ajustement{t.note ? ` · ${t.note}` : ""}</span>
+                        <span />
+                        <span />
+                        <span />
+                        <span style={NUM}>{euros(t.ajustement_cents)}</span>
+                        <span style={NUM}>{euros(-t.ajustement_cents)}</span>
+                    </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: grille, gap: 8, padding: "8px 10px", borderTop: `1px solid ${b1}`, fontSize: 12, fontWeight: 700, color: t0 }}>
+                    <span style={{ fontFamily: mono }}>Total · {t.seances} séance(s){t.extras ? ` · ${t.extras} extra(s)` : ""}</span>
+                    <span />
+                    <span />
+                    <span style={NUM}>{euros(t.encaisse_cents)}</span>
+                    <span style={NUM}>{euros(t.part_prof_cents)}</span>
+                    <span style={{ ...NUM, color: t.part_navire_cents < 0 ? BAD : OK }}>{euros(t.part_navire_cents)}</span>
+                </div>
+            </div>
+            <div>
+                <Btn onClick={exporter} style={{ fontSize: 10, padding: "4px 10px" }}>
+                    ↓ CSV du détail
+                </Btn>
             </div>
         </div>
     )
