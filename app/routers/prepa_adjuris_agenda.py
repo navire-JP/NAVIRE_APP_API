@@ -509,7 +509,7 @@ def facturation_eleves(
     a_venir: dict[str, dict] = {}
     for it in items:
         for m in it["mois"]:
-            if m["preleve"]:
+            if m["statut"] != "a_venir":
                 continue
             ligne = a_venir.setdefault(m["mois"], {"mois": m["mois"], "date": m["date"], "montant_cents": 0, "seances": 0})
             ligne["montant_cents"] += m["montant_cents"]

@@ -202,9 +202,12 @@ def test_parcours_extra(env, monde):
     ex = [s["extra"] for s in det["seances"] if s["extra"]]
     assert len(ex) == 1 and ex[0]["nb_factures"] == 2 and ex[0]["part_prof_cents"] == 1000
     assert {e["nom"]: e["reste"] for e in ex[0]["eleves"]} == {"Alice Martin": True, "bob": False, "chloe": True}
-    assert ex[0]["encaisse_cents"] == 1000           # Chloé : accès sans paiement
+    # Alice : facturée sur le prélèvement de fin de mois (à venir) ; Chloé :
+    # accès sans paiement.
+    assert ex[0]["encaissement"] == {"encaisse": 0, "a_venir": 1000, "impaye": 0, "estime": 0}
+    assert {e["nom"]: e["encaissement"] for e in ex[0]["eleves"]}["chloe"] == "offert"
     assert det["totaux"]["part_prof_cents"] == next(m["montant_cents"] for m in prev["mois"] if m["mois"] == cle)
-    assert det["totaux"]["part_navire_cents"] == det["totaux"]["encaisse_cents"] - det["totaux"]["part_prof_cents"]
+    assert det["totaux"]["part_navire_cents"] == det["totaux"]["attendu_cents"] - det["totaux"]["part_prof_cents"]
 
 
 def test_sans_extra_rien_n_est_facture(env, monde):

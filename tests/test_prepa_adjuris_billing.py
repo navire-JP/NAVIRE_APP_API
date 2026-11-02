@@ -395,3 +395,21 @@ def test_cours_deja_suivis_regles_a_la_place_de_l_inscription():
         "Aucun montant n'est débité ce jour : le règlement des séances déjà suivies, "
         "le mardi 6 octobre à 21 h et le mardi 13 octobre à 21 h a déjà été effectué."
     )
+
+
+def test_statut_prelevement_impaye():
+    """Un impayé n'est pas « prélevé » : le mois dont le prélèvement a échoué
+    et les suivants sont impayés, les précédents prélevés."""
+    from datetime import datetime, timezone
+
+    from app.db.models import PrepaAdjurisEnrollment
+    from app.services.prepa_adjuris_facturation import statut_prelevement
+
+    e = PrepaAdjurisEnrollment(matiere_key="L2_droit_penal", status="payment_failed",
+                               impaye_depuis=datetime(2026, 11, 1, 8, tzinfo=timezone.utc))
+    now = datetime(2026, 11, 2, 12, tzinfo=timezone.utc)
+    assert statut_prelevement(e, "2026-09", now) == "preleve"
+    assert statut_prelevement(e, "2026-10", now) == "impaye"     # prélevé le 31 octobre, échoué
+    assert statut_prelevement(e, "2026-11", now) == "a_venir"
+    e.impaye_depuis = None                                        # régularisé
+    assert statut_prelevement(e, "2026-10", now) == "preleve"

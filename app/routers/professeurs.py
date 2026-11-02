@@ -5,7 +5,10 @@ Espace professeurs Prép'AdJuris (page navire-ai.com/professeurs, embed
 embeds/professeurs.html). Règles : app/services/professeurs.py.
 
 Professeur (auth NAVIRE, attaché par un admin) :
-  GET    /professeurs/me                         → statut (none | active | suspendu), grade
+  GET    /professeurs/me                         → statut (none | active | suspendu), grade, admin
+  Aperçu admin (lecture seule) : ?voir_comme=<id professeur> sur /me,
+  /me/dashboard, /me/remuneration/detail, /me/devoirs et le téléchargement
+  des documents : l'espace s'affiche comme pour ce professeur.
   GET    /professeurs/me/dashboard               → groupes, étudiants, Discord, liens,
                                                    documents, prévisionnel
   GET    /professeurs/me/remuneration/detail?mois= → séances du mois, élèves comptés,
@@ -77,7 +80,7 @@ from app.core.prepa_adjuris_config import matiere_niveau
 from app.routers.auth import get_current_user
 from app.services import devoirs as dsvc
 from app.services import professeurs as svc
-from app.services.prepa_adjuris_billing import cle_mois, mois_de
+from app.services.prepa_adjuris_billing import cle_mois, date_prelevement, mois_de, parse_mois
 
 router = APIRouter(prefix="/professeurs", tags=["professeurs"])
 
@@ -95,6 +98,30 @@ def require_professeur(
     if prof is None or prof.status != "active":
         raise HTTPException(403, detail="Réservé aux professeurs NAVIRE.")
     return prof
+
+
+def _prof_vu(db: Session, user: User, voir_comme: int | None) -> PrepaAdjurisProfesseur | None:
+    """Aperçu admin : le professeur dont l'admin regarde l'espace (lecture
+    seule : les routes d'écriture n'acceptent pas voir_comme). Ignoré pour
+    tout autre compte."""
+    if voir_comme is None or not getattr(user, "is_admin", False):
+        return None
+    p = db.get(PrepaAdjurisProfesseur, voir_comme)
+    if p is None:
+        raise HTTPException(404, detail="Professeur introuvable.")
+    return p
+
+
+VOIR_COMME = Query(None, description="Aperçu admin : id du professeur dont on voit l'espace")
+
+
+def require_professeur_lecture(
+    voir_comme: int | None = VOIR_COMME,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> PrepaAdjurisProfesseur:
+    """Le professeur connecté, ou celui qu'un admin regarde (voir_comme)."""
+    return _prof_vu(db, user, voir_comme) or require_professeur(db, user)
 
 
 def _iso(dt) -> str | None:
@@ -140,12 +167,21 @@ def embed_page():
 # ============================================================
 
 @router.get("/me")
-def get_me(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    prof = svc.get_professeur(db, user.id)
+def get_me(
+    voir_comme: int | None = VOIR_COMME,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    admin = bool(getattr(user, "is_admin", False))
+    vu = _prof_vu(db, user, voir_comme)
+    prof = vu or svc.get_professeur(db, user.id)
     if prof is None:
-        return {"status": "none"}
+        return {"status": "none", "admin": admin, "apercu": None}
     return {
-        "status": prof.status,
+        "admin": admin,
+        # Aperçu admin : l'espace s'affiche comme pour ce professeur, actif ou non.
+        "apercu": {"professeur_id": prof.id, "nom": f"{prof.prenom} {prof.nom}".strip(), "status": prof.status} if vu else None,
+        "status": "active" if vu else prof.status,
         "grade": prof.grade,
         "prenom": prof.prenom,
         "nom": prof.nom,
@@ -154,7 +190,7 @@ def get_me(db: Session = Depends(get_db), user: User = Depends(get_current_user)
 
 
 @router.get("/me/dashboard")
-def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depends(require_professeur)):
+def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depends(require_professeur_lecture)):
     par_matiere = svc.groupes_par_matiere(db)
     classes = []
     for a in sorted(prof.affectations, key=lambda x: x.classe_id):
@@ -223,7 +259,7 @@ def dashboard(db: Session = Depends(get_db), prof: PrepaAdjurisProfesseur = Depe
 def mon_detail_remuneration(
     mois: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
     db: Session = Depends(get_db),
-    prof: PrepaAdjurisProfesseur = Depends(require_professeur),
+    prof: PrepaAdjurisProfesseur = Depends(require_professeur_lecture),
 ):
     """Détail d'un mois, groupe par groupe : séances, élèves comptés, extras et
     part du professeur (sans l'encaissé ni la part NAVIRE)."""
@@ -312,7 +348,7 @@ def retirer_document(
 def telecharger_document(
     document_id: int,
     db: Session = Depends(get_db),
-    prof: PrepaAdjurisProfesseur = Depends(require_professeur),
+    prof: PrepaAdjurisProfesseur = Depends(require_professeur_lecture),
 ):
     r = _mon_document(db, prof, document_id)
     if not Path(r.path).exists():
@@ -367,8 +403,15 @@ def _marquer_corrige(db: Session, d: PrepaAdjurisDevoir, user: User, background:
 
 
 @router.get("/me/devoirs")
-def mes_devoirs(db: Session = Depends(get_db), acces=Depends(require_correcteur)):
-    _, classes = acces
+def mes_devoirs(
+    voir_comme: int | None = VOIR_COMME,
+    db: Session = Depends(get_db),
+    acces=Depends(require_correcteur),
+):
+    user, classes = acces
+    vu = _prof_vu(db, user, voir_comme)
+    if vu is not None:
+        classes = {a.classe_id for a in vu.affectations}
     q = select(PrepaAdjurisDevoir).order_by(PrepaAdjurisDevoir.created_at.desc(), PrepaAdjurisDevoir.id.desc())
     if classes is not None:
         if not classes:
@@ -800,6 +843,7 @@ def _tableau(db: Session) -> list[dict]:
         select(PrepaAdjurisAffectation).order_by(PrepaAdjurisAffectation.professeur_id, PrepaAdjurisAffectation.classe_id)
     ).scalars().all()
     lignes = svc.pilotage(db, [a.id for a in affectations])
+    maintenant = svc.utcnow()
     out = []
     for a in affectations:
         p, c = a.professeur, a.classe
@@ -817,7 +861,14 @@ def _tableau(db: Session) -> list[dict]:
                 "matiere_key": c.matiere_key,
                 "nb_etudiants": len(inscriptions),
                 **m,
+                # Prévu = montant du mois ; acquis = séances faites ; à verser =
+                # acquis d'un mois clos (prélèvement des élèves passé), non versé.
+                "prevu_cents": m["montant_cents"],
+                "acquis_cents": m["realise_cents"],
+                "clos": date_prelevement(parse_mois(m["mois"])) <= maintenant,
             })
+            l = out[-1]
+            l["a_verser_cents"] = l["acquis_cents"] if l["clos"] and not l["verse_le"] else 0
     return out
 
 
@@ -836,7 +887,11 @@ def admin_remunerations(
             "calcule_cents": sum(l["calcule_cents"] for l in items),
             "montant_cents": sum(l["montant_cents"] for l in items),
             "verse_cents": sum(l["montant_cents"] for l in items if l["verse_le"]),
-            "a_verser_cents": sum(l["montant_cents"] for l in items if not l["verse_le"]),
+            "prevu_cents": sum(l["prevu_cents"] for l in items),
+            "acquis_cents": sum(l["acquis_cents"] for l in items),
+            "a_verser_cents": sum(l["a_verser_cents"] for l in items),
+            # Non versé, tous mois confondus (futurs compris) : l'ancien « à verser ».
+            "reste_cents": sum(l["montant_cents"] for l in items if not l["verse_le"]),
         },
     }
 

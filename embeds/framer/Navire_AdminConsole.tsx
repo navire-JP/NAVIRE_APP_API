@@ -3908,6 +3908,7 @@ interface MoisFacture {
     montant_cents: number
     credits: number
     preleve: boolean
+    statut?: "a_venir" | "preleve" | "impaye"
 }
 interface Facturation {
     enrollment_id: number
@@ -5896,14 +5897,18 @@ function FacturationRow({
                                     <span>{euros(m.montant_cents)}</span>
                                     <span
                                         style={{
-                                            color: m.credits
+                                            color: m.statut === "impaye"
+                                                ? BAD
+                                                : m.credits
                                                 ? "#FFD166"
                                                 : m.preleve
                                                   ? OK
                                                   : t1,
                                         }}
                                     >
-                                        {m.credits
+                                        {m.statut === "impaye"
+                                            ? "impayé"
+                                            : m.credits
                                             ? `−${euros(m.credits * PRIX_SEANCE_CENTS)}`
                                             : m.preleve
                                               ? "prélevé"
