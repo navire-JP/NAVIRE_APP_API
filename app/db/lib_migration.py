@@ -13,6 +13,7 @@ _COLONNES = {
     ("lib_progress", "skipped"): "BOOLEAN NOT NULL DEFAULT FALSE",
     ("lib_documents", "owner_id"): "INTEGER REFERENCES users(id) ON DELETE CASCADE",
     ("lib_documents", "source_file_id"): "INTEGER REFERENCES files(id) ON DELETE CASCADE",
+    ("lib_documents", "prepa_ressource_id"): "INTEGER REFERENCES prepa_adjuris_ressources(id) ON DELETE CASCADE",
     # Classement (leaderboard.py) : stats visibles par les autres, oui par défaut
     ("users", "stats_public"): "BOOLEAN NOT NULL DEFAULT TRUE",
 }
@@ -20,6 +21,7 @@ _COLONNES = {
 _INDEX = [
     "CREATE INDEX IF NOT EXISTS ix_lib_documents_owner_id ON lib_documents (owner_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_lib_documents_source_file_id ON lib_documents (source_file_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_lib_documents_prepa_ressource_id ON lib_documents (prepa_ressource_id)",
 ]
 
 

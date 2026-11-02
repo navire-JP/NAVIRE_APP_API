@@ -54,6 +54,10 @@ def _nettoyer():
         synchronize_session=False)
     db.query(PrepaAdjurisClasse).delete()
     db.query(LibDocument).filter(LibDocument.kicker == TAG).delete(synchronize_session=False)
+    from app.db.models import LibProgress
+    for d in db.query(LibDocument).filter(LibDocument.prepa_ressource_id.is_not(None)).all():
+        db.query(LibProgress).filter(LibProgress.document_id == d.id).delete(synchronize_session=False)
+        db.delete(d)
     db.commit()
     db.close()
 
@@ -149,17 +153,20 @@ def test_vue_prepa_etudiant(monde):
     assert v["prepa"] is True and v["niveau"] == "L1" and v["apercu"] is None
     intro = next(m for m in v["matieres"] if m["matiere_key"] == MATIERE)
     assert intro["debloquee"] and intro["groupe"]["nom"] == "Intro G1"
-    assert [(r["id"], r["professeur"]) for r in intro["ressources"]] == [(doc, True)]
-    assert all(not m["debloquee"] and m["ressources"] == [] for m in v["matieres"] if m["matiere_key"] != MATIERE)
+    # Le PDF du chargé de TD est un document Lib (pastille Prépa), en tête de la matière.
+    prepa = [d for d in v["cours_lib"] if d["prepa"]]
+    assert [(d["titre"], d["kind"], d["professeur"], d["groupe"]) for d in prepa] == [("TD 1", "prepa", True, "Intro G1")]
+    assert intro["cours_lib"][0] == prepa[0]["id"]
+    assert all(not m["debloquee"] and m["cours_lib"] == [] for m in v["matieres"] if m["matiere_key"] != MATIERE)
 
     # Emploi du temps : sa matière + séances communes de son niveau
     assert [s["matiere"] for s in v["seances"]] == ["Introduction au droit", "Séance commune"]
     assert v["prochaine_seance"]["titre"] == "Les sources"
 
     # Cours Lib de la classe : par matière, puis ceux du niveau ; pas de L2, pas de brouillon
-    titres = {d["titre"]: d["matiere_key"] for d in v["cours_lib"]}
+    titres = {d["titre"]: d["matiere_key"] for d in v["cours_lib"] if not d["prepa"]}
     assert titres == {"Introduction au droit : les sources": MATIERE, "Fiche de méthode": None}
-    assert len(intro["cours_lib"]) == 1
+    assert len(intro["cours_lib"]) == 2
 
 
 def test_apercu_admin(monde):
@@ -173,12 +180,14 @@ def test_apercu_admin(monde):
     v = c.get("/lib/prepa?voir_comme=l1", headers=A).json()
     assert v["apercu"] == "L1" and all(m["debloquee"] for m in v["matieres"])
     assert {s["matiere_key"] for s in v["seances"]} == {MATIERE, AUTRE, None}
-    intro = next(m for m in v["matieres"] if m["matiere_key"] == MATIERE)
-    assert intro["ressources"][0]["groupe"] == "Intro G1"
+    assert [d["groupe"] for d in v["cours_lib"] if d["prepa"]] == ["Intro G1"]
     assert c.get(f"/prepa/adjuris/ressources/{doc}/download", headers=A).content == PDF
 
     cat = c.get("/lib/catalogue?voir_comme=L1", headers=A).json()
     assert cat["user"]["prepa"] == "L1" and cat["user"]["apercu"] == "L1" and cat["user"]["admin"]
+    assert [d["titre"] for d in cat["items"] if d["prepa"]] == ["TD 1"]
+    # Hors aperçu, l'admin ne voit pas les documents Prépa dans sa bibliothèque
+    assert not [d for d in c.get("/lib/catalogue", headers=A).json()["items"] if d["prepa"]]
     assert "Brouillon intro" not in [d["titre"] for d in cat["items"]]
     assert "Brouillon intro" in [d["titre"] for d in c.get("/lib/catalogue", headers=A).json()["items"]]
     assert c.get("/lib/prepa?voir_comme=L9", headers=A).status_code == 400
@@ -254,3 +263,63 @@ def test_devoir_hors_groupe_et_retrait(monde):
 
     assert c.delete(f"/lib/prepa/devoirs/{d['id']}", headers=alice).status_code == 200
     assert c.get("/lib/prepa", headers=alice).json()["devoirs"] == []
+
+
+def _pdf_texte() -> bytes:
+    import fitz
+
+    pdf = fitz.open()
+    page, y = pdf.new_page(), 60
+    phrase = "La coutume est une source du droit, faite d'un usage répété et du sentiment d'obligation. "
+    for k in range(10):
+        for ligne in range(3):
+            page.insert_text((60, y), f"{phrase[:80]} ({k}.{ligne})", fontname="helv", fontsize=9)
+            y += 13
+        y += 10
+    return pdf.tobytes()
+
+
+def test_document_prepa_lu_comme_un_cours_lib(monde):
+    """Le PDF d'un chargé de TD se lit dans NAVIRE Lib comme un cours : blocs,
+    plan, pastille Prépa ; réservé aux étudiants du groupe ; retiré avec lui."""
+    from app.db.database import SessionLocal
+    from app.db.models import LibDocument, PrepaAdjurisEnrollment
+
+    c, P, alice = monde["c"], _headers(monde["prof"]), _headers(monde["alice"])
+    res = c.post(f"/professeurs/classes/{monde['g1']}/documents", headers=P,
+                 files={"file": ("td.pdf", _pdf_texte(), "application/pdf")},
+                 data={"titre": "TD 2 · La coutume"}).json()["id"]
+
+    items = c.get("/lib/catalogue", headers=alice).json()["items"]
+    d = next(i for i in items if i["prepa"])
+    assert (d["titre"], d["kind"], d["niveau"], d["matiere"]) == ("TD 2 · La coutume", "prepa", "L1", "Introduction au droit")
+    assert d["description"] == "Document de ton chargé de TD."
+
+    # Lib : le document entier, en blocs (pas de PDF à ouvrir)
+    lu = c.get(f"/lib/documents/{d['id']}?mode=lib", headers=alice).json()
+    assert lu["blocks"] and lu["document"]["prepa"] is True
+    assert lu["document"]["kicker"] == "Prép'AdJuris · Introduction au droit"
+    # Lib+ : points de passage posés tout seuls, sans Elo
+    plus = c.get(f"/lib/documents/{d['id']}?mode=plus", headers=alice).json()
+    assert all(cp["elo_requis"] == 0 and cp["recompense_elo"] == 0 for cp in plus["checkpoints"])
+
+    # Un étudiant d'un autre groupe (ou non inscrit) ne le voit pas
+    db = SessionLocal()
+    db.add(PrepaAdjurisEnrollment(user_id=monde["zoe"].id, email=monde["zoe"].email, matiere_key=MATIERE,
+                                  status="active", source="admin"))
+    db.commit()
+    e = db.query(PrepaAdjurisEnrollment).filter_by(user_id=monde["zoe"].id).one()
+    eid = e.id
+    db.close()
+    assert c.patch(f"/professeurs/admin/inscriptions/{eid}", headers=monde["A"],
+                   json={"classe_id": monde["g2"]}).status_code == 200
+    zoe = _headers(monde["zoe"])
+    assert not [i for i in c.get("/lib/catalogue", headers=zoe).json()["items"] if i["prepa"]]
+    assert c.get(f"/lib/documents/{d['id']}?mode=lib", headers=zoe).status_code == 404
+
+    # Retiré par le professeur : il disparaît de Lib
+    assert c.delete(f"/professeurs/documents/{res}", headers=P).status_code == 200
+    assert not [i for i in c.get("/lib/catalogue", headers=alice).json()["items"] if i["prepa"]]
+    db = SessionLocal()
+    assert db.query(LibDocument).filter(LibDocument.prepa_ressource_id == res).count() == 0
+    db.close()

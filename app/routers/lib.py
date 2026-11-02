@@ -19,6 +19,12 @@ ouverture ; en Lib+, des points de passage s'y placent tout seuls (structure
 du document, sinon tous les LIB_PERSO_MOTS mots) et leurs questions sont
 rédigées par l'IA quand l'élève y arrive. Sans Elo à gagner ni à avoir.
 
+Prépa : les PDF de l'espace Prép'AdJuris (matières, méthodo, dépôts des
+chargés de TD) sont aussi des documents Lib (kind "prepa", pastille Prépa),
+lus comme un cours, sans PDF à ouvrir. Un document par ressource
+(prepa_ressource_id), visible des seuls étudiants qui ont accès à la
+ressource ; lu à la première ouverture, points de passage comme Mes fichiers.
+
 Pass admin (User.is_admin) : Lib+ ouvert, aucun verrou d'Elo, chaque point de
 passage peut être passé sans répondre, et les brouillons s'ouvrent en aperçu.
 
@@ -235,6 +241,7 @@ def _summary(doc: LibDocument, prog: dict[int, LibProgress] | None = None, elo: 
         "description": doc.description,
         "plus": doc.is_plus,
         "perso": doc.owner_id is not None,
+        "prepa": doc.prepa_ressource_id is not None,
         "elo_requis": doc.elo_requis,
         "verrouille": elo < doc.elo_requis,
         "nb_etapes": sum(1 for b in _blocks(doc) if b.get("t") == "h1" and not parser.is_free_title(b.get("text", ""))),
@@ -256,6 +263,14 @@ def _get_published(db: Session, doc_id: int, user: User | None = None) -> LibDoc
     doc = db.get(LibDocument, doc_id)
     if doc and doc.owner_id is not None:
         if not user or doc.owner_id != user.id:
+            raise HTTPException(404, detail="Document introuvable.")
+        _prepare_perso(db, doc)
+        return doc
+    if doc and doc.prepa_ressource_id is not None:
+        from app.routers.lib_prepa import ressource_accessible
+
+        r = db.get(PrepaAdjurisRessource, doc.prepa_ressource_id)
+        if not user or not r or not ressource_accessible(db, user, r):
             raise HTTPException(404, detail="Document introuvable.")
         _prepare_perso(db, doc)
         return doc
@@ -316,16 +331,32 @@ def _sync_perso(db: Session, user: User) -> None:
             db.rollback()
 
 
+def _source_auto(db: Session, doc: LibDocument) -> str | None:
+    """Chemin du PDF d'un document lu à l'ouverture (Mes fichiers ou Prépa)."""
+    if doc.prepa_ressource_id is not None:
+        r = db.get(PrepaAdjurisRessource, doc.prepa_ressource_id)
+        return r.path if r else None
+    f = db.get(File, doc.source_file_id) if doc.source_file_id else None
+    return f.path if f else None
+
+
+def _auto(doc: LibDocument) -> bool:
+    """Document lu à l'ouverture, questions rédigées par l'IA, sans Elo."""
+    return doc.owner_id is not None or doc.prepa_ressource_id is not None
+
+
 def _prepare_perso(db: Session, doc: LibDocument) -> None:
-    """Première ouverture : lecture du PDF, plan, points de passage (sans Elo)."""
+    """Première ouverture (Mes fichiers, Prépa) : lecture du PDF, plan, points
+    de passage (sans Elo)."""
     if "blocks" in (doc.content or {}):
         return
-    f = db.get(File, doc.source_file_id) if doc.source_file_id else None
-    if not f or not Path(f.path).exists():
+    path = _source_auto(db, doc)
+    if not path or not Path(path).exists():
         raise HTTPException(404, detail="Fichier introuvable : il a peut-être expiré.")
-    parsed = _parse(Path(f.path).read_bytes(), "document.pdf")
+    parsed = _parse(Path(path).read_bytes(), "document.pdf")
     doc.content = {k: parsed[k] for k in ("blocks", "plan", "stats")}
-    doc.sous_titre = (parsed["meta"].get("sous_titre") or "")[:400]
+    if not doc.sous_titre:
+        doc.sous_titre = (parsed["meta"].get("sous_titre") or "")[:400]
     blocks = parsed["blocks"]
     found = parser.detect_checkpoints(blocks, seed=doc.id or 0) or [
         {"anchor": a, "titre": t, "questions": [], "source": "perso"}
@@ -409,17 +440,22 @@ def catalogue(
     """
     from app.routers.lib_prepa import apercu_valide, niveau_prepa
 
+    from app.routers.lib_prepa import docs_prepa_visibles
+
     apercu = apercu_valide(user, voir_comme)
-    q = select(LibDocument).where(LibDocument.owner_id.is_(None)).order_by(LibDocument.ordre, LibDocument.id)
+    q = select(LibDocument).where(
+        LibDocument.owner_id.is_(None), LibDocument.prepa_ressource_id.is_(None)
+    ).order_by(LibDocument.ordre, LibDocument.id)
     if apercu or not _is_admin(user):
         q = q.where(LibDocument.is_published.is_(True))
     docs = db.execute(q).scalars().all()
     if user:
         # Mes fichiers en tête, du plus récent au plus ancien.
         _sync_perso(db, user)
+        # Puis les documents Prépa (inscrits Prép'AdJuris, ou aperçu admin).
         docs = db.execute(
             select(LibDocument).where(LibDocument.owner_id == user.id).order_by(LibDocument.id.desc())
-        ).scalars().all() + docs
+        ).scalars().all() + docs_prepa_visibles(db, user, apercu) + docs
     prog = _progress_map(db, user, [d.id for d in docs])
     elo = _elo(user)
     card = _user_card(user, has_plus(db, user))
@@ -427,7 +463,7 @@ def catalogue(
         card["prepa"] = apercu or niveau_prepa(db, user)
         card["apercu"] = apercu
     return {
-        "items": [{**_summary(d, prog, elo), "brouillon": not d.is_published and d.owner_id is None} for d in docs],
+        "items": [{**_summary(d, prog, elo), "brouillon": not d.is_published and not _auto(d)} for d in docs],
         "user": card,
     }
 
@@ -549,7 +585,7 @@ def _current_question(cp: LibCheckpoint, item: dict) -> dict:
 @router.get("/checkpoints/{cp_id}/question")
 def question(cp_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     cp, item, ctx = _checkpoint_for_user(db, cp_id, user)
-    if not cp.questions and ctx["doc"].owner_id is not None:
+    if not cp.questions and _auto(ctx["doc"]):
         _fill_perso(db, ctx["doc"], cp)
     return {"checkpoint": item, "question": parser.public_question(_current_question(cp, item))}
 
@@ -845,7 +881,9 @@ def _delete_checkpoints(db: Session, cps: list[LibCheckpoint]) -> None:
 @router.get("/admin/documents", dependencies=[Depends(verify_admin_code)])
 def admin_list(db: Session = Depends(get_db)):
     docs = db.execute(
-        select(LibDocument).where(LibDocument.owner_id.is_(None)).order_by(LibDocument.ordre, LibDocument.id)
+        select(LibDocument)
+        .where(LibDocument.owner_id.is_(None), LibDocument.prepa_ressource_id.is_(None))
+        .order_by(LibDocument.ordre, LibDocument.id)
     ).scalars().all()
     return {"items": [_admin_doc(db, d) for d in docs]}
 

@@ -20,13 +20,15 @@
 
   Prépa (inscrits Prép'AdJuris, dans Lib comme dans Lib+) : un encart sous
   les raccourcis (emploi du temps, cours de la classe) et une vue Prépa à
-  onglets : emploi du temps, cours, documents (PDF), devoirs à rendre.
+  onglets : emploi du temps, cours et documents, devoirs à rendre. Les
+  documents de l'espace Prépa sont des documents Lib (pastille « Prépa ») :
+  ils se lisent comme un cours, dans la bibliothèque comme dans la vue Prépa.
                 → GET /lib/prepa, POST /lib/prepa/devoirs
   Pass admin : « Voir comme » L1, L2, L3, M1 (bas du menu, comptes admin
   seulement) : la bibliothèque et la vue Prépa d'un étudiant de ce niveau.
 
   Un lien vers un cours précis : /lib?doc=12 (et &mode=lib pour forcer Lib)
-  La vue Prépa : /lib?prepa=edt|cours|docs|devoirs
+  La vue Prépa : /lib?prepa=edt|cours|devoirs
   Réglages : bloc CONFIG du script (liens QCM, NAVIRE AI, actus, offres).
 -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
@@ -585,8 +587,9 @@
   };
   var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
   // perso : les PDF de « Mes fichiers » de l'élève (visibles par lui seul).
-  var KINDS = { perso: "Mes fichiers", cours: "Cours", dissertation: "Dissertation", fiche: "Fiche", cas_pratique: "Cas pratique" };
-  var KINDS_PL = { perso: "Mes fichiers", cours: "Cours", dissertation: "Dissertations", fiche: "Fiches", cas_pratique: "Cas pratiques" };
+  // prepa : les documents de l'espace Prép'AdJuris, lus comme des cours (inscrits seulement).
+  var KINDS = { perso: "Mes fichiers", prepa: "Prépa", cours: "Cours", dissertation: "Dissertation", fiche: "Fiche", cas_pratique: "Cas pratique" };
+  var KINDS_PL = { perso: "Mes fichiers", prepa: "Documents Prépa", cours: "Cours", dissertation: "Dissertations", fiche: "Fiches", cas_pratique: "Cas pratiques" };
 
   var root = document.getElementById("nv-lib");
   var S = {
@@ -833,7 +836,7 @@
     var items = visibleItems();
     var counts = { all: items.length };
     items.forEach(function (d) { counts[d.kind] = (counts[d.kind] || 0) + 1; });
-    var nav = [["all", "Toute la bibliothèque", ICON.grid]].concat(Object.keys(KINDS).filter(function (k) { return counts[k]; }).map(function (k) { return [k, KINDS_PL[k], k === "perso" ? ICON.file : ICON.book]; }));
+    var nav = [["all", "Toute la bibliothèque", ICON.grid]].concat(Object.keys(KINDS).filter(function (k) { return counts[k]; }).map(function (k) { return [k, KINDS_PL[k], k === "perso" ? ICON.file : k === "prepa" ? ICON.cap : ICON.book]; }));
     var lib = S.view === "library";
     el("side").innerHTML =
       nav.map(function (n) {
@@ -904,9 +907,9 @@
     var foot = p && d.nb_points_passage
       ? bar(d.progression_pct) + '<span>' + d.valides + '/' + d.nb_points_passage + '</span>'
       : d.minutes ? '<span>' + d.minutes + ' min de lecture</span>'
-      : '<span>' + (d.perso ? (p ? "Ton PDF : points de passage à l'ouverture" : "Ton PDF") : "? min de lecture") + '</span>';
+      : '<span>' + (d.perso ? (p ? "Ton PDF : points de passage à l'ouverture" : "Ton PDF") : d.prepa ? (d.professeur ? "De ton chargé de TD" : "Prép'AdJuris") : "? min de lecture") + '</span>';
     return '<button class="nl-book' + (p && d.verrouille ? " is-locked" : "") + (d.plus ? " is-plus" : "") + '" data-open="' + d.id + '" style="animation-delay:' + (i * 0.04) + 's">' + lock +
-      '<div class="nl-book-top"><span class="nv-tag ' + (d.perso ? "white" : "blue") + '">' + esc(KINDS[d.kind] || d.kind) + '</span>' + (d.niveau ? '<span class="nv-tag">' + esc(d.niveau) + '</span>' : "") + (d.plus ? '<span class="nv-tag solid">LIB+</span>' : "") + (d.brouillon ? '<span class="nv-tag white">Brouillon</span>' : "") + state + '</div>' +
+      '<div class="nl-book-top"><span class="nv-tag ' + (d.perso ? "white" : d.prepa ? "solid" : "blue") + '">' + (d.prepa ? ico("cap", 11) : "") + esc(KINDS[d.kind] || d.kind) + '</span>' + (d.niveau ? '<span class="nv-tag">' + esc(d.niveau) + '</span>' : "") + (d.prepa && d.matiere ? '<span class="nv-tag blue">' + esc(d.matiere) + '</span>' : "") + (d.groupe ? '<span class="nv-tag">' + esc(d.groupe) + '</span>' : "") + (d.plus ? '<span class="nv-tag solid">LIB+</span>' : "") + (d.brouillon ? '<span class="nv-tag white">Brouillon</span>' : "") + state + '</div>' +
       '<h3>' + esc(d.titre) + '</h3>' +
       '<p>' + esc(d.description || d.sous_titre || d.matiere || "") + '</p>' +
       '<div class="nl-book-foot">' + foot + '</div>' +
@@ -1259,7 +1262,7 @@
   }
 
   // ================= PRÉPA (inscrits Prép'AdJuris) =================
-  var PTABS = [["edt", "Emploi du temps"], ["cours", "Cours"], ["docs", "Documents"], ["devoirs", "Devoirs"]];
+  var PTABS = [["edt", "Emploi du temps"], ["cours", "Cours et documents"], ["devoirs", "Devoirs"]];
   var JOURS_MS = 86400000;
   function dateOf(iso) { var d = new Date(iso); return isNaN(d.getTime()) ? null : d; }
   function hhmm(d) { return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); }
@@ -1300,7 +1303,7 @@
       return '<button class="nl-ps-item' + (x.statut === "annulee" ? " is-off" : "") + '" data-ptab="edt"><i>' + esc(jour(d).replace(/\.$/, "")) + '</i><span>' + hhmm(d) + " · " + esc(x.titre || x.matiere) + '</span></button>';
     }).join("") : '<div class="nl-ps-empty">Aucune séance programmée.</div>');
     var cours = reading ? [] : (p.cours_lib || []).slice(0, 4);
-    if (cours.length) html += '<small class="nl-ps-label">Cours de ta classe</small>' + cours.map(function (d) {
+    if (cours.length) html += '<small class="nl-ps-label">Cours et documents</small>' + cours.map(function (d) {
       return '<button class="nl-ps-item" data-open="' + d.id + '"><i>' + esc(KINDS[d.kind] || "Cours") + '</i><span>' + esc(d.titre) + '</span></button>';
     }).join("");
     return html + '<button class="nv-btn is-blue" data-act="prepa">Ouvrir l\'espace Prépa</button></div>';
@@ -1315,7 +1318,7 @@
 
   function viewPrepa(tab) {
     if (!hasPrepa()) return viewLibrary();
-    if (tab) S.ptab = tab;
+    if (tab) S.ptab = tab === "docs" ? "cours" : tab;   // ancien onglet Documents
     if (!PTABS.some(function (t) { return t[0] === S.ptab; })) S.ptab = "edt";
     S.doc = null; S.docId = null; setPageParam("doc", null); setPageParam("prepa", S.ptab);
     S.view = "prepa";
@@ -1328,7 +1331,7 @@
     if (!p) { setPage('<div class="nv-skel" style="height:90px;margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div>'); return; }
     var s = p.prochaine_seance, d = s && dateOf(s.date_debut), lien = s && (lienSur(s.lien) || lienSur(p.discord_url));
     var html = '<div class="nv-page-head"><h2>Prép\'AdJuris · ' + esc(p.niveau) + '</h2><p>' +
-      (p.apercu ? "Aperçu admin : toutes les matières du niveau, tous les documents (y compris ceux d'un seul groupe)." : "Tes séances, les cours de ta classe, les documents de tes matières et tes devoirs.") + '</p></div>' +
+      (p.apercu ? "Aperçu admin : toutes les matières du niveau, tous les documents (y compris ceux d'un seul groupe)." : "Tes séances, les cours et documents de tes matières, à lire comme sur NAVIRE Lib, et tes devoirs.") + '</p></div>' +
       '<div class="nl-phero"><span class="nl-qico">' + ICON.cal + '</span><div><small>Prochaine séance</small>' +
         (d ? '<b>' + esc(jour(d, true)) + ' · ' + hhmm(d) + '</b><span>' + esc(s.titre ? s.titre + " · " + s.matiere : s.matiere) + '</span>' : '<b>Aucune séance programmée</b><span>Les dates arrivent sur Discord.</span>') + '</div>' +
         '<div class="nl-phero-btns">' + (lien ? '<a class="nv-btn is-blue" href="' + esc(lien) + '" target="_blank" rel="noopener">Rejoindre</a>' : "") +
@@ -1337,7 +1340,7 @@
         var badge = t[0] === "devoirs" && corriges() ? ' <b>' + corriges() + '</b>' : "";
         return '<button class="nv-chip' + (S.ptab === t[0] ? " is-active" : "") + '" data-ptab="' + t[0] + '">' + esc(t[1]) + badge + '</button>';
       }).join("") + '</div>';
-    html += S.ptab === "cours" ? prepaCours() : S.ptab === "docs" ? prepaDocs() : S.ptab === "devoirs" ? prepaDevoirs() : prepaEdt();
+    html += S.ptab === "cours" ? prepaCours() : S.ptab === "devoirs" ? prepaDevoirs() : prepaEdt();
     setPage(html);
     bindDrop();
   }
@@ -1366,41 +1369,25 @@
     return out ? '<span class="nl-sec-btns">' + out + '</span>' : "";
   }
 
+  // Documents Prépa (pastille Prépa) et cours Lib, matière par matière, lus comme sur NAVIRE Lib.
   function prepaCours() {
     var p = S.prepa, byId = {}, html = "", n = 0;
     (p.cours_lib || []).forEach(function (d) { byId[d.id] = d; });
+    function grille(docs) { n += docs.length; return '<div class="nl-grid">' + docs.map(bookCard).join("") + '</div>'; }
     p.matieres.filter(function (m) { return m.debloquee; }).forEach(function (m) {
       var docs = m.cours_lib.map(function (id) { return byId[id]; }).filter(Boolean);
-      n += docs.length;
       html += '<div class="nl-sec">' + esc(m.label) + (m.groupe ? ' <small>' + esc(m.groupe.nom) + '</small>' : "") + groupeBtns(m.groupe) + '</div>' +
-        (docs.length ? '<div class="nl-grid">' + docs.map(bookCard).join("") + '</div>' : '<div class="nl-ps-empty" style="padding:4px 2px 8px">Pas encore de cours NAVIRE Lib pour cette matière.</div>');
+        (docs.length ? grille(docs) : '<div class="nl-ps-empty" style="padding:4px 2px 8px">Les cours et documents arrivent au fil des séances.</div>');
     });
-    var autres = (p.cours_lib || []).filter(function (d) { return !d.matiere_key; });
-    if (autres.length) { n += autres.length; html += '<div class="nl-sec">Pour ton niveau <small>' + esc(p.niveau) + '</small></div><div class="nl-grid">' + autres.map(bookCard).join("") + '</div>'; }
-    if (!n) html += '<div class="nv-empty"><b>Les cours arrivent</b>Les cours NAVIRE Lib de ta classe s\'afficheront ici dès leur publication.</div>';
-    return html;
-  }
-
-  function resRow(r) {
-    var meta = [taille(r.size_bytes)];
-    if (r.professeur) meta.push("Ton chargé de TD");
-    if (r.groupe) meta.push(r.groupe);
-    if (r.description) meta.push(r.description);
-    return '<button class="nl-row" data-res="' + r.id + '" data-title="' + esc(r.titre) + '"><span class="nl-row-ico">' + ICON.file + '</span><div class="nl-row-txt"><b>' + esc(r.titre) + '</b><span>' + esc(meta.join(" · ")) + '</span></div></button>';
-  }
-  function prepaDocs() {
-    var p = S.prepa;
-    var html = '<div class="nl-sec">Méthodologie <small>' + p.methodo.length + ' document' + (p.methodo.length > 1 ? "s" : "") + '</small></div>' +
-      (p.methodo.length ? p.methodo.map(resRow).join("") : '<div class="nl-ps-empty" style="padding:4px 2px 8px">Aucun document pour le moment.</div>');
-    p.matieres.forEach(function (m) {
-      if (!m.debloquee) return;
-      html += '<div class="nl-sec">' + esc(m.label) + ' <small>' + m.ressources.length + ' document' + (m.ressources.length > 1 ? "s" : "") + '</small>' + groupeBtns(m.groupe) + '</div>' +
-        (m.ressources.length ? m.ressources.map(resRow).join("") : '<div class="nl-ps-empty" style="padding:4px 2px 8px">Les supports sont publiés au fil des séances.</div>');
-    });
+    var methodo = (p.cours_lib || []).filter(function (d) { return d.methodo; });
+    if (methodo.length) html += '<div class="nl-sec">Méthodologie</div>' + grille(methodo);
+    var autres = (p.cours_lib || []).filter(function (d) { return !d.matiere_key && !d.methodo; });
+    if (autres.length) html += '<div class="nl-sec">Pour ton niveau <small>' + esc(p.niveau) + '</small></div>' + grille(autres);
     var off = p.matieres.filter(function (m) { return !m.debloquee; });
     if (off.length) html += '<div class="nl-sec">Autres matières du niveau</div>' + off.map(function (m) {
       return '<div class="nl-row is-off"><span class="nl-row-ico">' + ICON.lock + '</span><div class="nl-row-txt"><b>' + esc(m.label) + '</b><span>Non souscrite</span></div></div>';
     }).join("");
+    if (!n) html = '<div class="nv-empty"><b>Les cours arrivent</b>Les cours et documents de ta classe s\'afficheront ici dès leur publication.</div>' + html;
     return html;
   }
 
@@ -1472,7 +1459,8 @@
     }).catch(function (x) { toast(x.message, true); });
   }
 
-  // ----- Lecteur PDF (pdf.js chargé à la demande, rendu en canvas) -----
+  // ----- Lecteur PDF : seulement pour les copies de l'élève et les copies corrigées
+  // (les documents Prépa se lisent comme des cours NAVIRE Lib). -----
   var PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", pdfjsReady = null, pdfToken = 0;
   function loadPdfJs() {
     if (window.pdfjsLib) return Promise.resolve();
@@ -1545,7 +1533,7 @@
 
   // ================= ÉVÉNEMENTS =================
   root.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg],[data-ptab],[data-voir],[data-res],[data-dv-file],[data-dv-corr],[data-dv-del]");
+    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg],[data-ptab],[data-voir],[data-dv-file],[data-dv-corr],[data-dv-del]");
     if (!t || !root.contains(t)) return;
     var a = function (n) { return +t.getAttribute(n); };
     if (t.hasAttribute("data-go")) {
@@ -1568,7 +1556,6 @@
     }
     if (t.hasAttribute("data-ptab")) return viewPrepa(t.getAttribute("data-ptab"));
     if (t.hasAttribute("data-voir")) return setVoir(t.getAttribute("data-voir"));
-    if (t.hasAttribute("data-res")) return openPdf("/prepa/adjuris/ressources/" + a("data-res") + "/download", t.getAttribute("data-title"));
     if (t.hasAttribute("data-dv-file")) return openPdf("/lib/prepa/devoirs/" + a("data-dv-file") + "/fichier", t.getAttribute("data-title"));
     if (t.hasAttribute("data-dv-corr")) return openPdf("/lib/prepa/devoirs/" + a("data-dv-corr") + "/correction", t.getAttribute("data-title"));
     if (t.hasAttribute("data-dv-del")) return deleteDevoir(a("data-dv-del"));
