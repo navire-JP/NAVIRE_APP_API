@@ -455,10 +455,12 @@ def detail_mois(
     professeur, encaissé et part NAVIRE. Mêmes règles que previsionnel() : la
     somme des parts professeur (ajustement compris) est le montant du mois.
 
-    Encaissé (estimation, avant frais Stripe) : PREPA_PRIX_SEANCE_CENTS par
-    élève payant compté à la séance, et le supplément facturé de chaque élève
-    resté à un extra (sauf accès sans paiement). Part NAVIRE = encaissé − part
-    professeur."""
+    Encaissement de chaque élève à chaque séance (PREPA_PRIX_SEANCE_CENTS),
+    et de chaque supplément d'extra, lu dans l'échéancier et l'état d'impayé
+    (webhooks Stripe), avant frais Stripe : encaissé (prélèvement passé sans
+    impayé, ou réglé à l'inscription), à venir, impayé, estimé (inscription
+    historique sans échéancier : à vérifier dans Stripe), offert.
+    Part NAVIRE = attendu (encaissé + à venir + estimé) − part professeur."""
     from app.core.prepa_adjuris_config import PREPA_PRIX_SEANCE_CENTS
     from app.db.models import PrepaAdjurisCours, PrepaAdjurisSeance
 
@@ -467,15 +469,59 @@ def detail_mois(
     lignes = lignes if lignes is not None else pilotage(db, [affectation.id])
     noms = noms_etudiants(db, inscriptions)
     debuts = [(e, aware(e.inscrit_le or e.created_at)) for e in inscriptions]
-    # Payant si l'une des lignes de la personne est réglée par Stripe (accès
-    # accordé à la main, puis abonnement pris : la ligne principale est la
-    # plus ancienne, sans abonnement).
+    # Ligne facturée de chaque élève : celle réglée par Stripe, même si la
+    # ligne principale est un accès accordé à la main avant l'abonnement.
+    from app.services.prepa_adjuris_facturation import echeancier_de, statut_prelevement
+
     ids = {e.id for e in inscriptions}
-    payants = {e.id for e in inscriptions if payant(e)}
+    facturante: dict[int, PrepaAdjurisEnrollment] = {e.id: e for e in inscriptions if payant(e)}
+    par_id: dict[int, PrepaAdjurisEnrollment] = {}
     for _groupe, lignes_e in eleves_de_la_matiere(db, affectation.classe.matiere_key):
+        for x in lignes_e:
+            par_id[x.id] = x
         p = principale(lignes_e)
-        if p.id in ids and any(payant(x) for x in lignes_e):
-            payants.add(p.id)
+        if p.id in ids and p.id not in facturante:
+            payes = sorted((x for x in lignes_e if payant(x)), key=lambda x: (echeancier_de(x) is None, x.id))
+            if payes:
+                facturante[p.id] = payes[0]
+    payants = set(facturante)
+
+    def etat_seance(e: PrepaAdjurisEnrollment, d: datetime) -> str:
+        """encaisse | a_venir | impaye | estime | offert | non_facture.
+        Lu dans l'échéancier de la ligne facturée et son état d'impayé
+        (webhooks Stripe). Sans échéancier (inscription historique, gérée
+        directement dans Stripe) : estimé, à vérifier dans Stripe."""
+        f = facturante.get(e.id)
+        if f is None:
+            return "offert"
+        debut_f = aware(f.inscrit_le or f.created_at)
+        if debut_f is not None and d <= debut_f and f is not e:
+            return "offert"            # avant l'abonnement : accès accordé à la main
+        ech = echeancier_de(f)
+        if ech is None:
+            return "estime"
+        regles = [aware(x) for x in [ech.seance_prepayee, *ech.seances_suivies] if x]
+        if any(abs((x - d).total_seconds()) < 120 for x in regles):
+            return "encaisse"          # réglée au paiement de l'inscription
+        k = cle_mois(mois_de(d))
+        if ech.mois.get(k, 0) <= 0:
+            return "non_facture"
+        return {"preleve": "encaisse", "impaye": "impaye", "a_venir": "a_venir"}[statut_prelevement(f, k, maintenant)]
+
+    def etat_extra(eleve, cle_cours: str) -> str:
+        if not eleve.extra_cents or eleve.facturation == "sans_paiement":
+            return "offert"
+        if eleve.facturation == "erreur":
+            return "impaye"
+        if eleve.facturation != "facture":
+            return "a_venir"
+        f = par_id.get(eleve.enrollment_id)
+        if f is None:
+            return "estime"
+        return {"preleve": "encaisse", "impaye": "impaye", "a_venir": "a_venir"}[statut_prelevement(f, cle_cours, maintenant)]
+
+    def seaux() -> dict:
+        return {"encaisse": 0, "a_venir": 0, "impaye": 0, "estime": 0}
 
     dates = [
         d for d in sorted(dates_seances(db, affectation.classe.matiere_key))
@@ -485,21 +531,26 @@ def detail_mois(
     for d in dates:
         presents = sorted((e for e, x in debuts if x is None or x < d), key=lambda e: noms[e.id].lower())
         part_prof = affectation.remu_seance_cents + affectation.remu_etudiant_cents * len(presents)
-        encaisse = PREPA_PRIX_SEANCE_CENTS * sum(1 for e in presents if e.id in payants)
+        etats = {e.id: etat_seance(e, d) for e in presents}
+        b = seaux()
+        for e in presents:
+            if etats[e.id] in b:
+                b[etats[e.id]] += PREPA_PRIX_SEANCE_CENTS
         seances.append({
             "date": _iso(d),
             "passee": d <= maintenant,
             "hors_agenda": False,
             "eleves": [
                 {"enrollment_id": e.id, "nom": noms[e.id], "payant": e.id in payants,
-                 **({"encaisse_cents": PREPA_PRIX_SEANCE_CENTS if e.id in payants else 0} if avec_navire else {})}
+                 **({"encaissement": etats[e.id],
+                     "montant_cents": PREPA_PRIX_SEANCE_CENTS if etats[e.id] in b else 0} if avec_navire else {})}
                 for e in presents
             ],
+            "encaissement": b,
             "nb_eleves": len(presents),
             "part_prof_fixe_cents": affectation.remu_seance_cents,
             "part_prof_eleves_cents": affectation.remu_etudiant_cents * len(presents),
             "part_prof_cents": part_prof,
-            "encaisse_cents": encaisse,
             "cours": None,
             "extra": None,
         })
@@ -530,8 +581,8 @@ def detail_mois(
                 continue
             cible = {
                 "date": _iso(aware(c.started_at)), "passee": True, "hors_agenda": True, "eleves": [], "nb_eleves": 0,
-                "part_prof_fixe_cents": 0, "part_prof_eleves_cents": 0, "part_prof_cents": 0, "encaisse_cents": 0,
-                "cours": None, "extra": None,
+                "part_prof_fixe_cents": 0, "part_prof_eleves_cents": 0, "part_prof_cents": 0,
+                "encaissement": seaux(), "cours": None, "extra": None,
             }
             seances.append(cible)
         cible["cours"] = {
@@ -545,21 +596,27 @@ def detail_mois(
             continue
         eleves = sorted(c.eleves, key=lambda e: (e.nom or "").lower())
         factures = [e for e in eleves if e.extra_cents > 0]
-        enc = sum(e.extra_cents for e in factures if e.facturation != "sans_paiement")
+        cle_cours = cle_mois(mois_de(aware(c.started_at)))
+        etats_x = {e.id: etat_extra(e, cle_cours) for e in eleves}
+        bx = seaux()
+        for e in factures:
+            if etats_x[e.id] in bx:
+                bx[etats_x[e.id]] += e.extra_cents
         part = len(factures) * (affectation.remu_extra_etudiant_cents or 0)
         cible["extra"] = {
             "ajoute_a": _iso(aware(c.extra_at)),
             "eleves": [
                 {"nom": e.nom, "reste": e.retire_le is None, "facture_cents": e.extra_cents,
-                 "facturation": e.facturation}
+                 "facturation": e.facturation, **({"encaissement": etats_x[e.id]} if avec_navire else {})}
                 for e in eleves
             ],
             "nb_factures": len(factures),
             "part_prof_cents": part,
-            "encaisse_cents": enc,
+            "encaissement": bx,
         }
         cible["part_prof_cents"] += part
-        cible["encaisse_cents"] += enc
+        for k, v in bx.items():
+            cible["encaissement"][k] += v
 
     seances.sort(key=lambda s: s["date"])
     calcule = sum(s["part_prof_cents"] for s in seances)
@@ -585,14 +642,21 @@ def detail_mois(
         for s, cents in zip(seances, repartir(fixe, poids)):
             s["part_prof_cents"] = cents
             s["reparti"] = True
-    encaisse = sum(s["encaisse_cents"] for s in seances)
+    total_b = seaux()
     for s in seances:
-        s["part_navire_cents"] = s["encaisse_cents"] - s["part_prof_cents"]
+        b = s["encaissement"]
+        for k in total_b:
+            total_b[k] += b[k]
+        # Encaissé : prélèvements passés sans impayé ; attendu : encaissé +
+        # à venir + estimé (historiques), impayés exclus.
+        s["encaisse_cents"] = b["encaisse"]
+        s["attendu_cents"] = b["encaisse"] + b["a_venir"] + b["estime"]
+        s["part_navire_cents"] = s["attendu_cents"] - s["part_prof_cents"]
         if not avec_navire:
-            for k in ("encaisse_cents", "part_navire_cents"):
+            for k in ("encaissement", "encaisse_cents", "attendu_cents", "part_navire_cents"):
                 s.pop(k)
             if s["extra"]:
-                s["extra"].pop("encaisse_cents")
+                s["extra"].pop("encaissement")
 
     out = {
         "mois": cle,
@@ -622,6 +686,12 @@ def detail_mois(
         },
     }
     if avec_navire:
-        out["totaux"]["encaisse_cents"] = encaisse
-        out["totaux"]["part_navire_cents"] = encaisse - montant
+        attendu = total_b["encaisse"] + total_b["a_venir"] + total_b["estime"]
+        out["totaux"].update({
+            "encaissement": total_b,
+            "encaisse_cents": total_b["encaisse"],
+            "attendu_cents": attendu,
+            "part_navire_cents": attendu - montant,
+            "part_navire_encaissee_cents": total_b["encaisse"] - montant,
+        })
     return out

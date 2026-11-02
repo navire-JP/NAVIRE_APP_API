@@ -203,7 +203,7 @@ def test_tableau_de_bord_etudiants_et_previsionnel(monde):
         adm = c.get(f"/professeurs/admin/remunerations/detail?affectation_id={aff}&mois={m['mois']}",
                     headers=monde["A"]).json()
         assert adm["totaux"]["part_prof_cents"] == m["montant_cents"]
-        assert adm["totaux"]["part_navire_cents"] == adm["totaux"]["encaisse_cents"] - m["montant_cents"]
+        assert adm["totaux"]["part_navire_cents"] == adm["totaux"]["attendu_cents"] - m["montant_cents"]
     assert c.get(f"/professeurs/admin/remunerations/detail?affectation_id={aff}&mois=2026-01",
                  headers=P).status_code == 403
 
@@ -286,7 +286,11 @@ def test_pilotage_des_remunerations(monde):
 
     t = c.get("/professeurs/admin/remunerations", headers=A).json()
     assert sum(l["calcule_cents"] for l in t["items"]) == 3000          # 3 séances × 1 étudiant × 10 €
-    assert t["totaux"]["montant_cents"] == t["totaux"]["a_verser_cents"] == 3000
+    assert t["totaux"]["montant_cents"] == t["totaux"]["prevu_cents"] == t["totaux"]["reste_cents"] == 3000
+    # À verser : seulement l'acquis (séances faites) des mois clos ; jamais le futur.
+    assert t["totaux"]["acquis_cents"] == 1000                           # 1 séance passée
+    assert t["totaux"]["a_verser_cents"] == sum(l["acquis_cents"] for l in t["items"] if l["clos"])
+    assert all(l["a_verser_cents"] == 0 for l in t["items"] if not l["clos"])
     m = t["items"][0]["mois"]
 
     # Montant fixé : remplace le calcul, côté console et côté professeur.
@@ -306,7 +310,7 @@ def test_pilotage_des_remunerations(monde):
     det = c.get(f"/professeurs/admin/remunerations/detail?affectation_id={aff}&mois={m}", headers=A).json()
     assert det["totaux"]["repartition"] == "par_eleve"
     assert sum(x["part_prof_cents"] for x in det["seances"]) == det["totaux"]["part_prof_cents"] == 5000
-    assert det["totaux"]["part_navire_cents"] == det["totaux"]["encaisse_cents"] - 5000
+    assert det["totaux"]["part_navire_cents"] == det["totaux"]["attendu_cents"] - 5000
     c.patch(f"/professeurs/admin/affectations/{aff}", headers=A, json={"remu_seance_cents": 0, "remu_etudiant_cents": 1000})
     d = c.get("/professeurs/me/dashboard", headers=P).json()
     assert d["totaux"]["total_cents"] == 3000 - calc_m + 5000
@@ -389,3 +393,24 @@ def test_un_etudiant_compte_une_fois_et_change_de_groupe_entierement(monde):
     g2 = next(a for a in prof["affectations"] if a["classe"]["id"] == monde["g2"])
     assert g2["nb_etudiants"] == 2
     assert aff  # l'affectation du groupe 1 reste, sans étudiant
+
+
+def test_alerte_seances_facturees_absentes_de_l_agenda(monde):
+    """Un échéancier qui facture plus de séances que l'agenda n'en prévoit
+    (séances supprimées, matière sans agenda) est signalé avant le prélèvement."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.db.database import SessionLocal
+    from app.db.models import PrepaAdjurisEnrollment
+    from app.services.prepa_adjuris_billing import cle_mois, mois_de
+    from app.services.prepa_adjuris_facturation import alertes
+
+    db = SessionLocal()
+    e = db.get(PrepaAdjurisEnrollment, monde["ea"])
+    k = cle_mois(mois_de(datetime.now(timezone.utc) + timedelta(days=40)))
+    e.echeancier = {"matiere_key": e.matiere_key, "inscrit_le": datetime.now(timezone.utc).isoformat(),
+                    "seance_prepayee": None, "mois": {k: 4}, "depuis": None, "credits": {}, "seances_suivies": []}
+    db.commit()
+    a = [x for x in alertes(db) if x["type"] == "facture_sans_seance" and x["enrollment_id"] == e.id]
+    db.close()
+    assert len(a) == 1 and f"4 séance(s) facturée(s) en {k} pour 0" in a[0]["message"]

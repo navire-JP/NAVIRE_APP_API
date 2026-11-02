@@ -503,28 +503,51 @@ interface LigneRemu {
     note: string
     verse_le: string | null
     reference: string | null
+    prevu_cents: number
+    acquis_cents: number
+    a_verser_cents: number
+    clos: boolean
+}
+
+type Etat = "encaisse" | "a_venir" | "impaye" | "estime" | "offert" | "non_facture"
+interface Seaux {
+    encaisse: number
+    a_venir: number
+    impaye: number
+    estime: number
+}
+// Encaissement d'un élève : échéancier + impayés signalés par Stripe (webhooks).
+const ETATS: Record<Etat, [string, string]> = {
+    encaisse: ["ENCAISSÉ", OK],
+    a_venir: ["À VENIR", t1],
+    impaye: ["IMPAYÉ", BAD],
+    estime: ["HISTORIQUE · À VÉRIFIER", WARN],
+    offert: ["OFFERT", t2],
+    non_facture: ["NON FACTURÉ", t2],
 }
 
 interface SeanceDetail {
     date: string
     passee: boolean
     hors_agenda: boolean
-    eleves: { enrollment_id: number; nom: string; payant: boolean; encaisse_cents: number }[]
+    eleves: { enrollment_id: number; nom: string; payant: boolean; encaissement: Etat; montant_cents: number }[]
     nb_eleves: number
     part_prof_fixe_cents: number
     part_prof_eleves_cents: number
     part_prof_cents: number
     part_prof_calculee_cents: number
     reparti: boolean
+    encaissement: Seaux
     encaisse_cents: number
+    attendu_cents: number
     part_navire_cents: number
     cours: { id: number; debut: string; fin: string | null; duree_comptee_minutes: number; cloture_auto: boolean } | null
     extra: {
         ajoute_a: string
-        eleves: { nom: string; reste: boolean; facture_cents: number; facturation: string | null }[]
+        eleves: { nom: string; reste: boolean; facture_cents: number; facturation: string | null; encaissement: Etat }[]
         nb_factures: number
         part_prof_cents: number
-        encaisse_cents: number
+        encaissement: Seaux
     } | null
 }
 
@@ -1218,6 +1241,7 @@ function LigneRemuRow({
                     type="checkbox"
                     checked={coche}
                     disabled={verse || l.montant_cents <= 0}
+                    title={l.clos ? undefined : "Mois pas encore clos : séances à venir ou élèves pas encore prélevés"}
                     onChange={onCoche}
                     style={{ flexShrink: 0 }}
                 />
@@ -1228,12 +1252,17 @@ function LigneRemuRow({
                     </div>
                     <div style={SOUS_TITRE}>
                         {moisFr(l.mois)} · {l.seances} séance(s) · {l.nb_etudiants} étudiant(s) · calculé{" "}
-                        {euros(l.calcule_cents)}
+                        {euros(l.calcule_cents)} · acquis {euros(l.acquis_cents)}
+                        {l.clos ? "" : " · mois en cours ou à venir"}
                     </div>
                 </div>
                 {verse ? (
                     <Tag color={OK} border="rgba(91,227,163,0.4)">
                         VERSÉ {fmtDate(l.verse_le)}
+                    </Tag>
+                ) : !l.clos ? (
+                    <Tag color={BLUE} border="rgba(122,167,255,0.35)">
+                        {l.fixe_cents !== null ? "FIXÉ · PRÉVU" : "PRÉVU"}
                     </Tag>
                 ) : l.fixe_cents !== null ? (
                     <Tag color={WARN} border="rgba(255,209,102,0.35)">
@@ -1351,8 +1380,9 @@ function DetailRemu({ l }: { l: LigneRemu }) {
     const t = d.totaux
     const b = d.bareme
     const seances: SeanceDetail[] = d.seances
-    const marge = t.encaisse_cents ? Math.round((t.part_navire_cents / t.encaisse_cents) * 1000) / 10 : 0
-    const grille = "minmax(110px,1.3fr) 70px 70px 90px 90px 90px"
+    const tb: Seaux = t.encaissement
+    const marge = t.attendu_cents ? Math.round((t.part_navire_cents / t.attendu_cents) * 1000) / 10 : 0
+    const grille = "minmax(110px,1.3fr) 56px 56px 86px 86px 86px 86px"
     const entete: React.CSSProperties = {
         fontSize: 8,
         fontFamily: mono,
@@ -1362,23 +1392,27 @@ function DetailRemu({ l }: { l: LigneRemu }) {
     }
 
     function exporter() {
-        const lignes = [["Date", "Heure", "Type", "Élève", "Payant", "Encaissé", "Part prof", "Part NAVIRE"]]
+        const lignes = [["Date", "Heure", "Type", "Élève", "Encaissement", "Montant", "Encaissé", "Attendu", "Part prof", "Part NAVIRE"]]
         seances.forEach((s) => {
             const type = s.hors_agenda ? "Extra hors agenda" : "Séance"
-            lignes.push([jour(s.date), heure(s.date), type, `${s.nb_eleves} élève(s)`, "",
-                versEuros(s.encaisse_cents - (s.extra?.encaisse_cents || 0)),
-                versEuros(s.part_prof_cents - (s.extra?.part_prof_cents || 0)), ""])
-            s.eleves.forEach((e) => lignes.push(["", "", "", e.nom, e.payant ? "oui" : "non", versEuros(e.encaisse_cents), "", ""]))
+            lignes.push([jour(s.date), heure(s.date), type, `${s.nb_eleves} élève(s)`, "", "", "", "", "", ""])
+            s.eleves.forEach((e) =>
+                lignes.push(["", "", "", e.nom, ETATS[e.encaissement][0], versEuros(e.montant_cents), "", "", "", ""])
+            )
             if (s.extra) {
-                lignes.push([jour(s.date), heure(s.extra.ajoute_a), "Extra", `${s.extra.nb_factures} facturé(s)`, "",
-                    versEuros(s.extra.encaisse_cents), versEuros(s.extra.part_prof_cents), ""])
-                s.extra.eleves.forEach((e) => lignes.push(["", "", "", e.nom, e.facturation || (e.reste ? "" : "parti"),
-                    versEuros(e.facturation === "sans_paiement" ? 0 : e.facture_cents), "", ""]))
+                lignes.push([jour(s.date), heure(s.extra.ajoute_a), "Extra", `${s.extra.nb_factures} facturé(s)`, "", "", "", "", "", ""])
+                s.extra.eleves.forEach((e) =>
+                    lignes.push(["", "", "", e.nom, e.reste ? ETATS[e.encaissement][0] : "PARTI", versEuros(e.reste ? e.facture_cents : 0), "", "", "", ""])
+                )
             }
-            lignes.push(["", "", "Total séance", "", "", versEuros(s.encaisse_cents), versEuros(s.part_prof_cents), versEuros(s.part_navire_cents)])
+            lignes.push(["", "", "Total séance", "", "", "", versEuros(s.encaisse_cents), versEuros(s.attendu_cents),
+                versEuros(s.part_prof_cents), versEuros(s.part_navire_cents)])
         })
-        if (t.ajustement_cents) lignes.push(["", "", "Ajustement", t.note || "", "", "", versEuros(t.ajustement_cents), versEuros(-t.ajustement_cents)])
-        lignes.push(["", "", "TOTAL DU MOIS", "", "", versEuros(t.encaisse_cents), versEuros(t.part_prof_cents), versEuros(t.part_navire_cents)])
+        if (t.ajustement_cents) lignes.push(["", "", "Ajustement", t.note || "", "", "", "", "", versEuros(t.ajustement_cents), versEuros(-t.ajustement_cents)])
+        lignes.push(["", "", "TOTAL DU MOIS", "", "", "", versEuros(t.encaisse_cents), versEuros(t.attendu_cents),
+            versEuros(t.part_prof_cents), versEuros(t.part_navire_cents)])
+        lignes.push(["", "", "Impayés", "", "", "", versEuros(tb.impaye), "", "", ""])
+        lignes.push(["", "", "Historiques (estimé, à vérifier dans Stripe)", "", "", "", versEuros(tb.estime), "", "", ""])
         const csv = lignes.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n")
         const a = document.createElement("a")
         a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }))
@@ -1389,15 +1423,22 @@ function DetailRemu({ l }: { l: LigneRemu }) {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 24 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
-                <Case l="Encaissé (estim.)" v={euros(t.encaisse_cents)} />
+                <Case l="Encaissé" v={euros(tb.encaisse)} color={OK} />
+                <Case l="À venir" v={euros(tb.a_venir)} color={t1} />
+                <Case l="Impayé" v={euros(tb.impaye)} color={tb.impaye ? BAD : t2} />
+                <Case l="Historiques (à vérifier)" v={euros(tb.estime)} color={tb.estime ? WARN : t2} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                <Case l="Attendu (hors impayés)" v={euros(t.attendu_cents)} />
                 <Case l="Part prof" v={euros(t.part_prof_cents)} />
-                <Case l="Part NAVIRE" v={euros(t.part_navire_cents)} color={t.part_navire_cents < 0 ? BAD : OK} />
+                <Case l="Part NAVIRE attendue" v={euros(t.part_navire_cents)} color={t.part_navire_cents < 0 ? BAD : OK} />
                 <Case l="Marge NAVIRE" v={`${String(marge).replace(".", ",")} %`} color={t1} />
             </div>
             <div style={{ fontSize: 10, fontFamily: mono, color: t2 }}>
                 Barème : {euros(b.remu_seance_cents)} / séance + {euros(b.remu_etudiant_cents)} / élève · extra{" "}
                 {euros(b.remu_extra_etudiant_cents)} / élève resté · élève payant {euros(b.prix_seance_cents)} / séance ·
-                avant frais Stripe
+                avant frais Stripe. Encaissé = prélèvement passé sans impayé signalé par Stripe (ou réglé à
+                l'inscription) ; historiques = inscriptions sans échéancier, gérées directement dans Stripe.
             </div>
             {t.fixe_cents !== null && (
                 <div style={{ fontSize: 10, fontFamily: mono, color: WARN }}>
@@ -1418,6 +1459,7 @@ function DetailRemu({ l }: { l: LigneRemu }) {
                     <span style={{ ...entete, textAlign: "right" }}>Élèves</span>
                     <span style={{ ...entete, textAlign: "right" }}>Extra</span>
                     <span style={{ ...entete, textAlign: "right" }}>Encaissé</span>
+                    <span style={{ ...entete, textAlign: "right" }}>Attendu</span>
                     <span style={{ ...entete, textAlign: "right" }}>Prof</span>
                     <span style={{ ...entete, textAlign: "right" }}>NAVIRE</span>
                 </div>
@@ -1425,6 +1467,7 @@ function DetailRemu({ l }: { l: LigneRemu }) {
                 {seances.map((s, i) => {
                     const open = ouverte === i
                     const payants = s.eleves.filter((e) => e.payant).length
+                    const alerte = s.encaissement.impaye > 0 ? BAD : s.encaissement.estime > 0 ? WARN : t0
                     return (
                         <div key={i} style={{ borderTop: i ? `1px solid rgba(255,255,255,0.04)` : "none" }}>
                             <div
@@ -1449,7 +1492,8 @@ function DetailRemu({ l }: { l: LigneRemu }) {
                                     {s.hors_agenda ? "—" : `${s.nb_eleves}${payants !== s.nb_eleves ? ` (${payants}€)` : ""}`}
                                 </span>
                                 <span style={{ ...NUM, color: s.extra ? WARN : t2 }}>{s.extra ? `${s.extra.nb_factures} él.` : "—"}</span>
-                                <span style={NUM}>{euros(s.encaisse_cents)}</span>
+                                <span style={{ ...NUM, color: s.encaisse_cents ? OK : t2 }}>{euros(s.encaisse_cents)}</span>
+                                <span style={{ ...NUM, color: alerte }}>{euros(s.attendu_cents)}</span>
                                 <span style={NUM}>{euros(s.part_prof_cents)}</span>
                                 <span style={{ ...NUM, color: s.part_navire_cents < 0 ? BAD : t0 }}>{euros(s.part_navire_cents)}</span>
                             </div>
@@ -1472,8 +1516,9 @@ function DetailRemu({ l }: { l: LigneRemu }) {
                                     {s.eleves.length > 0 && (
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                             {s.eleves.map((e) => (
-                                                <Tag key={e.enrollment_id} color={e.payant ? t0 : t2} border={b0}>
-                                                    {e.nom} · {e.payant ? euros(e.encaisse_cents) : "OFFERT"}
+                                                <Tag key={e.enrollment_id} color={ETATS[e.encaissement][1]} border={b0}>
+                                                    {e.nom} · {ETATS[e.encaissement][0]}
+                                                    {e.montant_cents ? ` ${euros(e.montant_cents)}` : ""}
                                                 </Tag>
                                             ))}
                                         </div>
@@ -1481,13 +1526,17 @@ function DetailRemu({ l }: { l: LigneRemu }) {
                                     {s.extra && (
                                         <>
                                             <div style={{ color: WARN }}>
-                                                Extra ajouté à {heure(s.extra.ajoute_a)} · encaissé {euros(s.extra.encaisse_cents)}
+                                                Extra ajouté à {heure(s.extra.ajoute_a)} · encaissé{" "}
+                                                {euros(s.extra.encaissement.encaisse)} · à venir {euros(s.extra.encaissement.a_venir)}
+                                                {s.extra.encaissement.impaye ? ` · impayé ${euros(s.extra.encaissement.impaye)}` : ""}
                                             </div>
                                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                                 {s.extra.eleves.map((e, j) => {
-                                                    const [lib, col] = e.reste
-                                                        ? FACTURATION[e.facturation || ""] || ["—", t2]
-                                                        : ["PARTI", t2]
+                                                    const [lib, col] = !e.reste
+                                                        ? ["PARTI", t2]
+                                                        : e.facturation === "facture"
+                                                        ? ETATS[e.encaissement]
+                                                        : FACTURATION[e.facturation || ""] || ["—", t2]
                                                     return (
                                                         <Tag key={j} color={col} border={b0}>
                                                             {e.nom} · {lib}
@@ -1509,6 +1558,7 @@ function DetailRemu({ l }: { l: LigneRemu }) {
                         <span />
                         <span />
                         <span />
+                        <span />
                         <span style={NUM}>{euros(t.ajustement_cents)}</span>
                         <span style={NUM}>{euros(-t.ajustement_cents)}</span>
                     </div>
@@ -1517,7 +1567,8 @@ function DetailRemu({ l }: { l: LigneRemu }) {
                     <span style={{ fontFamily: mono }}>Total · {t.seances} séance(s){t.extras ? ` · ${t.extras} extra(s)` : ""}</span>
                     <span />
                     <span />
-                    <span style={NUM}>{euros(t.encaisse_cents)}</span>
+                    <span style={{ ...NUM, color: OK }}>{euros(t.encaisse_cents)}</span>
+                    <span style={NUM}>{euros(t.attendu_cents)}</span>
                     <span style={NUM}>{euros(t.part_prof_cents)}</span>
                     <span style={{ ...NUM, color: t.part_navire_cents < 0 ? BAD : OK }}>{euros(t.part_navire_cents)}</span>
                 </div>
@@ -1558,7 +1609,8 @@ function RemunerationsPanel({ tick }: { tick: number }) {
     }, [mois, tick, version])
 
     const cle = (l: LigneRemu) => `${l.affectation_id}|${l.mois}`
-    const aVerser = items.filter((l) => !l.verse_le && l.montant_cents > 0)
+    // À verser : mois clos (élèves prélevés), séances faites, pas encore versé.
+    const aVerser = items.filter((l) => !l.verse_le && l.a_verser_cents > 0)
     const totalSel = items.filter((l) => sel.includes(cle(l))).reduce((t, l) => t + l.montant_cents, 0)
     const moisAffiches = Array.from(new Set([...liste, moisCourant()])).sort()
 
@@ -1581,7 +1633,7 @@ function RemunerationsPanel({ tick }: { tick: number }) {
 
     function exporter() {
         const lignes = [
-            ["Mois", "Professeur", "Email", "Groupe", "Séances", "Étudiants", "Calculé", "Fixé", "Retenu", "Versé le", "Référence", "Note"],
+            ["Mois", "Professeur", "Email", "Groupe", "Séances", "Étudiants", "Calculé", "Fixé", "Prévu", "Acquis", "À verser", "Versé le", "Référence", "Note"],
         ]
         items.forEach((l) =>
             lignes.push([
@@ -1593,7 +1645,9 @@ function RemunerationsPanel({ tick }: { tick: number }) {
                 String(l.nb_etudiants),
                 versEuros(l.calcule_cents),
                 l.fixe_cents === null ? "" : versEuros(l.fixe_cents),
-                versEuros(l.montant_cents),
+                versEuros(l.prevu_cents),
+                versEuros(l.acquis_cents),
+                versEuros(l.a_verser_cents),
                 l.verse_le ? fmtDate(l.verse_le) : "",
                 l.reference || "",
                 l.note,
@@ -1630,10 +1684,10 @@ function RemunerationsPanel({ tick }: { tick: number }) {
 
             <div style={{ padding: "10px 14px", borderBottom: `1px solid ${b0}`, flexShrink: 0 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
-                    <Case l="Calculé" v={euros(totaux.calcule_cents || 0)} color={t1} />
-                    <Case l="Retenu" v={euros(totaux.montant_cents || 0)} />
+                    <Case l="Prévu" v={euros(totaux.prevu_cents || 0)} color={t1} />
+                    <Case l="Acquis (séances faites)" v={euros(totaux.acquis_cents || 0)} />
                     <Case
-                        l="À verser"
+                        l="À verser (mois clos)"
                         v={euros(totaux.a_verser_cents || 0)}
                         color={(totaux.a_verser_cents || 0) > 0 ? WARN : t1}
                     />

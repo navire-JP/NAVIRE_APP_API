@@ -77,7 +77,7 @@ from app.core.prepa_adjuris_config import matiere_niveau
 from app.routers.auth import get_current_user
 from app.services import devoirs as dsvc
 from app.services import professeurs as svc
-from app.services.prepa_adjuris_billing import cle_mois, mois_de
+from app.services.prepa_adjuris_billing import cle_mois, date_prelevement, mois_de, parse_mois
 
 router = APIRouter(prefix="/professeurs", tags=["professeurs"])
 
@@ -800,6 +800,7 @@ def _tableau(db: Session) -> list[dict]:
         select(PrepaAdjurisAffectation).order_by(PrepaAdjurisAffectation.professeur_id, PrepaAdjurisAffectation.classe_id)
     ).scalars().all()
     lignes = svc.pilotage(db, [a.id for a in affectations])
+    maintenant = svc.utcnow()
     out = []
     for a in affectations:
         p, c = a.professeur, a.classe
@@ -817,7 +818,14 @@ def _tableau(db: Session) -> list[dict]:
                 "matiere_key": c.matiere_key,
                 "nb_etudiants": len(inscriptions),
                 **m,
+                # Prévu = montant du mois ; acquis = séances faites ; à verser =
+                # acquis d'un mois clos (prélèvement des élèves passé), non versé.
+                "prevu_cents": m["montant_cents"],
+                "acquis_cents": m["realise_cents"],
+                "clos": date_prelevement(parse_mois(m["mois"])) <= maintenant,
             })
+            l = out[-1]
+            l["a_verser_cents"] = l["acquis_cents"] if l["clos"] and not l["verse_le"] else 0
     return out
 
 
@@ -836,7 +844,11 @@ def admin_remunerations(
             "calcule_cents": sum(l["calcule_cents"] for l in items),
             "montant_cents": sum(l["montant_cents"] for l in items),
             "verse_cents": sum(l["montant_cents"] for l in items if l["verse_le"]),
-            "a_verser_cents": sum(l["montant_cents"] for l in items if not l["verse_le"]),
+            "prevu_cents": sum(l["prevu_cents"] for l in items),
+            "acquis_cents": sum(l["acquis_cents"] for l in items),
+            "a_verser_cents": sum(l["a_verser_cents"] for l in items),
+            # Non versé, tous mois confondus (futurs compris) : l'ancien « à verser ».
+            "reste_cents": sum(l["montant_cents"] for l in items if not l["verse_le"]),
         },
     }
 

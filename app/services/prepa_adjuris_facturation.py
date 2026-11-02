@@ -39,6 +39,7 @@ from app.core.prepa_adjuris_config import (
 )
 from app.db.models import PrepaAdjurisEnrollment, PrepaAdjurisSeance, User
 from app.services.prepa_adjuris_billing import (
+    mois_de,
     Echeancier,
     calculer_echeancier,
     comparer,
@@ -633,6 +634,22 @@ def job_facturation_adjuris(db_factory) -> None:
 # Vues console
 # ============================================================
 
+def statut_prelevement(e: PrepaAdjurisEnrollment, cle: str, maintenant: datetime | None = None) -> str:
+    """État du prélèvement d'un mois pour une inscription :
+    a_venir | preleve | impaye. Un impayé (webhook invoice.payment_failed,
+    impaye_depuis) touche le prélèvement qui a échoué et les suivants ; il
+    est levé à la régularisation. Le prélèvement de fin de mois échoue au
+    plus tôt à sa date : marge de 3 jours pour les relances Stripe."""
+    maintenant = maintenant or utcnow()
+    quand = date_prelevement(parse_mois(cle))
+    if quand > maintenant:
+        return "a_venir"
+    depuis = _aware(e.impaye_depuis)
+    if depuis is not None and quand >= depuis - timedelta(days=3):
+        return "impaye"
+    return "preleve"
+
+
 def resume_facturation(e: PrepaAdjurisEnrollment, maintenant: datetime | None = None) -> dict:
     """Échéancier d'une inscription, prêt à afficher."""
     maintenant = maintenant or utcnow()
@@ -659,15 +676,18 @@ def resume_facturation(e: PrepaAdjurisEnrollment, maintenant: datetime | None = 
     lignes = []
     for k, q in ech.mois.items():
         quand = date_prelevement(parse_mois(k))
+        statut = statut_prelevement(e, k, maintenant)
         lignes.append({
             "mois": k,
             "date": quand.isoformat(),
             "seances": q,
             "montant_cents": q * PREPA_PRIX_SEANCE_CENTS,
             "credits": ech.credits.get(k, 0),
-            "preleve": quand <= maintenant,
+            # Prélevé avec succès (un impayé n'est pas « prélevé »).
+            "preleve": statut == "preleve",
+            "statut": statut,
         })
-    prochain = next((l for l in lignes if not l["preleve"]), None)
+    prochain = next((l for l in lignes if l["statut"] == "a_venir"), None)
     return {
         **base,
         "seance_prepayee": ech.seance_prepayee.isoformat() if ech.seance_prepayee else None,
@@ -746,5 +766,37 @@ def alertes(db: Session, maintenant: datetime | None = None) -> list[dict]:
                     "message": f"{e.email} — {matiere_label(e.matiere_key)} : "
                                f"{ech.credits[dernier] * PREPA_PRIX_SEANCE_CENTS // 100} € crédités "
                                "après le dernier prélèvement, à rembourser depuis Stripe.",
+                })
+
+    # Mois à venir facturés pour plus de séances que l'agenda n'en prévoit
+    # (séances supprimées, matière sans agenda) : l'élève serait prélevé pour
+    # des cours qui n'existent pas.
+    agenda: dict[str, dict[str, int]] = {}
+    for e in inscriptions:
+        ech = echeancier_de(e)
+        if not ech:
+            continue
+        if e.matiere_key not in agenda:
+            par_mois: dict[str, int] = {}
+            for (d,) in db.execute(
+                select(PrepaAdjurisSeance.date_debut).where(
+                    PrepaAdjurisSeance.matiere_key == e.matiere_key,
+                    PrepaAdjurisSeance.statut == "prevue",
+                )
+            ):
+                k = f"{mois_de(_aware(d))[0]:04d}-{mois_de(_aware(d))[1]:02d}"
+                par_mois[k] = par_mois.get(k, 0) + 1
+            agenda[e.matiere_key] = par_mois
+        for k, q in sorted(ech.mois.items()):
+            if q <= 0 or date_prelevement(parse_mois(k)) <= maintenant:
+                continue
+            prevues = agenda[e.matiere_key].get(k, 0)
+            if q > prevues:
+                sorties.append({
+                    "niveau": "erreur", "type": "facture_sans_seance", "enrollment_id": e.id,
+                    "matiere_key": e.matiere_key,
+                    "message": f"{e.email} — {matiere_label(e.matiere_key)} : {q} séance(s) facturée(s) "
+                               f"en {k} pour {prevues} à l'agenda. Corriger l'agenda puis resynchroniser "
+                               "avant le prélèvement.",
                 })
     return sorties

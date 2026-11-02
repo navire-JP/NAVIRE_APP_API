@@ -95,11 +95,16 @@ Côté console, onglet « Prof. » :
   « VERSÉ » annule un versement. Un mois sans séance peut aussi recevoir un
   montant (prime, rattrapage). Export CSV. Le professeur voit les montants
   retenus, et les mois « versé » ou « ajusté ».
-  « Détail » sur une ligne : séance par séance, élèves comptés (payants ou
-  accès offert), cours Discord et extras (élèves restés, statut Stripe),
-  encaissé estimé (20 € par élève payant et par séance, suppléments d'extra,
-  avant frais Stripe), part professeur, part NAVIRE et marge, ajustement
-  compris. Export CSV du détail.
+  Trois montants : **Prévu** (tout le mois), **Acquis** (séances faites) et
+  **À verser** (acquis d'un mois clos, c'est-à-dire dont le prélèvement des
+  élèves est passé, pas encore versé). Les mois en cours ou futurs portent
+  l'étiquette « PRÉVU » et ne sont jamais dans « À verser ».
+  « Détail » sur une ligne : séance par séance, élèves comptés, cours
+  Discord et extras, et l'encaissement de chaque élève lu dans son
+  échéancier et les impayés signalés par Stripe : encaissé, à venir, impayé,
+  historique (inscription sans échéancier, gérée directement dans Stripe :
+  à vérifier), offert. Part professeur, part NAVIRE attendue (hors impayés)
+  et marge, ajustement compris. Export CSV du détail.
 
 Côté professeur : vue d'ensemble, groupes (bouton Discord, liens),
 étudiants (recherche, filtre par groupe), documents et rémunération. Le
