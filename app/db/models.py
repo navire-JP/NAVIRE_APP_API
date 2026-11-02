@@ -2074,6 +2074,9 @@ class PrepaAdjurisAffectation(Base):
 
     remu_seance_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     remu_etudiant_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Extra (cours prolongé au-delà de l'heure, voir app/services/cours_live.py) :
+    # montant versé au professeur par étudiant resté et facturé.
+    remu_extra_etudiant_cents: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -2119,3 +2122,97 @@ class PrepaAdjurisRemuneration(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+# ============================================================
+# Cours en direct et extras — salon Discord #cours-start
+# ============================================================
+# Règles et calculs : app/services/cours_live.py.
+
+class PrepaAdjurisCours(Base):
+    """
+    Un cours lancé par un professeur depuis Discord. L'heure de cours démarre
+    au clic ; au-delà, le cours entre en extra. Un extra ajouté (possible une
+    fois l'extra dépassé de 10 minutes) fait compter le cours 1 h 30 et
+    facture un supplément à chaque étudiant resté.
+    statut : en_cours | termine
+    """
+    __tablename__ = "prepa_adjuris_cours"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    classe_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_classes.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    matiere_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    professeur_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_professeurs.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    seance_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_seances.id", ondelete="SET NULL"), nullable=True
+    )
+    # Séance de l'agenda la plus proche du lancement, s'il y en a une.
+
+    statut: Mapped[str] = mapped_column(String(16), default="en_cours", nullable=False, index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    extra_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Instant où le professeur a ajouté l'extra. NULL = pas d'extra.
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cloture_auto: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    duree_comptee_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    # 60, ou 90 avec un extra.
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    classe: Mapped["PrepaAdjurisClasse"] = relationship("PrepaAdjurisClasse")
+    professeur: Mapped["PrepaAdjurisProfesseur"] = relationship("PrepaAdjurisProfesseur")
+    eleves: Mapped[list["PrepaAdjurisCoursEleve"]] = relationship(
+        "PrepaAdjurisCoursEleve",
+        back_populates="cours",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PrepaAdjurisCoursEleve.id",
+    )
+
+
+class PrepaAdjurisCoursEleve(Base):
+    """
+    Un étudiant du groupe au moment où l'extra est ajouté. Le professeur
+    retire ceux qui partent (retire_le) ; les autres sont facturés à la fin.
+    facturation : NULL (rien à facturer) | a_facturer | facture |
+    sans_paiement (accès sans abonnement Stripe : à régler à la main) | erreur
+    """
+    __tablename__ = "prepa_adjuris_cours_eleves"
+    __table_args__ = (
+        UniqueConstraint("cours_id", "enrollment_id", name="uq_prepa_adjuris_cours_eleve"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    cours_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_cours.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    enrollment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_enrollments.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    nom: Mapped[str] = mapped_column(String(170), default="", nullable=False)
+    discord_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    retire_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    extra_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    facturation: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    stripe_invoice_item_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    cours: Mapped["PrepaAdjurisCours"] = relationship("PrepaAdjurisCours", back_populates="eleves")

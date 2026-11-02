@@ -39,6 +39,18 @@ PREPA_FIN_PROGRAMME = os.getenv("PREPA_ADJURIS_FIN_PROGRAMME", "2026-12")
 PREPA_DELAI_IMPAYE_JOURS = 7
 PREPA_RELANCE_IMPAYE_JOURS = 5
 
+# ── Extras (cours prolongé, lancé depuis Discord) ─────────────
+# Un cours dure une heure. Au-delà, il entre en extra ; une fois l'extra
+# dépassé de PREPA_EXTRA_SEUIL_MINUTES, le professeur peut l'ajouter : le
+# cours compte alors PREPA_EXTRA_DUREE_COMPTEE minutes et chaque étudiant
+# resté est facturé PREPA_EXTRA_PRIX_CENTS, ajouté au prélèvement du mois.
+PREPA_COURS_DUREE_MINUTES = 60
+PREPA_EXTRA_SEUIL_MINUTES = 10
+PREPA_EXTRA_DUREE_COMPTEE = 90
+PREPA_EXTRA_PRIX_CENTS = int(os.getenv("PREPA_ADJURIS_EXTRA_PRIX_CENTS", "1000"))
+# Un cours que le professeur n'a pas terminé est clos automatiquement.
+PREPA_COURS_CLOTURE_AUTO_HEURES = 4
+
 # ── Niveaux et créneaux ───────────────────────────────────────
 PREPA_NIVEAUX: tuple[str, ...] = ("L1", "L2", "L3", "M1")
 

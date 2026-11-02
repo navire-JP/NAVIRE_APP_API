@@ -493,3 +493,86 @@ def deepwork_stats(discord_id: str, db: Session = Depends(get_db)):
             "goal_rewards": deepwork_service.goal_rewards(),
         },
     }
+
+
+# ============================================================
+# Cours en direct et extras — salon #cours-start
+# ============================================================
+# Règles : app/services/cours_live.py. Toutes ces routes répondent 200 avec
+# {"ok": bool, "message"?: str, ...} : un refus attendu (pas professeur,
+# extra trop tôt) n'est pas une erreur réseau, le cog l'affiche tel quel.
+
+from app.services import cours_live  # noqa: E402
+
+_PAS_PROFESSEUR = (
+    "Ce bouton est réservé aux professeurs Prép'AdJuris. Lie ton compte NAVIRE "
+    "à Discord depuis ton profil si tu es professeur."
+)
+
+
+class CoursDiscordIn(BaseModel):
+    discord_id: str
+
+
+class CoursStartIn(CoursDiscordIn):
+    classe_id: int
+
+
+def _cours_prof(db: Session, discord_id: str):
+    prof = cours_live.professeur_par_discord(db, discord_id)
+    if prof is None:
+        raise cours_live.CoursErreur(_PAS_PROFESSEUR)
+    return prof
+
+
+def _cours_action(db: Session, discord_id: str, cours_id: int, action) -> dict:
+    try:
+        prof = _cours_prof(db, discord_id)
+        c = cours_live.cours_du_professeur(db, prof, cours_id)
+        c = action(c) or c
+    except cours_live.CoursErreur as e:
+        return {"ok": False, "message": str(e)}
+    return {"ok": True, "cours": cours_live.cours_payload(c)}
+
+
+@router.get("/cours/professeur/{discord_id}", dependencies=[Depends(_require_bot)])
+def cours_professeur(discord_id: str, db: Session = Depends(get_db)):
+    prof = cours_live.professeur_par_discord(db, discord_id)
+    if prof is None:
+        return {"ok": False, "message": _PAS_PROFESSEUR}
+    c = cours_live.cours_en_cours(db, prof)
+    return {
+        "ok": True,
+        "groupes": cours_live.groupes_payload(prof),
+        "cours": cours_live.cours_payload(c) if c else None,
+    }
+
+
+@router.post("/cours/start", dependencies=[Depends(_require_bot)])
+def cours_start(body: CoursStartIn, db: Session = Depends(get_db)):
+    try:
+        prof = _cours_prof(db, body.discord_id)
+        c = cours_live.demarrer(db, prof, body.classe_id)
+    except cours_live.CoursErreur as e:
+        return {"ok": False, "message": str(e)}
+    return {"ok": True, "cours": cours_live.cours_payload(c)}
+
+
+@router.post("/cours/{cours_id}/state", dependencies=[Depends(_require_bot)])
+def cours_state(cours_id: int, body: CoursDiscordIn, db: Session = Depends(get_db)):
+    return _cours_action(db, body.discord_id, cours_id, lambda c: c)
+
+
+@router.post("/cours/{cours_id}/extra", dependencies=[Depends(_require_bot)])
+def cours_extra(cours_id: int, body: CoursDiscordIn, db: Session = Depends(get_db)):
+    return _cours_action(db, body.discord_id, cours_id, lambda c: cours_live.ajouter_extra(db, c))
+
+
+@router.post("/cours/{cours_id}/eleves/{eleve_id}/toggle", dependencies=[Depends(_require_bot)])
+def cours_toggle_eleve(cours_id: int, eleve_id: int, body: CoursDiscordIn, db: Session = Depends(get_db)):
+    return _cours_action(db, body.discord_id, cours_id, lambda c: cours_live.basculer_eleve(db, c, eleve_id))
+
+
+@router.post("/cours/{cours_id}/end", dependencies=[Depends(_require_bot)])
+def cours_end(cours_id: int, body: CoursDiscordIn, db: Session = Depends(get_db)):
+    return _cours_action(db, body.discord_id, cours_id, lambda c: cours_live.terminer(db, c))

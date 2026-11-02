@@ -29,7 +29,7 @@ Console (auth NAVIRE, is_admin) :
   PATCH  /professeurs/admin/{id}                  (grade, nom, statut)
   DELETE /professeurs/admin/{id}
   POST   /professeurs/admin/{id}/affectations     (ajouter un groupe)
-  PATCH  /professeurs/admin/affectations/{id}     (taux de rémunération)
+  PATCH  /professeurs/admin/affectations/{id}     (taux de rémunération, extras compris)
   DELETE /professeurs/admin/affectations/{id}
   GET    /professeurs/admin/remunerations?mois=   (tableau de pilotage)
   PUT    /professeurs/admin/remunerations         (montant fixé d'un mois, note)
@@ -455,11 +455,13 @@ class AffectationIn(BaseModel):
     classe_id: int
     remu_seance_cents: int | None = Field(None, ge=0, le=1_000_000)
     remu_etudiant_cents: int | None = Field(None, ge=0, le=1_000_000)
+    remu_extra_etudiant_cents: int | None = Field(None, ge=0, le=1_000_000)
 
 
 class AffectationUpdateIn(BaseModel):
     remu_seance_cents: int | None = Field(None, ge=0, le=1_000_000)
     remu_etudiant_cents: int | None = Field(None, ge=0, le=1_000_000)
+    remu_extra_etudiant_cents: int | None = Field(None, ge=0, le=1_000_000)
 
 
 def _prof_admin_row(db: Session, p: PrepaAdjurisProfesseur, par_matiere: dict | None = None) -> dict:
@@ -503,6 +505,10 @@ def _affecter(db: Session, p: PrepaAdjurisProfesseur, payload: AffectationIn) ->
         classe_id=payload.classe_id,
         remu_seance_cents=svc.REMU_SEANCE_CENTS if payload.remu_seance_cents is None else payload.remu_seance_cents,
         remu_etudiant_cents=svc.REMU_ETUDIANT_CENTS if payload.remu_etudiant_cents is None else payload.remu_etudiant_cents,
+        remu_extra_etudiant_cents=(
+            svc.REMU_EXTRA_ETUDIANT_CENTS if payload.remu_extra_etudiant_cents is None
+            else payload.remu_extra_etudiant_cents
+        ),
     )
     p.affectations.append(a)
     return a
@@ -528,7 +534,11 @@ def admin_list(db: Session = Depends(get_db), _: User = Depends(require_admin)):
     rows = db.execute(select(PrepaAdjurisProfesseur).order_by(PrepaAdjurisProfesseur.id)).scalars().all()
     return {
         "items": [_prof_admin_row(db, p, par_matiere) for p in rows],
-        "remu_defaut": {"seance_cents": svc.REMU_SEANCE_CENTS, "etudiant_cents": svc.REMU_ETUDIANT_CENTS},
+        "remu_defaut": {
+            "seance_cents": svc.REMU_SEANCE_CENTS,
+            "etudiant_cents": svc.REMU_ETUDIANT_CENTS,
+            "extra_etudiant_cents": svc.REMU_EXTRA_ETUDIANT_CENTS,
+        },
     }
 
 
@@ -568,6 +578,8 @@ def admin_update_affectation(
         a.remu_seance_cents = payload.remu_seance_cents
     if payload.remu_etudiant_cents is not None:
         a.remu_etudiant_cents = payload.remu_etudiant_cents
+    if payload.remu_extra_etudiant_cents is not None:
+        a.remu_extra_etudiant_cents = payload.remu_extra_etudiant_cents
     db.commit()
     return _prof_admin_row(db, a.professeur)
 
