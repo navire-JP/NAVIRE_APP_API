@@ -161,6 +161,11 @@ _STATEMENTS: list[str] = [
     "ALTER TABLE prepa_adjuris_ressources ADD COLUMN IF NOT EXISTS classe_id INTEGER REFERENCES prepa_adjuris_classes (id) ON DELETE CASCADE",
     "ALTER TABLE prepa_adjuris_ressources ADD COLUMN IF NOT EXISTS uploaded_by_id INTEGER REFERENCES users (id) ON DELETE SET NULL",
     "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_ressources_classe_id ON prepa_adjuris_ressources (classe_id)",
+
+    # ── Extras (novembre 2026) : tables prepa_adjuris_cours et
+    # prepa_adjuris_cours_eleves créées par create_all ; colonne ajoutée à
+    # une table existante.
+    "ALTER TABLE prepa_adjuris_affectations ADD COLUMN IF NOT EXISTS remu_extra_etudiant_cents INTEGER NOT NULL DEFAULT 0",
 ]
 
 

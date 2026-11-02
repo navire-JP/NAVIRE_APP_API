@@ -44,6 +44,7 @@ from app.routers.prepa_adjuris_espace import (
 )
 from app.routers.prepa_adjuris_agenda import router as prepa_adjuris_agenda_router
 from app.services.prepa_adjuris_facturation import job_facturation_adjuris
+from app.services.cours_live import job_cours_live
 from app.routers.navire import router as navire_router
 from app.routers.ambassadors import router as ambassadors_router
 from app.routers.lib import router as lib_router
@@ -134,6 +135,18 @@ scheduler.add_job(
     hours=1,
     args=[SessionLocal],
     id="job_facturation_adjuris",
+    replace_existing=True,
+)
+
+
+# Cours lancés depuis Discord : clôture des cours oubliés, reprise de la
+# facturation des extras en échec. Voir app/services/cours_live.py.
+scheduler.add_job(
+    job_cours_live,
+    trigger="interval",
+    hours=1,
+    args=[SessionLocal],
+    id="job_cours_live",
     replace_existing=True,
 )
 

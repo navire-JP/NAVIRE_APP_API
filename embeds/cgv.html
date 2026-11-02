@@ -1,0 +1,582 @@
+<div class="navire-legal">
+
+  <style>
+    .navire-legal {
+      width: 100%;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 70px 32px;
+      box-sizing: border-box;
+
+      color: #ffffff;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    .navire-legal *,
+    .navire-legal *::before,
+    .navire-legal *::after {
+      box-sizing: border-box;
+    }
+
+    .navire-legal h1 {
+      margin: 0 0 16px;
+      color: #ffffff;
+      font-size: clamp(26px, 6vw, 64px);
+      line-height: 1.15;
+      font-weight: 700;
+      letter-spacing: -1px;
+      word-break: break-word;
+    }
+
+    .navire-legal .update {
+      margin: 0 0 40px;
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .navire-legal .intro {
+      margin: 0 0 40px;
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 15.5px;
+      line-height: 1.65;
+      text-align: justify;
+    }
+
+    .navire-legal .article {
+      padding: 0 0 32px;
+      margin: 0 0 32px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .navire-legal .article:last-of-type {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .navire-legal h2 {
+      margin: 0 0 16px;
+      color: #ffffff;
+      font-size: clamp(19px, 3.5vw, 28px);
+      line-height: 1.25;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      word-break: break-word;
+    }
+
+    .navire-legal h3 {
+      margin: 20px 0 10px;
+      color: #ffffff;
+      font-size: 15.5px;
+      line-height: 1.35;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      word-break: break-word;
+    }
+
+    .navire-legal p {
+      margin: 0 0 16px;
+      color: rgba(255, 255, 255, 0.80);
+      text-align: justify;
+      text-justify: inter-word;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .navire-legal ul,
+    .navire-legal ol {
+      margin: 0 0 16px 18px;
+      padding: 0;
+      color: rgba(255, 255, 255, 0.80);
+    }
+
+    .navire-legal li {
+      margin-bottom: 8px;
+      text-align: justify;
+      word-break: break-word;
+    }
+
+    .navire-legal strong {
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .navire-legal a {
+      color: #ffffff;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .navire-legal .table-wrapper {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      margin: 16px 0 20px;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .navire-legal table {
+      width: 100%;
+      min-width: 420px;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      text-align: left;
+    }
+
+    .navire-legal th,
+    .navire-legal td {
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+      white-space: normal;
+    }
+
+    .navire-legal th {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .navire-legal .brand {
+      margin-top: 35px;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 3px;
+    }
+
+    @media (max-width: 768px) {
+      .navire-legal {
+        padding: 45px 20px;
+        font-size: 15px;
+      }
+      .navire-legal .update,
+      .navire-legal .intro {
+        margin-bottom: 30px;
+      }
+      .navire-legal .article {
+        padding-bottom: 25px;
+        margin-bottom: 25px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .navire-legal {
+        padding: 24px 12px;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .navire-legal .intro,
+      .navire-legal p,
+      .navire-legal li {
+        text-align: left;
+      }
+      .navire-legal ul,
+      .navire-legal ol {
+        margin-left: 14px;
+      }
+      .navire-legal .update {
+        margin-bottom: 24px;
+        font-size: 12px;
+      }
+      .navire-legal .intro {
+        font-size: 14px;
+        margin-bottom: 24px;
+      }
+      .navire-legal .article {
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+      }
+      .navire-legal h3 {
+        font-size: 14.5px;
+      }
+      .navire-legal table {
+        font-size: 12.5px;
+      }
+      .navire-legal th,
+      .navire-legal td {
+        padding: 6px 8px;
+      }
+      .navire-legal .brand {
+        font-size: 14px;
+        letter-spacing: 2px;
+      }
+    }
+  </style>
+
+  <h1>Conditions Générales de Vente</h1>
+
+  <div class="update">
+    Dernière mise à jour : novembre 2026
+  </div>
+
+  <p class="intro">
+    Les présentes Conditions Générales de Vente régissent toute souscription à une offre payante sur le site navire-ai.com, qu'il s'agisse d'un abonnement à la plateforme ou d'une inscription au programme Prép'AdJuris. Leur acceptation est une condition préalable et indispensable à la conclusion du contrat.
+  </p>
+
+  <section class="article">
+    <h2>Article 1. Objet</h2>
+    <p>
+      Les présentes Conditions Générales de Vente (ci-après « CGV ») définissent les conditions dans lesquelles NAVIRE (ci-après « le Prestataire ») fournit à toute personne physique souscrivant une offre payante via le site navire-ai.com (ci-après « le Client ») un accès à ses services de révision et d'accompagnement pédagogique en ligne.
+    </p>
+    <p>
+      Les présentes CGV s'appliquent à l'exclusion de tout autre document, sauf dérogation expresse et écrite convenue entre les parties. Toute commande emporte acceptation pleine, entière et sans réserve des CGV en vigueur au jour de la commande.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 2. Définitions</h2>
+    <p><strong>Service :</strong> la plateforme d'entraînement juridique accessible via navire-ai.com, comprenant notamment les questionnaires à choix multiples, les cartes de révision, la veille juridique, l'assistant conversationnel, la simulation NavireCab, les points de progression et les classements, disponibles selon les limites propres à chaque plan.</p>
+    <p><strong>Abonnement :</strong> contrat à exécution successive donnant accès au Service pour une durée déterminée, renouvelable par tacite reconduction selon les modalités de l'article 8.</p>
+    <p><strong>Prép'AdJuris :</strong> programme d'accompagnement pédagogique par matière, composé de séances en petit groupe animées en visioconférence par un intervenant, et d'un espace de ressources associé, régi par les articles 4 et 9.</p>
+    <p><strong>Séance :</strong> session d'accompagnement Prép'AdJuris, d'une durée indicative d'une heure, tenue en visioconférence sur le serveur Discord du Prestataire.</p>
+    <p><strong>Période bêta :</strong> phase de développement actif du Service courant jusqu'au 31 décembre 2026, pendant laquelle certaines fonctionnalités peuvent être incomplètes, instables ou temporairement indisponibles.</p>
+    <p><strong>Ambassadeur :</strong> personne mandatée par le Prestataire aux seules fins de promotion du Service, dans les conditions de l'article 14.</p>
+    <p><strong>Plateforme de paiement :</strong> le service Stripe, opéré par Stripe Inc., utilisé exclusivement pour le traitement des paiements.</p>
+  </section>
+
+  <section class="article">
+    <h2>Article 3. Offres et tarifs de la plateforme</h2>
+    <p>
+      Tous les prix sont exprimés en euros, toutes taxes comprises. Le Prestataire bénéficie de la franchise en base de TVA prévue à l'article 293 B du Code général des impôts ; la mention TTC est donc sans incidence sur le montant facturé.
+    </p>
+    <p>
+      <strong>Plan Gratuit.</strong> Accès sans contrepartie financière, comprenant une session de questionnaires par jour, jusqu'à 200 cartes de révision, un document hébergé pendant vingt-quatre heures, un nombre limité de questions quotidiennes à l'assistant, ainsi que l'accès à la veille juridique, aux points de progression et aux classements.
+    </p>
+    <p>
+      <strong>Plan Membre.</strong> 9,99 € par mois en facturation mensuelle, ou 71,93 € par an en facturation annuelle, prélevés en une seule fois pour douze mois, soit un équivalent de 5,99 € par mois et une réduction de 40 % par rapport au tarif mensuel. Ce plan comprend les questionnaires en nombre illimité, jusqu'à 500 cartes de révision, 7 documents hébergés sans limitation de durée, l'assistant sans limitation quotidienne, ainsi que la veille juridique, les points de progression, les indicateurs de régularité et les classements.
+    </p>
+    <p>
+      <strong>Plan Membre+.</strong> 16,99 € par mois en facturation mensuelle, ou 122,33 € par an en facturation annuelle, prélevés en une seule fois pour douze mois, soit un équivalent de 10,19 € par mois et une réduction de 40 % par rapport au tarif mensuel. Ce plan comprend les questionnaires en nombre illimité, jusqu'à 1 000 cartes de révision, 24 documents hébergés sans limitation de durée, l'assistant sans limitation quotidienne, l'accès à la simulation NavireCab, l'accès prioritaire aux nouvelles fonctionnalités, ainsi que l'ensemble des éléments du plan Membre.
+    </p>
+    <p>
+      Le descriptif détaillé des fonctionnalités incluses dans chaque plan figure sur la page de tarification du site, laquelle fait partie intégrante de l'offre contractuelle. Le Prestataire se réserve le droit de faire évoluer la composition des plans, sous réserve de ne pas priver le Client d'une caractéristique essentielle de l'offre souscrite pendant la période en cours, et de modifier les tarifs dans les conditions de l'article 15.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 4. Prép'AdJuris : offre et tarification</h2>
+
+    <h3>4.1 Nature de l'offre</h3>
+    <p>
+      Prép'AdJuris est un service d'accompagnement pédagogique en petit groupe, dispensé en visioconférence par un intervenant, à raison d'une séance par matière selon un calendrier communiqué avant l'inscription. Chaque groupe est limité à un nombre restreint de participants par séance, annoncé sur la page de l'offre.
+    </p>
+    <p>
+      Le programme est proposé pour neuf matières, réparties par niveau à raison de trois matières pour la première, la deuxième et la troisième année de licence. Les matières d'une même commande doivent relever d'un même niveau. Le Client peut souscrire une ou plusieurs matières.
+    </p>
+
+    <h3>4.2 Tarif</h3>
+    <p>
+      Le tarif est de 20 € par séance et par matière. Le montant total dû dépend donc du nombre de séances programmées et du nombre de matières souscrites.
+    </p>
+    <p>
+      Lorsque l'intervenant prolonge une séance au-delà de sa durée d'une heure, la prolongation constitue un extra. Si elle dépasse dix minutes, la séance est comptée pour une durée d'une heure trente et donne lieu à un supplément de 10 € par participant, dû par chaque Client resté présent pendant l'extra. Le Client qui quitte la séance au terme de l'heure n'est redevable d'aucun supplément ; sa présence à l'extra vaut acceptation de celui-ci. Le supplément est ajouté au prélèvement mensuel suivant et figure sur la facture correspondante. Aucun extra n'est facturé au titre de la séance d'accueil offerte.
+    </p>
+
+    <h3>4.3 Séance d'accueil offerte</h3>
+    <p>
+      Une séance commune d'accueil, ouverte à tous les inscrits d'un même niveau, est offerte et n'est jamais facturée. Elle est exclue du décompte des séances payantes.
+    </p>
+
+    <h3>4.4 Structure de facturation</h3>
+    <p>Le paiement s'organise ainsi :</p>
+    <ul>
+      <li><strong>À la commande :</strong> 20 € par matière souscrite. Ce montant couvre la première séance payante de la matière.</li>
+      <li><strong>Puis, chaque mois :</strong> un prélèvement égal au nombre de séances programmées dans le mois, multiplié par 20 €, multiplié par le nombre de matières souscrites. Le premier prélèvement mensuel intervient à la date indiquée sur la page de paiement, le mois de la première séance étant facturé déduction faite de la séance déjà réglée à la commande.</li>
+    </ul>
+    <p>
+      Le montant prélevé n'est donc pas fixe : il suit le nombre de séances du mois. L'échéancier complet, avec le montant de chaque prélèvement, est récapitulé sur la page de paiement avant validation de la commande et rappelé dans l'email de confirmation.
+    </p>
+
+    <h3>4.5 Calendrier et coût total indicatifs</h3>
+    <p>À titre indicatif, pour la session courant de septembre à décembre :</p>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Niveau</th>
+            <th>Sept.</th>
+            <th>Oct.</th>
+            <th>Nov.</th>
+            <th>Déc.</th>
+            <th>Total matière</th>
+            <th>Coût total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>L1</strong></td>
+            <td>3</td>
+            <td>5</td>
+            <td>4</td>
+            <td>4</td>
+            <td>16 séances</td>
+            <td>320 €</td>
+          </tr>
+          <tr>
+            <td><strong>L2 &amp; L3</strong></td>
+            <td>4</td>
+            <td>4</td>
+            <td>4</td>
+            <td>5</td>
+            <td>17 séances</td>
+            <td>340 €</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      Ces volumes s'entendent hors séance d'accueil offerte. Le calendrier définitif est communiqué avant la commande et sur la page de paiement. En cas de modification du nombre de séances d'un mois, la facturation est ajustée à due proportion, aucune séance non tenue n'étant facturée.
+    </p>
+
+    <h3>4.6 Codes promotionnels</h3>
+    <p>
+      Un code promotionnel peut être appliqué au tarif d'inscription, dans les conditions de l'article 13. Sauf mention contraire, il ne s'applique pas aux prélèvements mensuels ultérieurs.
+    </p>
+
+    <h3>4.7 Prérequis</h3>
+    <p>
+      La participation aux séances suppose un compte Discord et la liaison de celui-ci au compte NAVIRE. Le Client dispose d'un accès à l'espace élève regroupant le calendrier des séances et les ressources de ses matières.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 5. Programmes saisonniers</h2>
+    <p>
+      Le Prestataire peut proposer, en dehors de l'année universitaire, des programmes à accès temporaire donnant lieu à un paiement unique et ouvrant l'accès à un ensemble de contenus pour une période déterminée, annoncée sur la page de l'offre.
+    </p>
+    <p>
+      Ces programmes ne sont pas des abonnements : ils ne font l'objet d'aucune reconduction et l'accès prend fin automatiquement au terme annoncé, sans démarche ni résiliation. Le tarif, le périmètre des contenus et la date d'échéance figurent sur la page de l'offre, qui fait partie intégrante du contrat.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 6. Commande et formation du contrat</h2>
+    <p>
+      La commande est effectuée en ligne via le site navire-ai.com. Le processus comprend la sélection de l'offre et, le cas échéant, du cycle de facturation, du niveau et des matières, la création ou la connexion au compte, la saisie des informations de paiement via la plateforme Stripe, et la validation définitive de la commande.
+    </p>
+    <p>
+      Avant validation, le Client dispose du récapitulatif détaillé de sa commande, du montant total dû et, pour les offres à prélèvements variables, de l'échéancier prévisionnel. Il lui appartient de vérifier ces éléments et de corriger toute erreur avant de confirmer.
+    </p>
+    <p>
+      Le contrat est formé au moment de la confirmation du paiement par la plateforme Stripe. Un email de confirmation récapitulant les caractéristiques de l'offre souscrite est adressé à l'adresse email renseignée.
+    </p>
+    <p>
+      Le Client déclare avoir la capacité juridique de contracter. Toute commande passée par une personne mineure sans l'autorisation de son représentant légal est réputée nulle.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 7. Paiement</h2>
+    <p>
+      Le paiement est réalisé exclusivement par carte bancaire au moyen de la plateforme sécurisée Stripe. Le Prestataire ne collecte, ne stocke ni ne traite directement aucune donnée bancaire, l'intégralité du traitement étant déléguée à Stripe Inc., soumise à la norme PCI DSS.
+    </p>
+    <p>
+      Pour les abonnements, le paiement est prélevé à la date de commande, puis renouvelé automatiquement à la même date du mois ou de l'année suivante selon le cycle choisi. À titre d'exemple, un abonnement mensuel souscrit le 5 juin donne lieu à un prélèvement le 5 juin, puis le 5 juillet, le 5 août, et ainsi de suite.
+    </p>
+    <p>
+      Pour Prép'AdJuris, les prélèvements suivent l'échéancier défini à l'article 4.
+    </p>
+    <p>
+      En cas d'échec d'un prélèvement, le Prestataire en informe le Client et se réserve le droit de suspendre l'accès au Service ou aux séances jusqu'à régularisation. À défaut de régularisation dans un délai raisonnable, le contrat peut être résilié de plein droit.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 8. Abonnements : durée, renouvellement, résiliation</h2>
+    <p>
+      L'abonnement est souscrit pour une durée d'un mois ou d'un an selon le cycle sélectionné. À l'expiration de chaque période, il se renouvelle automatiquement pour une durée identique par tacite reconduction, conformément à l'article 1215 du Code civil, sauf résiliation par le Client avant l'échéance.
+    </p>
+    <p>
+      Le Client peut résilier son abonnement à tout moment, sans préavis ni justification, depuis son espace personnel ou en adressant une demande écrite à <a href="mailto:navire.contact@gmail.com">navire.contact@gmail.com</a>. La résiliation prend effet à l'expiration de la période en cours déjà acquittée. Le Client conserve l'intégralité de ses droits d'accès jusqu'au terme de cette période et aucun remboursement au prorata n'est accordé.
+    </p>
+    <p>
+      À titre d'exemple, un Client dont l'abonnement mensuel est renouvelé le 5 juillet et qui résilie le 10 juillet conserve son accès jusqu'au 4 août inclus.
+    </p>
+    <p>
+      Conformément à l'article L. 215-1 du Code de la consommation, le Prestataire informe le Client de la faculté de ne pas reconduire le contrat, par email adressé au plus tôt trois mois et au plus tard un mois avant le terme de la période autorisant le rejet de la reconduction. À défaut d'une telle information, le Client peut mettre un terme gratuitement au contrat à tout moment à compter de la date de reconduction, dans les conditions prévues par ce texte.
+    </p>
+    <p>
+      À l'issue de l'abonnement, le compte bascule vers le plan Gratuit. Les contenus excédant les limites de ce plan, notamment les documents hébergés, peuvent devenir inaccessibles ou être supprimés. Il appartient au Client d'en effectuer une sauvegarde avant le terme.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 9. Prép'AdJuris : durée, absences, annulation, résiliation</h2>
+
+    <h3>9.1 Durée</h3>
+    <p>
+      L'inscription couvre la session annoncée sur la page de l'offre. Elle prend fin automatiquement à l'issue de la dernière séance programmée, sans tacite reconduction. Une nouvelle inscription est nécessaire pour toute session ultérieure.
+    </p>
+
+    <h3>9.2 Absence du Client</h3>
+    <p>
+      Une séance à laquelle le Client ne se présente pas est due et n'ouvre droit à aucun remboursement ni à aucun rattrapage, sauf empêchement légitime justifié porté à la connaissance du Prestataire dans les meilleurs délais, auquel cas ce dernier s'efforce de proposer une solution de rattrapage sans y être tenu.
+    </p>
+
+    <h3>9.3 Annulation par le Prestataire</h3>
+    <p>
+      Toute séance annulée du fait du Prestataire est reportée ou, à défaut de report possible, déduite de la facturation ou remboursée. Si le nombre d'inscrits à une matière est insuffisant pour en assurer la tenue, le Prestataire peut renoncer à ouvrir le groupe et rembourse intégralement les sommes versées au titre de cette matière.
+    </p>
+
+    <h3>9.4 Résiliation par le Client</h3>
+    <p>
+      Le Client peut mettre fin à son inscription à tout moment par demande écrite adressée à <a href="mailto:navire.contact@gmail.com">navire.contact@gmail.com</a>. La résiliation prend effet au terme du mois de facturation en cours. Les séances déjà facturées, tenues ou à tenir avant cette date, restent dues et ne font l'objet d'aucun remboursement. Aucun prélèvement n'intervient au titre des mois suivants.
+    </p>
+
+    <h3>9.5 Résiliation par le Prestataire</h3>
+    <p>
+      Le Prestataire peut mettre fin à l'inscription en cas de manquement grave aux règles de participation figurant dans les Conditions Générales d'Utilisation, notamment en cas de comportement perturbateur, d'enregistrement non autorisé ou de diffusion des ressources. Les sommes correspondant aux séances non encore facturées ne sont pas dues ; celles déjà facturées restent acquises au Prestataire.
+    </p>
+
+    <h3>9.6 Ressources</h3>
+    <p>
+      L'accès à l'espace élève et aux ressources est maintenu pendant la durée du programme et, le cas échéant, pendant la période de prolongation annoncée par le Prestataire.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 10. Droit de rétractation</h2>
+
+    <h3>10.1 Abonnements à la plateforme (contenu numérique)</h3>
+    <p>
+      Conformément à l'article L. 221-28, 13° du Code de la consommation, le droit de rétractation de quatorze jours prévu à l'article L. 221-18 ne s'applique pas aux contrats de fourniture d'un contenu numérique non fourni sur un support matériel dont l'exécution a commencé avant l'expiration du délai de rétractation, avec l'accord préalable exprès du consommateur et sa reconnaissance de la perte de ce droit.
+    </p>
+    <p>
+      En validant sa commande et en cochant la case prévue à cet effet, le Client demande expressément que l'exécution commence immédiatement après la confirmation du paiement, reconnaît avoir été informé qu'il perd de ce fait son droit de rétractation, et y renonce en conséquence.
+    </p>
+
+    <h3>10.2 Prép'AdJuris et programmes saisonniers (prestation de services)</h3>
+    <p>
+      Le Client consommateur dispose d'un délai de quatorze jours à compter de la conclusion du contrat pour exercer son droit de rétractation, sans avoir à motiver sa décision ni à supporter de frais autres que ceux prévus ci-après.
+    </p>
+    <p>
+      Lorsque le Client demande expressément que l'exécution du service commence avant la fin de ce délai, notamment pour participer à une séance programmée dans les quatorze jours, il reste redevable, en cas de rétractation, d'un montant proportionnel au service fourni jusqu'à la communication de sa décision, conformément à l'article L. 221-25 du Code de la consommation. Ce montant correspond aux séances tenues avant la rétractation, la séance d'accueil offerte n'étant jamais facturée.
+    </p>
+    <p>
+      Conformément à l'article L. 221-28, 1° du même code, le droit de rétractation ne peut plus être exercé lorsque le service a été pleinement exécuté avant la fin du délai et que l'exécution a commencé avec l'accord préalable exprès du Client et sa reconnaissance de la perte de ce droit.
+    </p>
+
+    <h3>10.3 Modalités</h3>
+    <p>
+      La rétractation s'exerce par toute déclaration dénuée d'ambiguïté adressée à <a href="mailto:navire.contact@gmail.com">navire.contact@gmail.com</a>. Le remboursement des sommes dues intervient dans un délai de quatorze jours à compter de la réception de la décision, par le même moyen de paiement que celui utilisé lors de la commande.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 11. Plans historiques</h2>
+    <p>
+      Le plan Bêta, proposé au tarif de 3,00 € par mois pendant une phase antérieure de commercialisation, n'est plus ouvert à la souscription.
+    </p>
+    <p>
+      Les Clients y ayant souscrit conservent le bénéfice de ce tarif pendant douze mois à compter de leur souscription, ainsi que les fonctionnalités correspondantes. À l'issue de cette période garantie, le plan est soit maintenu à un tarif révisé, soit converti vers le plan standard le plus proche, le Client en étant informé conformément à l'article 15 et disposant de la faculté de résilier sans frais avant l'entrée en vigueur du changement.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 12. Obligations et responsabilité du Prestataire</h2>
+    <p>
+      Le Prestataire s'engage à fournir le Service avec le soin et la diligence d'un professionnel raisonnablement compétent. Il est tenu à une obligation de moyens s'agissant de la disponibilité du Service, des performances de la plateforme, de l'exactitude des contenus pédagogiques et des résultats obtenus par le Client dans ses études ou ses examens.
+    </p>
+    <p>
+      Il est expressément convenu qu'aucune garantie de réussite à un examen, un concours ou une évaluation n'est attachée aux offres proposées.
+    </p>
+    <p>
+      La responsabilité du Prestataire ne saurait être engagée en cas d'interruption pour maintenance, de force majeure au sens de l'article 1218 du Code civil, d'acte malveillant d'un tiers, de défaillance d'un opérateur technique tiers, ou de faute du Client.
+    </p>
+    <p>
+      En tout état de cause, la responsabilité du Prestataire envers le Client est limitée au montant des sommes effectivement versées par ce dernier au cours des trois mois précédant le fait générateur du dommage. Cette limitation ne s'applique pas en cas de dol, de faute lourde, ni dans les cas où la loi l'interdit, notamment au titre de la garantie légale de conformité des contenus et services numériques prévue aux articles L. 224-25-12 et suivants du Code de la consommation, dont le Client bénéficie de plein droit.
+    </p>
+    <p>
+      Pendant la période bêta, le Client reconnaît que le Service est fourni dans une version en développement actif et que des dysfonctionnements, interruptions ou évolutions de fonctionnalités peuvent survenir. Le Prestataire s'engage à déployer ses meilleurs efforts pour assurer une continuité raisonnable et à informer les utilisateurs des indisponibilités significatives.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 13. Codes promotionnels</h2>
+    <p>
+      Les codes promotionnels sont personnels, non cessibles, non cumulables sauf mention contraire, et utilisables une seule fois par Client. Ils sont valables dans la limite de leur durée, de leur nombre d'utilisations et du périmètre d'offres qu'ils visent.
+    </p>
+    <p>
+      Sauf mention expresse, une remise s'applique au premier paiement et non aux renouvellements ni aux prélèvements ultérieurs. Le Prestataire peut désactiver un code en cas d'usage abusif, frauduleux ou détourné de sa finalité.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 14. Réseau d'ambassadeurs</h2>
+    <p>
+      Le Prestataire peut faire appel à des étudiants volontaires, dénommés Ambassadeurs, aux seules fins de promouvoir le Service auprès d'autres étudiants et de les informer de la possibilité d'y souscrire. Leur mission est strictement limitée à la communication d'informations publiquement disponibles sur le site navire-ai.com.
+    </p>
+    <p>
+      En contrepartie des souscriptions réalisées via leur lien de parrainage personnel, les Ambassadeurs perçoivent une commission dont le taux et les modalités de versement sont définis par les conditions du programme Ambassadeur, communiquées lors de l'adhésion à ce programme.
+    </p>
+    <p>
+      Les Ambassadeurs n'ont aucun pouvoir pour engager le Prestataire, consentir des remises, modifier les conditions d'offre ou de tarification, le représenter dans un acte juridique quelconque, ni conclure un acte de portée contractuelle. Toute promesse ou représentation excédant ce périmètre est dépourvue de valeur contractuelle et ne saurait engager le Prestataire, lequel décline toute responsabilité à cet égard.
+    </p>
+    <p>
+      Le Client est invité à vérifier les informations communiquées par un Ambassadeur en se référant directement au site officiel navire-ai.com.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 15. Modification des tarifs et des CGV</h2>
+    <p>
+      Le Prestataire se réserve le droit de modifier à tout moment les présentes CGV ainsi que les tarifs de ses offres.
+    </p>
+    <p>
+      Toute modification tarifaire affectant un contrat en cours est notifiée au Client par email, avec un préavis minimal de trente jours calendaires avant son entrée en vigueur, et ne s'applique qu'à compter du premier renouvellement suivant l'expiration de ce préavis. Le Client qui n'accepte pas le nouveau tarif peut résilier sans frais avant sa prise d'effet.
+    </p>
+    <p>
+      Les modifications des CGV sont portées à la connaissance du Client par mise à jour de la présente page, avec mention de la date de dernière révision. La poursuite de l'utilisation du Service après leur entrée en vigueur vaut acceptation. Les commandes déjà passées demeurent régies par les CGV en vigueur au jour de la commande.
+    </p>
+  </section>
+
+  <section class="article">
+    <h2>Article 16. Réclamations, médiation et litiges</h2>
+    <p>
+      Les présentes CGV sont soumises au droit français. Elles sont rédigées en langue française, laquelle prévaut en toute circonstance.
+    </p>
+
+    <h3>16.1 Réclamation préalable</h3>
+    <p>
+      En cas de difficulté, le Client adresse une réclamation écrite au Prestataire à l'adresse <a href="mailto:navire.contact@gmail.com">navire.contact@gmail.com</a>. Le Prestataire dispose d'un délai de trente jours calendaires pour y répondre.
+    </p>
+
+    <h3>16.2 Médiation de la consommation</h3>
+    <p>
+      Conformément aux articles L. 612-1 et suivants du Code de la consommation, le Client consommateur peut, à défaut de solution satisfaisante dans un délai d'un an à compter de sa réclamation écrite, recourir gratuitement au médiateur de la consommation désigné par le Prestataire :<br>
+      <em>[Nom du médiateur de la consommation référencé par la CECMC] [Adresse postale] [Site de saisine]</em>
+    </p>
+    <p>
+      Le recours à la médiation est facultatif et ne prive le Client d'aucune voie de recours judiciaire.
+    </p>
+
+    <h3>16.3 Litiges transfrontaliers</h3>
+    <p>
+      Pour un litige avec un professionnel établi dans un autre État membre de l'Union européenne, le Client peut s'adresser au Centre Européen des Consommateurs France.
+    </p>
+
+    <h3>16.4 Juridiction</h3>
+    <p>
+      À défaut de résolution amiable, les juridictions françaises sont compétentes, conformément aux règles de compétence applicables, le Client consommateur conservant la faculté de saisir la juridiction du lieu de son domicile.
+    </p>
+  </section>
+
+  <div class="brand">
+    NAVIRE
+  </div>
+
+</div>

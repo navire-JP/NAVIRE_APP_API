@@ -28,7 +28,7 @@ pdfplumber==0.10.3
 stripe==11.4.1
 
 #discord
-discord.py>=2.3.0
+discord.py>=2.4.0  # DynamicItem (boutons persistants de #cours-start)
 httpx>=0.27.0
 
 cloudinary

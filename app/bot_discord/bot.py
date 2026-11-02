@@ -27,6 +27,7 @@ _COGS = [
     "app.bot_discord.cogs.voice_logs",
     "app.bot_discord.cogs.deepwork",
     "app.bot_discord.cogs.logs_cog",
+    "app.bot_discord.cogs.cours_start",
 ]
 
 
@@ -62,5 +63,11 @@ async def run_bot():
         bot.add_view(SyncAccountView())
         bot.add_view(OnboardingLinkView())
         bot.add_view(HelpMenuView(build_categories(bot)))
+
+        # #cours-start : bouton du message permanent, et boutons des réponses
+        # éphémères (identifiant du cours dans le custom_id).
+        from app.bot_discord.cogs.cours_start import CoursBouton, EleveBouton, LancerCoursView
+        bot.add_view(LancerCoursView())
+        bot.add_dynamic_items(CoursBouton, EleveBouton)
 
         await bot.start(DISCORD_TOKEN)

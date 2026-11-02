@@ -17,6 +17,8 @@ Règles :
     facturation, dates_seances), remu_seance_cents + remu_etudiant_cents ×
     étudiants inscrits avant le début de la séance. Estimation : les
     séances passées sont comptées avec les étudiants inscrits aujourd'hui.
+  - Extras : remu_extra_etudiant_cents × étudiants facturés, par cours
+    prolongé (app/services/cours_live.py), ajouté au mois du cours.
   - Pilotage (console) : un montant fixé pour un mois
     (PrepaAdjurisRemuneration) remplace le montant calculé. Aucun lien avec
     Stripe : le versement est un virement manuel, marqué « versé » dans la
@@ -53,6 +55,8 @@ STATUTS_ETUDIANT = ("active", "payment_failed")
 # Rémunération proposée à l'affectation, modifiable groupe par groupe.
 REMU_SEANCE_CENTS = int(os.getenv("PROF_REMU_SEANCE_CENTS", "0"))
 REMU_ETUDIANT_CENTS = int(os.getenv("PROF_REMU_ETUDIANT_CENTS", "0"))
+# Par étudiant resté et facturé lors d'un extra (voir cours_live.py).
+REMU_EXTRA_ETUDIANT_CENTS = int(os.getenv("PROF_REMU_EXTRA_ETUDIANT_CENTS", "0"))
 
 # Salons Discord des groupes créés au premier démarrage.
 _DISCORD_GUILD = "1131156852265201715"
@@ -314,6 +318,18 @@ def previsionnel(
         else:
             nb_futures += 1
 
+    # Extras (cours prolongés, lancés depuis Discord) : déjà réalisés.
+    from app.services.cours_live import extras_par_mois
+
+    nb_extras = 0
+    for cle, x in extras_par_mois(db, affectation).items():
+        m = mois.setdefault(cle, {"mois": cle, "seances": 0, "calcule_cents": 0, "_realise": 0})
+        m["extras"] = x["cours"]
+        m["extras_cents"] = x["cents"]
+        m["calcule_cents"] += x["cents"]
+        m["_realise"] += x["cents"]
+        nb_extras += x["cours"]
+
     # Mois fixés à la main sans séance au calendrier (prime, rattrapage…).
     for (aff_id, cle), r in lignes.items():
         if aff_id == affectation.id and cle not in mois:
@@ -336,6 +352,8 @@ def previsionnel(
             part = final
         realise += part
         a_venir += final - part
+        m.setdefault("extras", 0)
+        m.setdefault("extras_cents", 0)
         m.update({
             "fixe_cents": fixe,
             "montant_cents": final,
@@ -348,6 +366,8 @@ def previsionnel(
     return {
         "remu_seance_cents": affectation.remu_seance_cents,
         "remu_etudiant_cents": affectation.remu_etudiant_cents,
+        "remu_extra_etudiant_cents": affectation.remu_extra_etudiant_cents or 0,
+        "extras": nb_extras,
         "par_seance_cents": affectation.remu_seance_cents + affectation.remu_etudiant_cents * len(inscriptions),
         "seances_passees": nb_passees,
         "seances_a_venir": nb_futures,

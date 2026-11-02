@@ -152,3 +152,25 @@ async def deepwork_reset_stale(keep_session_ids: list[int] | None = None) -> dic
 
 async def deepwork_stats(discord_id: str) -> dict:
     return await _get(f"/discord/deepwork/stats/{discord_id}")
+
+
+# ============================================================
+# Cours en direct et extras — salon #cours-start
+# ============================================================
+# Réponses toujours en 200 {"ok": bool, "message"?: str, "cours"?: {...}}.
+
+async def cours_professeur(discord_id: str) -> dict:
+    return await _get(f"/discord/cours/professeur/{discord_id}")
+
+
+async def cours_start(discord_id: str, classe_id: int) -> dict:
+    return await _post("/discord/cours/start", {"discord_id": discord_id, "classe_id": classe_id})
+
+
+async def cours_action(discord_id: str, cours_id: int, action: str) -> dict:
+    """action : state | extra | end"""
+    return await _post(f"/discord/cours/{cours_id}/{action}", {"discord_id": discord_id})
+
+
+async def cours_toggle_eleve(discord_id: str, cours_id: int, eleve_id: int) -> dict:
+    return await _post(f"/discord/cours/{cours_id}/eleves/{eleve_id}/toggle", {"discord_id": discord_id})

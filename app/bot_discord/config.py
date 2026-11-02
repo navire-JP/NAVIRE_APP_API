@@ -83,6 +83,12 @@ PREPA_ADJURIS_ROLE_IDS: dict[str, int] = {
 }
 
 # ============================================================
+# Cours en direct — salon #cours-start
+# ============================================================
+# Message permanent « Lancer un cours » (cogs/cours_start.py).
+COURS_START_CHANNEL_ID = int(os.getenv("DISCORD_COURS_START_CHANNEL_ID", "1566757813131419789"))
+
+# ============================================================
 # Deep work — salon vocal de travail
 # ============================================================
 # Entrer dans ce vocal ouvre une session deep work : le membre reçoit un MP
