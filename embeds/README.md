@@ -95,12 +95,20 @@ Côté console, onglet « Prof. » :
   « VERSÉ » annule un versement. Un mois sans séance peut aussi recevoir un
   montant (prime, rattrapage). Export CSV. Le professeur voit les montants
   retenus, et les mois « versé » ou « ajusté ».
+  « Détail » sur une ligne : séance par séance, élèves comptés (payants ou
+  accès offert), cours Discord et extras (élèves restés, statut Stripe),
+  encaissé estimé (20 € par élève payant et par séance, suppléments d'extra,
+  avant frais Stripe), part professeur, part NAVIRE et marge, ajustement
+  compris. Export CSV du détail.
 
 Côté professeur : vue d'ensemble, groupes (bouton Discord, liens),
 étudiants (recherche, filtre par groupe), documents et rémunération. Le
 prévisionnel suit le calendrier des séances de la facturation (agenda de la
 matière) : par séance, le montant fixe plus le montant par étudiant inscrit
 avant la séance, mois par mois jusqu'à la fin du programme.
+En haut, le solde prévisionnel du mois en cours ; un clic sur un mois ouvre
+le détail de ses séances (élèves comptés, extras, calcul de la part au
+centime, ajustement). Le professeur ne voit ni l'encaissé ni la part NAVIRE.
 
 Un PDF déposé est publié tout de suite pour les étudiants du groupe : sur
 NAVIRE Lib, il devient un document lu comme un cours, avec la pastille
