@@ -429,6 +429,19 @@ def noms_etudiants(db: Session, inscriptions: list[PrepaAdjurisEnrollment]) -> d
     return out
 
 
+def repartir(total: int, poids: list[int]) -> list[int]:
+    """Répartit `total` centimes selon `poids`, au centime près (plus forts
+    restes) : la somme est exactement `total`."""
+    somme = sum(poids)
+    if not poids or somme <= 0:
+        return [0] * len(poids)
+    parts = [total * p // somme for p in poids]
+    restes = [total * p % somme for p in poids]
+    for i in sorted(range(len(poids)), key=lambda i: restes[i], reverse=True)[: total - sum(parts)]:
+        parts[i] += 1
+    return parts
+
+
 def detail_mois(
     db: Session,
     affectation: PrepaAdjurisAffectation,
@@ -454,6 +467,15 @@ def detail_mois(
     lignes = lignes if lignes is not None else pilotage(db, [affectation.id])
     noms = noms_etudiants(db, inscriptions)
     debuts = [(e, aware(e.inscrit_le or e.created_at)) for e in inscriptions]
+    # Payant si l'une des lignes de la personne est réglée par Stripe (accès
+    # accordé à la main, puis abonnement pris : la ligne principale est la
+    # plus ancienne, sans abonnement).
+    ids = {e.id for e in inscriptions}
+    payants = {e.id for e in inscriptions if payant(e)}
+    for _groupe, lignes_e in eleves_de_la_matiere(db, affectation.classe.matiere_key):
+        p = principale(lignes_e)
+        if p.id in ids and any(payant(x) for x in lignes_e):
+            payants.add(p.id)
 
     dates = [
         d for d in sorted(dates_seances(db, affectation.classe.matiere_key))
@@ -463,14 +485,14 @@ def detail_mois(
     for d in dates:
         presents = sorted((e for e, x in debuts if x is None or x < d), key=lambda e: noms[e.id].lower())
         part_prof = affectation.remu_seance_cents + affectation.remu_etudiant_cents * len(presents)
-        encaisse = PREPA_PRIX_SEANCE_CENTS * sum(1 for e in presents if payant(e))
+        encaisse = PREPA_PRIX_SEANCE_CENTS * sum(1 for e in presents if e.id in payants)
         seances.append({
             "date": _iso(d),
             "passee": d <= maintenant,
             "hors_agenda": False,
             "eleves": [
-                {"enrollment_id": e.id, "nom": noms[e.id], "payant": payant(e),
-                 **({"encaisse_cents": PREPA_PRIX_SEANCE_CENTS if payant(e) else 0} if avec_navire else {})}
+                {"enrollment_id": e.id, "nom": noms[e.id], "payant": e.id in payants,
+                 **({"encaisse_cents": PREPA_PRIX_SEANCE_CENTS if e.id in payants else 0} if avec_navire else {})}
                 for e in presents
             ],
             "nb_eleves": len(presents),
@@ -544,6 +566,25 @@ def detail_mois(
     r = lignes.get((affectation.id, cle))
     fixe = r.montant_cents if r is not None else None
     montant = calcule if fixe is None else fixe
+    for s in seances:
+        s["part_prof_calculee_cents"] = s["part_prof_cents"]
+        s["reparti"] = False
+    repartition = None
+    if fixe is not None and seances:
+        # Montant fixé dans la console : réparti sur les séances du mois, au
+        # prorata du calcul, sinon des élèves comptés, sinon à parts égales.
+        if calcule > 0:
+            repartition, poids = "prorata", [s["part_prof_cents"] for s in seances]
+        elif sum(s["nb_eleves"] for s in seances) > 0:
+            repartition, poids = "par_eleve", [s["nb_eleves"] for s in seances]
+        else:
+            repartition = "par_seance"
+            poids = [0 if s["hors_agenda"] else 1 for s in seances]
+            if not any(poids):
+                poids = [1] * len(seances)
+        for s, cents in zip(seances, repartir(fixe, poids)):
+            s["part_prof_cents"] = cents
+            s["reparti"] = True
     encaisse = sum(s["encaisse_cents"] for s in seances)
     for s in seances:
         s["part_navire_cents"] = s["encaisse_cents"] - s["part_prof_cents"]
@@ -568,10 +609,13 @@ def detail_mois(
         "totaux": {
             "seances": sum(1 for s in seances if not s["hors_agenda"]),
             "extras": sum(1 for s in seances if s["extra"]),
-            "part_prof_seances_cents": sum(s["part_prof_cents"] - (s["extra"] or {}).get("part_prof_cents", 0) for s in seances),
+            "part_prof_seances_cents": sum(s["part_prof_calculee_cents"] - (s["extra"] or {}).get("part_prof_cents", 0) for s in seances),
             "part_prof_extras_cents": sum((s["extra"] or {}).get("part_prof_cents", 0) for s in seances),
             "calcule_cents": calcule,
-            "ajustement_cents": montant - calcule,
+            "fixe_cents": fixe,
+            "repartition": repartition,
+            # Reste non réparti : mois fixé sans aucune séance.
+            "ajustement_cents": montant - sum(s["part_prof_cents"] for s in seances),
             "note": r.note if r is not None else "",
             "part_prof_cents": montant,
             "verse_le": _iso(aware(r.verse_le)) if r is not None else None,

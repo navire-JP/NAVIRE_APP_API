@@ -295,6 +295,19 @@ def test_pilotage_des_remunerations(monde):
     assert r.status_code == 200, r.text
     assert (r.json()["fixe_cents"], r.json()["montant_cents"], r.json()["note"]) == (5000, 5000, "prime TD")
     calc_m = r.json()["calcule_cents"]
+    # Détail : le montant fixé est réparti sur les séances, au centime.
+    det = c.get(f"/professeurs/me/remuneration/detail?mois={m}", headers=P).json()["groupes"][0]
+    assert sum(x["part_prof_cents"] for x in det["seances"]) == 5000
+    assert all(x["reparti"] and x["part_prof_cents"] > 0 for x in det["seances"])
+    assert det["totaux"]["ajustement_cents"] == 0 and det["totaux"]["fixe_cents"] == 5000
+
+    # Barème à 0 : réparti selon les élèves de chaque séance, pas 0 partout.
+    c.patch(f"/professeurs/admin/affectations/{aff}", headers=A, json={"remu_seance_cents": 0, "remu_etudiant_cents": 0})
+    det = c.get(f"/professeurs/admin/remunerations/detail?affectation_id={aff}&mois={m}", headers=A).json()
+    assert det["totaux"]["repartition"] == "par_eleve"
+    assert sum(x["part_prof_cents"] for x in det["seances"]) == det["totaux"]["part_prof_cents"] == 5000
+    assert det["totaux"]["part_navire_cents"] == det["totaux"]["encaisse_cents"] - 5000
+    c.patch(f"/professeurs/admin/affectations/{aff}", headers=A, json={"remu_seance_cents": 0, "remu_etudiant_cents": 1000})
     d = c.get("/professeurs/me/dashboard", headers=P).json()
     assert d["totaux"]["total_cents"] == 3000 - calc_m + 5000
 

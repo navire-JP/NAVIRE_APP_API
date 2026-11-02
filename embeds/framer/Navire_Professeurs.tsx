@@ -514,6 +514,8 @@ interface SeanceDetail {
     part_prof_fixe_cents: number
     part_prof_eleves_cents: number
     part_prof_cents: number
+    part_prof_calculee_cents: number
+    reparti: boolean
     encaisse_cents: number
     part_navire_cents: number
     cours: { id: number; debut: string; fin: string | null; duree_comptee_minutes: number; cloture_auto: boolean } | null
@@ -1397,6 +1399,19 @@ function DetailRemu({ l }: { l: LigneRemu }) {
                 {euros(b.remu_extra_etudiant_cents)} / élève resté · élève payant {euros(b.prix_seance_cents)} / séance ·
                 avant frais Stripe
             </div>
+            {t.fixe_cents !== null && (
+                <div style={{ fontSize: 10, fontFamily: mono, color: WARN }}>
+                    Montant fixé {euros(t.fixe_cents)} (calculé au barème {euros(t.calcule_cents)}) · réparti{" "}
+                    {t.repartition === "prorata"
+                        ? "au prorata du barème"
+                        : t.repartition === "par_eleve"
+                        ? "selon les élèves de chaque séance"
+                        : t.repartition === "par_seance"
+                        ? "à parts égales entre les séances"
+                        : "— aucune séance ce mois-ci"}
+                    {t.note ? ` · ${t.note}` : ""}
+                </div>
+            )}
             <div style={{ border: `1px solid ${b0}`, borderRadius: 10, overflow: "hidden" }}>
                 <div style={{ display: "grid", gridTemplateColumns: grille, gap: 8, padding: "6px 10px", borderBottom: `1px solid ${b0}` }}>
                     <span style={entete}>Séance</span>
@@ -1445,6 +1460,7 @@ function DetailRemu({ l }: { l: LigneRemu }) {
                                             Prof : {euros(s.part_prof_fixe_cents)} séance + {s.nb_eleves} × {euros(b.remu_etudiant_cents)} ={" "}
                                             {euros(s.part_prof_fixe_cents + s.part_prof_eleves_cents)}
                                             {s.extra && ` · extra ${s.extra.nb_factures} × ${euros(b.remu_extra_etudiant_cents)} = ${euros(s.extra.part_prof_cents)}`}
+                                            {s.reparti && ` · part du montant fixé : ${euros(s.part_prof_cents)}`}
                                         </div>
                                     )}
                                     {s.cours && (

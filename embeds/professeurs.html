@@ -835,13 +835,24 @@
       '<span class="nv-seance-amount">' + eur(s.part_prof_cents) + '</span>' +
       '<svg class="nv-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg></button>';
     if (!open) return h + '</div>';
+    var aBareme = b.remu_seance_cents || b.remu_etudiant_cents || b.remu_extra_etudiant_cents;
     h += '<div class="nv-seance-body"><div class="nv-calc">';
+    if (s.reparti && !aBareme) {
+      h += '<span>Montant fixé par NAVIRE, ' + (g.totaux.repartition === "par_eleve" ? 'réparti selon les ' + s.nb_eleves + ' élève' + (s.nb_eleves > 1 ? 's' : '') + ' de la séance' : 'réparti entre les séances') + '</span><span></span>' +
+        '<span class="is-total">Ta part</span><span class="is-total">' + eur(s.part_prof_cents) + '</span></div>';
+    } else {
     if (!s.hors_agenda) {
       h += '<span>Séance</span><span>' + eur(s.part_prof_fixe_cents) + '</span>' +
         '<span>' + s.nb_eleves + ' élève' + (s.nb_eleves > 1 ? 's' : '') + ' × ' + eur(b.remu_etudiant_cents) + '</span><span>' + eur(s.part_prof_eleves_cents) + '</span>';
     }
     if (x) h += '<span>Extra : ' + x.nb_factures + ' élève' + (x.nb_factures > 1 ? 's' : '') + ' resté' + (x.nb_factures > 1 ? 's' : '') + ' × ' + eur(b.remu_extra_etudiant_cents) + '</span><span>' + eur(x.part_prof_cents) + '</span>';
-    h += '<span class="is-total">Ta part</span><span class="is-total">' + eur(s.part_prof_cents) + '</span></div>';
+    if (s.reparti) {
+      h += '<span>Calculé au barème</span><span>' + eur(s.part_prof_calculee_cents) + '</span>' +
+        '<span class="is-total">Ta part du montant fixé</span><span class="is-total">' + eur(s.part_prof_cents) + '</span></div>';
+    } else {
+      h += '<span class="is-total">Ta part</span><span class="is-total">' + eur(s.part_prof_cents) + '</span></div>';
+    }
+    }
     if (!s.hors_agenda) {
       h += '<div class="nv-sublabel">Élèves comptés</div>' + (s.eleves.length
         ? '<div class="nv-eleves">' + s.eleves.map(function (e) { return '<span class="nv-eleve">' + esc(e.nom) + '</span>'; }).join('') + '</div>'
@@ -870,10 +881,14 @@
       h += '<div class="nv-card"><div class="nv-card-title">' + esc(g.classe) + '</div>' +
         '<div class="nv-card-sub">' + t.seances + ' séance' + (t.seances > 1 ? 's' : '') + (t.extras ? ' · ' + t.extras + ' extra' + (t.extras > 1 ? 's' : '') : '') + ' · touche une séance pour voir le calcul et les élèves</div>';
       g.seances.forEach(function (s, i) { h += seanceHtml(g, s, i); });
+      var REP = { prorata: "au prorata du barème", par_eleve: "selon les élèves de chaque séance", par_seance: "à parts égales entre les séances" };
+      var bareme = g.bareme.remu_seance_cents || g.bareme.remu_etudiant_cents || g.bareme.remu_extra_etudiant_cents;
       h += '<div class="nv-calc" style="margin:10px 0 0">' +
-        '<span>Séances</span><span>' + eur(t.part_prof_seances_cents) + '</span>' +
-        (t.part_prof_extras_cents ? '<span>Extras</span><span>' + eur(t.part_prof_extras_cents) + '</span>' : '') +
-        (t.ajustement_cents ? '<span>Ajustement NAVIRE' + (t.note ? ' · ' + esc(t.note) : '') + '</span><span>' + (t.ajustement_cents > 0 ? '+' : '') + eur(t.ajustement_cents) + '</span>' : '') +
+        (bareme || t.fixe_cents == null ? '<span>Séances' + (t.fixe_cents != null ? ' (barème)' : '') + '</span><span>' + eur(t.part_prof_seances_cents) + '</span>' : '') +
+        (t.part_prof_extras_cents ? '<span>Extras' + (t.fixe_cents != null ? ' (barème)' : '') + '</span><span>' + eur(t.part_prof_extras_cents) + '</span>' : '') +
+        (t.fixe_cents != null ? '<span>Montant fixé par NAVIRE' + (t.repartition ? ', réparti ' + REP[t.repartition] : '') + (t.note ? ' · ' + esc(t.note) : '') + '</span><span>' + eur(t.fixe_cents) + '</span>' : '') +
+        (!bareme && t.fixe_cents == null ? '<span>Barème pas encore défini par l\'équipe NAVIRE</span><span>' + eur(0) + '</span>' : '') +
+        (t.ajustement_cents && t.fixe_cents == null ? '<span>Ajustement NAVIRE' + (t.note ? ' · ' + esc(t.note) : '') + '</span><span>' + (t.ajustement_cents > 0 ? '+' : '') + eur(t.ajustement_cents) + '</span>' : '') +
         '<span class="is-total">Total du mois' + (t.verse_le ? ' · versé' : '') + '</span><span class="is-total">' + eur(t.part_prof_cents) + '</span></div></div>';
     });
     return h;
