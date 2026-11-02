@@ -490,6 +490,9 @@ def admin_delete_ressource(ressource_id: int, db: Session = Depends(get_db)):
     ).scalar_one_or_none()
     if not r:
         raise HTTPException(status_code=404, detail="Ressource introuvable.")
+    from app.routers.lib_prepa import supprimer_doc_prepa
+
+    supprimer_doc_prepa(db, r.id)   # sa version NAVIRE Lib
     delete_prepa_file(r.path)
     db.delete(r)
     db.commit()

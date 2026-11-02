@@ -102,9 +102,10 @@ prévisionnel suit le calendrier des séances de la facturation (agenda de la
 matière) : par séance, le montant fixe plus le montant par étudiant inscrit
 avant la séance, mois par mois jusqu'à la fin du programme.
 
-Un PDF déposé est publié tout de suite pour les étudiants du groupe, dans la
-vue Prépa de NAVIRE Lib (onglet Documents). Les autres groupes de la matière
-ne le voient pas. Seul le professeur qui l'a déposé peut le retirer.
+Un PDF déposé est publié tout de suite pour les étudiants du groupe : sur
+NAVIRE Lib, il devient un document lu comme un cours, avec la pastille
+« Prépa » (bibliothèque et vue Prépa). Les autres groupes de la matière ne
+le voient pas. Seul le professeur qui l'a déposé peut le retirer.
 
 **Devoirs** : les copies (PDF) rendues par les étudiants depuis la vue Prépa
 de NAVIRE Lib arrivent chez les professeurs de leur groupe (et par mail).
@@ -157,14 +158,20 @@ Un curseur en haut à droite passe de l'un à l'autre :
     prochaines séances (agenda de la console) et les cours Lib de la classe ;
   - une entrée « Espace Prépa » dans le menu et un bandeau en tête de la
     bibliothèque ;
+  - les documents de l'espace Prépa (méthodo, PDF des matières, dépôts des
+    chargés de TD) sont des **documents NAVIRE Lib** avec la pastille
+    « Prépa » : dans la bibliothèque (filtre « Documents Prépa ») et dans la
+    vue Prépa, ils se lisent comme un cours (plan, surlignage ; en Lib+,
+    points de passage posés tout seuls, sans Elo), sans PDF à ouvrir. Le PDF
+    est lu à la première ouverture. Un document retiré disparaît de Lib ;
+    un document dépublié est masqué ;
   - la vue Prépa, à onglets : **Emploi du temps** (séances de la semaine
-    écoulée et des quatre prochains mois, bouton Rejoindre), **Cours** (les
-    cours Lib de chaque matière souscrite, avec le Discord et les liens du
-    groupe, puis ceux du niveau), **Documents** (méthodo et PDF des matières,
-    dont ceux du chargé de TD, lus dans un lecteur intégré non
-    téléchargeable), **Devoirs** (rendre une copie PDF, suivre la correction,
-    le commentaire, la note et la copie corrigée).
-  Lien direct : `/lib?prepa=edt|cours|docs|devoirs`. Données : `GET /lib/prepa`.
+    écoulée et des quatre prochains mois, bouton Rejoindre), **Cours et
+    documents** (par matière souscrite : les documents Prépa puis les cours
+    Lib, avec le Discord et les liens du groupe ; puis la méthodologie et les
+    cours du niveau), **Devoirs** (rendre une copie PDF, suivre la
+    correction, le commentaire, la note et la copie corrigée).
+  Lien direct : `/lib?prepa=edt|cours|devoirs`. Données : `GET /lib/prepa`.
   Un cours Lib est « de la classe » si sa matière (ou son titre) reprend le
   nom d'une matière Prép'AdJuris de l'élève (ex. « Introduction au droit »),
   ou si son niveau est celui de l'élève (champ niveau du document : L1…).

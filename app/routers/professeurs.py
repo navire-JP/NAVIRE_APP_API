@@ -256,6 +256,9 @@ def retirer_document(
     r = _mon_document(db, prof, document_id)
     if r.uploaded_by_id != prof.user_id:
         raise HTTPException(403, detail="Seul le professeur qui l'a déposé peut retirer ce document.")
+    from app.routers.lib_prepa import supprimer_doc_prepa
+
+    supprimer_doc_prepa(db, r.id)   # sa version NAVIRE Lib (et la progression des élèves)
     delete_prepa_file(r.path)
     db.delete(r)
     db.commit()

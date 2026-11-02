@@ -1904,6 +1904,13 @@ class LibDocument(Base):
     source_file_id: Mapped[int | None] = mapped_column(
         ForeignKey("files.id", ondelete="CASCADE"), unique=True, nullable=True
     )
+    # Document Prép'AdJuris (kind "prepa") : le PDF d'une ressource de l'espace
+    # Prépa (matière, méthodo, ou dépôt d'un chargé de TD), lu dans Lib comme un
+    # cours par les seuls étudiants qui y ont accès. Créé à la synchronisation,
+    # découpé en blocs à la première ouverture.
+    prepa_ressource_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_ressources.id", ondelete="CASCADE"), unique=True, nullable=True
+    )
 
     ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
