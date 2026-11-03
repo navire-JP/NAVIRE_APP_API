@@ -9,6 +9,7 @@
 | `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, devoirs à corriger, rémunération prévisionnelle |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
 | `avis.html` | homepage | Avis étudiants : trois cartes en verre translucide sur fond transparent (avis factices pour le moment, tableau `AVIS` du script) |
+| `connexion-avis.html` | `/login`, `/register` (colonne de droite) | Titre + avis qui défilent verticalement en boucle, trame de points bleus (avis factices, bloc CONFIG) |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
