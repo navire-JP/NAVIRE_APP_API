@@ -302,25 +302,27 @@
   .nv-btn:active { transform: scale(0.985); }
   .nv-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 
+  /* Bouton principal, style « plat » : couleur vive unie, texte sombre,
+     coins légèrement arrondis, pas d'ombre. Couleur : --nv-cta. */
   .nv-btn-primary {
+    --nv-cta: #4C93FF;
+    --nv-cta-hover: #6AA6FF;
     flex: 1 1 auto;
     width: 100%;
-    color: #FFFFFF;
-    background: linear-gradient(180deg, #5A9DFF 0%, #3B7BF0 100%);
-    border-color: rgba(255,255,255,0.14);
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.28),
-      0 6px 20px rgba(59,123,240,0.35);
+    height: 42px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: #050B16;
+    background: var(--nv-cta);
+    border: none;
+    box-shadow: none;
   }
 
-  .nv-btn-primary:hover:not([disabled]) {
-    background: linear-gradient(180deg, #6AA7FF 0%, #4687F5 100%);
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.32),
-      0 8px 26px rgba(59,123,240,0.5);
-  }
-
-  .nv-btn-primary:focus-visible { outline: 2px solid #A8CCFF; outline-offset: 2px; }
+  .nv-btn-primary:hover:not([disabled]) { background: var(--nv-cta-hover); }
+  .nv-btn-primary:active:not([disabled]) { transform: scale(0.99); }
+  .nv-btn-primary:focus-visible { outline: 2px solid rgba(255,255,255,0.7); outline-offset: 2px; }
 
   /* ── Message flottant ──────────────────────────────────── */
   #nv-toast {
@@ -349,8 +351,8 @@
   .nv-spin {
     width: 14px; height: 14px;
     border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.35);
-    border-top-color: #FFFFFF;
+    border: 2px solid rgba(5,11,22,0.3);
+    border-top-color: #050B16;
     animation: nv-rot 0.7s linear infinite;
     display: inline-block;
     vertical-align: -2px;
@@ -516,6 +518,7 @@
     .nv-title { font-size: 23px; }
     .nv-input { font-size: 16px; height: 42px; }
     .nv-btn { height: 48px; padding: 0 18px; font-size: 15px; }
+    .nv-btn-primary { height: 46px; }
     .nv-social-btn { height: 44px; }
     .nv-scroll { gap: 12px; }
   }
