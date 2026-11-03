@@ -1,0 +1,198 @@
+<!--
+  NAVIRE — Embed homepage : avis étudiants
+  =========================================
+  Trois cartes en verre translucide (fond transparent : le fond de la page
+  reste visible derrière). Coller tel quel dans un Embed HTML de la homepage.
+
+  ⚠ AVIS FACTICES, à remplacer par de vrais témoignages avant la mise en
+  ligne publique : modifier le tableau AVIS dans le script ci-dessous.
+
+  Chaque avis :
+    nom, role      → nom et ligne grise sous le nom
+    photo          → URL d'une photo (laisser "" pour afficher les initiales)
+    badge          → 1 à 2 lettres dans la pastille (ex. fac), "" pour aucune
+    couleur        → couleur de la pastille et du dégradé des initiales
+    texte          → la citation
+    chiffre, label → le gros chiffre en bas et sa légende
+
+  Mise en page : 3 colonnes, 2 puis 1 quand le conteneur se rétrécit.
+  L'iframe suit la hauteur du contenu (comme les autres embeds).
+-->
+<div id="nv-avis"></div>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: transparent; }
+  #nv-avis {
+    --card: rgba(255,255,255,0.035);
+    --card-hover: rgba(255,255,255,0.055);
+    --line: rgba(255,255,255,0.09);
+    --line-hover: rgba(255,255,255,0.16);
+    --text: #fff;
+    --text-2: rgba(255,255,255,0.86);
+    --text-3: rgba(255,255,255,0.5);
+    --ease: cubic-bezier(.2,.8,.2,1);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--text);
+    background: transparent;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 4px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  #nv-avis *, #nv-avis *::before, #nv-avis *::after { box-sizing: border-box; }
+
+  #nv-avis .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 290px;
+    padding: 22px 20px 20px;
+    border-radius: 22px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%),
+      var(--card);
+    border: 1px solid var(--line);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 10px 30px rgba(0,0,0,0.25);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    transition: transform .35s var(--ease), border-color .35s var(--ease), background-color .35s var(--ease);
+    opacity: 0;
+    transform: translateY(10px);
+    animation: nvAvisIn .7s var(--ease) forwards;
+  }
+  #nv-avis .card:hover {
+    transform: translateY(-3px);
+    border-color: var(--line-hover);
+    background-color: var(--card-hover);
+  }
+  @media (max-width: 640px) { #nv-avis .card { min-height: 0; } #nv-avis .stat { margin-top: 20px; } }
+  @keyframes nvAvisIn { to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) {
+    #nv-avis .card { animation: none; opacity: 1; transform: none; transition: none; }
+  }
+
+  #nv-avis .head { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  #nv-avis .avatar { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+  #nv-avis .avatar .pic {
+    width: 48px; height: 48px; border-radius: 12px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px; letter-spacing: .3px; color: #fff;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  #nv-avis .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #nv-avis .avatar .badge {
+    position: absolute; right: -5px; bottom: -5px;
+    min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 800; color: #fff; letter-spacing: .2px;
+    border: 2px solid #0b0f10;
+  }
+  #nv-avis .who { min-width: 0; }
+  #nv-avis .name { font-size: 14px; font-weight: 600; line-height: 1.35; }
+  #nv-avis .role { font-size: 13px; color: var(--text-3); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  #nv-avis .quote { margin: 0; font-size: 14.5px; line-height: 1.5; font-weight: 500; color: var(--text-2); flex: 1; }
+
+  #nv-avis .stat { display: flex; align-items: baseline; gap: 7px; margin-top: 24px; }
+  #nv-avis .stat b { font-size: 26px; font-weight: 700; letter-spacing: -.8px; line-height: 1; }
+  #nv-avis .stat span { font-size: 13px; color: var(--text-3); }
+</style>
+<script>
+(function () {
+  // ── AVIS (factices pour le moment) ─────────────────────────
+  var AVIS = [
+    {
+      nom: "Camille Moreau",
+      role: "L2 Droit, Université Paris 1",
+      photo: "",
+      badge: "P1",
+      couleur: "#3B82F6",
+      texte: "«\u00a0Les fiches et les quiz de NAVIRE m'ont fait gagner un temps fou avant les partiels. Je révise moins longtemps, mais beaucoup mieux.\u00a0»",
+      chiffre: "+4 pts",
+      label: "de moyenne au S2"
+    },
+    {
+      nom: "Yanis Benali",
+      role: "L3 Droit, Université de Lyon 3",
+      photo: "",
+      badge: "L3",
+      couleur: "#8B5CF6",
+      texte: "«\u00a0Avec Prép'AdJuris, j'ai enfin compris la méthode du cas pratique. Les corrections des chargés de TD sont précises et vraiment personnalisées.\u00a0»",
+      chiffre: "16,5/20",
+      label: "en droit des obligations"
+    },
+    {
+      nom: "Inès Lefebvre",
+      role: "M1 Droit privé, Université d'Assas",
+      photo: "",
+      badge: "AS",
+      couleur: "#F59E0B",
+      texte: "«\u00a0NAVIRE AI répond à mes questions de cours en quelques secondes, avec les bonnes références. C'est devenu mon réflexe pendant les révisions.\u00a0»",
+      chiffre: "Top 5 %",
+      label: "de sa promo"
+    }
+  ];
+
+  var root = document.getElementById("nv-avis");
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function initiales(nom) {
+    return String(nom || "").trim().split(/\s+/).slice(0, 2).map(function (p) { return p.charAt(0); }).join("").toUpperCase();
+  }
+
+  root.innerHTML = AVIS.map(function (a, i) {
+    var c = a.couleur || "#7AA7FF";
+    var pic = a.photo
+      ? '<div class="pic"><img src="' + esc(a.photo) + '" alt="' + esc(a.nom) + '" loading="lazy"></div>'
+      : '<div class="pic" style="background:linear-gradient(135deg,' + esc(c) + ' 0%, rgba(255,255,255,0.08) 140%)">' + esc(initiales(a.nom)) + "</div>";
+    var badge = a.badge ? '<div class="badge" style="background:' + esc(c) + '">' + esc(a.badge) + "</div>" : "";
+    return '<article class="card" style="animation-delay:' + (i * 90) + 'ms">' +
+      '<div class="head"><div class="avatar">' + pic + badge + "</div>" +
+      '<div class="who"><div class="name">' + esc(a.nom) + '</div><div class="role">' + esc(a.role) + "</div></div></div>" +
+      '<p class="quote">' + esc(a.texte) + "</p>" +
+      '<div class="stat"><b>' + esc(a.chiffre) + "</b><span>" + esc(a.label) + "</span></div>" +
+      "</article>";
+  }).join("");
+
+  // ── Hauteur : l'iframe suit le contenu (même logique que les autres embeds)
+  (function () {
+    if (window.parent === window) return;
+    var frameEl = null, wrappers = [];
+    try {
+      if (window.frameElement && window.parent.document) {
+        frameEl = window.frameElement;
+        for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== window.parent.document.body; i++, n = n.parentElement) wrappers.push(n);
+        var s = document.createElement("style");
+        s.textContent = "html,body{margin:0;overflow:hidden;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}";
+        document.head.appendChild(s);
+      }
+    } catch (e) { frameEl = null; }
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height) + 12;
+      if (!h || h === last) return;
+      last = h;
+      if (frameEl) {
+        frameEl.style.height = h + "px";
+        frameEl.style.minHeight = h + "px";
+        wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+      } else {
+        try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+      }
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+    window.addEventListener("load", report);
+  })();
+})();
+</script>
