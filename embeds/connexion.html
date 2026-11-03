@@ -1,0 +1,1019 @@
+<!--
+  NAVIRE : connexion (embed unique)
+  =================================
+  À coller dans un composant "Embed" Framer. Même charte que l'inscription,
+  fluide jusqu'au format téléphone, sans fond ni carte.
+
+  Mise en page :
+    - à gauche, le formulaire de connexion ;
+    - à droite, un panneau (trame de points bleus) avec un titre et les
+      fonctionnalités de NAVIRE qui défilent verticalement en boucle.
+      Le panneau disparaît sous 860px de large : seul le formulaire reste.
+      Contenu du panneau : tableau FEATURES du script.
+
+  Deux chemins :
+    - email et mot de passe, via POST /auth/login ;
+    - Google ou Facebook, via la fenêtre /auth/{provider}/start, qui rend un
+      ticket signé envoyé ensuite à POST /auth/oauth.
+
+  Un compte créé avec Google n'a pas de mot de passe : le serveur le signale,
+  et l'écran renvoie alors vers le bon bouton. Une adresse inconnue ne crée
+  jamais de compte ici, l'inscription a son propre parcours.
+-->
+
+<style>
+  /* ============================================================
+     Style minimaliste, sans fond ni carte.
+     ============================================================ */
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  /* ── Deux colonnes : formulaire | panneau ──────────────── */
+  #nv-shell {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    gap: 16px;
+    padding: 14px;
+  }
+
+  #nv-left {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 12px 20px;
+  }
+
+  #nv-root {
+    /* L'embed vit dans une iframe : elle n'hérite pas des polices de la page
+       Framer, la pile est donc déclarée explicitement. */
+    --nv-font: Arial, Helvetica, sans-serif;
+
+    /* Dégradé bleu vers blanc : mots accentués, progression, bouton final. */
+    --nv-grad: linear-gradient(100deg, #4C93FF 0%, #A8CCFF 45%, #FFFFFF 100%);
+
+    --nv-txt: #FFFFFF;
+    --nv-txt-soft: rgba(255,255,255,0.62);
+    --nv-txt-dim: rgba(255,255,255,0.40);
+    --nv-line: rgba(255,255,255,0.22);
+    --nv-line-soft: rgba(255,255,255,0.12);
+    --nv-ok: #7FE3A3;
+    --nv-warn: #FFD86B;
+    --nv-bad: #FF9B8A;
+
+    width: 100%;
+    max-width: 440px;
+    height: 100%;
+    margin: 0 auto;
+    font-family: var(--nv-font);
+    color: var(--nv-txt);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #nv-root * { font-family: var(--nv-font); }
+
+  /* Conteneur de mise en page, volontairement sans fond ni bordure. */
+  #nv-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 4px 4px 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* ── Zone étapes ───────────────────────────────────────── */
+  #nv-body {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .nv-step {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    gap: 14px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.32s ease, transform 0.32s cubic-bezier(0.22,1,0.36,1);
+  }
+
+  .nv-step.active { display: flex; }
+  .nv-step.shown  { opacity: 1; transform: none; }
+
+  .nv-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: none;
+  }
+
+  .nv-scroll::-webkit-scrollbar { width: 0; height: 0; }
+
+  /* Réservé aux étapes courtes : centrer un contenu susceptible de déborder
+     couperait le haut de la zone scrollable. */
+  .nv-scroll.center { justify-content: center; }
+
+  /* ── Typo ──────────────────────────────────────────────── */
+  .nv-title {
+    font-size: 26px;
+    line-height: 1.16;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: #FFFFFF;
+    margin: 0;
+  }
+
+  /* Mots accentués : dégradé bleu vers blanc appliqué au texte.
+     Préfixé par #nv-root, sinon la règle "#nv-root *" l'emporterait. */
+  #nv-root .nv-title em {
+    font-style: normal;
+    background: var(--nv-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .nv-sub {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--nv-txt-dim);
+  }
+
+  /* ── Champs : soulignés, sans cadre ────────────────────── */
+  .nv-field { display: flex; flex-direction: column; gap: 4px; }
+
+  .nv-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--nv-txt-soft);
+  }
+
+  .nv-input-wrap { position: relative; display: flex; }
+
+  .nv-input {
+    width: 100%;
+    height: 40px;
+    padding: 0 0 6px;
+    font-size: 15px;
+    font-weight: 400;
+    color: #FFFFFF;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--nv-line);
+    border-radius: 0;
+    outline: none;
+    transition: border-color 0.18s;
+  }
+
+  .nv-input::placeholder { color: rgba(255,255,255,0.30); }
+
+  .nv-input:focus { border-bottom-color: #FFFFFF; }
+
+  .nv-input.has-eye { padding-right: 36px; }
+
+  .nv-input-wrap.err .nv-input { border-bottom-color: var(--nv-bad); }
+
+  .nv-eye {
+    position: absolute;
+    right: 0;
+    top: 42%;
+    transform: translateY(-50%);
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: rgba(255,255,255,0.55);
+    transition: color 0.15s;
+  }
+
+  .nv-eye:hover { color: #FFFFFF; }
+
+  .nv-err {
+    font-size: 12px;
+    color: var(--nv-bad);
+    display: none;
+    line-height: 1.35;
+  }
+
+  .nv-err.show { display: block; }
+
+  /* ── Google / Facebook ─────────────────────────────────── */
+  #nv-social { display: flex; gap: 10px; }
+
+  .nv-social-btn {
+    flex: 1;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #FFFFFF;
+    background: transparent;
+    border: 1px solid var(--nv-line);
+    border-radius: 99px;
+    cursor: pointer;
+    transition: border-color 0.18s, background 0.18s, transform 0.12s;
+  }
+
+  .nv-social-btn:hover {
+    border-color: rgba(255,255,255,0.75);
+    background: rgba(255,255,255,0.06);
+  }
+
+  .nv-logo {
+    width: 16px;
+    height: 16px;
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  .nv-social-btn:active { transform: scale(0.985); }
+  .nv-social-btn[disabled] { opacity: 0.55; cursor: progress; }
+
+  .nv-or {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--nv-txt-dim);
+  }
+
+  .nv-or::before, .nv-or::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--nv-line-soft);
+  }
+
+  /* ── Actions ───────────────────────────────────────────── */
+  .nv-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 14px;
+  }
+
+  .nv-btn {
+    height: 46px;
+    padding: 0 22px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    border-radius: 99px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s, transform 0.12s, opacity 0.18s;
+  }
+
+  .nv-btn:active { transform: scale(0.985); }
+  .nv-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  .nv-btn-primary {
+    flex: 1 1 auto;
+    color: #0A1A33;
+    background: var(--nv-grad);
+    border-color: transparent;
+  }
+
+  .nv-btn-primary:hover:not([disabled]) { opacity: 0.92; }
+
+  /* ── Message flottant ──────────────────────────────────── */
+  #nv-toast {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 68px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    /* seul élément avec un fond : il doit rester lisible par-dessus le contenu */
+    background: rgba(6,14,32,0.92);
+    border: 1px solid var(--nv-line);
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #FFFFFF;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 20;
+  }
+
+  #nv-toast.show { opacity: 1; transform: none; }
+
+  /* ── Attente ───────────────────────────────────────────── */
+  .nv-spin {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(10,26,51,0.35);
+    border-top-color: #0A1A33;
+    animation: nv-rot 0.7s linear infinite;
+    display: inline-block;
+    vertical-align: -2px;
+    margin-right: 7px;
+  }
+
+  @keyframes nv-rot { to { transform: rotate(360deg); } }
+
+  @keyframes nv-shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-3px); }
+    40%, 60% { transform: translateX(3px); }
+  }
+
+  .nv-shake { animation: nv-shake 0.4s; }
+
+  /* ── Lien vers l'inscription ───────────────────────────── */
+  #nv-register-line {
+    margin-top: 18px;
+    font-size: 12.5px;
+    color: var(--nv-txt-dim);
+    text-align: center;
+  }
+
+  #nv-register-line a {
+    color: #FFFFFF;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  #nv-register-line a:hover { opacity: 0.8; }
+
+  /* ============================================================
+     Panneau de droite : fonctionnalités qui défilent
+     ============================================================ */
+  #nv-panel {
+    --p-grad: linear-gradient(100deg, #4C93FF 0%, #A8CCFF 45%, #FFFFFF 100%);
+    --p-dot: rgba(76,147,255,0.55);
+    --p-speed: 50s;  /* recalculé par le script : vitesse constante */
+
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 44px 32px 0;
+    border-radius: 24px;
+    overflow: hidden;
+    isolation: isolate;
+    background: #0d1014;
+    color: #FFFFFF;
+    font-family: Arial, Helvetica, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Trame de points bleus, plus dense sur les bords qu'au centre */
+  #nv-panel::before {
+    content: "";
+    position: absolute; inset: 0; z-index: -1;
+    background-image: radial-gradient(circle, var(--p-dot) 0.9px, transparent 1.3px);
+    background-size: 5px 5px;
+    -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, transparent 25%, #000 100%);
+            mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, transparent 25%, #000 100%);
+    opacity: .75;
+  }
+
+  /* Halo sombre derrière le titre pour la lisibilité */
+  #nv-panel::after {
+    content: "";
+    position: absolute; inset: 0; z-index: -1;
+    background: radial-gradient(ellipse 60% 50% at 40% 25%, rgba(13,16,20,0.85), transparent 70%);
+  }
+
+  #nv-panel h2 {
+    margin: 0 0 14px;
+    max-width: 380px;
+    font-size: clamp(26px, 3vw, 40px);
+    line-height: 1.1;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  #nv-panel h2 em {
+    font-style: normal;
+    background: var(--p-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  #nv-panel .p-sub { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 22px; }
+
+  #nv-panel .p-viewport {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 60px, #000 calc(100% - 90px), transparent 100%);
+            mask-image: linear-gradient(180deg, transparent 0, #000 60px, #000 calc(100% - 90px), transparent 100%);
+  }
+
+  #nv-panel .p-track {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: nv-panel-scroll var(--p-speed) linear infinite;
+  }
+
+  #nv-panel .p-viewport:hover .p-track { animation-play-state: paused; }
+
+  @keyframes nv-panel-scroll {
+    from { transform: translateY(0); }
+    to   { transform: translateY(calc(-50% - 6px)); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #nv-panel .p-track { animation: none; }
+  }
+
+  #nv-panel .p-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015)), rgba(255,255,255,0.035);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+  }
+
+  #nv-panel .p-icon {
+    width: 42px; height: 42px;
+    flex: 0 0 auto;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    color: #A8CCFF;
+    background: rgba(76,147,255,0.12);
+    border: 1px solid rgba(76,147,255,0.25);
+  }
+
+  #nv-panel .p-name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; }
+  #nv-panel .p-desc { font-size: 12.5px; color: rgba(255,255,255,0.5); line-height: 1.4; margin-top: 2px; }
+
+  /* ============================================================
+     Largeur réduite : le panneau disparaît, le formulaire reste.
+     Téléphone : 16px sur les champs, en dessous iOS zoome.
+     ============================================================ */
+  @media (max-width: 860px) {
+    #nv-panel { display: none; }
+    #nv-shell { padding: 0; }
+    #nv-left { padding: 0; }
+  }
+
+  @media (max-width: 430px) {
+    #nv-card { gap: 14px; padding: 4px 2px 2px; }
+    .nv-title { font-size: 23px; }
+    .nv-input { font-size: 16px; height: 42px; }
+    .nv-btn { height: 48px; padding: 0 18px; font-size: 15px; }
+    .nv-social-btn { height: 44px; }
+    .nv-scroll { gap: 12px; }
+  }
+
+  /* Hauteur réduite (téléphone en paysage) */
+  @media (max-height: 520px) {
+    .nv-title { font-size: 20px; }
+    .nv-scroll.center { justify-content: flex-start; }
+    .nv-actions { padding-top: 10px; }
+  }
+</style>
+
+<div id="nv-shell">
+  <div id="nv-left">
+    <div id="nv-root">
+      <div id="nv-card">
+
+        <div id="nv-body">
+
+          <!-- CONNEXION -->
+          <section class="nv-step active shown" data-step="1">
+            <div class="nv-scroll center">
+              <h2 class="nv-title">Content de te <em>revoir</em></h2>
+              <div class="nv-sub">Reprends ta progression là où tu l'as laissée.</div>
+
+              <div id="nv-social" style="margin-top:6px;">
+                <button class="nv-social-btn" id="nv-google" type="button">
+                  <svg class="nv-logo" viewBox="0 0 48 48" aria-hidden="true">
+                    <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                    <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+                    <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                    <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+                  </svg>
+                  Google
+                </button>
+                <button class="nv-social-btn" id="nv-facebook" type="button">
+                  <svg class="nv-logo" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="11" fill="#FFFFFF"/>
+                    <path fill="#1877F2" d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.85v2.22h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/>
+                  </svg>
+                  Facebook
+                </button>
+              </div>
+
+              <div class="nv-or">ou</div>
+
+              <div class="nv-field">
+                <label class="nv-label" for="nv-email">Email</label>
+                <div class="nv-input-wrap">
+                  <input id="nv-email" class="nv-input" type="email" autocomplete="email"
+                         placeholder="tonmail@exemple.com" />
+                </div>
+                <div class="nv-err" data-err="email"></div>
+              </div>
+
+              <div class="nv-field" style="margin-top:12px;">
+                <label class="nv-label" for="nv-password">Mot de passe</label>
+                <div class="nv-input-wrap">
+                  <input id="nv-password" class="nv-input has-eye" type="password"
+                         autocomplete="current-password" placeholder="Mot de passe" maxlength="72" />
+                  <button class="nv-eye" type="button" data-eye="nv-password" aria-label="Afficher le mot de passe"></button>
+                </div>
+                <div class="nv-err" data-err="password"></div>
+              </div>
+
+              <div class="nv-err" data-err="submit" style="margin-top:4px;"></div>
+
+              <div id="nv-register-line">
+                Pas encore de compte ?
+                <a id="nv-register-link" href="#">Créer un compte</a>
+              </div>
+            </div>
+
+            <div class="nv-actions">
+              <button class="nv-btn nv-btn-primary" id="nv-submit">Se connecter</button>
+            </div>
+          </section>
+
+        </div>
+
+        <div id="nv-toast"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANNEAU : fonctionnalités -->
+  <aside id="nv-panel" aria-label="Fonctionnalités de NAVIRE">
+    <h2 id="nv-panel-title"></h2>
+    <div class="p-sub" id="nv-panel-sub"></div>
+    <div class="p-viewport"><div class="p-track" id="nv-panel-track"></div></div>
+  </aside>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  const API_BASE = "https://navire-app-api.onrender.com";
+
+  // Destination une fois connecté.
+  const REDIRECT_AFTER_LOGIN = "https://navire-ai.com/";
+
+  // Page d'inscription, pour le lien du bas.
+  const REGISTER_URL = "https://navire-ai.com/register";
+
+  // Google et Facebook ne se configurent pas ici : l'embed vit dans une iframe
+  // dont l'origine vaut "null", ce que les fournisseurs refusent. Le bouton
+  // ouvre une fenêtre sur l'API, qui mène l'échange sur son propre domaine.
+  // Les identifiants vivent sur Render.
+
+  // Panneau de droite. <em> = mot en dégradé.
+  const PANEL_TITLE = "Tout pour <em>réussir</em> ton année de droit";
+  const PANEL_SUB = "Un seul compte pour tous les outils NAVIRE";
+
+  // titre, description courte, icône (clé de ICONS plus bas)
+  const FEATURES = [
+    { titre: "NAVIRE AI",        desc: "Pose tes questions de cours, réponses sourcées en quelques secondes", icon: "ai" },
+    { titre: "NAVIRE Lib",       desc: "Tous tes cours, structurés, clairs et à jour",                          icon: "lib" },
+    { titre: "Flashcards",       desc: "Génère tes cartes de révision depuis un PDF",                           icon: "cards" },
+    { titre: "QCM",              desc: "Entraîne-toi chapitre par chapitre",                                    icon: "qcm" },
+    { titre: "NavireCab",        desc: "Simule un dossier de cabinet d'avocat, noté sur 20",                   icon: "cab" },
+    { titre: "Classement",       desc: "Mesure-toi aux étudiants de ta fac et de toute la France",              icon: "rank" },
+    { titre: "Prép'AdJuris",     desc: "TD en petits groupes et copies corrigées par des chargés de TD",        icon: "prepa" },
+    { titre: "Veille juridique", desc: "L'actualité du droit, chaque semaine sur le Discord",                   icon: "veille" },
+  ];
+
+  // ============================================================
+  // Éléments
+  // ============================================================
+  const $  = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const els = {
+    toast: $("#nv-toast"),
+    email: $("#nv-email"),
+    password: $("#nv-password"),
+    submit: $("#nv-submit"),
+    google: $("#nv-google"),
+    facebook: $("#nv-facebook"),
+    registerLink: $("#nv-register-link"),
+  };
+
+  let busyLogin = false;
+
+  // ============================================================
+  // Panneau de droite
+  // ============================================================
+  const SVG = (d) => '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + "</svg>";
+  const ICONS = {
+    ai:     SVG('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'),
+    lib:    SVG('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>'),
+    cards:  SVG('<rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/>'),
+    qcm:    SVG('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/>'),
+    cab:    SVG('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>'),
+    rank:   SVG('<path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/>'),
+    prepa:  SVG('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14a6.5 6.5 0 0 1 3.5 6"/>'),
+    veille: SVG('<path d="M4 4h13a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2z"/><path d="M19 9h1a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2"/><path d="M8 8h7M8 12h7M8 16h4"/>'),
+  };
+
+  function escHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  (function renderPanel() {
+    $("#nv-panel-title").innerHTML = PANEL_TITLE;
+    $("#nv-panel-sub").textContent = PANEL_SUB;
+    const item = (f) =>
+      '<div class="p-item"><div class="p-icon">' + (ICONS[f.icon] || ICONS.ai) + "</div>" +
+      '<div><div class="p-name">' + escHtml(f.titre) + '</div><div class="p-desc">' + escHtml(f.desc) + "</div></div></div>";
+    const html = FEATURES.map(item).join("");
+    const track = $("#nv-panel-track");
+    // Liste rendue deux fois : l'animation remonte d'une moitié puis repart,
+    // sans saut visible.
+    track.innerHTML = html + html.replace(/<div class="p-item"/g, '<div class="p-item" aria-hidden="true"');
+    requestAnimationFrame(() => {
+      const h = track.scrollHeight / 2;
+      if (h) $("#nv-panel").style.setProperty("--p-speed", Math.round(h / 26) + "s");
+    });
+  })();
+
+  // ============================================================
+  // Utilitaires
+  // ============================================================
+  let toastTimer = null;
+  function toast(msg, ms) {
+    els.toast.textContent = msg;
+    els.toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => els.toast.classList.remove("show"), ms || 4200);
+  }
+
+  function setError(key, msg) {
+    const el = document.querySelector('[data-err="' + key + '"]');
+    if (!el) return;
+    el.textContent = msg || "";
+    el.classList.toggle("show", !!msg);
+    const wrap = el.previousElementSibling;
+    if (wrap && wrap.classList.contains("nv-input-wrap")) {
+      wrap.classList.toggle("err", !!msg);
+      if (msg) {
+        wrap.classList.remove("nv-shake");
+        void wrap.offsetWidth;
+        wrap.classList.add("nv-shake");
+      }
+    }
+  }
+
+  function clearErrors() {
+    $$(".nv-err").forEach((el) => { el.textContent = ""; el.classList.remove("show"); });
+    $$(".nv-input-wrap").forEach((el) => el.classList.remove("err"));
+  }
+
+  function broadcast(msg) {
+    try { window.postMessage(msg, "*"); } catch (e) {}
+    try { window.parent && window.parent.postMessage(msg, "*"); } catch (e) {}
+    try { window.top && window.top.postMessage(msg, "*"); } catch (e) {}
+  }
+
+  async function readError(res) {
+    try {
+      const err = await res.json();
+      if (typeof err.detail === "string") return err.detail;
+      if (Array.isArray(err.detail) && err.detail[0] && err.detail[0].msg) return err.detail[0].msg;
+    } catch (e) {}
+    return "";
+  }
+
+  function busy(btn, label) {
+    btn.dataset.label = btn.dataset.label || btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="nv-spin"></span>' + label;
+  }
+
+  function unbusy(btn) {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.label || btn.textContent;
+  }
+
+  async function emailExists(email) {
+    try {
+      const res = await fetch(API_BASE + "/auth/email-exists?email=" + encodeURIComponent(email));
+      if (!res.ok) return null;   // indéterminé
+      const data = await res.json();
+      return !!data.exists;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ============================================================
+  // Fin de parcours
+  // ============================================================
+  function goHome() {
+    const url = REDIRECT_AFTER_LOGIN;
+    if (!url) return;
+    // L'embed est dans une iframe : c'est la page entière qui doit changer.
+    try {
+      if (window.top && window.top !== window) { window.top.location.href = url; return; }
+    } catch (e) {
+      // Navigation inter-origines refusée : on tente depuis l'iframe.
+    }
+    window.location.href = url;
+  }
+
+  function finish(data) {
+    const token = data.access_token;
+
+    try {
+      localStorage.setItem("navire_token", token);
+      localStorage.setItem("navire_user", JSON.stringify(data.user || {}));
+    } catch (e) {}
+
+    broadcast({ type: "NAVIRE_LOGGED_IN", token: token, user: data.user || null });
+    try { window.dispatchEvent(new CustomEvent("navire-auth-updated")); } catch (e) {}
+
+    els.submit.disabled = true;
+    els.submit.textContent = "Connecté";
+    goHome();
+  }
+
+  // ============================================================
+  // Connexion par mot de passe
+  // ============================================================
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+
+  async function login() {
+    if (busyLogin) return;
+    clearErrors();
+
+    const email = els.email.value.trim();
+    const password = els.password.value;
+
+    if (!EMAIL_RE.test(email)) {
+      setError("email", "Entre une adresse email valide.");
+      els.email.focus();
+      return;
+    }
+    if (!password) {
+      setError("password", "Entre ton mot de passe.");
+      els.password.focus();
+      return;
+    }
+
+    busyLogin = true;
+    busy(els.submit, "Connexion...");
+
+    try {
+      const res = await fetch(API_BASE + "/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, password: password }),
+      });
+
+      if (!res.ok) {
+        const detail = await readError(res);
+        busyLogin = false;
+        unbusy(els.submit);
+
+        // Compte créé via un fournisseur : il n'a pas de mot de passe, le
+        // serveur le dit explicitement. On oriente vers le bon bouton.
+        if (/google|facebook/i.test(detail)) {
+          setError("submit", detail);
+          toast("Ce compte se connecte avec Google ou Facebook, utilise le bouton du haut.");
+          return;
+        }
+
+        // Adresse inconnue : autant le dire plutôt que de laisser chercher.
+        if (res.status === 401) {
+          const existe = await emailExists(email);
+          if (existe === false) {
+            setError("email", "Aucun compte avec cette adresse.");
+            return;
+          }
+          setError("submit", "Mot de passe incorrect.");
+          return;
+        }
+
+        setError("submit", detail || ("Connexion impossible (" + res.status + ")."));
+        return;
+      }
+
+      finish(await res.json());
+
+    } catch (e) {
+      busyLogin = false;
+      unbusy(els.submit);
+      setError("submit", "Erreur réseau : " + e.message);
+    }
+  }
+
+  els.submit.addEventListener("click", login);
+
+  // ============================================================
+  // Connexion Google et Facebook, par fenêtre
+  // ============================================================
+  let popup = null;
+  let pending = null;
+
+  function closePending(err) {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    const p = pending;
+    pending = null;
+    if (err) p.reject(err); else p.resolve();
+  }
+
+  window.addEventListener("message", (event) => {
+    const data = event && event.data;
+    if (!data || typeof data !== "object") return;
+
+    if (data.type === "NAVIRE_OAUTH_TICKET") {
+      closePending(null);
+      loginWithTicket(data);
+      return;
+    }
+
+    if (data.type === "NAVIRE_OAUTH_ERROR") {
+      closePending(new Error(data.message || "Connexion impossible."));
+    }
+  });
+
+  async function loginWithTicket(data) {
+    // Sur un écran de connexion, une adresse inconnue n'a pas à créer un
+    // compte au passage : l'inscription a son propre parcours, avec faculté,
+    // niveau et premier document.
+    const existe = await emailExists((data.email || "").trim());
+    if (existe === false) {
+      toast("Aucun compte NAVIRE avec cette adresse. Crée ton compte d'abord.");
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE + "/auth/oauth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: data.provider, ticket: data.ticket }),
+      });
+
+      if (!res.ok) {
+        toast((await readError(res)) || "Connexion impossible pour le moment.");
+        return;
+      }
+
+      finish(await res.json());
+
+    } catch (e) {
+      toast("Erreur réseau : " + e.message);
+    }
+  }
+
+  function openProviderWindow(provider) {
+    return new Promise((resolve, reject) => {
+      const w = 480, h = 640;
+      const y = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+      const x = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+
+      popup = window.open(
+        API_BASE + "/auth/" + provider + "/start",
+        "navire_oauth",
+        "width=" + w + ",height=" + h + ",left=" + x + ",top=" + y
+      );
+
+      if (!popup) {
+        reject(new Error("Ton navigateur a bloqué la fenêtre. Autorise-la puis réessaie."));
+        return;
+      }
+
+      const watcher = setInterval(() => {
+        if (popup && popup.closed) {
+          clearInterval(watcher);
+          if (pending) closePending(new Error("Connexion interrompue."));
+        }
+      }, 500);
+
+      pending = {
+        provider: provider,
+        resolve: () => { clearInterval(watcher); resolve(); },
+        reject: (e) => { clearInterval(watcher); reject(e); },
+        timer: setTimeout(() => {
+          clearInterval(watcher);
+          closePending(new Error("Connexion trop longue, réessaie."));
+        }, 120000),
+      };
+    });
+  }
+
+  function withBusy(btn, fn) {
+    return async function () {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try { await fn(); }
+      catch (e) { toast(e && e.message ? e.message : "Connexion impossible."); }
+      finally { btn.disabled = false; }
+    };
+  }
+
+  els.google.addEventListener("click", withBusy(els.google, () => openProviderWindow("google")));
+  els.facebook.addEventListener("click", withBusy(els.facebook, () => openProviderWindow("facebook")));
+
+  // ============================================================
+  // Voir le mot de passe
+  // ============================================================
+  const EYE_OPEN = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+  const EYE_OFF  = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+  $$(".nv-eye").forEach((btn) => {
+    btn.innerHTML = EYE_OPEN;
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(btn.dataset.eye);
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.innerHTML = show ? EYE_OFF : EYE_OPEN;
+      btn.setAttribute("aria-label", show ? "Masquer le mot de passe" : "Afficher le mot de passe");
+      input.focus();
+    });
+  });
+
+  // ============================================================
+  // Divers
+  // ============================================================
+  els.registerLink.href = REGISTER_URL;
+  els.registerLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    try {
+      if (window.top && window.top !== window) { window.top.location.href = REGISTER_URL; return; }
+    } catch (err) {}
+    window.location.href = REGISTER_URL;
+  });
+
+  els.email.addEventListener("input", () => { setError("email", ""); setError("submit", ""); });
+  els.password.addEventListener("input", () => { setError("password", ""); setError("submit", ""); });
+
+  $$(".nv-input").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); els.submit.click(); }
+    });
+  });
+
+  // Déjà connecté : inutile de redemander.
+  try {
+    if (localStorage.getItem("navire_token")) {
+      toast("Tu es déjà connecté.");
+    }
+  } catch (e) {}
+
+  setTimeout(() => els.email.focus(), 120);
+})();
+</script>
