@@ -99,11 +99,13 @@ const VIOLET = "#9B6FFF"
 const FIELD = "#101018"
 
 // ── Types ──
-type Kind = "cours" | "dissertation" | "fiche" | "cas_pratique"
+type Kind = "cours" | "fiche" | "fiche_arret" | "commentaire" | "dissertation" | "cas_pratique"
 const KINDS: { id: Kind; label: string }[] = [
     { id: "cours", label: "Cours" },
-    { id: "dissertation", label: "Dissertation" },
     { id: "fiche", label: "Fiche" },
+    { id: "fiche_arret", label: "Fiche d'arrêt" },
+    { id: "commentaire", label: "Commentaire" },
+    { id: "dissertation", label: "Dissertation" },
     { id: "cas_pratique", label: "Cas pratique" },
 ]
 const NIVEAUX = ["L1", "L2", "L3", "M1", "M2", "CRFPA"]

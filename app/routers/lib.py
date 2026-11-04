@@ -115,7 +115,7 @@ ELO_ADMIN = 10**9                   # pass admin : aucun verrou d'Elo
 PLANS_PLUS = ("membre", "membre+")  # NAVIRE AI, NAVIRE AI+
 REFUS_PLUS = "NAVIRE Lib+ est réservé aux abonnés NAVIRE AI, NAVIRE AI+ et AdJuris."
 
-KINDS = ("cours", "dissertation", "fiche", "cas_pratique")
+KINDS = ("cours", "fiche", "fiche_arret", "commentaire", "dissertation", "cas_pratique")
 
 
 # ============================================================
@@ -950,7 +950,7 @@ class DocPatch(BaseModel):
     kicker: str | None = Field(None, max_length=120)
     maj: str | None = Field(None, max_length=120)
     description: str | None = None
-    kind: Literal["cours", "dissertation", "fiche", "cas_pratique"] | None = None
+    kind: Literal["cours", "fiche", "fiche_arret", "commentaire", "dissertation", "cas_pratique"] | None = None
     niveau: str | None = Field(None, max_length=10)
     matiere: str | None = Field(None, max_length=120)
     elo_requis: int | None = Field(None, ge=0, le=100000)

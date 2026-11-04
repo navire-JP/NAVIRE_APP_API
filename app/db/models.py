@@ -1872,7 +1872,7 @@ class LibDocument(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     kind: Mapped[str] = mapped_column(String(20), default="cours", nullable=False, index=True)
-    # cours | dissertation | fiche | cas_pratique | perso (fichier de l'élève)
+    # cours | fiche | fiche_arret | commentaire | dissertation | cas_pratique | prepa | perso (fichier de l'élève)
     niveau: Mapped[str] = mapped_column(String(10), default="", nullable=False, index=True)
     matiere: Mapped[str] = mapped_column(String(120), default="", nullable=False)
 
