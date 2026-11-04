@@ -311,6 +311,17 @@ def test_lib_et_lib_plus(client, monkeypatch):
     client.patch(f"/lib/admin/documents/{doc['id']}", headers=ADMIN, json={"elo_requis": 0})
     assert client.get(f"/lib/documents/{plus['id']}?mode=lib", headers=gratuit).status_code == 403
 
+    # Visiteur : catalogue ouvert, aperçu du document, la suite demande un compte
+    cat = client.get("/lib/catalogue").json()
+    assert cat["user"] is None and any(i["id"] == doc["id"] for i in cat["items"])
+    v = client.get(f"/lib/documents/{doc['id']}?mode=lib").json()
+    assert v["gate"]["type"] == "compte" and v["user"] is None
+    assert 0 < len(v["blocks"]) < doc["nb_blocs"] and v["teaser"]
+    assert any(h["locked"] for h in v["plan"])
+    assert client.get(f"/lib/documents/{doc['id']}").status_code == 401
+    assert client.get(f"/lib/documents/{plus['id']}?mode=lib").status_code == 403
+    assert client.get(f"/lib/checkpoints/{cp1['id']}/question").status_code == 401
+
     # Lib+ : fermé au compte gratuit
     for url in (f"/lib/documents/{doc['id']}", f"/lib/checkpoints/{cp1['id']}/question"):
         r = client.get(url, headers=gratuit)

@@ -29,6 +29,10 @@
   Pass admin : « Voir comme » L1, L2, L3, M1 (bas du menu, comptes admin
   seulement) : la bibliothèque et la vue Prépa d'un étudiant de ce niveau.
 
+  Visiteur (sans compte) : la bibliothèque Lib se parcourt ; chaque document
+  s'ouvre en aperçu (le début du document), la suite floutée sous une carte
+  « Crée ton compte ». Lib+, la vue Prépa et Mes fichiers demandent un compte.
+
   Un lien vers un cours précis : /lib?doc=12 (et &mode=lib pour forcer Lib)
   La vue Prépa : /lib?prepa=edt|cours|devoirs
   Réglages : bloc CONFIG du script (liens QCM, NAVIRE AI, actus, offres).
@@ -333,6 +337,11 @@
 #nv-lib .nl-qfb { margin-top: 14px; padding: 12px 14px; border-radius: 13px; border: 1px solid var(--line-2); background: var(--panel); font-size: 13px; line-height: 1.55; color: var(--text-2); animation: nv-fade .3s var(--ease); }
 #nv-lib .nl-qfb b { color: #fff; }
 #nv-lib .nl-qfb .nl-qfb-exp { margin-top: 6px; color: var(--text-3); font-size: 12.5px; }
+#nv-lib .nl-cp-compte { position: relative; margin-top: -170px; }
+#nv-lib .nl-visit { margin-top: 8px; padding: 12px 10px 4px; border-top: 1px solid var(--line); }
+#nv-lib .nl-visit b { display: block; font-size: 12.5px; }
+#nv-lib .nl-visit span { display: block; font-size: 11.5px; color: var(--text-3); line-height: 1.45; margin: 3px 0 10px; }
+#nv-lib .nl-visit .nv-btn { width: 100%; height: 34px; font-size: 12px; }
 #nv-lib .nl-teaser { filter: blur(7px); opacity: .5; user-select: none; -webkit-user-select: none; pointer-events: none; mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 100%); -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 100%); max-height: 420px; overflow: hidden; }
 
 /* Verrou d'Elo, document verrouillé, cours terminé */
@@ -688,6 +697,8 @@
     return out.join("");
   }
   function plus() { return S.mode === "plus"; }
+  // Visiteur : pas de compte, aperçu de chaque document.
+  function visitor() { return !S.user; }
   function hasPlus() { return !!(S.user && S.user.acces_plus); }
   // Pass admin : Lib+ ouvert, pas de verrou d'Elo, points de passage à passer sans répondre, brouillons en aperçu.
   function isAdmin() { return !!(S.user && S.user.admin); }
@@ -789,8 +800,15 @@
     renderElo();
   }
   function renderElo() {
-    var u = S.user;
-    if (!u || !plus() || !hasPlus()) { el("elo").innerHTML = ""; el("pill").innerHTML = ""; return; }
+    var u = S.user, out = $(".nv-logout");
+    out.textContent = u ? "Se déconnecter" : "J'ai déjà un compte · Me connecter";
+    out.setAttribute("data-act", u ? "logout" : "login-view");
+    if (!u) {
+      el("pill").innerHTML = "";
+      el("elo").innerHTML = '<div class="nl-visit"><b>Tu lis en visiteur</b><span>Un aperçu de chaque document. Crée ton compte gratuit pour tout lire.</span><button class="nv-btn is-blue" data-act="signup">Créer mon compte</button></div>';
+      return;
+    }
+    if (!plus() || !hasPlus()) { el("elo").innerHTML = ""; el("pill").innerHTML = ""; return; }
     var next = u.next_tier_min != null ? '<div class="nl-elo-next">' + (u.next_tier_min - u.elo) + ' Elo avant « ' + esc(u.tier_next || u.next_tier) + ' »</div>' : '<div class="nl-elo-next">Rang maximal</div>';
     el("elo").innerHTML = '<div class="nl-elo"><div class="nl-elo-top"><b>' + u.elo + '</b><small>Elo</small><em>' + esc(u.tier) + '</em></div>' + bar(Math.round((u.progress || 0) * 100)) + next + '</div>';
     el("pill").innerHTML = ICON.bolt + '<span>' + u.elo + '</span><span>Elo</span>';
@@ -808,10 +826,11 @@
     viewLibrary();
   }
 
-  // ================= NON CONNECTÉ =================
-  function viewLoggedOut() {
-    S.user = null; renderElo();
+  // ================= CONNEXION =================
+  function viewLogin() {
+    S.view = "login";
     setPage(
+      '<div style="margin-bottom:6px"><button class="nv-chip" data-act="library">' + ICON.back + 'Continuer sans compte</button></div>' +
       '<div class="nv-hero"><div class="nv-hero-logo" data-logo></div><h1>NAVIRE <span class="nv-grad">Lib</span></h1>' +
       '<p>Cours, fiches, fiches d\'arrêt, commentaires et dissertations de la prépa, à lire librement. Avec Lib+, le cours devient un parcours : une question à chaque étape, puis NAVIRE AI pour aller plus loin.</p></div>' +
       '<div class="nv-steps">' +
@@ -842,12 +861,14 @@
     var n = ((S.cat && S.cat.items) || []).filter(function (d) { return d.plus; }).length;
     setPage(
       '<div class="nv-hero"><div class="nv-hero-logo" data-logo></div><h1>NAVIRE <span class="nv-grad">Lib+</span></h1>' +
-      '<p>Lib+ est inclus dans les abonnements NAVIRE AI, NAVIRE AI+ et AdJuris.</p></div>' +
+      '<p>' + (visitor() ? "Commence par créer ton compte : NAVIRE Lib en entier est gratuit. " : "") + 'Lib+ est inclus dans les abonnements NAVIRE AI, NAVIRE AI+ et AdJuris.</p></div>' +
       '<div class="nl-compare">' +
         '<div><b>Lib</b><ul><li>Consultation des cours</li><li>Surlignage des références</li><li class="no">Points de passage</li><li class="no">Chat NAVIRE AI sur le cours</li></ul></div>' +
         '<div class="is-plus"><b>Lib+</b><ul><li>Tout Lib</li><li>' + (n ? n + " document" + (n > 1 ? "s" : "") + " en plus" : "Des cours en plus") + '</li><li>Une question par point de passage, dans le cours</li><li>NAVIRE AI répond sur le passage lu</li><li>Elo à gagner</li></ul></div>' +
       '</div>' +
-      '<div class="nl-gate-btns"><a class="nv-btn is-block is-blue" href="' + CONFIG.OFFRES_URL + '" data-go>Voir les offres</a><button class="nv-chip" data-mode-set="lib">Rester sur Lib</button></div>');
+      (visitor()
+        ? '<div class="nl-gate-btns"><button class="nv-btn is-block is-blue" data-act="signup">Créer mon compte</button><button class="nv-chip" data-act="login-view">J\'ai déjà un compte</button><button class="nv-chip" data-mode-set="lib">Rester sur Lib</button></div>'
+        : '<div class="nl-gate-btns"><a class="nv-btn is-block is-blue" href="' + CONFIG.OFFRES_URL + '" data-go>Voir les offres</a><button class="nv-chip" data-mode-set="lib">Rester sur Lib</button></div>'));
   }
 
   // ================= BIBLIOTHÈQUE =================
@@ -902,7 +923,10 @@
           '<div class="nl-stat"><small>Terminés</small><b>' + done + ' / ' + items.length + '</b></div>' +
         '</div>';
     } else {
-      html = '<div class="nv-page-head"><h2>Bibliothèque</h2><p>Les cours en libre consultation, et les PDF de tes fichiers.</p></div>';
+      html = visitor()
+        ? '<div class="nv-page-head"><h2>Bibliothèque</h2><p>Lis le début de chaque document sans compte.</p></div>' +
+          '<button class="nl-banner" data-act="signup" style="margin:0 0 14px"><span class="nl-qico">' + ICON.book + '</span><div><b>Crée ton compte gratuit</b><span>Les cours, fiches, fiches d\'arrêt, commentaires et dissertations en entier, et tes propres PDF.</span></div><span class="nv-tag solid">GRATUIT</span></button>'
+        : '<div class="nv-page-head"><h2>Bibliothèque</h2><p>Les cours en libre consultation, et les PDF de tes fichiers.</p></div>';
     }
     if (hasPrepa()) html += prepaBanner();
     html += '<div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="Rechercher un cours, une matière…" value="' + esc(S.query) + '"></div>';
@@ -929,7 +953,7 @@
     var state = !p ? "" : d.nb_points_passage && d.valides === d.nb_points_passage ? '<span class="nv-tag solid">Terminé</span>' : d.valides ? '<span class="nv-tag blue">En cours</span>' : "";
     var foot = p && d.nb_points_passage
       ? bar(d.progression_pct) + '<span>' + d.valides + '/' + d.nb_points_passage + '</span>'
-      : d.minutes ? '<span>' + d.minutes + ' min de lecture</span>'
+      : d.minutes ? '<span>' + (visitor() ? "Aperçu gratuit · " : "") + d.minutes + ' min de lecture</span>'
       : '<span>' + (d.perso ? (p ? "Ton PDF : points de passage à l'ouverture" : "Ton PDF") : d.prepa ? (d.professeur ? "De ton chargé de TD" : "Prép'AdJuris") : "? min de lecture") + '</span>';
     return '<button class="nl-book' + (p && d.verrouille ? " is-locked" : "") + (d.plus ? " is-plus" : "") + '" data-open="' + d.id + '" style="animation-delay:' + (i * 0.04) + 's">' + lock +
       '<div class="nl-book-top"><span class="nv-tag ' + (d.perso ? "white" : d.prepa ? "solid" : "blue") + '">' + (d.prepa ? ico("cap", 11) : "") + esc(KINDS[d.kind] || d.kind) + '</span>' + (d.niveau ? '<span class="nv-tag">' + esc(d.niveau) + '</span>' : "") + (d.prepa && d.matiere ? '<span class="nv-tag blue">' + esc(d.matiere) + '</span>' : "") + (d.groupe ? '<span class="nv-tag">' + esc(d.groupe) + '</span>' : "") + (d.plus ? '<span class="nv-tag solid">LIB+</span>' : "") + (d.brouillon ? '<span class="nv-tag white">Brouillon</span>' : "") + state + '</div>' +
@@ -961,6 +985,7 @@
     }).catch(function (x) {
       if (x.status === 404) { toast("Ce document n'est plus disponible.", true); return refreshCatalogue().then(viewLibrary); }
       if (x.status === 403 && !plus()) { toast("Ce document est dans Lib+."); return setMode("plus"); }
+      if (x.status === 401) { toast(x.message); return viewLogin(); }
       setPage('<div class="nv-empty"><b>Lecture impossible</b>' + esc(x.message) + '</div>');
     });
   }
@@ -1037,7 +1062,9 @@
       if (c && (c.status === "passed" || (gate && gate.id === c.id))) html += '<div class="nl-cp" data-slot="' + c.id + '" id="nl-cp-' + c.id + '">' + slotHtml(c) + '</div>';
     });
 
-    if (gate && gate.type === "document") {
+    if (gate && gate.type === "compte") {
+      html += '<div class="nl-teaser" aria-hidden="true">' + (d.teaser || []).map(blockHtml).join("") + '</div><div class="nl-cp nl-cp-compte">' + accountGateCard(gate) + '</div>';
+    } else if (gate && gate.type === "document") {
       html += '<div class="nl-cp">' + docGateCard(gate) + '</div><div class="nl-teaser" aria-hidden="true">' + (d.teaser || []).map(blockHtml).join("") + '</div>';
     } else if (gate && !gate.final) {
       html += '<div class="nl-teaser" aria-hidden="true">' + (d.teaser || []).map(blockHtml).join("") + '</div>';
@@ -1129,6 +1156,12 @@
       '<p>Pour ouvrir la suite, il te faut ' + g.elo_requis + ' Elo. Gagne des points sur les QCM NAVIRE, puis reviens.</p>' +
       '<div class="nl-elo-need"><div><span>Ton Elo</span><b>' + elo + ' / ' + g.elo_requis + '</b></div>' + bar(pct) + '</div>' +
       '<div class="nl-gate-btns"><a class="nv-btn is-block" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'Gagner de l\'Elo sur les QCM</a></div></div>';
+  }
+  function accountGateCard(g) {
+    var pct = Math.round(100 * (g.lus || 0) / Math.max(1, g.total || 1));
+    return '<div class="nl-gate-card"><div class="nl-gate-ico">' + ICON.lock + '</div><small>Fin de l\'aperçu · ' + pct + ' % lu</small>' +
+      '<h3>Crée ton compte pour lire la suite</h3><p>C\'est gratuit : ce document en entier, toute la bibliothèque NAVIRE Lib, et tes propres PDF à lire comme un cours.</p>' +
+      '<div class="nl-gate-btns"><button class="nv-btn is-block is-blue" data-act="signup">Créer mon compte gratuit</button><button class="nv-chip" data-act="login-view">J\'ai déjà un compte</button></div></div>';
   }
   function docGateCard(g) {
     var pct = Math.round(100 * (g.elo || 0) / Math.max(1, g.elo_requis));
@@ -1586,6 +1619,7 @@
     if (t.hasAttribute("data-goto")) {
       if (t.hasAttribute("data-locked")) {
         var g = S.doc && S.doc.gate;
+        if (g && g.type === "compte") { toast("Crée ton compte pour lire la suite."); return scrollToEl($(".nl-cp")); }
         toast(g && g.status === "elo" ? "Il te faut " + g.elo_requis + " Elo pour cette partie." : "Réponds au point de passage pour ouvrir cette partie.");
         return scrollToEl(g ? (document.getElementById("nl-cp-" + g.id) || $(".nl-cp")) : null);
       }
@@ -1626,7 +1660,8 @@
     else if (act === "prepa") viewPrepa();
     else if (act === "pdf-close") closePdf();
     else if (act === "dv-submit") submitDevoir();
-    else if (act === "logout") { S.token = null; S.prepa = null; S.voir = null; store(CONFIG.TOKEN_KEY, null); store("navire_lib_voir", null); renderAdmin(); viewLoggedOut(); }
+    else if (act === "logout") { S.token = null; S.user = null; S.prepa = null; S.voir = null; store(CONFIG.TOKEN_KEY, null); store("navire_lib_voir", null); renderAdmin(); boot(); }
+    else if (act === "login-view") { root.classList.remove("is-drawer"); viewLogin(); }
     else if (act === "login") login(t);
     else if (act === "google") google();
     else if (act === "signup") { e.preventDefault(); go(CONFIG.SIGNUP_URL); }
@@ -1696,12 +1731,12 @@
     });
   }
   function boot() {
-    if (!S.token) return viewLoggedOut();
     setPage('<div class="nv-skel" style="margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div>', true);
     refreshCatalogue().then(function () {
-      if (!S.cat.user) { S.token = null; store(CONFIG.TOKEN_KEY, null); return viewLoggedOut(); }
-      // Mode : celui du lien, sinon le dernier choisi, sinon Lib+ pour les abonnés.
-      var m = pageParam("mode") || load("navire_lib_mode");
+      // Sans compte (ou jeton expiré) : visiteur, aperçu de chaque document.
+      if (!S.cat.user) { if (S.token) { S.token = null; store(CONFIG.TOKEN_KEY, null); } S.user = null; S.prepa = null; }
+      // Mode : celui du lien, sinon le dernier choisi, sinon Lib+ pour les abonnés (Lib pour un visiteur).
+      var m = pageParam("mode") || (S.user ? load("navire_lib_mode") : null);
       S.mode = m === "lib" || m === "plus" ? m : (hasPlus() ? "plus" : "lib");
       renderMode();
       var want = +(pageParam("doc") || 0), ptab = pageParam("prepa");
