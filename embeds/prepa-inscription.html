@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Prép'AdJuris — Inscription</title>
 <!--
-  Embed d'inscription Prép'AdJuris.
+  Embed d'inscription Prép'AdJuris — version SOMBRE (fond sombre posé par la page).
   Mobile (< 900px) : une colonne centrée.
   PC (>= 900px)    : deux colonnes. À gauche le titre, l'encadrement certifié
                      et les points clés (restent visibles au défilement) ;
@@ -17,13 +17,14 @@
   body { background: transparent; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
 
   :root {
-    --ink: #0A0E1F;              /* texte principal — bleu nuit quasi noir */
-    --ink-soft: rgba(10,14,31,0.56);
-    --ink-faint: rgba(10,14,31,0.12);
-    --accent: #5B6FFF;
-    --danger: #C2384A;
-    --ok: #2E9E6B;
-    --warn: #C98A1F;
+    color-scheme: dark;
+    --ink: #fff;                 /* texte principal (fond sombre posé par la page) */
+    --ink-soft: rgba(255,255,255,0.6);
+    --ink-faint: rgba(255,255,255,0.12);
+    --accent: #7AA7FF;
+    --danger: #FF6B6B;
+    --ok: #5BE3A3;
+    --warn: #FFD166;
   }
 
   .aj-wrap {
@@ -77,7 +78,7 @@
     align-items: center;
     gap: 14px;
     text-align: left;
-    background: rgba(10,14,31,0.03);
+    background: rgba(255,255,255,0.03);
     border: 1px solid var(--ink-faint);
     border-radius: 16px;
     padding: 14px 18px;
@@ -139,25 +140,25 @@
     font-size: 14.5px;
     font-weight: 400;
     color: var(--ink);
-    background: rgba(10,14,31,0.02);
+    background: rgba(255,255,255,0.02);
     border: 1px solid var(--ink-faint);
     border-radius: 12px;
     padding: 13px 15px;
     transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
   }
-  .aj-input::placeholder { color: rgba(10,14,31,0.32); }
+  .aj-input::placeholder { color: rgba(255,255,255,0.32); }
   .aj-input:focus {
     outline: none;
-    background: #fff;
+    background: rgba(255,255,255,0.06);
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(91,111,255,0.14);
+    box-shadow: 0 0 0 3px rgba(122,167,255,0.14);
   }
   .aj-input.is-invalid { border-color: var(--danger); }
 
   /* Code promo — état confirmé */
   #aj-promo.is-applied {
     border-color: var(--ok);
-    background: rgba(46,158,107,0.06);
+    background: rgba(91,227,163,0.08);
   }
   /* Petit message d'état sous un champ (code promo, mot de passe…) */
   .aj-field-msg {
@@ -185,7 +186,7 @@
     font-size: 14px;
     font-weight: 600;
     color: var(--ink-soft);
-    background: rgba(10,14,31,0.02);
+    background: rgba(255,255,255,0.02);
     border: 1px solid var(--ink-faint);
     border-radius: 99px;
     padding: 11px 0;
@@ -193,14 +194,14 @@
     user-select: none;
     transition: all .15s ease;
   }
-  .aj-level:hover { border-color: rgba(10,14,31,0.24); color: var(--ink); }
+  .aj-level:hover { border-color: rgba(255,255,255,0.24); color: var(--ink); }
   .aj-levels input:checked + .aj-level {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: #fff;
+    background: #fff;
+    border-color: #fff;
+    color: #0A0E1F;
   }
   .aj-levels input:focus-visible + .aj-level {
-    box-shadow: 0 0 0 3px rgba(91,111,255,0.3);
+    box-shadow: 0 0 0 3px rgba(122,167,255,0.3);
   }
 
   /* Matières — cartes à cocher */
@@ -219,7 +220,7 @@
     font-size: 14px;
     font-weight: 500;
     color: var(--ink);
-    background: rgba(10,14,31,0.02);
+    background: rgba(255,255,255,0.02);
     border: 1px solid var(--ink-faint);
     border-radius: 12px;
     padding: 12px 15px;
@@ -227,11 +228,11 @@
     user-select: none;
     transition: all .15s ease;
   }
-  .aj-matiere-box:hover { border-color: rgba(10,14,31,0.24); }
+  .aj-matiere-box:hover { border-color: rgba(255,255,255,0.24); }
   .aj-tick {
     width: 18px; height: 18px;
     flex-shrink: 0;
-    border: 1.5px solid rgba(10,14,31,0.25);
+    border: 1.5px solid rgba(255,255,255,0.25);
     border-radius: 6px;
     display: flex;
     align-items: center;
@@ -241,7 +242,7 @@
   .aj-tick svg { opacity: 0; transition: opacity .12s ease; }
   .aj-matiere input:checked + .aj-matiere-box {
     border-color: var(--accent);
-    background: rgba(91,111,255,0.06);
+    background: rgba(122,167,255,0.06);
   }
   .aj-matiere input:checked + .aj-matiere-box .aj-tick {
     background: var(--accent);
@@ -249,7 +250,7 @@
   }
   .aj-matiere input:checked + .aj-matiere-box .aj-tick svg { opacity: 1; }
   .aj-matiere input:focus-visible + .aj-matiere-box {
-    box-shadow: 0 0 0 3px rgba(91,111,255,0.28);
+    box-shadow: 0 0 0 3px rgba(122,167,255,0.28);
   }
 
   .aj-hint {
@@ -323,8 +324,8 @@
     font-size: 13px;
     font-weight: 500;
     color: var(--danger);
-    background: rgba(194,56,74,0.07);
-    border: 1px solid rgba(194,56,74,0.2);
+    background: rgba(255,107,107,0.08);
+    border: 1px solid rgba(255,107,107,0.25);
     border-radius: 10px;
     padding: 11px 14px;
     margin-bottom: 16px;
@@ -336,8 +337,8 @@
   .aj-cta {
     display: block;
     width: 100%;
-    background: var(--ink);
-    color: #fff;
+    background: #fff;
+    color: #0A0E1F;
     font-family: 'Inter', sans-serif;
     font-size: 14.5px;
     font-weight: 600;
@@ -352,7 +353,7 @@
   }
   .aj-cta:hover { opacity: 0.88; }
   .aj-cta:active { transform: scale(0.99); }
-  .aj-cta:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,111,255,0.4); }
+  .aj-cta:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(122,167,255,0.4); }
   .aj-cta[disabled] { opacity: 0.5; cursor: default; transform: none; }
 
   .aj-note {
@@ -370,7 +371,7 @@
   .aj-done-icon {
     width: 52px; height: 52px;
     border-radius: 99px;
-    background: rgba(91,111,255,0.1);
+    background: rgba(122,167,255,0.1);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -396,11 +397,11 @@
     margin-top: 22px;
     font-size: 11px;
     font-weight: 400;
-    color: rgba(10,14,31,0.4);
+    color: rgba(255,255,255,0.4);
     letter-spacing: 0.3px;
     text-align: center;
   }
-  .aj-footer strong { color: rgba(10,14,31,0.62); font-weight: 600; }
+  .aj-footer strong { color: rgba(255,255,255,0.62); font-weight: 600; }
 
   .aj-sink { display: none; }
 
@@ -435,15 +436,15 @@
     .aj-points li strong { color: var(--ink); font-weight: 600; }
     .aj-points li::before {
       content: ""; flex-shrink: 0; width: 20px; height: 20px; margin-top: 1px; border-radius: 99px;
-      background: rgba(91,111,255,0.1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6FFF' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5L10 17.5L19 7'/%3E%3C/svg%3E") center / 11px no-repeat;
+      background: rgba(122,167,255,0.1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6FFF' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5L10 17.5L19 7'/%3E%3C/svg%3E") center / 11px no-repeat;
     }
 
     .aj-side {
-      background: rgba(255,255,255,0.75);
+      background: linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
       border: 1px solid var(--ink-faint);
       border-radius: 24px;
       padding: 36px 36px 32px;
-      box-shadow: 0 30px 60px -36px rgba(10,14,31,0.28);
+      box-shadow: 0 30px 70px -30px rgba(0,0,0,0.7), 0 0 0 4px rgba(122,167,255,0.04);
     }
     .aj-form { max-width: none; }
     .aj-done { text-align: center; padding: 32px 0; }
@@ -592,7 +593,7 @@
       <div class="aj-done" id="aj-done" role="status" aria-live="polite">
         <div class="aj-done-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M5 12.5L10 17.5L19 7" stroke="#5B6FFF" stroke-width="2.2"
+            <path d="M5 12.5L10 17.5L19 7" stroke="#7AA7FF" stroke-width="2.2"
                   stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
@@ -657,7 +658,7 @@
   };
 
   var TICK = '<span class="aj-tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none">'
-           + '<path d="M5 12.5L10 17.5L19 7" stroke="#fff" stroke-width="3.2" '
+           + '<path d="M5 12.5L10 17.5L19 7" stroke="#0A0E1F" stroke-width="3.2" '
            + 'stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
 
   var form        = document.getElementById("aj-form");

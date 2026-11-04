@@ -7,10 +7,10 @@
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
 | `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI), et la vue Prépa des inscrits Prép'AdJuris (remplace la page Prépa) |
 | `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, devoirs à corriger, rémunération prévisionnelle |
-| `equipe.html` | page présentation | « Nos professeurs » : cartes en verre épurées qui flottent (photo, nom, rôle, bio) sur fond blanc posé par la page ; ajouter un prof = une entrée dans `PROFS` |
+| `equipe.html` | page présentation | « Nos professeurs » : cartes en verre épurées qui flottent (photo, nom, rôle, bio) sur fond sombre posé par la page ; ajouter un prof = une entrée dans `PROFS` |
 | `recrutement.html` | page présentation | « Comment nous recrutons nos professeurs » : carte en verre seule, même style que `equipe.html` ; texte à modifier dans le HTML |
-| `prepa-inscription.html` | page inscription Prép'AdJuris | Formulaire d'inscription (compte NAVIRE → paiement Stripe) ; deux colonnes sur PC (>= 900px), une colonne sur mobile |
-| `features.html` | page d'accueil | Présentation animée des fonctionnalités (NAVIRE AI, Lib+, QCM & classement, Flashcards, veille) : liste à gauche + écran animé, défilement automatique |
+| `prepa-inscription.html` | page inscription Prép'AdJuris | Formulaire d'inscription (compte NAVIRE → paiement Stripe) ; deux colonnes sur PC (>= 900px), une colonne sur mobile ; fond sombre |
+| `features.html` | page d'accueil | Présentation animée des fonctionnalités (NAVIRE AI, cours particuliers sur Discord, Lib+, QCM & classement, Flashcards, veille), écrans à la charte des embeds NAVIRE ; fond sombre |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
