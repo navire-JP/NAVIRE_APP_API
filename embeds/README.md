@@ -8,6 +8,7 @@
 | `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI), et la vue Prépa des inscrits Prép'AdJuris (remplace la page Prépa) |
 | `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, devoirs à corriger, rémunération prévisionnelle |
 | `equipe.html` | page présentation | « Nos professeurs » : cartes en verre épurées qui flottent (photo, nom, rôle, bio) sur fond blanc posé par la page ; ajouter un prof = une entrée dans `PROFS` |
+| `recrutement.html` | page présentation | « Comment nous recrutons nos professeurs » : carte en verre seule, même style que `equipe.html` ; texte à modifier dans le HTML |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
