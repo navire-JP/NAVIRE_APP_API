@@ -61,12 +61,35 @@
 #nv-team .role { margin: 3px 0 0; font-size: 13px; color: rgba(10,10,18,.5); }
 #nv-team .bio { margin: 0; font-size: 14.5px; line-height: 1.7; color: rgba(10,10,18,.72); }
 
+#nv-team .recruit .card { display: flex; flex-direction: column; justify-content: center; }
+#nv-team .kicker { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #5B6FFF; }
+#nv-team .crit { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 18px; }
+#nv-team .crit li { display: flex; gap: 14px; align-items: flex-start; }
+#nv-team .crit .dot {
+  flex: none; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%;
+  background: #0a0a12 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
+#nv-team .crit strong { display: block; font-size: 15px; font-weight: 600; }
+#nv-team .crit p { margin: 4px 0 0; font-size: 14px; line-height: 1.6; color: rgba(10,10,18,.62); }
+
 @media (prefers-reduced-motion: reduce) { #nv-team .float { animation: none; } }
 </style>
 
 <section id="nv-team" aria-label="Nos professeurs">
   <h2>Nos professeurs</h2>
-  <div class="grid"></div>
+  <div class="grid">
+    <!-- Encart recrutement : reste toujours après les cartes des professeurs -->
+    <div class="float recruit" style="animation-delay:-3.5s">
+      <aside class="card">
+        <p class="kicker">Notre sélection</p>
+        <h3 class="name">Comment nous recrutons nos professeurs</h3>
+        <ul class="crit">
+          <li><span class="dot"></span><div><strong>Chargés de TD à l'université</strong><p>Ils connaissent la méthode attendue en faculté et ce que recherchent les correcteurs.</p></div></li>
+          <li><span class="dot"></span><div><strong>Professionnels du droit</strong><p>Au moins 12 mois d'expérience professionnelle, pour enseigner le droit tel qu'il se pratique.</p></div></li>
+        </ul>
+      </aside>
+    </div>
+  </div>
 </section>
 
 <script>
@@ -99,7 +122,7 @@
     var useLogo = function () { img.onerror = null; img.className = "logo"; img.src = LOGO; };
     img.onerror = useLogo;
     if (p.photo) img.src = p.photo; else useLogo();
-    grid.appendChild(wrap);
+    grid.insertBefore(wrap, grid.querySelector(".recruit"));
   });
 })();
 </script>
