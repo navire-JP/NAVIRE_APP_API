@@ -1,0 +1,645 @@
+<!-- NAVIRE Home : embed HTML de la zone centrale de l'accueil. Largeur conseillee 680 px (fluide, jusqu'a 320 px). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  #navire-home {
+    --panel: rgba(255,255,255,0.035);
+    --panel-2: rgba(255,255,255,0.06);
+    --panel-3: rgba(255,255,255,0.1);
+    --line: rgba(255,255,255,0.07);
+    --line-2: rgba(255,255,255,0.14);
+    --text: #fff;
+    --text-2: rgba(255,255,255,0.72);
+    --text-3: rgba(255,255,255,0.45);
+    --text-4: rgba(255,255,255,0.28);
+    --blue: #7AA7FF;
+    --blue-hi: #B5CDFF;
+    --blue-soft: rgba(122,167,255,0.1);
+    --blue-line: rgba(122,167,255,0.35);
+    --radius: 14px;
+    --ease: cubic-bezier(.2,.8,.2,1);
+    --mono: 'IBM Plex Mono', monospace;
+    container-type: inline-size;
+    width: 100%;
+    box-sizing: border-box;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    line-height: 1.35;
+    -webkit-font-smoothing: antialiased;
+    background: transparent;
+  }
+  #navire-home *, #navire-home *::before, #navire-home *::after { box-sizing: border-box; }
+  #navire-home h1, #navire-home h2, #navire-home p { margin: 0; }
+  #navire-home a { color: inherit; text-decoration: none; }
+  #navire-home button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  #navire-home a:focus-visible, #navire-home button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+  /* Structure */
+  #navire-home .nh-stack { display: flex; flex-direction: column; gap: 18px; }
+
+  /* Bloc principal : roue centree en haut, cours selectionne en dessous */
+  #navire-home .nh-hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+    padding: 26px 20px 20px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  #navire-home .nh-hero::after {
+    content: "";
+    position: absolute;
+    top: -90px;
+    right: -60px;
+    width: 280px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(79,125,255,0.2), transparent);
+    pointer-events: none;
+  }
+  #navire-home .nh-main { position: relative; z-index: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+
+  /* Roue : reprise exacte de la grille du composant Framer (9 x 9, 20 px, gap 2, rayon 6) */
+  #navire-home .nh-wheel {
+    display: grid;
+    grid-template-columns: repeat(9, 20px);
+    grid-auto-rows: 20px;
+    gap: 2px;
+    width: 196px;
+    justify-self: center;
+  }
+  #navire-home .nh-c { position: relative; border-radius: 6px; }
+  #navire-home .nh-c.is-grey { background: rgba(255,255,255,0.1); }
+  #navire-home .nh-c.is-free::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+    background: #fff;
+    opacity: 0;
+    transition: opacity .7s ease, background-color .2s;
+  }
+  #navire-home .nh-c.is-free.on::after { opacity: 1; }
+  #navire-home .nh-c.is-free.on-b::after { opacity: 1; background: #D6E0FF; }
+  #navire-home .nh-c.is-free::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+    background: #2266FF;
+    opacity: 0;
+    transition: opacity .45s ease;
+  }
+  #navire-home .nh-c.is-free.trail::before { opacity: 1; transition: opacity .1s; }
+  #navire-home .nh-c.is-pill { grid-column: span 3; background: linear-gradient(95deg, #fff 0%, rgba(214,214,214,0.46) 32%, rgba(171,171,171,0) 89%); }
+  #navire-home .nh-c.is-pill.rev { background: linear-gradient(275deg, #fff 0%, rgba(214,214,214,0.46) 32%, rgba(171,171,171,0) 89%); }
+  #navire-home .nh-c.is-logo { display: block; }
+  #navire-home .nh-c.is-logo img, #navire-home .nh-c.is-logo svg { display: block; width: 20px; height: 20px; }
+
+  /* Cours selectionne */
+  #navire-home .nh-hello { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #navire-home .nh-title { font-size: 20px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #navire-home .nh-prog { display: flex; align-items: center; gap: 10px; }
+  #navire-home .nh-bar { position: relative; flex: 1; height: 3px; border-radius: 99px; background: var(--panel-3); overflow: hidden; }
+  #navire-home .nh-bar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--blue), var(--blue-hi)); transition: width .7s var(--ease); }
+  #navire-home .nh-bar i { position: relative; overflow: hidden; }
+  #navire-home .nh-bar i::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+    transform: translateX(-100%);
+    animation: nh-shimmer 2.4s ease-in-out infinite;
+  }
+  @keyframes nh-shimmer { 0% { transform: translateX(-100%); } 70%, 100% { transform: translateX(100%); } }
+  #navire-home .nh-prog span { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
+
+  /* Fonctionnalites */
+  #navire-home .nh-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #navire-home .nh-tile {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 1px 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    transition: background .2s, border-color .2s, transform .2s var(--ease);
+  }
+  #navire-home .nh-tile:hover { background: var(--panel-2); border-color: var(--line-2); transform: translateY(-1px); }
+  #navire-home .nh-tile.is-first { background: #fff; color: #08080f; border-color: #fff; }
+  #navire-home .nh-tile.is-first:hover { background: #E8EEFF; border-color: #E8EEFF; }
+  #navire-home .nh-tile svg, #navire-home .nh-tile img { grid-row: span 2; width: 18px; height: 18px; display: block; }
+  #navire-home .nh-tile svg { fill: none; stroke: var(--blue); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  #navire-home .nh-tile.is-first svg { stroke: #2D5BE3; }
+  #navire-home .nh-tile b { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #navire-home .nh-tile small { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #navire-home .nh-tile.is-first small { color: rgba(8,8,15,0.6); }
+
+  /* Statistiques */
+  #navire-home .nh-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; padding: 0 4px; }
+  #navire-home .nh-stat { min-width: 0; }
+  #navire-home .nh-stat strong { display: block; font-size: 19px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #navire-home .nh-stat em { display: block; margin-top: 2px; font-family: var(--mono); font-style: normal; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #navire-home .nh-stat .nh-bar { margin-top: 8px; height: 2px; }
+
+  /* Liste */
+  #navire-home .nh-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; }
+  #navire-home .nh-seg { display: inline-flex; padding: 3px; border: 1px solid var(--line-2); border-radius: 99px; background: var(--panel); }
+  #navire-home .nh-seg button { padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; color: var(--text-3); white-space: nowrap; transition: background .2s, color .2s; }
+  #navire-home .nh-seg button.is-on { background: #fff; color: #08080f; }
+  #navire-home .nh-pager { display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+  #navire-home .nh-pager button { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; color: var(--text-2); transition: background .2s; }
+  #navire-home .nh-pager button:hover:not(:disabled) { background: var(--panel-2); }
+  #navire-home .nh-pager button:disabled { color: var(--text-4); cursor: default; }
+  #navire-home .nh-pager span { min-width: 30px; text-align: center; }
+
+  #navire-home .nh-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 92px; gap: 8px; margin-top: 8px; min-height: 192px; }
+  #navire-home .nh-row {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 0;
+    padding: 11px 13px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    text-align: left;
+    overflow: hidden;
+    transition: background .2s, border-color .2s, transform .2s var(--ease);
+  }
+  #navire-home .nh-row::after {
+    content: "";
+    position: absolute;
+    top: -46px;
+    right: -30px;
+    width: 120px;
+    height: 100px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(79,125,255,0.2), transparent);
+    opacity: .55;
+    pointer-events: none;
+    transition: opacity .25s;
+  }
+  #navire-home .nh-row:hover { background: var(--panel-2); border-color: var(--line-2); transform: translateY(-1px); }
+  #navire-home .nh-row:hover::after { opacity: 1; }
+  #navire-home .nh-row.is-on { background: var(--blue-soft); border-color: var(--blue-line); }
+  #navire-home .nh-row.is-on::after { opacity: 1; }
+  #navire-home .nh-row > span { position: relative; z-index: 1; }
+  #navire-home .nh-row-tags { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  #navire-home .nh-row-t { font-size: 13.5px; font-weight: 600; letter-spacing: -.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #navire-home .nh-row-b { display: flex; align-items: center; gap: 9px; }
+  #navire-home .nh-tag { padding: 1px 7px; border-radius: 99px; font-family: var(--mono); font-size: 10px; color: var(--text-2); background: var(--panel-2); white-space: nowrap; }
+  #navire-home .nh-tag.is-white { color: #08080f; background: #fff; }
+  #navire-home .nh-tag.is-blue, #navire-home .nh-tag.is-plus { color: var(--blue-hi); background: var(--blue-soft); }
+  #navire-home .nh-row .nh-bar { height: 2px; }
+  #navire-home .nh-pct { flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+  #navire-home .nh-empty { grid-column: 1 / -1; padding: 34px 12px; text-align: center; color: var(--text-3); }
+  #navire-home .nh-empty a, #navire-home .nh-empty button { color: var(--blue-hi); font-weight: 600; }
+
+  /* Chargement */
+  #navire-home .nh-skel { border-radius: 10px; background: linear-gradient(90deg, var(--panel) 25%, var(--panel-2) 50%, var(--panel) 75%); background-size: 200% 100%; animation: nh-skel 1.5s linear infinite; }
+  @keyframes nh-skel { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+  /* Visiteur */
+  #navire-home .nh-guest-t { font-size: 24px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15; }
+  #navire-home .nh-guest-s { color: var(--text-2); font-size: 13px; }
+  #navire-home .nh-cta { display: flex; gap: 8px; flex-wrap: wrap; }
+  #navire-home .nh-btn { padding: 9px 18px; border-radius: 99px; background: #fff; color: #08080f !important; font-weight: 700; font-size: 13px; transition: background .2s; }
+  #navire-home .nh-btn:hover { background: #E8EEFF; }
+  #navire-home .nh-btn.is-ghost { background: var(--panel-2); color: #fff !important; border: 1px solid var(--line-2); }
+  #navire-home .nh-btn.is-ghost:hover { background: var(--panel-3); }
+
+  /* Responsive */
+  @container (max-width: 560px) {
+    #navire-home .nh-hero { gap: 18px; padding: 20px 16px 16px; }
+    #navire-home .nh-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #navire-home .nh-list { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+    #navire-home .nh-title { white-space: normal; }
+  }
+  @container (max-width: 380px) {
+    #navire-home .nh-tile { padding: 9px 10px; gap: 1px 8px; }
+    #navire-home .nh-seg button { padding: 4px 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #navire-home *, #navire-home *::before, #navire-home *::after { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div id="navire-home" aria-live="polite"></div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",
+    SITE: "https://navire-ai.com",
+    LOGO: "https://framerusercontent.com/images/I1QSNbnWf23AulO7acDFXxsP8.png",
+    PER_PAGE: 4
+  };
+
+  var root = document.getElementById("navire-home");
+  var S = { items: [], user: null, files: [], perFile: {}, summary: null, decks: null, quota: null, deepwork: null, tab: "cours", page: 0, sel: null, timer: null };
+
+  // ================= OUTILS =================
+  function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function num(v) { return Number(v || 0).toLocaleString("fr-FR"); }
+  function clamp(v) { return Math.max(0, Math.min(100, Math.round(v || 0))); }
+  function plural(n, s) { return n + " " + s + (n > 1 ? "s" : ""); }
+  function url(p) { return CONFIG.SITE + p; }
+
+  function api(path, token) {
+    return fetch(CONFIG.API + path, { headers: { Authorization: "Bearer " + token } }).then(function (r) {
+      if (!r.ok) { var e = new Error("http"); e.status = r.status; throw e; }
+      return r.json();
+    });
+  }
+
+  var ICON = {
+    read: '<svg viewBox="0 0 24 24"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>',
+    qcm: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>',
+    cards: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="14" rx="3"/><path d="M8 3h9a4 4 0 0 1 4 4v9"/></svg>',
+    ai: '<svg viewBox="0 0 24 24"><path d="M12 3 14.2 9.8 21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z"/></svg>',
+    prev: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+    next: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'
+  };
+
+  // ================= ROUE =================
+  // o : carre gris, x : emplacement libre (s'allume), P : pilule (3 colonnes), L : logo.
+  var WHEEL = [
+    "oPxxxxx",
+    "xxoooooxx",
+    "xoxoxooox",
+    "xooxxxoox",
+    "ooxxLxxxo",
+    "xooxxxoox",
+    "xoooxxxox",
+    "xxooooxxx",
+    "xxxxoRo"
+  ];
+
+  function wheelHtml() {
+    var h = '<div class="nh-wheel" aria-hidden="true">';
+    WHEEL.forEach(function (row, r) {
+      var col = 0;
+      row.split("").forEach(function (ch) {
+        if (ch === "o") h += '<div class="nh-c is-grey"></div>';
+        else if (ch === "x") h += '<div class="nh-c is-free" data-r="' + r + '" data-c="' + col + '"></div>';
+        else if (ch === "P") h += '<div class="nh-c is-pill"></div>';
+        else if (ch === "R") h += '<div class="nh-c is-pill rev"></div>';
+        else if (ch === "L") h += '<div class="nh-c is-logo"><img src="' + CONFIG.LOGO + '" alt=""></div>';
+        col += (ch === "P" || ch === "R") ? 3 : 1;
+      });
+    });
+    return h + "</div>";
+  }
+
+  function startWheel() {
+    clearInterval(S.timer);
+    var w = root.querySelector(".nh-wheel");
+    if (!w) return;
+    var logo = w.querySelector("img");
+    if (logo) logo.onerror = function () {
+      this.parentNode.innerHTML = '<svg viewBox="0 0 20 20"><rect width="20" height="20" rx="6" fill="#fff"/><path d="M15.5 4.5 11 10.8l-2 .2.2-2z M4.5 15.5 9 9.2l2-.2-.2 2z" fill="#08080f"/></svg>';
+    };
+    var free = [].slice.call(w.querySelectorAll(".is-free"));
+    var reduce = false;
+    try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+
+    // Etat de depart identique au composant : trois carres blancs, un carre bleu pale.
+    function at(r, c) { return w.querySelector('.is-free[data-r="' + r + '"][data-c="' + c + '"]'); }
+    var lit = [at(4, 7), at(6, 5), at(7, 6)].filter(Boolean);
+    lit.forEach(function (n) { n.classList.add("on"); });
+    var pale = at(0, 4);
+    if (pale) pale.classList.add("on-b");
+
+    w.onpointerover = function (e) {
+      var t = e.target;
+      if (!t.classList || !t.classList.contains("is-free")) return;
+      t.classList.add("trail");
+      setTimeout(function () { t.classList.remove("trail"); }, 240);
+    };
+    if (reduce) return;
+
+    var i = 0;
+    S.timer = setInterval(function () {
+      if (!root.isConnected) return clearInterval(S.timer);
+      if (document.hidden) return;
+      var old = lit[i % lit.length];
+      var pool = free.filter(function (n) { return !n.classList.contains("on") && !n.classList.contains("on-b"); });
+      var fresh = pool[Math.floor(Math.random() * pool.length)];
+      if (!old || !fresh) return;
+      old.classList.remove("on");
+      fresh.classList.add("on");
+      lit[i % lit.length] = fresh;
+      i++;
+    }, 1500);
+  }
+
+  // Onde depuis le centre lors du changement de cours.
+  function wave() {
+    var free = root.querySelectorAll(".nh-wheel .is-free");
+    for (var k = 0; k < free.length; k++) (function (n) {
+      var d = Math.max(Math.abs(+n.dataset.r - 4), Math.abs(+n.dataset.c - 4));
+      setTimeout(function () { n.classList.add("trail"); }, d * 55);
+      setTimeout(function () { n.classList.remove("trail"); }, d * 55 + 190);
+    })(free[k]);
+  }
+
+  // ================= LIENS ET PREPARATION DES PAGES CIBLES =================
+  function fileOf(item) {
+    if (!item || !item.perso) return null;
+    var want = String(item.titre || "").trim().toLowerCase();
+    for (var i = 0; i < S.files.length; i++) {
+      var f = S.files[i];
+      if (String(f.filename_original || "").replace(/\.pdf$/i, "").trim().toLowerCase() === want) return f;
+    }
+    return null;
+  }
+  function libUrl(item) { return url("/lib?mode=" + (item.plus ? "plus" : "lib") + "&doc=" + item.id); }
+
+  // Preselectionne le PDF sur /qcm avec les cles deja lues par la page.
+  function prepareQcm(file) {
+    lsSet("navire_qcm_file_id", String(file.id));
+    lsSet("navire_qcm_file_label", String(file.filename_original || "").replace(/\.pdf$/i, ""));
+    lsSet("navire_qcm_view", "setup");
+    lsSet("navire_qcm_session_id", null);
+    lsSet("navire_qcm_current", null);
+    lsSet("navire_qcm_shown_idx", null);
+  }
+
+  // Ouvre une nouvelle conversation NAVIRE AI limitee au document choisi.
+  function prepareAi(item) {
+    lsSet("nv_ai_conv", "null");
+    var file = fileOf(item);
+    if (file) {
+      lsSet("nv_ai_use_navire", "false");
+      lsSet("nv_ai_use_mine", "true");
+      lsSet("nv_ai_excluded", JSON.stringify(S.files.filter(function (f) { return f.id !== file.id; }).map(function (f) { return f.id; })));
+    } else {
+      lsSet("nv_ai_use_navire", "true");
+      lsSet("nv_ai_use_mine", "false");
+    }
+  }
+
+  // ================= RENDUS =================
+  function visible() {
+    return S.items.filter(function (i) { return S.tab === "perso" ? i.perso : !i.perso; });
+  }
+
+  function tile(o) {
+    return '<a class="nh-tile' + (o.first ? " is-first" : "") + '" href="' + esc(o.href) + '" target="_top"' + (o.act ? ' data-act="' + o.act + '"' : "") + ">" +
+      o.icon + "<b>" + esc(o.name) + "</b><small>" + esc(o.note) + "</small></a>";
+  }
+
+  function mainHtml() {
+    var it = S.sel;
+    var hello = "Bonjour " + (S.user && S.user.username ? S.user.username : "");
+    if (!it) {
+      return '<p class="nh-hello">' + esc(hello) + '</p><h1 class="nh-title">Choisis un cours</h1>' +
+        '<div class="nh-tiles">' +
+        tile({ href: url("/files"), icon: ICON.read, name: "Fichiers", note: "Ajoute un PDF", first: true }) +
+        tile({ href: url("/qcm"), icon: ICON.qcm, name: "QCM", note: "Depuis tes PDF" }) +
+        tile({ href: url("/flashcards"), icon: ICON.cards, name: "Flashcards", note: flashNote() }) +
+        tile({ href: url("/navire"), icon: ICON.ai, name: "NAVIRE AI", note: aiNote(false) }) +
+        "</div>";
+    }
+    var pct = clamp(it.progression_pct);
+    var file = fileOf(it);
+    var qcmTile;
+    if (it.perso) {
+      var st = file && S.perFile[file.id];
+      qcmTile = tile({ href: url("/qcm"), act: file ? "qcm" : "", icon: ICON.qcm, name: "QCM", note: st && st.success_rate_pct != null ? st.success_rate_pct + " % de réussite" : (file ? "Depuis ce PDF" : "Choisir un PDF") });
+    } else {
+      qcmTile = tile({ href: libUrl(it), icon: ICON.qcm, name: "QCM", note: (it.valides || 0) + " / " + (it.nb_points_passage || 0) + " validés" });
+    }
+    return '<p class="nh-hello">' + esc(hello) + '</p>' +
+      '<h1 class="nh-title" title="' + esc(it.titre) + '">' + esc(it.titre) + "</h1>" +
+      '<div class="nh-prog"><div class="nh-bar"><i data-w="' + pct + '"></i></div><span>' + pct + " %</span></div>" +
+      '<div class="nh-tiles">' +
+      tile({ href: libUrl(it), icon: ICON.read, name: pct > 0 ? "Reprendre" : "Lire", note: (it.minutes || 0) + " min de lecture", first: true }) +
+      qcmTile +
+      tile({ href: url("/flashcards"), icon: ICON.cards, name: "Flashcards", note: flashNote() }) +
+      tile({ href: url("/navire"), act: "ai", icon: ICON.ai, name: "NAVIRE AI", note: aiNote(true) }) +
+      "</div>";
+  }
+
+  function flashNote() {
+    if (!S.decks) return "Révise tes cartes";
+    if (!S.decks.length) return "Crée ton premier deck";
+    var cards = S.decks.reduce(function (n, d) { return n + (d.cards_count || 0); }, 0);
+    return plural(S.decks.length, "deck") + ", " + plural(cards, "carte");
+  }
+  function aiNote(hasDoc) {
+    if (S.quota && S.quota.limit != null) return plural(S.quota.remaining || 0, "question") + " restante" + ((S.quota.remaining || 0) > 1 ? "s" : "");
+    if (!hasDoc || !S.sel) return "Pose ta question";
+    return S.sel.perso ? "Interroge ce PDF" : "Interroge NAVIRE";
+  }
+
+  function statsHtml() {
+    var u = S.user || {}, sum = S.summary || {};
+    var pts = 0, ok = 0;
+    S.items.forEach(function (i) { pts += i.nb_points_passage || 0; ok += i.valides || 0; });
+    var eloPct = u.tier_max > u.tier_min ? ((u.elo - u.tier_min) / (u.tier_max - u.tier_min)) * 100 : 0;
+    var answered = sum.total_answered;
+    var okPct = answered ? (sum.total_correct / answered) * 100 : 0;
+    function stat(v, label, w) {
+      return '<div class="nh-stat"><strong>' + esc(v) + "</strong><em>" + esc(label) + '</em><div class="nh-bar"><i data-w="' + clamp(w) + '"></i></div></div>';
+    }
+    return '<section class="nh-stats" aria-label="Statistiques">' +
+      stat(u.elo != null ? num(u.elo) : "-", u.tier ? "Elo, " + u.tier : "Elo", eloPct) +
+      stat(answered != null ? num(answered) : "-", "Questions", okPct) +
+      stat(ok + " / " + pts, "Points de passage", pts ? (ok / pts) * 100 : 0) +
+      stat(S.deepwork && S.deepwork.total_label ? S.deepwork.total_label : "-", "Temps de travail", 0) +
+      "</section>";
+  }
+
+  function listHtml() {
+    var list = visible();
+    var pages = Math.max(1, Math.ceil(list.length / CONFIG.PER_PAGE));
+    if (S.page >= pages) S.page = pages - 1;
+    var slice = list.slice(S.page * CONFIG.PER_PAGE, (S.page + 1) * CONFIG.PER_PAGE);
+    var nCours = S.items.filter(function (i) { return !i.perso; }).length;
+    var nPerso = S.items.length - nCours;
+
+    var rows = slice.map(function (i) {
+      var pct = clamp(i.progression_pct);
+      var on = S.sel && S.sel.id === i.id;
+      var tags = i.perso
+        ? '<span class="nh-tag is-white">PDF</span>'
+        : '<span class="nh-tag is-blue">Cours</span>' + (i.niveau ? '<span class="nh-tag">' + esc(i.niveau) + "</span>" : "");
+      if (i.plus) tags += '<span class="nh-tag is-plus">Lib+</span>';
+      return '<button class="nh-row' + (on ? " is-on" : "") + '" data-id="' + i.id + '" aria-pressed="' + !!on + '">' +
+        '<span class="nh-row-tags">' + tags + "</span>" +
+        '<span class="nh-row-t">' + esc(i.titre) + "</span>" +
+        '<span class="nh-row-b"><span class="nh-bar"><i data-w="' + pct + '"></i></span><span class="nh-pct">' + pct + " %</span></span></button>";
+    }).join("");
+    if (!rows) {
+      rows = '<div class="nh-empty">' + (S.tab === "perso" ? 'Aucun fichier pour le moment. <a href="' + url("/files") + '" target="_top">Ajouter un PDF</a>' : "Aucun cours disponible.") + "</div>";
+    }
+
+    return '<section><div class="nh-head">' +
+      '<div class="nh-seg" role="tablist">' +
+      '<button role="tab" aria-selected="' + (S.tab === "cours") + '" data-tab="cours" class="' + (S.tab === "cours" ? "is-on" : "") + '">Cours ' + nCours + "</button>" +
+      '<button role="tab" aria-selected="' + (S.tab === "perso") + '" data-tab="perso" class="' + (S.tab === "perso" ? "is-on" : "") + '">Mes fichiers ' + nPerso + "</button>" +
+      "</div>" +
+      (pages > 1 ? '<div class="nh-pager"><button data-page="-1" aria-label="Page précédente"' + (S.page === 0 ? " disabled" : "") + ">" + ICON.prev + "</button><span>" + (S.page + 1) + "/" + pages + '</span><button data-page="1" aria-label="Page suivante"' + (S.page >= pages - 1 ? " disabled" : "") + ">" + ICON.next + "</button></div>" : "") +
+      '</div><div class="nh-list">' + rows + "</div></section>";
+  }
+
+  function fillBars() {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        var bars = root.querySelectorAll("i[data-w]");
+        for (var k = 0; k < bars.length; k++) bars[k].style.width = bars[k].getAttribute("data-w") + "%";
+      });
+    });
+  }
+
+  function renderMain() {
+    var m = root.querySelector(".nh-main");
+    if (m) m.innerHTML = mainHtml();
+    fillBars();
+  }
+  function renderList() {
+    var l = root.querySelector("[data-list]");
+    if (l) l.innerHTML = listHtml();
+    fillBars();
+  }
+
+  function renderApp() {
+    root.innerHTML = '<div class="nh-stack">' +
+      '<section class="nh-hero">' + wheelHtml() + '<div class="nh-main"></div></section>' +
+      '<div data-stats></div><div data-list></div></div>';
+    root.querySelector("[data-stats]").innerHTML = statsHtml();
+    renderMain();
+    renderList();
+    startWheel();
+  }
+
+  function viewLoading() {
+    root.innerHTML = '<div class="nh-stack">' +
+      '<section class="nh-hero">' + wheelHtml() + '<div class="nh-main">' +
+      '<div class="nh-skel" style="height:14px;width:40%"></div><div class="nh-skel" style="height:24px;width:75%"></div>' +
+      '<div class="nh-tiles">' + [1, 2, 3, 4].map(function () { return '<div class="nh-skel" style="height:54px"></div>'; }).join("") + "</div>" +
+      "</div></section>" +
+      '<div class="nh-skel" style="height:50px"></div><div class="nh-skel" style="height:232px"></div></div>';
+    startWheel();
+  }
+
+  function viewGuest() {
+    root.innerHTML = '<div class="nh-stack"><section class="nh-hero">' + wheelHtml() + '<div class="nh-main">' +
+      '<h1 class="nh-guest-t">4 façons d\'atteindre ton potentiel juridique</h1>' +
+      '<p class="nh-guest-s">Cours, entraînement et progression au même endroit.</p>' +
+      '<div class="nh-cta"><a class="nh-btn" href="' + url("/register") + '" target="_top">Commencer</a><a class="nh-btn is-ghost" href="' + url("/login") + '" target="_top">Connexion</a></div>' +
+      '</div></section><div class="nh-tiles">' +
+      tile({ href: url("/register"), icon: ICON.read, name: "Bibliothèque", note: "Des cours par niveau" }) +
+      tile({ href: url("/register"), icon: ICON.qcm, name: "QCM", note: "Générés depuis tes PDF" }) +
+      tile({ href: url("/register"), icon: ICON.cards, name: "Flashcards", note: "Tes cartes à réviser" }) +
+      tile({ href: url("/register"), icon: ICON.ai, name: "NAVIRE AI", note: "Interroge tes documents" }) +
+      "</div></div>";
+    startWheel();
+  }
+
+  function viewError() {
+    root.innerHTML = '<div class="nh-stack"><section class="nh-hero">' + wheelHtml() +
+      '<div class="nh-main"><h1 class="nh-title">Connexion au serveur impossible</h1><p class="nh-guest-s">Tes données n\'ont pas pu être chargées.</p>' +
+      '<div class="nh-cta"><button class="nh-btn" data-retry>Réessayer</button></div></div></section></div>';
+    startWheel();
+  }
+
+  // ================= EVENEMENTS =================
+  root.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-id],[data-tab],[data-page],[data-retry],[data-act]") : null;
+    if (!t) return;
+    if (t.hasAttribute("data-retry")) return boot();
+    if (t.hasAttribute("data-act")) {
+      var act = t.getAttribute("data-act");
+      if (act === "qcm") { var f = fileOf(S.sel); if (f) prepareQcm(f); }
+      if (act === "ai") prepareAi(S.sel);
+      return; // Le lien suit ensuite sa navigation normale vers la page parente.
+    }
+    if (t.hasAttribute("data-id")) {
+      var id = +t.getAttribute("data-id");
+      var it = S.items.filter(function (x) { return x.id === id; })[0];
+      if (!it || it === S.sel) return;
+      S.sel = it;
+      lsSet("navire_home_sel", String(id));
+      renderMain();
+      renderList();
+      wave();
+      return;
+    }
+    if (t.hasAttribute("data-tab")) {
+      S.tab = t.getAttribute("data-tab");
+      S.page = 0;
+      renderList();
+      return;
+    }
+    if (t.hasAttribute("data-page")) {
+      S.page += +t.getAttribute("data-page");
+      renderList();
+    }
+  });
+
+  // ================= DEMARRAGE =================
+  function pickInitial() {
+    var saved = +(lsGet("navire_home_sel") || 0);
+    var found = S.items.filter(function (i) { return i.id === saved; })[0];
+    if (found) return found;
+    // Par defaut : le cours en cours le plus avance, puis un PDF en cours, puis le premier cours.
+    var cur = S.items.filter(function (i) { var p = i.progression_pct || 0; return p > 0 && p < 100; })
+      .sort(function (a, b) { return (a.perso ? 1 : 0) - (b.perso ? 1 : 0) || (b.progression_pct || 0) - (a.progression_pct || 0); })[0];
+    return cur || S.items.filter(function (i) { return !i.perso; })[0] || S.items[0] || null;
+  }
+
+  function boot() {
+    var token = lsGet(CONFIG.TOKEN_KEY);
+    if (!token) return viewGuest();
+    viewLoading();
+
+    // Le catalogue est indispensable. Les autres appels peuvent echouer sans bloquer la page.
+    function opt(path) { return api(path, token).catch(function () { return null; }); }
+    Promise.all([
+      api("/lib/catalogue", token),
+      opt("/stats/summary"),
+      opt("/flash/decks"),
+      opt("/files/"),
+      opt("/navire/quota"),
+      opt("/users/me/profile-summary")
+    ]).then(function (r) {
+      var cat = r[0];
+      if (!cat || !cat.user) { lsSet(CONFIG.TOKEN_KEY, null); return viewGuest(); }
+      S.user = cat.user;
+      S.items = (cat.items || []).filter(function (i) { return !i.brouillon; });
+      S.summary = r[1];
+      S.perFile = {};
+      ((r[1] && r[1].files) || []).forEach(function (f) { S.perFile[f.file_id] = f; });
+      S.decks = r[2] && r[2].items ? r[2].items : null;
+      S.files = r[3] && r[3].items ? r[3].items : [];
+      S.quota = r[4];
+      S.deepwork = r[5] && r[5].deepwork ? r[5].deepwork : null;
+      S.sel = pickInitial();
+      S.tab = S.sel && S.sel.perso ? "perso" : "cours";
+      var list = visible();
+      S.page = S.sel ? Math.floor(list.indexOf(S.sel) / CONFIG.PER_PAGE) : 0;
+      renderApp();
+    }).catch(function (e) {
+      if (e && e.status === 401) { lsSet(CONFIG.TOKEN_KEY, null); return viewGuest(); }
+      viewError();
+    });
+  }
+
+  boot();
+})();
+</script>
