@@ -8,7 +8,7 @@
 | `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI), et la vue Prépa des inscrits Prép'AdJuris (remplace la page Prépa) |
 | `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, devoirs à corriger, rémunération prévisionnelle |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
-| `reseau.html` | page `/reseau` (test) | Réseau des étudiants en droit, maquette sans API : fil façon X, publication d'une veille juridique sourcée ou d'une copie notée 12/20 ou plus (copie corrigée jointe, « En vérification »), LinkedIn, liens, profils, abonnements |
+| `reseau.html` | page `/reseau` (test) | Réseau des étudiants en droit, maquette sans API, verre dépoli épuré : fil Pour toi / Abonnements, publication d'une veille juridique sourcée ou d'une copie notée 12/20 ou plus (copie corrigée jointe, « en vérification »), profil avec lien LinkedIn et liens |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |

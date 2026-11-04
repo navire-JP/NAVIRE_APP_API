@@ -1,44 +1,40 @@
 <!--
   NAVIRE, embed de test de la page /reseau (réseau des étudiants en droit)
   =======================================================================
-  Maquette du fil d'actualité, sans appel à l'API : les posts sont des
-  données de test, et ceux qu'on publie restent dans ce navigateur
-  (localStorage « navire_reseau_test »).
+  Maquette du fil, sans appel à l'API : les posts sont des données de test,
+  et ceux qu'on publie restent dans ce navigateur (localStorage
+  « navire_reseau_test »).
 
-  Principe : chaque post est
+  Chaque post est
     - une veille juridique (décision, texte, réforme), avec sa référence
       et/ou un lien vers la source ;
     - ou une copie notée (dissertation, commentaire, cas pratique, fiche
       d'arrêt) ayant eu 12/20 ou plus. La copie corrigée est jointe pour
-      vérification : le post reste « En vérification » jusqu'à validation.
+      vérification : le post reste « en vérification » jusqu'à validation.
 
-  L'étudiant se met en valeur : LinkedIn connecté, liens (portfolio, CV,
-  articles), compteurs de veilles publiées et de copies validées.
+  LinkedIn : l'étudiant renseigne l'adresse de son profil, rien de plus.
+  Un badge « in » à côté de son nom y mène. Pas de partage vers LinkedIn.
 
-  Mise en page (charte NAVIRE AI en verre dépoli, sans lignes : Inter + IBM Plex Mono, fond transparent,
-  panneaux blancs translucides, bouton principal blanc) :
-    - >= 1080 px : menu, fil, colonne de droite ;
+  Style : verre dépoli, épuré, sans lignes. Charte NAVIRE AI (Inter + IBM
+  Plex Mono, fond transparent, bouton principal blanc).
+    - >= 1080 px : menu, fil, colonne de droite (recherche, à suivre) ;
     - 760 à 1080 px : menu et fil ;
     - < 760 px : barre du haut et fil seul.
   Prend la hauteur de l'écran sous sa position ; seul le fil défile.
 -->
 <meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 #nv-rs {
-  --panel: rgba(255,255,255,0.03);
-  --panel-2: rgba(255,255,255,0.055);
-  --panel-3: rgba(255,255,255,0.09);
-  --line: rgba(255,255,255,0.07);
-  --line-2: rgba(255,255,255,0.13);
-  --glass: rgba(255,255,255,0.04);
-  --glass-hi: rgba(255,255,255,0.075);
-  --blur: blur(24px) saturate(150%);
-  --edge: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 40px rgba(0,0,0,0.18);
   --text: #fff;
-  --text-2: rgba(255,255,255,0.74);
-  --text-3: rgba(255,255,255,0.48);
-  --text-4: rgba(255,255,255,0.3);
+  --text-2: rgba(255,255,255,0.72);
+  --text-3: rgba(255,255,255,0.46);
+  --text-4: rgba(255,255,255,0.28);
+  --soft: rgba(255,255,255,0.05);
+  --soft-2: rgba(255,255,255,0.09);
+  --glass: rgba(255,255,255,0.04);
+  --blur: blur(24px) saturate(150%);
+  --edge: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 40px rgba(0,0,0,0.16);
   --green: #5BE3A3;
   --yellow: #FFD166;
   --red: #FF6B6B;
@@ -57,278 +53,205 @@
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--text);
   background: transparent;
   box-sizing: border-box;
 }
 #nv-rs *, #nv-rs *::before, #nv-rs *::after { box-sizing: border-box; }
-#nv-rs::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(40% 35% at 30% 10%, rgba(111,168,255,0.10), transparent 70%), radial-gradient(35% 30% at 75% 60%, rgba(91,227,163,0.06), transparent 70%), radial-gradient(30% 30% at 45% 95%, rgba(180,140,255,0.07), transparent 70%); }
-#nv-rs > .side, #nv-rs > .main, #nv-rs > .rail { position: relative; z-index: 1; }
+#nv-rs::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(40% 35% at 30% 10%, rgba(111,168,255,0.08), transparent 70%), radial-gradient(35% 30% at 70% 70%, rgba(91,227,163,0.05), transparent 70%); }
+#nv-rs > aside, #nv-rs > main { position: relative; z-index: 1; }
 #nv-rs button, #nv-rs input, #nv-rs textarea, #nv-rs select { font-family: inherit; color: inherit; font-size: inherit; }
 #nv-rs button { cursor: pointer; background: none; border: 0; padding: 0; }
-#nv-rs ::selection { background: rgba(255,255,255,0.2); }
-#nv-rs svg { flex-shrink: 0; }
 #nv-rs a { color: inherit; text-decoration: none; }
-#nv-rs .is-hidden { display: none !important; }
-#nv-rs .scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+#nv-rs svg { flex-shrink: 0; }
+#nv-rs .scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent; }
 #nv-rs .scroll::-webkit-scrollbar { width: 6px; }
-#nv-rs .scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9px; }
+#nv-rs .scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 9px; }
+#nv-rs .glass { background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--edge); }
 
-/* ================= MENU ================= */
-#nv-rs .side { width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; padding: 14px 10px; }
-#nv-rs .brand { display: flex; align-items: center; gap: 9px; padding: 2px 8px 14px; }
-#nv-rs .logo { width: 24px; height: 24px; background: center/contain no-repeat; flex-shrink: 0; }
-#nv-rs .brand b { font-weight: 800; font-size: 13px; letter-spacing: .5px; }
-#nv-rs .brand span { font-weight: 500; color: var(--text-3); margin-left: 3px; font-size: 12.5px; }
-#nv-rs .nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 9px; font-size: 12.5px; font-weight: 500; color: var(--text-3); text-align: left; transition: background .15s, color .15s; }
-#nv-rs .nav svg { width: 16px; height: 16px; opacity: .75; }
-#nv-rs .nav:hover { background: var(--panel); color: var(--text); }
-#nv-rs .nav.is-active { background: var(--glass-hi); color: var(--text); font-weight: 600; }
-#nv-rs .nav .count { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink); background: var(--text); border-radius: 99px; padding: 0 6px; font-weight: 600; }
-#nv-rs .side-cta { margin-top: 12px; width: 100%; padding: 9px; border-radius: 99px; background: #fff; color: var(--ink); font-weight: 600; font-size: 12.5px; transition: background .15s; }
-#nv-rs .side-cta:hover { background: rgba(255,255,255,0.86); }
-#nv-rs .side-me { margin-top: auto; display: flex; align-items: center; gap: 9px; padding: 8px; border-radius: 10px; text-align: left; }
-#nv-rs .side-me:hover { background: var(--panel); }
-#nv-rs .side-me div { min-width: 0; flex: 1; }
-#nv-rs .side-me b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#nv-rs .side-me small { display: block; font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ===== Menu ===== */
+#nv-rs .side { width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; padding: 16px 10px; }
+#nv-rs .brand { display: flex; align-items: center; gap: 9px; padding: 0 10px 18px; font-size: 13px; }
+#nv-rs .logo { width: 22px; height: 22px; background: center/contain no-repeat; }
+#nv-rs .brand b { font-weight: 700; letter-spacing: .5px; }
+#nv-rs .brand span { color: var(--text-3); }
+#nv-rs .nav { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12.5px; color: var(--text-3); text-align: left; transition: background .15s, color .15s; }
+#nv-rs .nav svg { width: 16px; height: 16px; }
+#nv-rs .nav:hover { color: var(--text); }
+#nv-rs .nav.is-active { background: var(--soft); color: var(--text); font-weight: 600; }
+#nv-rs .side .btn { margin-top: 14px; width: 100%; }
 
-/* ================= FIL ================= */
-#nv-rs .main { width: 620px; max-width: 100%; flex-shrink: 1; min-width: 0; display: flex; flex-direction: column; }
-#nv-rs .topbar { display: none; align-items: center; gap: 9px; padding: 12px 14px 4px; }
-#nv-rs .topbar .logo { width: 22px; height: 22px; }
-#nv-rs .topbar b { font-size: 12.5px; font-weight: 800; letter-spacing: .5px; }
-#nv-rs .topbar .me-btn { margin-left: auto; }
-#nv-rs .feed { flex: 1; min-height: 0; padding: 0 12px 20px; }
-#nv-rs .tabs { position: sticky; top: 10px; z-index: 5; display: flex; gap: 4px; margin: 10px 0 10px; padding: 4px; border-radius: 99px; background: rgba(20,20,34,0.55); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--edge); }
-#nv-rs .tab { flex: 1; padding: 7px 0; border-radius: 99px; font-size: 12.5px; font-weight: 500; color: var(--text-3); transition: background .2s, color .2s; }
-#nv-rs .tab:hover { color: var(--text-2); }
-#nv-rs .tab i { display: none; }
-#nv-rs .tab.is-active { color: var(--text); font-weight: 600; background: var(--glass-hi); }
-#nv-rs .tab.is-active i { display: none; }
-#nv-rs .filters { display: flex; gap: 6px; padding: 0 2px 12px; overflow-x: auto; scrollbar-width: none; }
-#nv-rs .filters::-webkit-scrollbar { display: none; }
-#nv-rs .chip { flex-shrink: 0; padding: 5px 12px; border-radius: 99px; background: var(--glass); font-size: 11.5px; font-weight: 500; color: var(--text-3); transition: background .15s, color .15s; }
-#nv-rs .chip:hover { background: var(--glass-hi); color: var(--text); }
-#nv-rs .chip.is-active { background: #fff; color: var(--ink); font-weight: 600; }
+/* ===== Fil ===== */
+#nv-rs .main { width: 600px; max-width: 100%; min-width: 0; display: flex; flex-direction: column; }
+#nv-rs .topbar { display: none; align-items: center; gap: 9px; padding: 12px 16px 2px; font-size: 13px; }
+#nv-rs .topbar b { font-weight: 700; letter-spacing: .5px; }
+#nv-rs .topbar .me { margin-left: auto; }
+#nv-rs .feed { flex: 1; min-height: 0; padding: 12px 12px 24px; }
+#nv-rs .head-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+#nv-rs .pill { display: flex; gap: 2px; padding: 3px; border-radius: 99px; background: rgba(20,20,34,0.55); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--edge); }
+#nv-rs .pill button { padding: 6px 14px; border-radius: 99px; font-size: 12px; font-weight: 500; color: var(--text-3); transition: background .2s, color .2s; }
+#nv-rs .pill button:hover { color: var(--text); }
+#nv-rs .pill button.is-active { background: var(--soft-2); color: var(--text); font-weight: 600; }
+#nv-rs .head-bar .pill.right { margin-left: auto; }
 
-/* ---- Composer ---- */
-#nv-rs .composer { display: flex; gap: 11px; padding: 16px 16px 12px; margin-bottom: 12px; border-radius: 22px; background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--edge); }
-#nv-rs .composer-body { flex: 1; min-width: 0; }
-#nv-rs .seg { display: inline-flex; padding: 3px; border-radius: 99px; background: rgba(255,255,255,0.04); gap: 2px; margin-bottom: 10px; }
-#nv-rs .seg button { padding: 5px 12px; border-radius: 99px; font-size: 11.5px; font-weight: 600; color: var(--text-3); display: inline-flex; align-items: center; gap: 6px; transition: background .15s, color .15s; }
-#nv-rs .seg button svg { width: 13px; height: 13px; }
-#nv-rs .seg button.is-active { background: #fff; color: var(--ink); }
-#nv-rs .ta { width: 100%; min-height: 54px; resize: none; border: 0; outline: 0; background: transparent; font-size: 14px; line-height: 1.5; padding: 2px 0; color: var(--text); }
-#nv-rs .ta::placeholder { color: var(--text-4); }
-#nv-rs .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 8px; }
-#nv-rs .fields .full { grid-column: 1 / -1; }
-#nv-rs .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-#nv-rs .field label { font-size: 10px; font-weight: 600; letter-spacing: .7px; text-transform: uppercase; color: var(--text-4); }
-#nv-rs .inp { width: 100%; padding: 8px 11px; border-radius: 11px; border: 1px solid transparent; background: rgba(255,255,255,0.05); outline: 0; font-size: 12.5px; color: var(--text); transition: border-color .15s, background .15s; }
-#nv-rs .inp:focus { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
+/* ===== Composer ===== */
+#nv-rs .composer { border-radius: 22px; padding: 12px 14px; margin-bottom: 12px; }
+#nv-rs .c-closed { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; color: var(--text-4); font-size: 13px; }
+#nv-rs .c-open { display: flex; gap: 11px; padding-top: 2px; }
+#nv-rs .c-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+#nv-rs .c-body .pill { align-self: flex-start; background: var(--soft); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+#nv-rs .bare { width: 100%; border: 0; outline: 0; background: transparent; padding: 0; color: var(--text); }
+#nv-rs .bare::placeholder { color: var(--text-4); }
+#nv-rs .bare.title { font-weight: 600; font-size: 13.5px; }
+#nv-rs textarea.bare { resize: none; min-height: 44px; font-size: 13px; line-height: 1.5; }
+#nv-rs .row { display: flex; gap: 8px; flex-wrap: wrap; }
+#nv-rs .row > * { flex: 1 1 150px; min-width: 0; }
+#nv-rs .inp { width: 100%; padding: 8px 11px; border-radius: 11px; border: 1px solid transparent; background: var(--soft); outline: 0; font-size: 12px; color: var(--text); transition: background .15s, border-color .15s; }
+#nv-rs .inp:focus { background: var(--soft-2); }
 #nv-rs .inp::placeholder { color: var(--text-4); }
-#nv-rs select.inp { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff80' fill='none' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 26px; }
+#nv-rs .inp.is-bad { border-color: rgba(255,107,107,0.5); }
+#nv-rs select.inp { appearance: none; -webkit-appearance: none; color: var(--text-2); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff70' fill='none' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 11px center; padding-right: 28px; }
 #nv-rs select.inp option { background: #15151f; color: #fff; }
-#nv-rs .note-wrap { display: flex; align-items: center; gap: 6px; }
-#nv-rs .note-wrap .inp { width: 74px; font-family: var(--mono); }
-#nv-rs .note-wrap span { color: var(--text-3); font-family: var(--mono); font-size: 12px; }
-#nv-rs .inp.is-bad { border-color: rgba(255,107,107,0.6); }
-#nv-rs .hint { font-size: 11px; color: var(--text-3); margin-top: 2px; }
-#nv-rs .hint.bad { color: var(--red); }
-#nv-rs .hint.ok { color: var(--green); }
-#nv-rs .attached { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
-#nv-rs .att { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 6px 4px 10px; border-radius: 99px; background: rgba(255,255,255,0.06); font-size: 11.5px; color: var(--text-2); }
-#nv-rs .att span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
-#nv-rs .att svg { width: 13px; height: 13px; opacity: .7; }
-#nv-rs .att button { width: 18px; height: 18px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); }
-#nv-rs .att button:hover { background: var(--panel-3); color: #fff; }
-#nv-rs .link-row { display: flex; gap: 6px; margin: 4px 0 8px; }
-#nv-rs .link-row .inp { flex: 1; }
-#nv-rs .btn-sm { padding: 6px 13px; border-radius: 99px; background: rgba(255,255,255,0.06); font-size: 11.5px; font-weight: 600; color: var(--text-2); transition: background .15s, color .15s; }
-#nv-rs .btn-sm:hover { background: rgba(255,255,255,0.11); color: #fff; }
-#nv-rs .composer-bar { display: flex; align-items: center; gap: 2px; padding-top: 6px; }
-#nv-rs .tool { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2); transition: background .15s, color .15s; }
-#nv-rs .tool svg { width: 16px; height: 16px; }
-#nv-rs .tool:hover { background: var(--panel-2); color: #fff; }
-#nv-rs .tool.is-on { color: #fff; background: var(--panel-2); }
-#nv-rs .counter { margin-left: auto; margin-right: 10px; font-family: var(--mono); font-size: 10.5px; color: var(--text-4); }
-#nv-rs .counter.warn { color: var(--yellow); }
+#nv-rs .note { display: flex; align-items: center; gap: 6px; flex: 0 0 auto !important; }
+#nv-rs .note .inp { width: 64px; font-family: var(--mono); text-align: center; }
+#nv-rs .note span { color: var(--text-4); font-family: var(--mono); font-size: 11.5px; }
+#nv-rs .hint { font-size: 11px; color: var(--red); }
+#nv-rs .hint:empty { display: none; }
+#nv-rs .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+#nv-rs .chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 6px 4px 10px; border-radius: 99px; background: var(--soft); font-size: 11.5px; color: var(--text-2); }
+#nv-rs .chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+#nv-rs .chip button { width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); }
+#nv-rs .chip button:hover { color: #fff; background: var(--soft-2); }
+#nv-rs .chip svg { width: 12px; height: 12px; }
+#nv-rs .c-bar { display: flex; align-items: center; gap: 2px; }
+#nv-rs .tool { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); transition: background .15s, color .15s; }
+#nv-rs .tool svg { width: 15px; height: 15px; }
+#nv-rs .tool:hover, #nv-rs .tool.is-on { background: var(--soft); color: #fff; }
+#nv-rs .c-bar .grow { flex: 1; }
+#nv-rs .counter { font-family: var(--mono); font-size: 10.5px; color: var(--yellow); margin-right: 8px; }
 #nv-rs .counter.over { color: var(--red); }
-#nv-rs .btn { padding: 8px 18px; border-radius: 99px; background: #fff; color: var(--ink); font-weight: 600; font-size: 12.5px; transition: background .15s, opacity .15s; }
-#nv-rs .btn:hover { background: rgba(255,255,255,0.86); }
-#nv-rs .btn:disabled { opacity: .35; cursor: default; background: #fff; }
-#nv-rs .rule { display: flex; align-items: flex-start; gap: 7px; font-size: 11px; color: var(--text-4); margin-top: 6px; }
-#nv-rs .rule svg { width: 13px; height: 13px; margin-top: 1px; opacity: .8; }
+#nv-rs .link { font-size: 12px; color: var(--text-3); padding: 6px 10px; border-radius: 99px; }
+#nv-rs .link:hover { color: #fff; }
+#nv-rs .btn { padding: 7px 16px; border-radius: 99px; background: #fff; color: var(--ink); font-weight: 600; font-size: 12px; transition: opacity .15s; }
+#nv-rs .btn:hover { opacity: .88; }
+#nv-rs .btn:disabled { opacity: .3; cursor: default; }
+#nv-rs .btn.ghost { background: var(--soft-2); color: #fff; }
 
-/* ---- Posts ---- */
-#nv-rs .post { display: flex; gap: 11px; padding: 14px 16px 8px; margin-bottom: 10px; border-radius: 22px; transition: background .2s; animation: nv-in .35s var(--ease); background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--edge); }
-#nv-rs .post > button, #nv-rs .composer > .av { align-self: flex-start; }
-#nv-rs .post:hover { background: rgba(255,255,255,0.055); }
+/* ===== Posts ===== */
+#nv-rs .post { display: flex; gap: 11px; padding: 14px 16px 8px; margin-bottom: 10px; border-radius: 22px; animation: nv-in .35s var(--ease); }
 @keyframes nv-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-#nv-rs .av { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; background: var(--panel-2); background-size: cover; background-position: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
-#nv-rs .av.sm { width: 30px; height: 30px; font-size: 11px; }
-#nv-rs .av.lg { width: 64px; height: 64px; font-size: 21px; }
-#nv-rs .post-body { flex: 1; min-width: 0; }
-#nv-rs .head { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 12.5px; line-height: 1.3; }
-#nv-rs .head .name { font-weight: 700; cursor: pointer; }
-#nv-rs .head .name:hover { text-decoration: underline; }
-#nv-rs .head .meta { color: var(--text-3); font-size: 12px; }
-#nv-rs .li-badge { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 4px; background: var(--li); color: var(--ink); font-size: 8.5px; font-weight: 800; letter-spacing: -.2px; }
-#nv-rs .tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0 6px; }
-#nv-rs .tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 10.5px; font-weight: 600; color: var(--text-3); background: rgba(255,255,255,0.05); }
-#nv-rs .tag svg { width: 11px; height: 11px; }
-#nv-rs .tag.veille { color: #fff; }
-#nv-rs .tag.note { font-family: var(--mono); color: var(--green); background: rgba(91,227,163,0.1); }
-#nv-rs .tag.wait { color: var(--yellow); background: rgba(255,209,102,0.1); }
-#nv-rs .tag.ok { color: var(--green); background: transparent; padding-left: 2px; }
-#nv-rs .title { font-weight: 700; font-size: 13.5px; margin: 2px 0 3px; line-height: 1.35; }
-#nv-rs .text { color: var(--text-2); white-space: pre-wrap; word-wrap: break-word; }
-#nv-rs .text .more { color: #fff; font-weight: 600; cursor: pointer; }
-#nv-rs .ref { margin-top: 10px; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 14px; background: rgba(255,255,255,0.035); font-family: var(--mono); font-size: 11px; color: var(--text-3); }
-#nv-rs .ref svg { width: 14px; height: 14px; opacity: .7; }
-#nv-rs .card { margin-top: 8px; display: flex; border-radius: 14px; overflow: hidden; background: rgba(255,255,255,0.035); transition: background .15s; }
-#nv-rs .card:hover { background: rgba(255,255,255,0.06); }
-#nv-rs .card .thumb { width: 60px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); color: var(--text-3); }
-#nv-rs .card .thumb svg { width: 20px; height: 20px; }
-#nv-rs .card div.c { padding: 9px 12px; min-width: 0; }
-#nv-rs .card small { display: block; font-size: 10.5px; color: var(--text-4); font-family: var(--mono); }
-#nv-rs .card b { display: block; font-size: 12.5px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#nv-rs .card span { display: block; font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#nv-rs .doc { margin-top: 10px; border-radius: 16px; overflow: hidden; background: rgba(255,255,255,0.035); }
-#nv-rs .doc-page { position: relative; height: 124px; padding: 14px 18px; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, #000 45%, transparent); mask-image: linear-gradient(180deg, #000 45%, transparent); }
-#nv-rs .doc-page p { margin: 0 0 6px; font-family: Georgia, serif; font-size: 11.5px; color: var(--text-2); line-height: 1.55; }
-#nv-rs .doc-page p.h { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: .4px; text-transform: uppercase; color: #fff; }
-#nv-rs .doc-page::after { content: none; }
-#nv-rs .doc-foot { display: flex; align-items: center; gap: 9px; padding: 6px 12px 10px; font-size: 11.5px; color: var(--text-3); }
-#nv-rs .doc-foot svg { width: 14px; height: 14px; }
-#nv-rs .doc-foot b { color: #fff; font-weight: 600; }
-#nv-rs .doc-foot .btn-sm { margin-left: auto; }
-#nv-rs .acts { display: flex; justify-content: space-between; max-width: 420px; margin-top: 6px; margin-left: -8px; }
-#nv-rs .act { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border-radius: 99px; font-size: 11.5px; color: var(--text-3); font-family: var(--mono); transition: background .15s, color .15s; }
+#nv-rs .post > button { align-self: flex-start; }
+#nv-rs .av { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; color: #fff; }
+#nv-rs .av.sm { width: 28px; height: 28px; font-size: 10.5px; }
+#nv-rs .av.lg { width: 60px; height: 60px; font-size: 19px; }
+#nv-rs .p-body { flex: 1; min-width: 0; }
+#nv-rs .p-head { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; min-width: 0; }
+#nv-rs .p-head .name { font-weight: 600; cursor: pointer; white-space: nowrap; }
+#nv-rs .p-head .meta { color: var(--text-4); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-rs .in { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 3.5px; background: var(--li); color: var(--ink); font-size: 8px; font-weight: 700; align-self: center; flex-shrink: 0; }
+#nv-rs a.in:hover { opacity: .8; }
+#nv-rs .kicker { margin-top: 3px; font-size: 11px; color: var(--text-3); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+#nv-rs .kicker .n { font-family: var(--mono); color: var(--green); }
+#nv-rs .kicker .wait { color: var(--yellow); }
+#nv-rs .kicker svg { width: 11px; height: 11px; color: var(--green); }
+#nv-rs .p-title { font-weight: 600; font-size: 13.5px; margin-top: 6px; line-height: 1.35; }
+#nv-rs .p-text { color: var(--text-2); margin-top: 3px; white-space: pre-wrap; word-wrap: break-word; }
+#nv-rs .p-text .more { color: #fff; cursor: pointer; }
+#nv-rs .source { margin-top: 10px; display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-radius: 14px; background: rgba(255,255,255,0.035); min-width: 0; transition: background .15s; }
+#nv-rs a.source:hover, #nv-rs button.source:hover { background: var(--soft-2); }
+#nv-rs .source svg { width: 14px; height: 14px; color: var(--text-3); }
+#nv-rs .source div { min-width: 0; }
+#nv-rs .source b { display: block; font-weight: 500; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-rs .source small { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-rs .acts { display: flex; gap: 18px; margin: 6px 0 0 -8px; }
+#nv-rs .act { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 99px; font-size: 11px; color: var(--text-4); font-family: var(--mono); transition: background .15s, color .15s; }
 #nv-rs .act svg { width: 15px; height: 15px; }
-#nv-rs .act:hover { background: var(--panel-2); color: #fff; }
+#nv-rs .act:hover { background: var(--soft); color: #fff; }
 #nv-rs .act.is-on.like { color: var(--green); }
-#nv-rs .act.is-on.rp { color: var(--green); }
 #nv-rs .act.is-on.save { color: var(--yellow); }
 #nv-rs .act.is-on svg { fill: currentColor; }
-#nv-rs .act.rp.is-on svg { fill: none; }
-#nv-rs .replies { margin: 6px 0 6px; padding: 10px 0 2px; display: flex; flex-direction: column; gap: 10px; }
-#nv-rs .reply { display: flex; gap: 9px; }
-#nv-rs .reply .bubble { flex: 1; min-width: 0; font-size: 12px; color: var(--text-2); padding: 7px 11px; border-radius: 14px; background: rgba(255,255,255,0.04); }
-#nv-rs .reply .bubble b { color: #fff; font-size: 12px; margin-right: 4px; }
-#nv-rs .reply-form { display: flex; gap: 8px; align-items: center; }
-#nv-rs .reply-form .inp { flex: 1; border-radius: 99px; }
-#nv-rs .empty { padding: 50px 24px; text-align: center; color: var(--text-3); font-size: 12.5px; }
-#nv-rs .empty b { display: block; color: #fff; font-size: 14px; margin-bottom: 4px; }
-#nv-rs .end { padding: 22px; text-align: center; color: var(--text-4); font-size: 11.5px; }
+#nv-rs .replies { display: flex; flex-direction: column; gap: 8px; padding: 8px 0 4px; }
+#nv-rs .reply { display: flex; gap: 8px; }
+#nv-rs .reply div { flex: 1; min-width: 0; font-size: 12px; color: var(--text-2); padding: 6px 11px; border-radius: 14px; background: var(--soft); }
+#nv-rs .reply b { color: #fff; font-weight: 600; margin-right: 4px; }
+#nv-rs .reply .inp { border-radius: 99px; }
+#nv-rs .empty { padding: 48px 24px; text-align: center; color: var(--text-3); font-size: 12.5px; }
+#nv-rs .empty b { display: block; color: #fff; font-size: 13.5px; font-weight: 600; margin-bottom: 3px; }
 
-/* ================= COLONNE DE DROITE ================= */
-#nv-rs .rail { width: 300px; flex-shrink: 0; padding: 10px 12px 20px; display: flex; flex-direction: column; gap: 12px; }
-#nv-rs .search { position: relative; }
-#nv-rs .search svg { position: absolute; z-index: 1; left: 12px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-4); }
-#nv-rs .search .inp { padding: 10px 12px 10px 34px; border-radius: 99px; background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--edge); }
-#nv-rs .box { border-radius: 22px; padding: 14px 16px; background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--edge); }
-#nv-rs .box h3 { margin: 0 0 10px; font-size: 13.5px; font-weight: 700; letter-spacing: -.2px; }
-#nv-rs .box p { margin: 0; color: var(--text-3); font-size: 12px; }
-#nv-rs .me-card { display: flex; flex-direction: column; gap: 10px; }
-#nv-rs .me-top { display: flex; align-items: center; gap: 10px; }
-#nv-rs .me-top b { display: block; font-size: 13px; }
-#nv-rs .me-top small { display: block; font-size: 11.5px; color: var(--text-3); }
-#nv-rs .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-#nv-rs .stat { padding: 9px 11px; border-radius: 14px; background: rgba(255,255,255,0.04); }
-#nv-rs .stat b { display: block; font-family: var(--mono); font-size: 15px; font-weight: 600; }
-#nv-rs .stat span { font-size: 10.5px; color: var(--text-3); }
-#nv-rs .li-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 8px; border-radius: 99px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.06); color: #fff; transition: background .15s; }
-#nv-rs .li-btn:hover { background: rgba(255,255,255,0.1); }
-#nv-rs .li-btn.is-on { background: rgba(111,168,255,0.12); color: var(--li); }
-#nv-rs .links { display: flex; flex-direction: column; gap: 4px; }
-#nv-rs .lnk { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); padding: 4px 0; min-width: 0; }
-#nv-rs .lnk svg { width: 13px; height: 13px; opacity: .7; }
-#nv-rs .lnk span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#nv-rs .lnk:hover { color: #fff; }
-#nv-rs .trend { display: block; width: 100%; text-align: left; padding: 6px 8px; margin: 0 -8px; width: calc(100% + 16px); border-radius: 12px; transition: background .15s; }
-#nv-rs .trend:first-of-type { padding-top: 6px; }
-#nv-rs .trend small { display: block; font-size: 10.5px; color: var(--text-4); }
-#nv-rs .trend b { display: block; font-size: 12.5px; }
-#nv-rs .trend span { display: block; font-size: 10.5px; color: var(--text-3); font-family: var(--mono); }
-#nv-rs .trend:hover { background: rgba(255,255,255,0.04); }
-#nv-rs .who { display: flex; align-items: center; gap: 9px; padding: 6px 0; }
-#nv-rs .who div { flex: 1; min-width: 0; cursor: pointer; }
-#nv-rs .who b { display: flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; overflow: hidden; }
-#nv-rs .who small { display: block; font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#nv-rs .follow { padding: 5px 12px; border-radius: 99px; background: #fff; color: var(--ink); font-size: 11.5px; font-weight: 600; }
-#nv-rs .follow.is-on { background: rgba(255,255,255,0.08); color: #fff; }
-#nv-rs .foot { font-size: 10.5px; color: var(--text-4); padding: 0 4px; }
+/* ===== Colonne de droite ===== */
+#nv-rs .rail { width: 280px; flex-shrink: 0; padding: 12px 12px 20px; display: flex; flex-direction: column; gap: 12px; }
+#nv-rs .search { position: relative; display: block; }
+#nv-rs .search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-4); z-index: 1; }
+#nv-rs .search .inp { padding: 9px 12px 9px 34px; border-radius: 99px; }
+#nv-rs .box { border-radius: 22px; padding: 14px 14px 8px; }
+#nv-rs .box h3 { margin: 0 0 6px; font-size: 12.5px; font-weight: 600; }
+#nv-rs .who { display: flex; align-items: center; gap: 9px; padding: 7px 0; }
+#nv-rs .who > div { flex: 1; min-width: 0; cursor: pointer; }
+#nv-rs .who b { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
+#nv-rs .who small { display: block; font-size: 11px; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-rs .follow { padding: 5px 12px; border-radius: 99px; background: #fff; color: var(--ink); font-size: 11px; font-weight: 600; }
+#nv-rs .follow.is-on { background: var(--soft-2); color: var(--text-2); }
 
-/* ================= FICHE PROFIL (modale) ================= */
-#nv-rs .scrim { position: absolute; inset: 0; z-index: 50; background: rgba(5,5,12,0.62); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; animation: nv-fade .2s; }
+/* ===== Fiche profil ===== */
+#nv-rs .scrim { position: absolute; inset: 0; z-index: 50; background: rgba(5,5,12,0.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px; animation: nv-fade .2s; }
 @keyframes nv-fade { from { opacity: 0; } to { opacity: 1; } }
-#nv-rs .modal { width: 460px; max-width: 100%; max-height: 100%; border-radius: 24px; background: rgba(22,22,36,0.72); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 30px 80px rgba(0,0,0,0.5); animation: nv-in .25s var(--ease); }
-#nv-rs .modal-cover { height: 84px; background: radial-gradient(120% 140% at 0% 0%, rgba(255,255,255,0.10), transparent 60%), linear-gradient(120deg, rgba(111,168,255,0.14), rgba(91,227,163,0.06)); border-radius: 24px 24px 0 0; position: relative; }
-#nv-rs .modal-close { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; background: rgba(0,0,0,0.4); display: inline-flex; align-items: center; justify-content: center; }
-#nv-rs .modal-close svg { width: 14px; height: 14px; }
-#nv-rs .modal-in { padding: 0 18px 18px; }
-#nv-rs .modal-head { display: flex; align-items: flex-end; justify-content: space-between; margin-top: -32px; }
-#nv-rs .modal-head .av { box-shadow: 0 0 0 3px rgba(22,22,36,0.9); }
-#nv-rs .modal h2 { margin: 10px 0 0; font-size: 17px; font-weight: 700; letter-spacing: -.4px; display: flex; align-items: center; gap: 6px; }
-#nv-rs .modal .sub { color: var(--text-3); font-size: 12px; margin-top: 2px; }
-#nv-rs .modal .bio { color: var(--text-2); font-size: 12.5px; margin: 10px 0; }
-#nv-rs .modal .stats { grid-template-columns: repeat(3, 1fr); margin: 12px 0; }
-#nv-rs .modal h4 { margin: 14px 0 6px; font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-4); }
-#nv-rs .edit-row { display: flex; gap: 6px; margin-top: 6px; }
-#nv-rs .edit-row .inp { flex: 1; }
+#nv-rs .modal { position: relative; width: 420px; max-width: 100%; max-height: 100%; border-radius: 24px; padding: 22px; background: rgba(22,22,36,0.75); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 30px 80px rgba(0,0,0,0.5); animation: nv-in .25s var(--ease); }
+#nv-rs .close { position: absolute; top: 14px; right: 14px; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); }
+#nv-rs .close:hover { background: var(--soft); color: #fff; }
+#nv-rs .close svg { width: 14px; height: 14px; }
+#nv-rs .m-top { display: flex; align-items: center; gap: 14px; }
+#nv-rs .m-top h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -.3px; }
+#nv-rs .m-top small { display: block; color: var(--text-3); font-size: 12px; margin-top: 2px; }
+#nv-rs .bio { color: var(--text-2); font-size: 12.5px; margin: 14px 0 0; }
+#nv-rs .figures { display: flex; gap: 18px; margin-top: 14px; font-size: 12px; color: var(--text-3); }
+#nv-rs .figures b { color: #fff; font-family: var(--mono); font-weight: 600; margin-right: 4px; }
+#nv-rs .m-links { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
+#nv-rs .m-links a { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); padding: 4px 0; }
+#nv-rs .m-links a:hover { color: #fff; }
+#nv-rs .m-links svg { width: 13px; height: 13px; color: var(--text-4); }
+#nv-rs .m-actions { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 18px; }
+#nv-rs .form { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+#nv-rs .form label { font-size: 10.5px; color: var(--text-4); margin: 4px 0 -4px 2px; }
+#nv-rs textarea.inp { resize: none; }
 
-/* ================= TOAST ================= */
-#nv-rs .toast { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 60; padding: 9px 16px; border-radius: 99px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 600; box-shadow: 0 10px 40px rgba(0,0,0,0.4); animation: nv-in .25s var(--ease); white-space: nowrap; }
+#nv-rs .toast { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 60; padding: 8px 16px; border-radius: 99px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 600; box-shadow: 0 10px 40px rgba(0,0,0,0.4); animation: nv-in .25s var(--ease); white-space: nowrap; }
 
-/* ================= RESPONSIVE ================= */
+/* ===== Responsive ===== */
 #nv-rs.is-mid .rail { display: none; }
 #nv-rs.is-small .side, #nv-rs.is-small .rail { display: none; }
 #nv-rs.is-small .main { width: 100%; }
-#nv-rs.is-small .feed { padding: 0 8px 16px; }
 #nv-rs.is-small .topbar { display: flex; }
-#nv-rs.is-small .composer, #nv-rs.is-small .post { padding-left: 13px; padding-right: 13px; border-radius: 18px; }
-#nv-rs.is-small .fields { grid-template-columns: 1fr; }
-#nv-rs.is-small .av { width: 34px; height: 34px; }
-#nv-rs.is-small .av.lg { width: 64px; height: 64px; }
-#nv-rs.is-small .av.sm { width: 30px; height: 30px; }
+#nv-rs.is-small .feed { padding: 10px 8px 16px; }
+#nv-rs.is-small .post, #nv-rs.is-small .composer { border-radius: 18px; padding-left: 13px; padding-right: 13px; }
+#nv-rs.is-small .pill button { padding: 6px 11px; }
 #nv-rs.is-small .scrim { padding: 16px; }
 </style>
 
 <div id="nv-rs">
   <aside class="side">
     <div class="brand"><div class="logo" data-logo></div><b>NAVIRE</b><span>Réseau</span></div>
-    <button class="nav is-active" data-nav="fil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Fil</button>
-    <button class="nav" data-nav="veille"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7h14M7 7l-3 7a3 3 0 0 0 6 0zM17 7l-3 7a3 3 0 0 0 6 0z"/></svg>Veille juridique</button>
-    <button class="nav" data-nav="copie"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/></svg>Copies notées</button>
-    <button class="nav" data-nav="saved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Enregistrés</button>
-    <button class="nav" data-nav="notifs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Notifications<span class="count">3</span></button>
-    <button class="nav" data-act="profile" data-id="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Mon profil</button>
-    <button class="side-cta" data-act="focus-composer">Publier</button>
-    <button class="side-me" data-act="profile" data-id="me"><span class="av sm" data-el="side-av"></span><div><b data-el="side-name"></b><small data-el="side-sub"></small></div></button>
+    <button class="nav is-active" data-nav="fil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Fil</button>
+    <button class="nav" data-nav="saved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Enregistrés</button>
+    <button class="nav" data-act="profile" data-id="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Mon profil</button>
+    <button class="btn" data-act="open-composer">Publier</button>
   </aside>
 
   <main class="main">
-    <div class="topbar"><div class="logo" data-logo></div><b>NAVIRE</b><span style="color:var(--text-3)">Réseau</span><button class="me-btn" data-act="profile" data-id="me"><span class="av sm" data-el="top-av"></span></button></div>
+    <div class="topbar"><div class="logo" data-logo></div><b>NAVIRE</b><span style="color:var(--text-3)">Réseau</span><button class="me" data-act="profile" data-id="me" data-el="top-av"></button></div>
     <div class="feed scroll" data-el="feed">
-      <div class="tabs">
-        <button class="tab is-active" data-tab="pourtoi">Pour toi<i></i></button>
-        <button class="tab" data-tab="suivis">Abonnements<i></i></button>
+      <div class="head-bar">
+        <div class="pill" data-el="tabs"></div>
+        <div class="pill right" data-el="filters"></div>
       </div>
-      <div class="filters" data-el="filters"></div>
-      <div data-el="composer"></div>
+      <div class="composer glass" data-el="composer"></div>
       <div data-el="posts"></div>
     </div>
   </main>
 
   <aside class="rail scroll">
-    <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="inp" data-el="search" placeholder="Rechercher un arrêt, une matière, un étudiant"></label>
-    <div class="box" data-el="me-box"></div>
-    <div class="box" data-el="trends"></div>
-    <div class="box" data-el="whos"></div>
-    <div class="foot">Chaque post est une veille juridique sourcée ou une copie notée 12/20 ou plus, vérifiée par NAVIRE. Version de test.</div>
+    <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="inp glass" data-el="search" placeholder="Rechercher"></label>
+    <div class="box glass" data-el="whos"></div>
   </aside>
 
   <div data-el="layer"></div>
@@ -336,12 +259,7 @@
 
 <script>
 (function () {
-  var CONFIG = {
-    API: "https://navire-app-api.onrender.com",
-    STORE_KEY: "navire_reseau_test",
-    NOTE_MIN: 12,
-    MAX_CHARS: 1200
-  };
+  var CONFIG = { STORE_KEY: "navire_reseau_test", NOTE_MIN: 12, MAX_CHARS: 1200 };
   var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
   var root = document.getElementById("nv-rs");
 
@@ -354,185 +272,148 @@
   function initials(n) { return n.split(/\s+/).map(function (w) { return w[0]; }).slice(0, 2).join("").toUpperCase(); }
   function fmtNote(n) { return String(n).replace(".", ","); }
   function host(u) { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return u; } }
+  function normUrl(u) { u = (u || "").trim(); if (u && !/^https?:\/\//i.test(u)) u = "https://" + u; return /^https?:\/\/[^\s.]+\.[^\s]+$/i.test(u) ? u : ""; }
   function ago(ts) {
     var s = Math.max(1, Math.round((Date.now() - ts) / 1000));
-    if (s < 60) return s + " s"; if (s < 3600) return Math.round(s / 60) + " min";
-    if (s < 86400) return Math.round(s / 3600) + " h";
-    if (s < 604800) return Math.round(s / 86400) + " j";
+    if (s < 60) return "à l'instant"; if (s < 3600) return Math.round(s / 60) + " min";
+    if (s < 86400) return Math.round(s / 3600) + " h"; if (s < 604800) return Math.round(s / 86400) + " j";
     var d = new Date(ts); return d.getDate() + " " + ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."][d.getMonth()];
   }
   function compact(n) { return n >= 1000 ? (Math.round(n / 100) / 10 + " k").replace(".", ",") : String(n); }
-
+  function svg(d, w) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 1.8) + '" stroke-linecap="round" stroke-linejoin="round">' + d + "</svg>"; }
   var I = {
-    reply: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
-    rp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg>',
-    like: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9z"/></svg>',
-    save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
-    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M7 8l5-5 5 5M5 21h14"/></svg>',
-    link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
-    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>',
-    scale: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7h14M7 7l-3 7a3 3 0 0 0 6 0zM17 7l-3 7a3 3 0 0 0 6 0z"/></svg>',
-    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
-    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
-    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
-    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
-    hash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg>'
+    reply: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
+    like: svg('<path d="M12 20s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9z"/>'),
+    save: svg('<path d="M6 3h12v18l-6-4-6 4z"/>'),
+    link: svg('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>', 2),
+    file: svg('<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/>', 2),
+    scale: svg('<path d="M12 3v18M5 7h14M7 7l-3 7a3 3 0 0 0 6 0zM17 7l-3 7a3 3 0 0 0 6 0z"/>', 2),
+    check: svg('<path d="M20 6 9 17l-5-5"/>', 2.6),
+    x: svg('<path d="M18 6 6 18M6 6l12 12"/>', 2.2)
   };
-  var LI = '<span class="li-badge" title="LinkedIn connecté">in</span>';
+  function inBadge(u) { return u.linkedin ? '<a class="in" href="' + esc(u.linkedin) + '" target="_blank" rel="noopener" title="Profil LinkedIn">in</a>' : ""; }
+  function avatar(u, cls) { return '<span class="av ' + (cls || "") + '" style="background:' + u.color + '">' + esc(initials(u.name)) + "</span>"; }
+  function toast(msg) { root.querySelectorAll(".toast").forEach(function (o) { o.remove(); }); var t = document.createElement("div"); t.className = "toast"; t.textContent = msg; root.appendChild(t); setTimeout(function () { t.remove(); }, 2200); }
 
   // ================= DONNÉES DE TEST =================
   var H = 3600 * 1000, NOW = Date.now();
   var USERS = {
-    me:   { id: "me", name: "Toi", handle: "toi", fac: "Université Paris 1", niveau: "L3", bio: "", li: false, links: [], color: "#2a2a3d" },
-    ines: { id: "ines", name: "Inès Morel", handle: "ines.morel", fac: "Paris 2 Panthéon-Assas", niveau: "M1 Droit des affaires", bio: "M1 droit des affaires. Veille en droit des sociétés et compliance. Je cherche un stage en cabinet pour janvier.", li: true, links: [{ label: "Mon CV", url: "https://example.com/cv-ines-morel.pdf" }, { label: "Article : le devoir de vigilance", url: "https://example.com/vigilance" }], color: "#3b3357" },
-    hugo: { id: "hugo", name: "Hugo Lefèvre", handle: "hugo.lfv", fac: "Université de Lyon 3", niveau: "L2", bio: "L2, passionné de droit administratif et de contentieux.", li: true, links: [{ label: "Blog de veille", url: "https://example.com/hugo-veille" }], color: "#2f4a44" },
-    sarah: { id: "sarah", name: "Sarah Benali", handle: "sarah.bnl", fac: "Aix-Marseille Université", niveau: "M2 Droit social", bio: "M2 droit social, alternante en RH. Veille sociale chaque semaine.", li: true, links: [{ label: "Newsletter sociale", url: "https://example.com/social-hebdo" }], color: "#4a3a2c" },
-    tom:  { id: "tom", name: "Tom Garnier", handle: "tom.garnier", fac: "Université de Bordeaux", niveau: "L1", bio: "L1. Je partage mes copies pour progresser avec vous.", li: false, links: [], color: "#2c3a4f" },
-    lea:  { id: "lea", name: "Léa Fontaine", handle: "lea.fontaine", fac: "Université de Lille", niveau: "L3", bio: "L3, prépa CRFPA en tête. Pénal et procédure pénale.", li: true, links: [{ label: "Portfolio", url: "https://example.com/lea" }], color: "#4d2f3f" }
+    me:    { id: "me", name: "Toi", fac: "Paris 1", niveau: "L3", bio: "", linkedin: "", links: [], color: "rgba(255,255,255,0.1)" },
+    ines:  { id: "ines", name: "Inès Morel", fac: "Paris 2 Assas", niveau: "M1", bio: "Droit des affaires. Veille en droit des sociétés et compliance. Je cherche un stage en cabinet pour janvier.", linkedin: "https://www.linkedin.com/in/exemple", links: [{ label: "CV", url: "https://example.com/cv.pdf" }], color: "#3b3357" },
+    hugo:  { id: "hugo", name: "Hugo Lefèvre", fac: "Lyon 3", niveau: "L2", bio: "Droit administratif et contentieux.", linkedin: "https://www.linkedin.com/in/exemple", links: [], color: "#2f4a44" },
+    sarah: { id: "sarah", name: "Sarah Benali", fac: "Aix-Marseille", niveau: "M2", bio: "Droit social, alternante en RH. Une veille sociale chaque semaine.", linkedin: "https://www.linkedin.com/in/exemple", links: [{ label: "Newsletter sociale", url: "https://example.com/social" }], color: "#4a3a2c" },
+    tom:   { id: "tom", name: "Tom Garnier", fac: "Bordeaux", niveau: "L1", bio: "Je partage mes copies pour progresser.", linkedin: "", links: [], color: "#2c3a4f" },
+    lea:   { id: "lea", name: "Léa Fontaine", fac: "Lille", niveau: "L3", bio: "Pénal et procédure pénale, CRFPA en tête.", linkedin: "https://www.linkedin.com/in/exemple", links: [], color: "#4d2f3f" }
   };
   var SEED = [
     { id: "p1", type: "veille", author: "sarah", ts: NOW - 2 * H, matiere: "Droit social",
       title: "Congés payés et arrêt maladie : où en est-on ?",
-      text: "Depuis les arrêts de la chambre sociale du 13 septembre 2023, le salarié en arrêt maladie acquiert des congés payés. La loi du 22 avril 2024 a mis le Code du travail en conformité avec le droit de l'Union : 2 jours ouvrables par mois en cas de maladie non professionnelle, dans la limite de 24 jours par an.\n\nPoint d'attention pour les TD : le délai de report de 15 mois et l'obligation d'information de l'employeur au retour du salarié.",
-      ref: "Cass. soc., 13 sept. 2023, n° 22-17.340 · Loi n° 2024-364 du 22 avr. 2024",
-      link: { url: "https://www.legifrance.gouv.fr", title: "Loi n° 2024-364 du 22 avril 2024 (DDADUE)", site: "legifrance.gouv.fr" },
-      stats: { r: 14, rp: 31, l: 212 }, replies: [{ author: "tom", text: "Super clair, merci. Ça tombe dans mon partiel de droit du travail ?" }, { author: "sarah", text: "En L3 très probablement, c'est un classique depuis 2023." }] },
-    { id: "p2", type: "copie", author: "hugo", ts: NOW - 5 * H, matiere: "Droit administratif", exercice: "Dissertation", note: 15.5, verified: true,
+      text: "Depuis les arrêts du 13 septembre 2023, le salarié en arrêt maladie acquiert des congés payés. La loi du 22 avril 2024 a mis le Code du travail en conformité avec le droit de l'Union : 2 jours ouvrables par mois en cas de maladie non professionnelle, dans la limite de 24 jours par an.\n\nÀ retenir pour les TD : le report de 15 mois et l'obligation d'information de l'employeur.",
+      ref: "Cass. soc., 13 sept. 2023, n° 22-17.340", url: "https://www.legifrance.gouv.fr",
+      stats: { l: 212 }, replies: [{ author: "tom", text: "Super clair, merci !" }] },
+    { id: "p2", type: "copie", author: "hugo", ts: NOW - 5 * H, matiere: "Droit administratif", exercice: "Dissertation", note: 15.5, verified: true, pages: 6,
       title: "La notion de service public est-elle encore utile ?",
-      text: "Ma dissertation de L2, notée 15,5/20. Le chargé de TD a apprécié la problématique et le plan en deux temps (une notion éclatée, une notion toujours structurante). Les remarques de correction sont en marge du PDF.",
-      doc: { pages: 6, intro: ["Introduction", "« Le service public est la pierre angulaire du droit administratif. » La formule de Duguit, longtemps tenue pour acquise, est aujourd'hui discutée. Entre crise de la notion et renouvellement de ses critères, la question se pose de savoir si le service public structure encore le droit administratif français."] },
-      stats: { r: 9, rp: 18, l: 164 }, replies: [] },
+      text: "Le chargé de TD a apprécié la problématique et le plan en deux temps : une notion éclatée, une notion toujours structurante. Les remarques sont en marge du PDF.",
+      stats: { l: 164 }, replies: [] },
     { id: "p3", type: "veille", author: "ines", ts: NOW - 9 * H, matiere: "Procédure civile",
       title: "Preuve déloyale : le revirement de l'Assemblée plénière",
-      text: "Rappel utile avant les galops : depuis décembre 2023, une preuve obtenue de manière déloyale n'est plus irrecevable par principe en matière civile. Le juge doit apprécier si l'atteinte aux droits de la partie adverse est indispensable à l'exercice du droit à la preuve et strictement proportionnée au but poursuivi.",
-      ref: "Cass. ass. plén., 22 déc. 2023, n° 20-20.648",
-      link: { url: "https://www.courdecassation.fr", title: "Arrêt n° 20-20.648 et communiqué", site: "courdecassation.fr" },
-      stats: { r: 22, rp: 57, l: 389 }, replies: [] },
-    { id: "p4", type: "copie", author: "lea", ts: NOW - 26 * H, matiere: "Droit pénal", exercice: "Cas pratique", note: 16, verified: true,
-      title: "Cas pratique : tentative, complicité et désistement volontaire",
-      text: "16/20 en droit pénal général. Méthode syllogistique stricte, une partie par protagoniste. Ce qui a fait la différence selon ma correctrice : distinguer clairement le commencement d'exécution des simples actes préparatoires.",
-      doc: { pages: 4, intro: ["I. La responsabilité de Paul", "En droit, l'article 121-5 du Code pénal dispose que la tentative est constituée dès lors que, manifestée par un commencement d'exécution, elle n'a été suspendue ou n'a manqué son effet qu'en raison de circonstances indépendantes de la volonté de son auteur."] },
-      stats: { r: 6, rp: 12, l: 141 }, replies: [] },
-    { id: "p5", type: "copie", author: "tom", ts: NOW - 50 * H, matiere: "Droit civil", exercice: "Fiche d'arrêt", note: 13, verified: true,
-      title: "Fiche d'arrêt : Cass. civ. 1re, sur la nullité du contrat",
-      text: "Première fiche d'arrêt à 13/20 en L1 ! Faits, procédure, prétentions, problème de droit, solution. Je la partage si ça peut aider ceux qui débutent.",
-      doc: { pages: 2, intro: ["Faits", "Un particulier conclut un contrat de vente portant sur un véhicule d'occasion. Découvrant ultérieurement que le kilométrage a été falsifié, il assigne le vendeur en nullité du contrat pour dol."] },
-      stats: { r: 4, rp: 3, l: 77 }, replies: [] },
-    { id: "p6", type: "veille", author: "hugo", ts: NOW - 74 * H, matiere: "Droit constitutionnel",
-      title: "QPC : comment lire une décision du Conseil constitutionnel",
-      text: "Petit thread méthode : visas, considérants (devenus paragraphes depuis 2016), dispositif. Repérez toujours la date d'effet de l'abrogation : le Conseil la reporte souvent pour laisser le temps au législateur.",
-      ref: "Méthode · Décisions QPC",
-      link: { url: "https://www.conseil-constitutionnel.fr", title: "Les décisions QPC du Conseil constitutionnel", site: "conseil-constitutionnel.fr" },
-      stats: { r: 3, rp: 9, l: 96 }, replies: [] }
+      text: "Une preuve obtenue de manière déloyale n'est plus irrecevable par principe en matière civile. Le juge vérifie qu'elle est indispensable à l'exercice du droit à la preuve et que l'atteinte est strictement proportionnée au but poursuivi.",
+      ref: "Cass. ass. plén., 22 déc. 2023, n° 20-20.648", url: "https://www.courdecassation.fr",
+      stats: { l: 389 }, replies: [] },
+    { id: "p4", type: "copie", author: "lea", ts: NOW - 26 * H, matiere: "Droit pénal", exercice: "Cas pratique", note: 16, verified: true, pages: 4,
+      title: "Tentative, complicité et désistement volontaire",
+      text: "Syllogisme strict, une partie par protagoniste. Ce qui a fait la différence : bien distinguer commencement d'exécution et actes préparatoires.",
+      stats: { l: 141 }, replies: [] },
+    { id: "p5", type: "copie", author: "tom", ts: NOW - 50 * H, matiere: "Droit civil", exercice: "Fiche d'arrêt", note: 13, verified: true, pages: 2,
+      title: "Nullité du contrat pour dol",
+      text: "Ma première fiche d'arrêt au-dessus de la moyenne. Je la partage pour ceux qui débutent.",
+      stats: { l: 77 }, replies: [] }
   ];
   var MATIERES = ["Droit civil", "Droit des obligations", "Droit administratif", "Droit constitutionnel", "Droit pénal", "Procédure civile", "Droit social", "Droit des affaires", "Droit de l'Union européenne", "Libertés fondamentales", "Droit fiscal", "Histoire du droit", "Autre"];
   var EXERCICES = ["Dissertation", "Commentaire d'arrêt", "Commentaire de texte", "Cas pratique", "Fiche d'arrêt", "Note de synthèse"];
-  var TRENDS = [
-    { cat: "Droit social · Tendance", title: "Congés payés et maladie", n: 48 },
-    { cat: "Procédure civile", title: "Preuve déloyale", n: 35 },
-    { cat: "Droit des affaires", title: "Devoir de vigilance", n: 21 },
-    { cat: "Méthode", title: "Commentaire d'arrêt", n: 64 }
-  ];
 
   // ================= ÉTAT =================
-  var saved = load(CONFIG.STORE_KEY, {});
-  if (saved.me) Object.keys(saved.me).forEach(function (k) { USERS.me[k] = saved.me[k]; });
+  var stored = load(CONFIG.STORE_KEY, {});
+  if (stored.me) Object.keys(stored.me).forEach(function (k) { if (k in USERS.me) USERS.me[k] = stored.me[k]; });
+  function blankComposer(type) { return { open: false, type: type || "veille", title: "", text: "", matiere: "", ref: "", exercice: "", note: "", file: null, links: [], linkOpen: false, linkDraft: "" }; }
   var S = {
-    posts: (saved.posts || []).concat(SEED),
-    likes: saved.likes || {}, rps: saved.rps || {}, saves: saved.saves || {},
-    follows: saved.follows || { hugo: true },
-    tab: "pourtoi", filter: "all", nav: "fil", query: "",
-    open: {},   // réponses ouvertes, par post
-    expand: {}, // texte déplié
-    c: { type: "veille", text: "", title: "", matiere: "", ref: "", exercice: "", note: "", file: null, links: [], linkOpen: false, linkDraft: "" },
-    modal: null, // id de l'utilisateur affiché
-    editLink: { label: "", url: "" }
+    posts: (stored.posts || []).filter(function (p) { return p.stats; }).concat(SEED),
+    likes: stored.likes || {}, saves: stored.saves || {}, follows: stored.follows || { hugo: true },
+    nav: "fil", tab: "pourtoi", filter: "all", query: "",
+    open: {}, expand: {}, c: blankComposer(), modal: null, edit: false, draft: null
   };
   function persist() {
+    var me = USERS.me;
     save(CONFIG.STORE_KEY, {
-      me: { name: USERS.me.name, fac: USERS.me.fac, niveau: USERS.me.niveau, bio: USERS.me.bio, li: USERS.me.li, links: USERS.me.links },
+      me: { name: me.name, fac: me.fac, niveau: me.niveau, bio: me.bio, linkedin: me.linkedin, links: me.links },
       posts: S.posts.filter(function (p) { return p.author === "me"; }),
-      likes: S.likes, rps: S.rps, saves: S.saves, follows: S.follows
+      likes: S.likes, saves: S.saves, follows: S.follows
     });
-  }
-  function avatar(u, cls) { return '<span class="av ' + (cls || "") + '" style="background-color:' + u.color + '">' + esc(initials(u.name)) + '</span>'; }
-  function toast(msg) {
-    var t = document.createElement("div"); t.className = "toast"; t.textContent = msg;
-    root.appendChild(t); setTimeout(function () { t.remove(); }, 2400);
   }
   function countFor(uid, type) { return S.posts.filter(function (p) { return p.author === uid && p.type === type && (type !== "copie" || p.verified); }).length; }
 
-  // ================= FILTRES =================
-  function renderFilters() {
-    var f = [["all", "Tout"], ["veille", "Veille juridique"], ["copie", "Copies notées"], ["top", "16/20 et plus"]];
-    var mats = {}; S.posts.forEach(function (p) { mats[p.matiere] = 1; });
-    Object.keys(mats).sort().forEach(function (m) { f.push(["m:" + m, m]); });
-    el("filters").innerHTML = f.map(function (x) { return '<button class="chip' + (S.filter === x[0] ? " is-active" : "") + '" data-filter="' + esc(x[0]) + '">' + esc(x[1]) + "</button>"; }).join("");
+  // ================= EN-TÊTE DU FIL =================
+  function renderHead() {
+    el("tabs").innerHTML = [["pourtoi", "Pour toi"], ["suivis", "Abonnements"]].map(function (t) { return '<button data-tab="' + t[0] + '" class="' + (S.tab === t[0] ? "is-active" : "") + '">' + t[1] + "</button>"; }).join("");
+    el("filters").innerHTML = [["all", "Tout"], ["veille", "Veille"], ["copie", "Copies"]].map(function (f) { return '<button data-filter="' + f[0] + '" class="' + (S.filter === f[0] ? "is-active" : "") + '">' + f[1] + "</button>"; }).join("");
+    el("tabs").style.visibility = S.nav === "fil" ? "" : "hidden";
+    el("composer").style.display = S.nav === "fil" ? "" : "none";
   }
 
   // ================= COMPOSER =================
+  function noteVal() { var n = parseFloat(String(S.c.note).replace(",", ".")); return isNaN(n) ? null : n; }
   function cValid() {
     var c = S.c, len = c.text.trim().length;
     if (len > CONFIG.MAX_CHARS) return false;
     if (c.type === "veille") return len >= 30 && !!c.matiere && (!!c.ref.trim() || c.links.length > 0);
-    var n = parseFloat(String(c.note).replace(",", "."));
-    return !!c.title.trim() && !!c.matiere && !!c.exercice && !isNaN(n) && n >= CONFIG.NOTE_MIN && n <= 20 && !!c.file;
+    var n = noteVal();
+    return !!c.title.trim() && !!c.matiere && !!c.exercice && n !== null && n >= CONFIG.NOTE_MIN && n <= 20 && !!c.file;
   }
-  function noteState() {
-    var raw = String(S.c.note).trim(); if (!raw) return null;
-    var n = parseFloat(raw.replace(",", "."));
-    if (isNaN(n) || n < 0 || n > 20) return "bad-range";
-    return n >= CONFIG.NOTE_MIN ? "ok" : "low";
+  function noteHint() {
+    var raw = String(S.c.note).trim(), n = noteVal(); if (!raw) return "";
+    if (n === null || n < 0 || n > 20) return "Une note entre 0 et 20.";
+    return n < CONFIG.NOTE_MIN ? "Seules les copies à " + CONFIG.NOTE_MIN + "/20 ou plus se publient." : "";
   }
-  function opts(list, cur, ph) { return '<option value="">' + ph + "</option>" + list.map(function (m) { return '<option' + (m === cur ? " selected" : "") + ">" + esc(m) + "</option>"; }).join(""); }
+  function opts(list, cur, ph) { return '<option value="">' + ph + "</option>" + list.map(function (m) { return "<option" + (m === cur ? " selected" : "") + ">" + esc(m) + "</option>"; }).join(""); }
   function renderComposer() {
-    var c = S.c, me = USERS.me, isV = c.type === "veille", ns = noteState();
-    var noteHint = ns === "low" ? '<div class="hint bad">Seules les copies notées ' + CONFIG.NOTE_MIN + '/20 ou plus se publient sur NAVIRE.</div>'
-      : ns === "bad-range" ? '<div class="hint bad">Une note entre 0 et 20.</div>'
-      : ns === "ok" ? '<div class="hint ok">Note éligible.</div>' : '<div class="hint">' + CONFIG.NOTE_MIN + '/20 minimum.</div>';
+    var c = S.c, box = el("composer");
+    if (!c.open) {
+      box.innerHTML = '<button class="c-closed" data-act="open-composer">' + avatar(USERS.me) + "<span>Partage une veille ou une copie notée…</span></button>";
+      return;
+    }
+    var isV = c.type === "veille", hint = noteHint();
     var fields = isV
-      ? '<div class="fields">' +
-          '<div class="field"><label>Matière</label><select class="inp" data-c="matiere">' + opts(MATIERES, c.matiere, "Choisir") + "</select></div>" +
-          '<div class="field"><label>Référence</label><input class="inp" data-c="ref" value="' + esc(c.ref) + '" placeholder="Cass. civ. 1re, 12 oct. 2026, n° …"></div>' +
-        "</div>"
-      : '<div class="fields">' +
-          '<div class="field full"><label>Sujet de la copie</label><input class="inp" data-c="title" value="' + esc(c.title) + '" placeholder="Ex. : La responsabilité du fait des choses"></div>' +
-          '<div class="field"><label>Matière</label><select class="inp" data-c="matiere">' + opts(MATIERES, c.matiere, "Choisir") + "</select></div>" +
-          '<div class="field"><label>Exercice</label><select class="inp" data-c="exercice">' + opts(EXERCICES, c.exercice, "Choisir") + "</select></div>" +
-          '<div class="field"><label>Note obtenue</label><div class="note-wrap"><input class="inp' + (ns === "low" || ns === "bad-range" ? " is-bad" : "") + '" data-c="note" inputmode="decimal" value="' + esc(c.note) + '" placeholder="14"><span>/ 20</span></div>' + noteHint + "</div>" +
-          '<div class="field"><label>Copie corrigée (PDF)</label>' + (c.file
-            ? '<div class="att"><span>' + I.file + "</span><span>" + esc(c.file) + '</span><button data-act="rm-file" title="Retirer">' + I.x + "</button></div>"
-            : '<button class="btn-sm" data-act="pick-file" style="align-self:flex-start">Joindre la copie</button>') +
-          '<div class="hint">Avec la note visible, pour vérification.</div></div>' +
-        "</div>";
-    var links = c.links.length ? '<div class="attached">' + c.links.map(function (u, i) { return '<div class="att">' + I.link + "<span>" + esc(host(u)) + '</span><button data-act="rm-link" data-i="' + i + '" title="Retirer">' + I.x + "</button></div>"; }).join("") + "</div>" : "";
-    var linkRow = c.linkOpen ? '<div class="link-row"><input class="inp" data-c="linkDraft" value="' + esc(c.linkDraft) + '" placeholder="https://… (Légifrance, Dalloz, article, ta page LinkedIn)"><button class="btn-sm" data-act="add-link">Ajouter</button></div>' : "";
-    var len = c.text.length, cnt = CONFIG.MAX_CHARS - len;
-    el("composer").innerHTML =
-      '<div class="composer">' + avatar(me) +
-        '<div class="composer-body">' +
-          '<div class="seg"><button data-ctype="veille" class="' + (isV ? "is-active" : "") + '">' + I.scale + 'Veille juridique</button><button data-ctype="copie" class="' + (!isV ? "is-active" : "") + '">' + I.file + "Copie notée</button></div>" +
-          (isV ? '<input class="inp" data-c="title" value="' + esc(c.title) + '" placeholder="Titre (facultatif)" style="margin-bottom:6px;border:0;background:transparent;padding:2px 0;font-weight:600;font-size:13.5px">' : "") +
-          '<textarea class="ta" data-c="text" rows="2" placeholder="' + (isV ? "Quelle décision, quel texte, quelle réforme ? Résume la portée en quelques lignes." : "Ce que la correction a valorisé, ta méthode, tes conseils.") + '">' + esc(c.text) + "</textarea>" +
-          fields + links + linkRow +
-          '<div class="composer-bar">' +
-            '<button class="tool' + (c.linkOpen ? " is-on" : "") + '" data-act="toggle-link" title="Ajouter un lien">' + I.link + "</button>" +
-            '<button class="tool" data-act="pick-file" title="Joindre un PDF">' + I.file + "</button>" +
-            '<button class="tool" data-act="hashtag" title="Ajouter un thème">' + I.hash + "</button>" +
-            '<span class="counter' + (cnt < 0 ? " over" : cnt < 100 ? " warn" : "") + '">' + (len ? cnt : "") + "</span>" +
-            '<button class="btn" data-act="publish"' + (cValid() ? "" : " disabled") + ">Publier</button>" +
-          "</div>" +
-          '<div class="rule">' + I.info + "<span>" + (isV ? "Une veille cite sa source : une référence ou un lien." : "La note est vérifiée sur la copie avant que le post soit visible par tous.") + "</span></div>" +
+      ? '<div class="row"><select class="inp" data-c="matiere">' + opts(MATIERES, c.matiere, "Matière") + '</select><input class="inp" data-c="ref" value="' + esc(c.ref) + '" placeholder="Référence (Cass. civ. 1re, …)"></div>'
+      : '<div class="row"><select class="inp" data-c="matiere">' + opts(MATIERES, c.matiere, "Matière") + '</select><select class="inp" data-c="exercice">' + opts(EXERCICES, c.exercice, "Exercice") + "</select>" +
+          '<label class="note"><input class="inp' + (hint ? " is-bad" : "") + '" data-c="note" inputmode="decimal" value="' + esc(c.note) + '" placeholder="Note"><span>/ 20</span></label></div>' +
+          '<div class="hint" data-el="note-hint">' + esc(hint) + "</div>";
+    var chips = [];
+    if (c.file) chips.push('<span class="chip">' + I.file + "<span>" + esc(c.file) + '</span><button data-act="rm-file">' + I.x + "</button></span>");
+    c.links.forEach(function (u, i) { chips.push('<span class="chip">' + I.link + "<span>" + esc(host(u)) + '</span><button data-act="rm-link" data-i="' + i + '">' + I.x + "</button></span>"); });
+    var cnt = CONFIG.MAX_CHARS - c.text.length;
+    box.innerHTML =
+      '<div class="c-open">' + avatar(USERS.me) + '<div class="c-body">' +
+        '<div class="pill"><button data-ctype="veille" class="' + (isV ? "is-active" : "") + '">Veille juridique</button><button data-ctype="copie" class="' + (!isV ? "is-active" : "") + '">Copie notée</button></div>' +
+        '<input class="bare title" data-c="title" value="' + esc(c.title) + '" placeholder="' + (isV ? "Titre" : "Sujet de la copie") + '">' +
+        '<textarea class="bare" data-c="text" rows="2" placeholder="' + (isV ? "Résume la décision ou la réforme et sa portée." : "Ce que la correction a valorisé, tes conseils.") + '">' + esc(c.text) + "</textarea>" +
+        fields +
+        (c.linkOpen ? '<div class="row"><input class="inp" data-c="linkDraft" value="' + esc(c.linkDraft) + '" placeholder="https://…"><button class="btn ghost" data-act="add-link" style="flex:0 0 auto">Ajouter</button></div>' : "") +
+        (chips.length ? '<div class="chips">' + chips.join("") + "</div>" : "") +
+        '<div class="c-bar">' +
+          '<button class="tool' + (c.linkOpen ? " is-on" : "") + '" data-act="toggle-link" title="Lien">' + I.link + "</button>" +
+          '<button class="tool" data-act="pick-file" title="' + (isV ? "PDF" : "Copie corrigée (PDF)") + '">' + I.file + "</button>" +
+          '<span class="grow"></span><span class="counter' + (cnt < 0 ? " over" : "") + '" data-el="counter">' + (cnt < 100 ? cnt : "") + "</span>" +
+          '<button class="link" data-act="close-composer">Annuler</button>' +
+          '<button class="btn" data-act="publish"' + (cValid() ? "" : " disabled") + ">Publier</button>" +
         "</div>" +
-      "</div>";
-    var ta = $(".ta"); if (ta) autoGrow(ta);
+      "</div></div>";
+    autoGrow($('textarea[data-c="text"]'));
   }
-  function autoGrow(ta) { ta.style.height = "auto"; ta.style.height = Math.max(54, ta.scrollHeight) + "px"; }
-  // Mise à jour légère pendant la frappe : bouton, compteur, note, sans tout redessiner.
-  function refreshComposerState() {
+  function autoGrow(ta) { if (ta) { ta.style.height = "auto"; ta.style.height = Math.max(44, ta.scrollHeight) + "px"; } }
+  function refreshComposer() {
     var b = $('[data-act="publish"]'); if (b) b.disabled = !cValid();
-    var len = S.c.text.length, cnt = CONFIG.MAX_CHARS - len, ce = $(".counter");
-    if (ce) { ce.textContent = len ? cnt : ""; ce.className = "counter" + (cnt < 0 ? " over" : cnt < 100 ? " warn" : ""); }
+    var ce = el("counter"); if (ce) { var cnt = CONFIG.MAX_CHARS - S.c.text.length; ce.textContent = cnt < 100 ? cnt : ""; ce.className = "counter" + (cnt < 0 ? " over" : ""); }
+    var h = el("note-hint"), ni = $('[data-c="note"]'); if (h && ni) { var t = noteHint(); h.textContent = t; ni.classList.toggle("is-bad", !!t); }
   }
 
   // ================= POSTS =================
@@ -540,113 +421,110 @@
     var q = S.query.trim().toLowerCase();
     return S.posts.filter(function (p) {
       if (p.type === "copie" && !p.verified && p.author !== "me") return false;
-      if (S.nav === "veille" && p.type !== "veille") return false;
-      if (S.nav === "copie" && p.type !== "copie") return false;
       if (S.nav === "saved" && !S.saves[p.id]) return false;
-      if (S.tab === "suivis" && S.nav === "fil" && !S.follows[p.author] && p.author !== "me") return false;
-      if (S.filter === "veille" && p.type !== "veille") return false;
-      if (S.filter === "copie" && p.type !== "copie") return false;
-      if (S.filter === "top" && !(p.type === "copie" && p.note >= 16)) return false;
-      if (S.filter.indexOf("m:") === 0 && p.matiere !== S.filter.slice(2)) return false;
-      if (q) {
-        var u = USERS[p.author], hay = [p.title, p.text, p.ref, p.matiere, p.exercice, u.name, u.fac].join(" ").toLowerCase();
-        if (hay.indexOf(q) < 0) return false;
-      }
+      if (S.nav === "fil" && S.tab === "suivis" && !S.follows[p.author] && p.author !== "me") return false;
+      if (S.filter !== "all" && p.type !== S.filter) return false;
+      if (q) { var u = USERS[p.author]; if ([p.title, p.text, p.ref, p.matiere, p.exercice, u.name, u.fac].join(" ").toLowerCase().indexOf(q) < 0) return false; }
       return true;
     }).sort(function (a, b) { return b.ts - a.ts; });
   }
   function renderPost(p) {
-    var u = USERS[p.author], liked = !!S.likes[p.id], rp = !!S.rps[p.id], sv = !!S.saves[p.id];
-    var tags = '<div class="tags">' +
-      (p.type === "veille" ? '<span class="tag veille">' + I.scale + "Veille</span>" : '<span class="tag">' + I.file + esc(p.exercice) + "</span>") +
-      '<span class="tag">' + esc(p.matiere) + "</span>" +
-      (p.type === "copie" ? '<span class="tag note">' + fmtNote(p.note) + " / 20</span>" + (p.verified ? '<span class="tag ok">' + I.check + "Note vérifiée</span>" : '<span class="tag wait">' + I.clock + "En vérification</span>") : "") +
-      "</div>";
-    var long = p.text.length > 320 && !S.expand[p.id];
-    var text = '<div class="text">' + esc(long ? p.text.slice(0, 300).replace(/\s+\S*$/, "") + "… " : p.text) + (long ? '<span class="more" data-act="expand" data-id="' + p.id + '">Afficher plus</span>' : "") + "</div>";
-    var extra = "";
-    if (p.ref) extra += '<div class="ref">' + I.scale + "<span>" + esc(p.ref) + "</span></div>";
-    if (p.link) extra += '<a class="card" href="' + esc(p.link.url) + '" target="_blank" rel="noopener"><span class="thumb">' + I.link + '</span><div class="c"><small>' + esc(p.link.site) + "</small><b>" + esc(p.link.title) + "</b><span>" + esc(p.link.url) + "</span></div></a>";
-    (p.links || []).forEach(function (l) { extra += '<a class="card" href="' + esc(l) + '" target="_blank" rel="noopener"><span class="thumb">' + I.link + '</span><div class="c"><small>' + esc(host(l)) + "</small><b>" + esc(l) + "</b></div></a>"; });
-    if (p.doc) extra += '<div class="doc"><div class="doc-page">' + p.doc.intro.map(function (t, i) { return '<p class="' + (i === 0 ? "h" : "") + '">' + esc(t) + "</p>"; }).join("") + '</div><div class="doc-foot">' + I.file + "<span><b>" + esc(p.exercice) + "</b> · " + p.doc.pages + (p.doc.pages > 1 ? ' pages' : ' page') + ' · annotée</span><button class="btn-sm" data-act="read" data-id="' + p.id + '">Lire la copie</button></div></div>';
+    var u = USERS[p.author], liked = !!S.likes[p.id], sv = !!S.saves[p.id];
+    var kicker = p.type === "veille"
+      ? "<span>Veille</span><span>·</span><span>" + esc(p.matiere) + "</span>"
+      : "<span>" + esc(p.exercice) + "</span><span>·</span><span>" + esc(p.matiere) + "</span><span>·</span>" +
+        (p.verified ? '<span class="n">' + fmtNote(p.note) + "/20</span>" + I.check : '<span class="n">' + fmtNote(p.note) + '/20</span><span class="wait">en vérification</span>');
+    var long = p.text.length > 280 && !S.expand[p.id];
+    var text = esc(long ? p.text.slice(0, 260).replace(/\s+\S*$/, "") + "… " : p.text) + (long ? '<span class="more" data-act="expand" data-id="' + p.id + '">Lire la suite</span>' : "");
+    var src = "";
+    if (p.type === "veille" && (p.ref || p.url)) {
+      var tag = p.url ? "a" : "div", attrs = p.url ? ' href="' + esc(p.url) + '" target="_blank" rel="noopener"' : "";
+      src = "<" + tag + ' class="source"' + attrs + ">" + (p.url ? I.link : I.scale) + "<div><b>" + esc(p.ref || host(p.url)) + "</b>" + (p.url && p.ref ? "<small>" + esc(host(p.url)) + "</small>" : "") + "</div></" + tag + ">";
+    }
+    (p.links || []).forEach(function (l) { src += '<a class="source" href="' + esc(l) + '" target="_blank" rel="noopener">' + I.link + "<div><b>" + esc(host(l)) + "</b></div></a>"; });
+    if (p.type === "copie") src += '<button class="source" data-act="read" style="width:100%;text-align:left">' + I.file + "<div><b>Lire la copie</b><small>" + (p.pages ? p.pages + (p.pages > 1 ? " pages" : " page") + " · " : "") + "annotée</small></div></button>";
     var replies = "";
     if (S.open[p.id]) {
-      replies = '<div class="replies">' + p.replies.map(function (r) { var ru = USERS[r.author]; return '<div class="reply">' + avatar(ru, "sm") + '<div class="bubble"><b>' + esc(ru.name) + "</b>" + esc(r.text) + "</div></div>"; }).join("") +
-        '<div class="reply-form">' + avatar(USERS.me, "sm") + '<input class="inp" data-reply="' + p.id + '" placeholder="Répondre à ' + esc(u.name.split(" ")[0]) + '"><button class="btn-sm" data-act="reply" data-id="' + p.id + '">Répondre</button></div></div>';
+      replies = '<div class="replies">' + p.replies.map(function (r) { var ru = USERS[r.author]; return '<div class="reply">' + avatar(ru, "sm") + "<div><b>" + esc(ru.name) + "</b>" + esc(r.text) + "</div></div>"; }).join("") +
+        '<div class="reply">' + avatar(USERS.me, "sm") + '<input class="inp" data-reply="' + p.id + '" placeholder="Répondre"></div></div>';
     }
-    return '<article class="post" data-post="' + p.id + '">' +
+    return '<article class="post glass">' +
       '<button data-act="profile" data-id="' + u.id + '">' + avatar(u) + "</button>" +
-      '<div class="post-body">' +
-        '<div class="head"><span class="name" data-act="profile" data-id="' + u.id + '">' + esc(u.name) + "</span>" + (u.li ? LI : "") + '<span class="meta">' + esc(u.niveau) + " · " + esc(u.fac) + " · " + ago(p.ts) + "</span></div>" +
-        tags + (p.title ? '<div class="title">' + esc(p.title) + "</div>" : "") + text + extra +
+      '<div class="p-body">' +
+        '<div class="p-head"><span class="name" data-act="profile" data-id="' + u.id + '">' + esc(u.name) + "</span>" + inBadge(u) + '<span class="meta">' + esc(u.niveau) + " · " + esc(u.fac) + " · " + ago(p.ts) + "</span></div>" +
+        '<div class="kicker">' + kicker + "</div>" +
+        (p.title ? '<div class="p-title">' + esc(p.title) + "</div>" : "") +
+        '<div class="p-text">' + text + "</div>" + src +
         '<div class="acts">' +
-          '<button class="act" data-act="toggle-replies" data-id="' + p.id + '" title="Répondre">' + I.reply + "<span>" + compact(p.stats.r + p.replies.length) + "</span></button>" +
-          '<button class="act rp' + (rp ? " is-on" : "") + '" data-act="rp" data-id="' + p.id + '" title="Repartager">' + I.rp + "<span>" + compact(p.stats.rp + (rp ? 1 : 0)) + "</span></button>" +
+          '<button class="act" data-act="toggle-replies" data-id="' + p.id + '" title="Répondre">' + I.reply + "<span>" + compact(p.replies.length) + "</span></button>" +
           '<button class="act like' + (liked ? " is-on" : "") + '" data-act="like" data-id="' + p.id + '" title="Utile">' + I.like + "<span>" + compact(p.stats.l + (liked ? 1 : 0)) + "</span></button>" +
           '<button class="act save' + (sv ? " is-on" : "") + '" data-act="save" data-id="' + p.id + '" title="Enregistrer">' + I.save + "</button>" +
-          '<button class="act" data-act="share" data-id="' + p.id + '" title="Partager sur LinkedIn">' + I.share + "</button>" +
         "</div>" + replies +
       "</div></article>";
   }
   function renderPosts() {
     var list = visiblePosts();
-    var empty = S.nav === "saved" ? "<b>Rien d'enregistré</b>Garde ici les veilles et les copies à relire avant tes partiels."
-      : S.tab === "suivis" ? "<b>Ton fil d'abonnements est vide</b>Suis des étudiants depuis la colonne de droite."
-      : "<b>Aucun post</b>Essaie un autre filtre ou une autre recherche.";
-    el("posts").innerHTML = list.length ? list.map(renderPost).join("") + '<div class="end">Tu es à jour.</div>' : '<div class="empty">' + empty + "</div>";
+    var empty = S.nav === "saved" ? "<b>Rien d'enregistré</b>Garde ici ce que tu veux relire avant tes partiels."
+      : S.tab === "suivis" ? "<b>Aucun abonnement</b>Suis des étudiants pour les retrouver ici."
+      : "<b>Aucun post</b>Essaie un autre filtre.";
+    el("posts").innerHTML = list.length ? list.map(renderPost).join("") : '<div class="empty">' + empty + "</div>";
   }
 
   // ================= COLONNE DE DROITE =================
-  function renderMe() {
-    var me = USERS.me;
-    el("me-box").innerHTML =
-      '<div class="me-card"><div class="me-top">' + avatar(me) + "<div><b>" + esc(me.name) + (me.li ? " " + LI : "") + "</b><small>" + esc(me.niveau) + " · " + esc(me.fac) + "</small></div></div>" +
-      '<div class="stats"><div class="stat"><b>' + countFor("me", "veille") + '</b><span>Veilles publiées</span></div><div class="stat"><b>' + countFor("me", "copie") + "</b><span>Copies validées</span></div></div>" +
-      '<button class="li-btn' + (me.li ? " is-on" : "") + '" data-act="linkedin"><span class="li-badge">in</span>' + (me.li ? "LinkedIn connecté" : "Connecter LinkedIn") + "</button>" +
-      (me.links.length ? '<div class="links">' + me.links.map(function (l) { return '<a class="lnk" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + I.link + "<span>" + esc(l.label) + "</span></a>"; }).join("") + "</div>" : "") +
-      '<button class="btn-sm" data-act="profile" data-id="me">Compléter mon profil</button></div>';
-    el("trends").innerHTML = "<h3>Tendances de la veille</h3>" + TRENDS.map(function (t) { return '<button class="trend" data-act="trend" data-q="' + esc(t.title) + '"><small>' + esc(t.cat) + "</small><b>" + esc(t.title) + "</b><span>" + t.n + " posts</span></button>"; }).join("");
-    el("whos").innerHTML = "<h3>Étudiants à suivre</h3>" + ["ines", "sarah", "lea", "hugo"].map(function (id) {
+  function renderRail() {
+    el("whos").innerHTML = "<h3>À suivre</h3>" + ["ines", "sarah", "lea"].map(function (id) {
       var u = USERS[id], on = !!S.follows[id];
-      return '<div class="who">' + avatar(u, "sm") + '<div data-act="profile" data-id="' + id + '"><b>' + esc(u.name) + (u.li ? LI : "") + "</b><small>" + esc(u.niveau) + " · " + esc(u.fac) + '</small></div><button class="follow' + (on ? " is-on" : "") + '" data-act="follow" data-id="' + id + '">' + (on ? "Suivi" : "Suivre") + "</button></div>";
+      return '<div class="who">' + avatar(u, "sm") + '<div data-act="profile" data-id="' + id + '"><b>' + esc(u.name) + "</b><small>" + esc(u.niveau) + " · " + esc(u.fac) + '</small></div><button class="follow' + (on ? " is-on" : "") + '" data-act="follow" data-id="' + id + '">' + (on ? "Suivi" : "Suivre") + "</button></div>";
     }).join("");
-    var side = avatar(me, "sm");
-    el("side-av").outerHTML = side.replace('class="av sm"', 'class="av sm" data-el="side-av"');
-    el("top-av").outerHTML = side.replace('class="av sm"', 'class="av sm" data-el="top-av"');
-    el("side-name").textContent = me.name; el("side-sub").textContent = "@" + me.handle;
+    el("top-av").innerHTML = avatar(USERS.me, "sm");
   }
 
   // ================= FICHE PROFIL =================
   function renderModal() {
     var layer = el("layer");
     if (!S.modal) { layer.innerHTML = ""; return; }
-    var u = USERS[S.modal], isMe = u.id === "me";
-    var likes = S.posts.filter(function (p) { return p.author === u.id; }).reduce(function (a, p) { return a + p.stats.l + (S.likes[p.id] ? 1 : 0); }, 0);
-    var body = isMe
-      ? '<h4>Identité</h4><div class="fields" style="margin:0">' +
-          '<div class="field"><label>Nom affiché</label><input class="inp" data-me="name" value="' + esc(u.name) + '"></div>' +
-          '<div class="field"><label>Niveau</label><input class="inp" data-me="niveau" value="' + esc(u.niveau) + '"></div>' +
-          '<div class="field full"><label>Faculté</label><input class="inp" data-me="fac" value="' + esc(u.fac) + '"></div>' +
-          '<div class="field full"><label>Bio</label><textarea class="inp" data-me="bio" rows="2" style="resize:none" placeholder="Ton parcours, tes matières fortes, le stage que tu cherches">' + esc(u.bio) + "</textarea></div></div>" +
-        "<h4>LinkedIn</h4>" + '<button class="li-btn' + (u.li ? " is-on" : "") + '" data-act="linkedin"><span class="li-badge">in</span>' + (u.li ? "LinkedIn connecté · déconnecter" : "Connecter LinkedIn") + "</button>" +
-        "<h4>Mes liens</h4>" + (u.links.length ? '<div class="attached">' + u.links.map(function (l, i) { return '<div class="att">' + I.link + "<span>" + esc(l.label) + '</span><button data-act="rm-mylink" data-i="' + i + '">' + I.x + "</button></div>"; }).join("") + "</div>" : '<p style="color:var(--text-3);font-size:12px;margin:0">CV, portfolio, articles, mémoire…</p>') +
-        '<div class="edit-row"><input class="inp" data-ml="label" value="' + esc(S.editLink.label) + '" placeholder="Intitulé" style="flex:.7"><input class="inp" data-ml="url" value="' + esc(S.editLink.url) + '" placeholder="https://…"><button class="btn-sm" data-act="add-mylink">Ajouter</button></div>' +
-        '<div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn" data-act="save-me">Enregistrer</button></div>'
-      : (u.links.length ? "<h4>Liens</h4><div class=\"links\">" + u.links.map(function (l) { return '<a class="lnk" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + I.link + "<span>" + esc(l.label) + "</span></a>"; }).join("") + "</div>" : "") +
-        "<h4>Derniers posts</h4>" + (S.posts.filter(function (p) { return p.author === u.id; }).slice(0, 3).map(function (p) { return '<div class="trend"><small>' + (p.type === "veille" ? "Veille · " : esc(p.exercice) + " · " + fmtNote(p.note) + "/20 · ") + esc(p.matiere) + "</small><b>" + esc(p.title) + "</b></div>"; }).join("") || '<p>Pas encore de post.</p>');
-    layer.innerHTML = '<div class="scrim" data-act="close-modal"><div class="modal scroll" data-stop>' +
-      '<div class="modal-cover"><button class="modal-close" data-act="close-modal">' + I.x + "</button></div>" +
-      '<div class="modal-in"><div class="modal-head">' + avatar(u, "lg") +
-        (isMe ? "" : '<button class="follow' + (S.follows[u.id] ? " is-on" : "") + '" data-act="follow" data-id="' + u.id + '">' + (S.follows[u.id] ? "Suivi" : "Suivre") + "</button>") + "</div>" +
-        "<h2>" + esc(u.name) + (u.li ? LI : "") + "</h2>" +
-        '<div class="sub">@' + esc(u.handle) + " · " + esc(u.niveau) + " · " + esc(u.fac) + "</div>" +
-        (u.bio && !isMe ? '<div class="bio">' + esc(u.bio) + "</div>" : "") +
-        '<div class="stats"><div class="stat"><b>' + countFor(u.id, "veille") + '</b><span>Veilles</span></div><div class="stat"><b>' + countFor(u.id, "copie") + '</b><span>Copies validées</span></div><div class="stat"><b>' + compact(likes) + "</b><span>Utiles</span></div></div>" +
-        (u.li && !isMe ? '<a class="li-btn is-on" href="https://www.linkedin.com" target="_blank" rel="noopener"><span class="li-badge">in</span>Voir le profil LinkedIn</a>' : "") +
-        body + "</div></div></div>";
+    var u = USERS[S.modal], isMe = u.id === "me", d = S.draft, inner;
+    if (isMe && S.edit) {
+      inner = '<div class="m-top">' + avatar(u, "lg") + "<div><h2>Mon profil</h2><small>Ce que les autres étudiants voient.</small></div></div>" +
+        '<div class="form">' +
+          '<label>Nom</label><input class="inp" data-d="name" value="' + esc(d.name) + '">' +
+          '<label>Niveau et faculté</label><div class="row"><input class="inp" data-d="niveau" value="' + esc(d.niveau) + '" placeholder="L3" style="flex:0 0 80px"><input class="inp" data-d="fac" value="' + esc(d.fac) + '" placeholder="Université"></div>' +
+          '<label>Bio</label><textarea class="inp" data-d="bio" rows="2" placeholder="Ton parcours, ce que tu cherches">' + esc(d.bio) + "</textarea>" +
+          '<label>Profil LinkedIn</label><input class="inp" data-d="linkedin" value="' + esc(d.linkedin) + '" placeholder="linkedin.com/in/…">' +
+          '<label>Liens, un par ligne (intitulé | adresse)</label><textarea class="inp" data-d="linksText" rows="2" placeholder="CV | https://…">' + esc(d.linksText) + "</textarea>" +
+        "</div>" +
+        '<div class="m-actions"><button class="link" data-act="cancel-edit">Annuler</button><button class="btn" data-act="save-me">Enregistrer</button></div>';
+    } else {
+      var links = (u.linkedin ? '<a href="' + esc(u.linkedin) + '" target="_blank" rel="noopener"><span class="in">in</span>LinkedIn</a>' : "") +
+        u.links.map(function (l) { return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + I.link + esc(l.label) + "</a>"; }).join("");
+      inner = '<div class="m-top">' + avatar(u, "lg") + "<div><h2>" + esc(u.name) + "</h2><small>" + esc(u.niveau) + " · " + esc(u.fac) + "</small></div></div>" +
+        (u.bio ? '<p class="bio">' + esc(u.bio) + "</p>" : "") +
+        '<div class="figures"><span><b>' + countFor(u.id, "veille") + "</b>veilles</span><span><b>" + countFor(u.id, "copie") + "</b>copies validées</span></div>" +
+        (links ? '<div class="m-links">' + links + "</div>" : "") +
+        '<div class="m-actions">' + (isMe
+          ? '<button class="btn" data-act="edit-me">Modifier</button>'
+          : '<button class="follow' + (S.follows[u.id] ? " is-on" : "") + '" data-act="follow" data-id="' + u.id + '">' + (S.follows[u.id] ? "Suivi" : "Suivre") + "</button>") + "</div>";
+    }
+    layer.innerHTML = '<div class="scrim" data-act="close-modal"><div class="modal scroll" data-stop><button class="close" data-act="close-modal">' + I.x + "</button>" + inner + "</div></div>";
+  }
+  function startEdit() {
+    var me = USERS.me;
+    S.draft = { name: me.name, niveau: me.niveau, fac: me.fac, bio: me.bio, linkedin: me.linkedin, linksText: me.links.map(function (l) { return l.label + " | " + l.url; }).join("\n") };
+    S.edit = true; renderModal();
+  }
+  function saveMe() {
+    var d = S.draft, me = USERS.me;
+    var li = d.linkedin.trim() ? normUrl(d.linkedin) : "";
+    if (d.linkedin.trim() && !/linkedin\.com\//i.test(li)) { toast("Adresse LinkedIn invalide"); return; }
+    var links = d.linksText.split("\n").map(function (line) {
+      var parts = line.split("|"), url = normUrl(parts.length > 1 ? parts.slice(1).join("|") : parts[0]);
+      return url ? { label: (parts.length > 1 ? parts[0].trim() : "") || host(url), url: url } : null;
+    }).filter(Boolean);
+    me.name = d.name.trim() || "Toi"; me.niveau = d.niveau.trim(); me.fac = d.fac.trim(); me.bio = d.bio.trim(); me.linkedin = li; me.links = links;
+    S.edit = false; persist(); renderAll(); toast("Profil enregistré");
   }
 
-  function renderAll() { renderFilters(); renderComposer(); renderPosts(); renderMe(); renderModal(); }
+  function renderAll() { renderHead(); renderComposer(); renderPosts(); renderRail(); renderModal(); }
 
   // ================= ACTIONS =================
   var fileInput = document.createElement("input");
@@ -654,89 +532,70 @@
   root.appendChild(fileInput);
   fileInput.addEventListener("change", function () {
     var f = fileInput.files && fileInput.files[0]; if (!f) return;
-    if (S.c.type === "veille") { S.c.type = "copie"; toast("Un PDF joint : passage en copie notée"); }
     S.c.file = f.name; fileInput.value = ""; renderComposer();
   });
 
   function publish() {
     if (!cValid()) return;
-    var c = S.c, p = { id: "u" + Date.now(), type: c.type, author: "me", ts: Date.now(), matiere: c.matiere, title: c.title.trim(), text: c.text.trim(), stats: { r: 0, rp: 0, l: 0 }, replies: [], links: c.links.slice() };
-    if (c.type === "veille") { p.ref = c.ref.trim(); }
-    else { p.exercice = c.exercice; p.note = parseFloat(String(c.note).replace(",", ".")); p.verified = false;
-      p.doc = { pages: 1, intro: [c.exercice, "Copie jointe : " + c.file + ". Visible par tous une fois la note vérifiée."] }; }
-    S.posts.unshift(p);
-    S.c = { type: c.type, text: "", title: "", matiere: "", ref: "", exercice: "", note: "", file: null, links: [], linkOpen: false, linkDraft: "" };
-    persist(); renderAll();
-    toast(p.type === "veille" ? "Veille publiée" : "Copie envoyée : en vérification");
-    // Démo : la vérification de la note se fait au bout de quelques secondes.
-    if (p.type === "copie") setTimeout(function () { p.verified = true; persist(); renderPosts(); renderMe(); toast("Note vérifiée : ta copie est visible par tous"); }, 6000);
+    var c = S.c, p = { id: "u" + Date.now(), type: c.type, author: "me", ts: Date.now(), matiere: c.matiere, title: c.title.trim(), text: c.text.trim(), stats: { l: 0 }, replies: [], links: c.links.slice() };
+    if (c.type === "veille") p.ref = c.ref.trim();
+    else { p.exercice = c.exercice; p.note = noteVal(); p.verified = false; }
+    S.posts.unshift(p); S.c = blankComposer(c.type);
+    persist(); renderComposer(); renderPosts();
+    toast(p.type === "veille" ? "Veille publiée" : "Copie envoyée pour vérification");
+    // Démo : la note est vérifiée au bout de quelques secondes.
+    if (p.type === "copie") setTimeout(function () { p.verified = true; persist(); renderPosts(); toast("Note vérifiée : ta copie est publiée"); }, 6000);
   }
 
   root.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-act],[data-nav],[data-tab],[data-filter],[data-ctype]");
-    if (!t || !root.contains(t)) return;
-    if (t.hasAttribute("data-nav")) { S.nav = t.getAttribute("data-nav"); root.querySelectorAll(".nav").forEach(function (n) { n.classList.toggle("is-active", n === t); }); if (S.nav === "notifs") { toast("Notifications : bientôt"); } renderPosts(); el("feed").scrollTop = 0; return; }
-    if (t.hasAttribute("data-tab")) { S.tab = t.getAttribute("data-tab"); root.querySelectorAll(".tab").forEach(function (n) { n.classList.toggle("is-active", n === t); }); renderPosts(); return; }
-    if (t.hasAttribute("data-filter")) { S.filter = t.getAttribute("data-filter"); renderFilters(); renderPosts(); return; }
+    var t = e.target.closest("a,[data-act],[data-nav],[data-tab],[data-filter],[data-ctype]");
+    if (!t || !root.contains(t) || t.tagName === "A") return;
+    if (t.hasAttribute("data-nav")) { S.nav = t.getAttribute("data-nav"); root.querySelectorAll(".nav[data-nav]").forEach(function (n) { n.classList.toggle("is-active", n === t); }); renderHead(); renderPosts(); el("feed").scrollTop = 0; return; }
+    if (t.hasAttribute("data-tab")) { S.tab = t.getAttribute("data-tab"); renderHead(); renderPosts(); return; }
+    if (t.hasAttribute("data-filter")) { S.filter = t.getAttribute("data-filter"); renderHead(); renderPosts(); return; }
     if (t.hasAttribute("data-ctype")) { S.c.type = t.getAttribute("data-ctype"); renderComposer(); return; }
     var act = t.getAttribute("data-act"), id = t.getAttribute("data-id");
-    if (act === "close-modal") { if (e.target.closest("[data-stop]") && !e.target.closest(".modal-close")) return; S.modal = null; renderModal(); return; }
-    var post = id && S.posts.filter(function (p) { return p.id === id; })[0];
+    if (act === "close-modal") { if (e.target.closest("[data-stop]") && !e.target.closest(".close")) return; S.modal = null; S.edit = false; renderModal(); return; }
     switch (act) {
       case "like": S.likes[id] = !S.likes[id]; persist(); renderPosts(); break;
-      case "rp": S.rps[id] = !S.rps[id]; persist(); renderPosts(); if (S.rps[id]) toast("Repartagé sur ton profil"); break;
-      case "save": S.saves[id] = !S.saves[id]; persist(); renderPosts(); toast(S.saves[id] ? "Enregistré" : "Retiré des enregistrés"); break;
-      case "share": if (!USERS.me.li) toast("Connecte LinkedIn pour partager"); else toast("Prêt à partager sur LinkedIn"); break;
-      case "toggle-replies": S.open[id] = !S.open[id]; renderPosts(); if (S.open[id]) { var ri = root.querySelector('[data-reply="' + id + '"]'); if (ri) ri.focus(); } break;
-      case "reply": var inp = root.querySelector('[data-reply="' + id + '"]'); if (inp && inp.value.trim()) { post.replies.push({ author: "me", text: inp.value.trim() }); renderPosts(); } break;
+      case "save": S.saves[id] = !S.saves[id]; persist(); renderPosts(); toast(S.saves[id] ? "Enregistré" : "Retiré"); break;
+      case "toggle-replies": S.open[id] = !S.open[id]; renderPosts(); var ri = root.querySelector('[data-reply="' + id + '"]'); if (ri) ri.focus(); break;
       case "expand": S.expand[id] = true; renderPosts(); break;
-      case "read": toast("Lecture de la copie : ouvre le PDF annoté"); break;
-      case "profile": S.modal = id; renderModal(); break;
-      case "follow": S.follows[id] = !S.follows[id]; persist(); renderMe(); renderModal(); if (S.tab === "suivis") renderPosts(); break;
-      case "linkedin": USERS.me.li = !USERS.me.li; persist(); renderMe(); renderModal(); renderPosts(); toast(USERS.me.li ? "LinkedIn connecté : badge ajouté à tes posts" : "LinkedIn déconnecté"); break;
-      case "trend": S.query = t.getAttribute("data-q"); el("search").value = S.query; S.nav = "fil"; renderPosts(); el("feed").scrollTop = 0; break;
-      case "focus-composer": el("feed").scrollTop = 0; var ta = $(".ta"); if (ta) ta.focus(); break;
+      case "read": toast("Ouverture de la copie annotée"); break;
+      case "profile": S.modal = id; S.edit = false; renderModal(); break;
+      case "edit-me": startEdit(); break;
+      case "cancel-edit": S.edit = false; renderModal(); break;
+      case "save-me": saveMe(); break;
+      case "follow": S.follows[id] = !S.follows[id]; persist(); renderRail(); renderModal(); if (S.tab === "suivis") renderPosts(); break;
+      case "open-composer":
+        if (S.nav !== "fil") { S.nav = "fil"; root.querySelectorAll(".nav[data-nav]").forEach(function (n) { n.classList.toggle("is-active", n.getAttribute("data-nav") === "fil"); }); renderHead(); renderPosts(); }
+        S.c.open = true; renderComposer(); el("feed").scrollTop = 0; var tt = $('[data-c="title"]'); if (tt) tt.focus(); break;
+      case "close-composer": S.c = blankComposer(S.c.type); renderComposer(); break;
       case "toggle-link": S.c.linkOpen = !S.c.linkOpen; renderComposer(); if (S.c.linkOpen) $('[data-c="linkDraft"]').focus(); break;
-      case "add-link":
-        var u = S.c.linkDraft.trim(); if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
-        if (!u || !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(u)) { toast("Lien invalide"); break; }
-        S.c.links.push(u); S.c.linkDraft = ""; S.c.linkOpen = false; renderComposer(); break;
+      case "add-link": var u = normUrl(S.c.linkDraft); if (!u) { toast("Lien invalide"); break; } S.c.links.push(u); S.c.linkDraft = ""; S.c.linkOpen = false; renderComposer(); break;
       case "rm-link": S.c.links.splice(+t.getAttribute("data-i"), 1); renderComposer(); break;
       case "pick-file": fileInput.click(); break;
       case "rm-file": S.c.file = null; renderComposer(); break;
-      case "hashtag": var tx = $(".ta"); S.c.text += (S.c.text && !/\s$/.test(S.c.text) ? " " : "") + "#"; renderComposer(); tx = $(".ta"); tx.focus(); tx.setSelectionRange(tx.value.length, tx.value.length); break;
       case "publish": publish(); break;
-      case "add-mylink":
-        var lb = S.editLink.label.trim(), lu = S.editLink.url.trim(); if (lu && !/^https?:\/\//i.test(lu)) lu = "https://" + lu;
-        if (!lb || !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(lu)) { toast("Intitulé et lien requis"); break; }
-        USERS.me.links.push({ label: lb, url: lu }); S.editLink = { label: "", url: "" }; persist(); renderModal(); renderMe(); break;
-      case "rm-mylink": USERS.me.links.splice(+t.getAttribute("data-i"), 1); persist(); renderModal(); renderMe(); break;
-      case "save-me": persist(); S.modal = null; renderAll(); toast("Profil enregistré"); break;
     }
   });
   root.addEventListener("input", function (e) {
     var t = e.target, k;
-    if ((k = t.getAttribute("data-c"))) {
-      S.c[k] = t.value;
-      if (k === "text") { autoGrow(t); refreshComposerState(); }
-      else if (k === "note") {
-        var ns = noteState(), wrap = t.closest(".field"), hint = wrap.querySelector(".hint");
-        t.classList.toggle("is-bad", ns === "low" || ns === "bad-range");
-        hint.className = "hint" + (ns === "ok" ? " ok" : ns ? " bad" : "");
-        hint.textContent = ns === "low" ? "Seules les copies notées " + CONFIG.NOTE_MIN + "/20 ou plus se publient sur NAVIRE." : ns === "bad-range" ? "Une note entre 0 et 20." : ns === "ok" ? "Note éligible." : CONFIG.NOTE_MIN + "/20 minimum.";
-        refreshComposerState();
-      } else refreshComposerState();
-    } else if ((k = t.getAttribute("data-me"))) { USERS.me[k] = t.value; }
-    else if ((k = t.getAttribute("data-ml"))) { S.editLink[k] = t.value; }
+    if ((k = t.getAttribute("data-c"))) { S.c[k] = t.value; if (k === "text") autoGrow(t); refreshComposer(); }
+    else if ((k = t.getAttribute("data-d"))) S.draft[k] = t.value;
     else if (t === el("search")) { S.query = t.value; renderPosts(); }
   });
-  root.addEventListener("change", function (e) { if (e.target.tagName === "SELECT" && e.target.getAttribute("data-c")) { S.c[e.target.getAttribute("data-c")] = e.target.value; refreshComposerState(); } });
+  root.addEventListener("change", function (e) { var k = e.target.getAttribute("data-c"); if (e.target.tagName === "SELECT" && k) { S.c[k] = e.target.value; refreshComposer(); } });
   root.addEventListener("keydown", function (e) {
     var t = e.target;
-    if (t.hasAttribute("data-reply") && e.key === "Enter") { e.preventDefault(); var b = root.querySelector('[data-act="reply"][data-id="' + t.getAttribute("data-reply") + '"]'); if (b) b.click(); }
+    if (t.hasAttribute("data-reply") && e.key === "Enter" && t.value.trim()) {
+      e.preventDefault(); var pid = t.getAttribute("data-reply");
+      S.posts.filter(function (p) { return p.id === pid; })[0].replies.push({ author: "me", text: t.value.trim() });
+      renderPosts(); var ri = root.querySelector('[data-reply="' + pid + '"]'); if (ri) ri.focus();
+    }
     if (t.getAttribute("data-c") === "linkDraft" && e.key === "Enter") { e.preventDefault(); $('[data-act="add-link"]').click(); }
     if (t.getAttribute("data-c") === "text" && e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); publish(); }
-    if (e.key === "Escape" && S.modal) { S.modal = null; renderModal(); }
+    if (e.key === "Escape" && S.modal) { S.modal = null; S.edit = false; renderModal(); }
   });
 
   // ================= MISE EN PAGE =================
