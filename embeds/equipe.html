@@ -1,153 +1,71 @@
 <!--
-  NAVIRE, embed « Nos professeurs » (présentation de l'équipe)
-  =============================================================
-  Cartes en verre dépoli qui flottent doucement, sur un fond BLANC
-  (le fond est posé par la page, l'embed est transparent).
-    - halos colorés derrière les cartes : c'est ce qui rend le verre visible ;
-    - chaque carte flotte en décalé et s'incline vers la souris ;
-    - animations coupées si l'appareil demande « moins de mouvement ».
+  NAVIRE, embed « Nos professeurs »
+  ==================================
+  Cartes en verre, qui flottent doucement, sur le fond BLANC de la page
+  (l'embed est transparent). Un halo discret derrière rend le verre visible.
 
   Ajouter un professeur : une entrée de plus dans PROFS (en bas du fichier).
-  photo : URL d'une image carrée ; laissée vide → logo NAVIRE sur pastille.
+  Si la photo ne charge pas, le logo NAVIRE prend sa place.
 -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 #nv-team {
-  --ink: #0a0a12;
-  --ink-2: rgba(10,10,18,0.72);
-  --ink-3: rgba(10,10,18,0.48);
-  --blue: #5B6FFF;
-  --sky: #7AA7FF;
-  --ease: cubic-bezier(.2,.8,.2,1);
-
   position: relative;
   box-sizing: border-box;
   width: 100%;
-  padding: 56px 16px 72px;
+  padding: 48px 16px 64px;
   font-family: 'Inter', system-ui, sans-serif;
-  color: var(--ink);
+  color: #0a0a12;
   background: transparent;
   overflow: hidden;
   isolation: isolate;
 }
 #nv-team *, #nv-team *::before, #nv-team *::after { box-sizing: border-box; }
 
-/* Halos en mouvement derrière le verre */
-#nv-team .blob {
-  position: absolute; z-index: -1; border-radius: 50%;
-  filter: blur(60px); opacity: .55; pointer-events: none;
-  animation: nvDrift 18s ease-in-out infinite alternate;
-}
-#nv-team .b1 { width: 340px; height: 340px; left: 8%;  top: 18%; background: radial-gradient(circle, #7AA7FF, transparent 70%); }
-#nv-team .b2 { width: 300px; height: 300px; right: 6%; top: 8%;  background: radial-gradient(circle, #B9A7FF, transparent 70%); animation-duration: 22s; animation-delay: -6s; }
-#nv-team .b3 { width: 260px; height: 260px; left: 42%; bottom: 0; background: radial-gradient(circle, #8FE3FF, transparent 70%); animation-duration: 26s; animation-delay: -12s; }
-@keyframes nvDrift {
-  0%   { transform: translate(0,0) scale(1); }
-  50%  { transform: translate(40px,-30px) scale(1.12); }
-  100% { transform: translate(-30px,25px) scale(.95); }
+#nv-team::before {
+  content: ""; position: absolute; z-index: -1; left: 50%; top: 50%;
+  width: 520px; height: 360px; translate: -50% -50%;
+  background: radial-gradient(closest-side, rgba(122,167,255,.28), transparent);
+  filter: blur(40px); pointer-events: none;
 }
 
-#nv-team .head { text-align: center; max-width: 640px; margin: 0 auto 44px; }
-#nv-team .eyebrow {
-  display: inline-flex; align-items: center; gap: 8px;
-  font: 500 11px/1 'IBM Plex Mono', monospace; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--blue);
-  padding: 8px 14px; border-radius: 999px;
-  background: rgba(255,255,255,.55); border: 1px solid rgba(91,111,255,.22);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-}
-#nv-team .eyebrow i { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); animation: nvPulse 2.4s ease-in-out infinite; }
-@keyframes nvPulse { 50% { opacity: .3; transform: scale(.7); } }
 #nv-team h2 {
-  margin: 18px 0 10px; font-size: clamp(28px, 5vw, 42px); font-weight: 800; letter-spacing: -.03em; line-height: 1.08;
+  margin: 0 0 36px; text-align: center;
+  font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -.03em;
 }
-#nv-team h2 span {
-  background: linear-gradient(90deg, var(--blue), var(--sky)); -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-#nv-team .head p { margin: 0; color: var(--ink-3); font-size: 15px; line-height: 1.6; }
 
 #nv-team .grid {
-  display: grid; gap: 28px; justify-content: center;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 400px));
+  display: grid; gap: 24px; justify-content: center;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 420px));
 }
 
-/* Carte : le flottement est sur .float, l'inclinaison souris sur .card */
-#nv-team .float { animation: nvFloat 6s ease-in-out infinite; perspective: 1000px; }
-@keyframes nvFloat {
-  0%, 100% { transform: translateY(0) rotate(-.4deg); }
-  50%      { transform: translateY(-14px) rotate(.4deg); }
-}
+#nv-team .float { animation: nvFloat 7s ease-in-out infinite; }
+@keyframes nvFloat { 50% { transform: translateY(-10px); } }
+
 #nv-team .card {
-  position: relative; height: 100%;
-  padding: 30px 28px 28px; border-radius: 28px;
-  background: linear-gradient(145deg, rgba(255,255,255,.72), rgba(255,255,255,.32));
+  height: 100%; padding: 28px; border-radius: 24px;
+  background: rgba(255,255,255,.55);
   border: 1px solid rgba(255,255,255,.9);
-  box-shadow:
-    0 30px 60px -20px rgba(40,50,120,.28),
-    0 8px 20px -8px rgba(40,50,120,.12),
-    inset 0 1px 0 rgba(255,255,255,1),
-    inset 0 -1px 0 rgba(91,111,255,.08);
-  backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
-  transform-style: preserve-3d;
-  transition: transform .5s var(--ease), box-shadow .5s var(--ease);
-  overflow: hidden;
-  opacity: 0; translate: 0 24px;
+  box-shadow: 0 24px 48px -24px rgba(30,40,100,.22), inset 0 1px 0 #fff;
+  backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
 }
-#nv-team .card.in { opacity: 1; translate: 0 0; transition: transform .5s var(--ease), box-shadow .5s var(--ease), opacity .9s var(--ease), translate .9s var(--ease); }
-#nv-team .card:hover { box-shadow: 0 40px 80px -24px rgba(40,50,120,.36), 0 10px 24px -8px rgba(40,50,120,.14), inset 0 1px 0 #fff; }
-/* Reflet qui suit la souris */
-#nv-team .card::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgba(255,255,255,.75), transparent 45%);
-  opacity: .6; transition: opacity .4s;
-}
-/* Trait de lumière qui traverse la carte de temps en temps */
-#nv-team .card::after {
-  content: ""; position: absolute; top: -50%; left: -60%; width: 40%; height: 200%; pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
-  transform: rotate(20deg); animation: nvShine 7s ease-in-out infinite;
-}
-@keyframes nvShine { 0%, 70% { left: -60%; } 100% { left: 130%; } }
 
-#nv-team .top { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; position: relative; transform: translateZ(30px); }
+#nv-team .top { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
 #nv-team .avatar {
-  position: relative; flex: none; width: 84px; height: 84px; border-radius: 50%;
-  background: radial-gradient(circle at 30% 25%, #2a2f5a, var(--ink) 70%);
-  display: grid; place-items: center;
-  box-shadow: 0 12px 28px -8px rgba(10,10,18,.5);
+  flex: none; width: 64px; height: 64px; border-radius: 50%; overflow: hidden;
+  background: #0a0a12; display: grid; place-items: center;
 }
-#nv-team .avatar::before {
-  content: ""; position: absolute; inset: -4px; border-radius: 50%; z-index: -1;
-  background: conic-gradient(from 0deg, var(--blue), var(--sky), #B9A7FF, var(--blue));
-  animation: nvSpin 6s linear infinite;
-}
-@keyframes nvSpin { to { transform: rotate(360deg); } }
-#nv-team .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-#nv-team .avatar img.logo { width: 58%; height: 58%; border-radius: 0; object-fit: contain; }
-#nv-team .name { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
-#nv-team .role { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--blue); }
+#nv-team .avatar img { width: 100%; height: 100%; object-fit: cover; }
+#nv-team .avatar img.logo { width: 58%; height: 58%; object-fit: contain; }
+#nv-team .name { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+#nv-team .role { margin: 3px 0 0; font-size: 13px; color: rgba(10,10,18,.5); }
+#nv-team .bio { margin: 0; font-size: 14.5px; line-height: 1.7; color: rgba(10,10,18,.72); }
 
-#nv-team .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; position: relative; transform: translateZ(20px); }
-#nv-team .tag {
-  font-size: 12px; font-weight: 600; color: var(--ink-2);
-  padding: 6px 11px; border-radius: 999px;
-  background: rgba(255,255,255,.6); border: 1px solid rgba(10,10,18,.07);
-}
-#nv-team .bio { margin: 0; font-size: 14.5px; line-height: 1.7; color: var(--ink-2); position: relative; transform: translateZ(10px); }
-
-@media (prefers-reduced-motion: reduce) {
-  #nv-team .blob, #nv-team .float, #nv-team .card::after, #nv-team .avatar::before, #nv-team .eyebrow i { animation: none; }
-  #nv-team .card { opacity: 1; translate: none; }
-}
+@media (prefers-reduced-motion: reduce) { #nv-team .float { animation: none; } }
 </style>
 
 <section id="nv-team" aria-label="Nos professeurs">
-  <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
-  <header class="head">
-    <span class="eyebrow"><i></i>L'équipe NAVIRE</span>
-    <h2>Nos <span>professeurs</span></h2>
-    <p>Des juristes passés par l'excellence, qui transmettent ce qu'ils auraient aimé apprendre.</p>
-  </header>
+  <h2>Nos professeurs</h2>
   <div class="grid"></div>
 </section>
 
@@ -159,57 +77,29 @@
     {
       nom: "Julien Paradis",
       role: "Fondateur de NAVIRE",
-      photo: "",
-      tags: ["Champion de France d'éloquence", "Master 2 Droit des affaires"],
+      photo: "https://www.google.com/s2/photos/profile/112242460335378339266?sz=256",
       bio: "Champion de France de débat et d'éloquence et titulaire d'un Master 2 en droit des contrats d’affaires (Université d’Évry Paris-Saclay), j'ai exercé chez BMW Group France en droit automobile avant de rejoindre le cabinet français de référence en droit économique. Passionné par la transmission, j'ai accompagné de nombreux étudiants en droit et animé des formations à la prise de parole en public, avant de fonder NAVIRE, une plateforme de cours en ligne et de révisions dédiée aux futurs juristes."
     }
   ];
 
-  var root = document.getElementById("nv-team");
-  var grid = root.querySelector(".grid");
-  var esc = function (s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; };
+  var grid = document.querySelector("#nv-team .grid");
+  var esc = function (s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; };
 
   PROFS.forEach(function (p, i) {
-    var img = p.photo
-      ? '<img src="' + esc(p.photo) + '" alt="' + esc(p.nom) + '">'
-      : '<img class="logo" src="' + LOGO + '" alt="NAVIRE">';
     var wrap = document.createElement("div");
     wrap.className = "float";
-    wrap.style.animationDelay = (-i * 1.7) + "s";
+    wrap.style.animationDelay = (-i * 2) + "s";
     wrap.innerHTML =
       '<article class="card">' +
-        '<div class="top"><div class="avatar">' + img + '</div>' +
-        '<div><h3 class="name">' + esc(p.nom) + '</h3><p class="role">' + esc(p.role || "") + '</p></div></div>' +
-        (p.tags && p.tags.length ? '<div class="tags">' + p.tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join("") + '</div>' : "") +
+        '<div class="top"><div class="avatar"><img alt="' + esc(p.nom) + '"></div>' +
+        '<div><h3 class="name">' + esc(p.nom) + '</h3><p class="role">' + esc(p.role) + '</p></div></div>' +
         '<p class="bio">' + esc(p.bio) + '</p>' +
       '</article>';
+    var img = wrap.querySelector("img");
+    var useLogo = function () { img.onerror = null; img.className = "logo"; img.src = LOGO; };
+    img.onerror = useLogo;
+    if (p.photo) img.src = p.photo; else useLogo();
     grid.appendChild(wrap);
-  });
-
-  var cards = root.querySelectorAll(".card");
-
-  // Apparition au défilement
-  var show = function (c, i) { setTimeout(function () { c.classList.add("in"); }, i * 120); };
-  if ("IntersectionObserver" in window) {
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (e.isIntersecting) { show(e.target, [].indexOf.call(cards, e.target)); io.unobserve(e.target); }
-      });
-    }, { threshold: .15 });
-    cards.forEach(function (c) { io.observe(c); });
-  } else { cards.forEach(show); }
-
-  // Inclinaison 3D + reflet vers la souris
-  var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!calm) cards.forEach(function (c) {
-    c.addEventListener("pointermove", function (e) {
-      var r = c.getBoundingClientRect();
-      var x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-      c.style.setProperty("--mx", x * 100 + "%");
-      c.style.setProperty("--my", y * 100 + "%");
-      c.style.transform = "rotateX(" + ((.5 - y) * 10) + "deg) rotateY(" + ((x - .5) * 12) + "deg) translateZ(0)";
-    });
-    c.addEventListener("pointerleave", function () { c.style.transform = ""; });
   });
 })();
 </script>
