@@ -25,6 +25,11 @@ lus comme un cours, sans PDF à ouvrir. Un document par ressource
 (prepa_ressource_id), visible des seuls étudiants qui ont accès à la
 ressource ; lu à la première ouverture, points de passage comme Mes fichiers.
 
+Visiteur (sans compte) : la bibliothèque Lib se parcourt, et chaque document
+s'ouvre en aperçu (LIB_VISITEUR_PCT % des blocs, LIB_VISITEUR_MIN au moins) ;
+la suite, floutée, demande de créer un compte (gate « compte »). Lib+ exige
+un compte.
+
 Pass admin (User.is_admin) : Lib+ ouvert, aucun verrou d'Elo, chaque point de
 passage peut être passé sans répondre, et les brouillons s'ouvrent en aperçu.
 
@@ -110,12 +115,14 @@ SEUIL_PCT = int(os.getenv("LIB_SEUIL_PCT", "60"))
 ESSAIS_MAX = int(os.getenv("LIB_ESSAIS_MAX", "3"))
 PERSO_MOTS = int(os.getenv("LIB_PERSO_MOTS", "1200"))  # Mes fichiers : un point de passage tous les N mots
 TEASER_BLOCKS = 4
+VISITEUR_PCT = int(os.getenv("LIB_VISITEUR_PCT", "30"))  # visiteur : part du document lisible sans compte
+VISITEUR_MIN = int(os.getenv("LIB_VISITEUR_MIN", "6"))
 
 ELO_ADMIN = 10**9                   # pass admin : aucun verrou d'Elo
 PLANS_PLUS = ("membre", "membre+")  # NAVIRE AI, NAVIRE AI+
 REFUS_PLUS = "NAVIRE Lib+ est réservé aux abonnés NAVIRE AI, NAVIRE AI+ et AdJuris."
 
-KINDS = ("cours", "dissertation", "fiche", "cas_pratique")
+KINDS = ("cours", "fiche", "fiche_arret", "commentaire", "dissertation", "cas_pratique")
 
 
 # ============================================================
@@ -516,8 +523,10 @@ def document(
     doc_id: int,
     mode: Literal["lib", "plus"] = "plus",
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_current_user_optional),
 ):
+    if user is None:
+        return _document_visiteur(db, doc_id, mode)
     doc = _get_published(db, doc_id, user)
     plus = has_plus(db, user)
     elo = _elo(user)
@@ -568,6 +577,37 @@ def document(
         "checkpoints": st["items"],
         "gate": ({"type": "checkpoint", **gate_item, "elo": elo} if gate_item else None),
         "user": _user_card(user, plus),
+    }
+
+
+def _coupe_visiteur(blocks: list[dict]) -> int:
+    """Nombre de blocs lisibles sans compte : un aperçu, jamais tout le document."""
+    n = len(blocks)
+    if n <= 2:
+        return 1 if n == 2 else n
+    k = max(VISITEUR_MIN, -(-n * VISITEUR_PCT // 100))
+    return max(1, min(k, n - 2, -(-n // 2) if n < 2 * VISITEUR_MIN else n))
+
+
+def _document_visiteur(db: Session, doc_id: int, mode: str) -> dict:
+    """Visiteur : aperçu du document en Lib, la suite demande un compte."""
+    if mode != "lib":
+        raise HTTPException(401, detail="Crée ton compte pour accéder à NAVIRE Lib+.")
+    doc = _get_published(db, doc_id, None)
+    if doc.is_plus:
+        raise HTTPException(403, detail="Ce document est réservé à NAVIRE Lib+.")
+    blocks = _blocks(doc)
+    plan_all = (doc.content or {}).get("plan") or parser.build_plan(blocks)
+    k = _coupe_visiteur(blocks)
+    return {
+        "mode": "lib",
+        "document": _summary(doc),
+        "plan": [{**h, "locked": int(h["id"][1:]) >= k} for h in plan_all],
+        "blocks": blocks[:k],
+        "teaser": blocks[k: k + TEASER_BLOCKS],
+        "checkpoints": [],
+        "gate": {"type": "compte", "lus": k, "total": len(blocks)},
+        "user": None,
     }
 
 
@@ -950,7 +990,7 @@ class DocPatch(BaseModel):
     kicker: str | None = Field(None, max_length=120)
     maj: str | None = Field(None, max_length=120)
     description: str | None = None
-    kind: Literal["cours", "dissertation", "fiche", "cas_pratique"] | None = None
+    kind: Literal["cours", "fiche", "fiche_arret", "commentaire", "dissertation", "cas_pratique"] | None = None
     niveau: str | None = Field(None, max_length=10)
     matiere: str | None = Field(None, max_length=120)
     elo_requis: int | None = Field(None, ge=0, le=100000)
