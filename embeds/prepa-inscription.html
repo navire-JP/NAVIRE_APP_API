@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prép'AdJuris — Inscription</title>
+<!--
+  Embed d'inscription Prép'AdJuris.
+  Mobile (< 900px) : une colonne centrée.
+  PC (>= 900px)    : deux colonnes. À gauche le titre, l'encadrement certifié
+                     et les points clés (restent visibles au défilement) ;
+                     à droite le formulaire, dans un panneau.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: transparent; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+
+  :root {
+    --ink: #0A0E1F;              /* texte principal — bleu nuit quasi noir */
+    --ink-soft: rgba(10,14,31,0.56);
+    --ink-faint: rgba(10,14,31,0.12);
+    --accent: #5B6FFF;
+    --danger: #C2384A;
+    --ok: #2E9E6B;
+    --warn: #C98A1F;
+  }
+
+  .aj-wrap {
+    width: 100%;
+    background: transparent;
+    padding: 48px 24px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .aj-card {
+    width: 100%;
+    max-width: 560px;
+    text-align: center;
+  }
+
+  .aj-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 16px;
+  }
+  .aj-eyebrow-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 99px;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .aj-eyebrow strong { color: var(--ink); font-weight: 700; }
+  .aj-eyebrow-sep { color: var(--ink-faint); }
+
+  .aj-title {
+    font-size: clamp(22px, 3.3vw, 30px);
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.8px;
+    line-height: 1.28;
+    max-width: 480px;
+    margin: 0 auto 32px;
+  }
+
+  /* Bandeau certification */
+  .aj-cert {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    background: rgba(10,14,31,0.03);
+    border: 1px solid var(--ink-faint);
+    border-radius: 16px;
+    padding: 14px 18px;
+    margin: 0 auto 28px;
+    max-width: 420px;
+  }
+  .aj-cert svg { flex-shrink: 0; }
+  .aj-cert-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 3px;
+  }
+  .aj-cert-sub {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+
+  /* Points clés — affichés seulement sur PC (colonne de gauche) */
+  .aj-points { display: none; list-style: none; }
+
+  /* ── Formulaire ─────────────────────────────────────────── */
+  .aj-form {
+    text-align: left;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  .aj-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 460px) {
+    .aj-row { grid-template-columns: 1fr; }
+  }
+
+  .aj-field { margin-bottom: 18px; border: 0; }
+
+  .aj-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: 0.2px;
+    margin-bottom: 7px;
+    padding: 0;
+  }
+  .aj-label-optional {
+    font-weight: 400;
+    color: var(--ink-soft);
+  }
+
+  .aj-input {
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    font-size: 14.5px;
+    font-weight: 400;
+    color: var(--ink);
+    background: rgba(10,14,31,0.02);
+    border: 1px solid var(--ink-faint);
+    border-radius: 12px;
+    padding: 13px 15px;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .aj-input::placeholder { color: rgba(10,14,31,0.32); }
+  .aj-input:focus {
+    outline: none;
+    background: #fff;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(91,111,255,0.14);
+  }
+  .aj-input.is-invalid { border-color: var(--danger); }
+
+  /* Code promo — état confirmé */
+  #aj-promo.is-applied {
+    border-color: var(--ok);
+    background: rgba(46,158,107,0.06);
+  }
+  /* Petit message d'état sous un champ (code promo, mot de passe…) */
+  .aj-field-msg {
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 7px;
+    line-height: 1.4;
+    display: none;
+  }
+  .aj-field-msg.is-visible { display: block; }
+  .aj-field-msg.is-ok { color: var(--ok); }
+  .aj-field-msg.is-err { color: var(--danger); }
+
+  /* Niveau — 3 pilules */
+  .aj-levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .aj-levels input {
+    position: absolute;
+    opacity: 0;
+    width: 1px; height: 1px;
+    pointer-events: none;
+  }
+  .aj-level {
+    display: block;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    background: rgba(10,14,31,0.02);
+    border: 1px solid var(--ink-faint);
+    border-radius: 99px;
+    padding: 11px 0;
+    cursor: pointer;
+    user-select: none;
+    transition: all .15s ease;
+  }
+  .aj-level:hover { border-color: rgba(10,14,31,0.24); color: var(--ink); }
+  .aj-levels input:checked + .aj-level {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+  .aj-levels input:focus-visible + .aj-level {
+    box-shadow: 0 0 0 3px rgba(91,111,255,0.3);
+  }
+
+  /* Matières — cartes à cocher */
+  .aj-matieres { display: flex; flex-direction: column; gap: 8px; }
+  .aj-matiere { position: relative; }
+  .aj-matiere input {
+    position: absolute;
+    opacity: 0;
+    width: 1px; height: 1px;
+    pointer-events: none;
+  }
+  .aj-matiere-box {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    background: rgba(10,14,31,0.02);
+    border: 1px solid var(--ink-faint);
+    border-radius: 12px;
+    padding: 12px 15px;
+    cursor: pointer;
+    user-select: none;
+    transition: all .15s ease;
+  }
+  .aj-matiere-box:hover { border-color: rgba(10,14,31,0.24); }
+  .aj-tick {
+    width: 18px; height: 18px;
+    flex-shrink: 0;
+    border: 1.5px solid rgba(10,14,31,0.25);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s ease;
+  }
+  .aj-tick svg { opacity: 0; transition: opacity .12s ease; }
+  .aj-matiere input:checked + .aj-matiere-box {
+    border-color: var(--accent);
+    background: rgba(91,111,255,0.06);
+  }
+  .aj-matiere input:checked + .aj-matiere-box .aj-tick {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .aj-matiere input:checked + .aj-matiere-box .aj-tick svg { opacity: 1; }
+  .aj-matiere input:focus-visible + .aj-matiere-box {
+    box-shadow: 0 0 0 3px rgba(91,111,255,0.28);
+  }
+
+  .aj-hint {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--ink-soft);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  /* Bandeau "compte détecté" au-dessus du mot de passe */
+  .aj-account-note {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    margin-bottom: 9px;
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+  .aj-account-note.is-visible { display: flex; }
+  .aj-account-note-dot {
+    width: 6px; height: 6px;
+    border-radius: 99px;
+    flex-shrink: 0;
+    background: var(--ink-soft);
+  }
+  .aj-account-note.is-known .aj-account-note-dot { background: var(--accent); }
+  .aj-account-note.is-new .aj-account-note-dot { background: var(--ok); }
+
+  /* Barre de force du mot de passe */
+  .aj-pwd-strength { display: none; margin-top: 10px; }
+  .aj-pwd-strength.is-visible { display: block; }
+  .aj-pwd-meter {
+    display: flex;
+    gap: 4px;
+    height: 4px;
+  }
+  .aj-pwd-meter span {
+    flex: 1;
+    border-radius: 99px;
+    background: var(--ink-faint);
+    transition: background .15s ease;
+  }
+  .aj-pwd-meter.strength-1 span:nth-child(1) { background: var(--danger); }
+  .aj-pwd-meter.strength-2 span:nth-child(-n+2) { background: var(--warn); }
+  .aj-pwd-meter.strength-3 span:nth-child(-n+3) { background: var(--ok); }
+  .aj-pwd-strength-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    margin-top: 6px;
+  }
+  .aj-pwd-strength-label.strength-1 { color: var(--danger); }
+  .aj-pwd-strength-label.strength-2 { color: var(--warn); }
+  .aj-pwd-strength-label.strength-3 { color: var(--ok); }
+
+  /* Champ confirmation — masqué tant qu'on ne sait pas si le compte est nouveau */
+  .aj-field.aj-confirm-field { display: none; }
+  .aj-field.aj-confirm-field.is-visible { display: block; }
+
+  /* Honeypot anti-bot — invisible pour un humain, jamais annoncé aux lecteurs d'écran */
+  .aj-hp {
+    position: absolute !important;
+    left: -9999px !important;
+    width: 1px; height: 1px;
+    opacity: 0;
+  }
+
+  .aj-error {
+    display: none;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--danger);
+    background: rgba(194,56,74,0.07);
+    border: 1px solid rgba(194,56,74,0.2);
+    border-radius: 10px;
+    padding: 11px 14px;
+    margin-bottom: 16px;
+    line-height: 1.45;
+  }
+  .aj-error.is-visible { display: block; }
+
+  /* CTA — pill bleu nuit, texte blanc */
+  .aj-cta {
+    display: block;
+    width: 100%;
+    background: var(--ink);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 14.5px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    border: 0;
+    padding: 15px 38px;
+    border-radius: 99px;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    transition: opacity .15s ease, transform .1s ease;
+  }
+  .aj-cta:hover { opacity: 0.88; }
+  .aj-cta:active { transform: scale(0.99); }
+  .aj-cta:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,111,255,0.4); }
+  .aj-cta[disabled] { opacity: 0.5; cursor: default; transform: none; }
+
+  .aj-note {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--ink-soft);
+    text-align: center;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  /* Écran de confirmation */
+  .aj-done { display: none; }
+  .aj-done.is-visible { display: block; }
+  .aj-done-icon {
+    width: 52px; height: 52px;
+    border-radius: 99px;
+    background: rgba(91,111,255,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 18px;
+  }
+  .aj-done-title {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.4px;
+    margin-bottom: 9px;
+  }
+  .aj-done-sub {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--ink-soft);
+    line-height: 1.55;
+    max-width: 380px;
+    margin: 0 auto;
+  }
+
+  .aj-footer {
+    margin-top: 22px;
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(10,14,31,0.4);
+    letter-spacing: 0.3px;
+    text-align: center;
+  }
+  .aj-footer strong { color: rgba(10,14,31,0.62); font-weight: 600; }
+
+  .aj-sink { display: none; }
+
+  /* ── PC : deux colonnes ─────────────────────────────────── */
+  @media (min-width: 900px) {
+    .aj-wrap { padding: 64px 40px; }
+
+    .aj-card {
+      max-width: 1080px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 470px);
+      column-gap: 72px;
+      align-items: start;
+      text-align: left;
+    }
+
+    .aj-intro { position: sticky; top: 40px; padding-top: 20px; }
+    .aj-title {
+      font-size: clamp(30px, 3vw, 40px);
+      letter-spacing: -1.2px;
+      line-height: 1.18;
+      max-width: 520px;
+      margin: 0 0 32px;
+    }
+    .aj-cert { margin: 0 0 32px; max-width: 460px; }
+
+    .aj-points { display: grid; gap: 14px; max-width: 460px; }
+    .aj-points li {
+      display: flex; align-items: flex-start; gap: 12px;
+      font-size: 14.5px; line-height: 1.5; color: var(--ink-soft);
+    }
+    .aj-points li strong { color: var(--ink); font-weight: 600; }
+    .aj-points li::before {
+      content: ""; flex-shrink: 0; width: 20px; height: 20px; margin-top: 1px; border-radius: 99px;
+      background: rgba(91,111,255,0.1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6FFF' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5L10 17.5L19 7'/%3E%3C/svg%3E") center / 11px no-repeat;
+    }
+
+    .aj-side {
+      background: rgba(255,255,255,0.75);
+      border: 1px solid var(--ink-faint);
+      border-radius: 24px;
+      padding: 36px 36px 32px;
+      box-shadow: 0 30px 60px -36px rgba(10,14,31,0.28);
+    }
+    .aj-form { max-width: none; }
+    .aj-done { text-align: center; padding: 32px 0; }
+
+    .aj-footer { grid-column: 1 / -1; margin-top: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="aj-wrap">
+  <div class="aj-card">
+
+    <div class="aj-intro">
+      <div class="aj-eyebrow"><span class="aj-eyebrow-dot"></span><strong>NAVIRE</strong><span class="aj-eyebrow-sep">·</span>AdJuris</div>
+      <h2 class="aj-title">Rejoins la Prép'AdJuris et assiste à des cours une fois par semaine dans la matière de ton choix</h2>
+
+      <!-- Bandeau certification — laurier, or, ligne fine -->
+      <div class="aj-cert">
+        <svg width="56" height="64" viewBox="0 0 56 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="28" cy="26" r="15" stroke="#FFD166" stroke-width="1.4"/>
+          <path d="M21 26.5L25.5 31L35.5 18.5" stroke="#FFD166" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <path d="M14 46C10 39 9 30 12 20" stroke="#FFD166" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          <ellipse cx="11.5" cy="41" rx="3.2" ry="1.6" transform="rotate(-55 11.5 41)" fill="#FFD166"/>
+          <ellipse cx="9.8" cy="34" rx="3.2" ry="1.6" transform="rotate(-75 9.8 34)" fill="#FFD166"/>
+          <ellipse cx="10" cy="27" rx="3.2" ry="1.6" transform="rotate(-100 10 27)" fill="#FFD166"/>
+          <ellipse cx="11.8" cy="21" rx="3" ry="1.5" transform="rotate(-125 11.8 21)" fill="#FFD166"/>
+
+          <path d="M42 46C46 39 47 30 44 20" stroke="#FFD166" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          <ellipse cx="44.5" cy="41" rx="3.2" ry="1.6" transform="rotate(55 44.5 41)" fill="#FFD166"/>
+          <ellipse cx="46.2" cy="34" rx="3.2" ry="1.6" transform="rotate(75 46.2 34)" fill="#FFD166"/>
+          <ellipse cx="46" cy="27" rx="3.2" ry="1.6" transform="rotate(100 46 27)" fill="#FFD166"/>
+          <ellipse cx="44.2" cy="21" rx="3" ry="1.5" transform="rotate(125 44.2 21)" fill="#FFD166"/>
+
+          <path d="M22 45L20 59L28 54L36 59L34 45" stroke="#FFD166" stroke-width="1.2" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <div>
+          <div class="aj-cert-name">Encadrement certifié</div>
+          <div class="aj-cert-sub">Cours animés par des chargés de TD ou des professionnels du droit en exercice</div>
+        </div>
+      </div>
+
+      <!-- Points clés : visibles sur PC seulement -->
+      <ul class="aj-points">
+        <li><span><strong>Un cours par semaine</strong> dans chaque matière choisie</span></li>
+        <li><span><strong>10 places par matière</strong>, pour un vrai suivi</span></li>
+        <li><span><strong>20 € la séance</strong>, prélevés chaque mois selon le nombre de séances</span></li>
+        <li><span><strong>Séance commune du 10 septembre offerte</strong></span></li>
+      </ul>
+    </div>
+
+    <div class="aj-side">
+      <!-- ── Formulaire ─────────────────────────────────────── -->
+      <form class="aj-form" id="aj-form" novalidate>
+
+        <div class="aj-row">
+          <div class="aj-field">
+            <label class="aj-label" for="aj-prenom">Prénom</label>
+            <input class="aj-input" id="aj-prenom" name="prenom" type="text"
+                   autocomplete="given-name" maxlength="80" placeholder="Camille" required>
+          </div>
+          <div class="aj-field">
+            <label class="aj-label" for="aj-nom">Nom</label>
+            <input class="aj-input" id="aj-nom" name="nom" type="text"
+                   autocomplete="family-name" maxlength="80" placeholder="Durand" required>
+          </div>
+        </div>
+
+        <div class="aj-field">
+          <label class="aj-label" for="aj-email">Email</label>
+          <input class="aj-input" id="aj-email" name="email" type="email"
+                 autocomplete="email" maxlength="320" placeholder="camille.durand@etu.fr" required>
+        </div>
+
+        <div class="aj-field">
+          <p class="aj-account-note" id="aj-account-note">
+            <span class="aj-account-note-dot"></span>
+            <span id="aj-account-note-text"></span>
+          </p>
+          <label class="aj-label" for="aj-password" id="aj-password-label">Mot de passe</label>
+          <input class="aj-input" id="aj-password" name="password" type="password"
+                 autocomplete="new-password" maxlength="72" placeholder="••••••••" required>
+          <div class="aj-pwd-strength" id="aj-pwd-strength">
+            <div class="aj-pwd-meter" id="aj-pwd-meter"><span></span><span></span><span></span></div>
+            <p class="aj-pwd-strength-label" id="aj-pwd-strength-label"></p>
+          </div>
+          <p class="aj-hint" id="aj-password-hint">
+            8 caractères minimum, avec une majuscule et un chiffre ou un symbole.
+          </p>
+          <p class="aj-field-msg" id="aj-password-msg"></p>
+        </div>
+
+        <div class="aj-field aj-confirm-field" id="aj-confirm-field">
+          <label class="aj-label" for="aj-password-confirm">Confirme le mot de passe</label>
+          <input class="aj-input" id="aj-password-confirm" name="password_confirm" type="password"
+                 autocomplete="new-password" maxlength="72" placeholder="••••••••">
+          <p class="aj-field-msg" id="aj-password-confirm-msg"></p>
+        </div>
+
+        <fieldset class="aj-field">
+          <legend class="aj-label">Ton niveau</legend>
+          <div class="aj-levels">
+            <input type="radio" name="niveau" id="aj-niveau-L1" value="L1">
+            <label class="aj-level" for="aj-niveau-L1">L1</label>
+            <input type="radio" name="niveau" id="aj-niveau-L2" value="L2">
+            <label class="aj-level" for="aj-niveau-L2">L2</label>
+            <input type="radio" name="niveau" id="aj-niveau-L3" value="L3">
+            <label class="aj-level" for="aj-niveau-L3">L3</label>
+          </div>
+        </fieldset>
+
+        <fieldset class="aj-field" id="aj-matieres-field" hidden>
+          <legend class="aj-label">Matières souhaitées</legend>
+          <div class="aj-matieres" id="aj-matieres"></div>
+          <p class="aj-hint">Tu peux en choisir plusieurs — 10 places par matière.</p>
+        </fieldset>
+
+        <div class="aj-field">
+          <label class="aj-label" for="aj-promo">
+            Code promo <span class="aj-label-optional">(optionnel)</span>
+          </label>
+          <input class="aj-input" id="aj-promo" name="promo_code" type="text"
+                 maxlength="50" placeholder="Ex : ADJURIS5" autocomplete="off"
+                 autocapitalize="characters" spellcheck="false">
+          <p class="aj-field-msg" id="aj-promo-msg"></p>
+        </div>
+
+        <!-- Anti-bot : laissé vide par un humain -->
+        <div class="aj-hp" aria-hidden="true">
+          <label for="aj-website">Ne pas remplir</label>
+          <input id="aj-website" name="website" type="text" tabindex="-1" autocomplete="off">
+        </div>
+
+        <div class="aj-error" id="aj-error" role="alert" aria-live="polite"></div>
+
+        <button class="aj-cta" id="aj-submit" type="submit">S'inscrire</button>
+        <p class="aj-note">
+          20 € aujourd'hui par matière, puis prélèvement mensuel selon le nombre
+          de séances (20 € la séance).<br>
+          Séance commune du 10 septembre offerte · paiement sécurisé par Stripe
+        </p>
+      </form>
+
+      <!-- ── Confirmation ───────────────────────────────────── -->
+      <div class="aj-done" id="aj-done" role="status" aria-live="polite">
+        <div class="aj-done-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12.5L10 17.5L19 7" stroke="#5B6FFF" stroke-width="2.2"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="aj-done-title">Presque terminé</div>
+        <p class="aj-done-sub" id="aj-done-sub"></p>
+      </div>
+    </div>
+
+    <div class="aj-footer">Un programme <strong>NAVIRE</strong></div>
+
+  </div>
+</div>
+
+<!-- Cible du POST miroir vers Google Forms (réponse jamais lue) -->
+<iframe class="aj-sink" name="aj-gf-sink" title="sink" aria-hidden="true"></iframe>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ════════════════════════════════════════════════════════════
+     CONFIG — la seule partie à modifier
+     ════════════════════════════════════════════════════════════ */
+  var CONFIG = {
+    // API NAVIRE (source de vérité). Sans slash final.
+    API_BASE: "https://navire-app-api.onrender.com",
+
+    // Miroir Google Forms → alimente automatiquement la feuille Drive.
+    // Laisse GOOGLE_ENTRIES vide pour désactiver le miroir : le formulaire
+    // continue de fonctionner avec la seule API NAVIRE.
+    GOOGLE_FORM_ID: "1FAIpQLSfZ762yInjREmXtPcmTF2jK9O5nEYiqI4ae1Xf-V-ZcRWSz-Q",
+    GOOGLE_ENTRIES: {
+      prenom:   "",   // ex: "entry.123456789"
+      nom:      "",
+      email:    "",
+      niveau:   "",
+      matieres: ""
+    },
+    // true  → les matières partent en UNE valeur "A | B" (question texte court)
+    // false → une valeur par matière (question cases à cocher ; les intitulés
+    //         doivent alors correspondre EXACTEMENT aux options du Google Form)
+    GOOGLE_MATIERES_AS_TEXT: true
+  };
+
+  /* Clés identiques à PREPA_PRICES côté backend — ne pas renommer. */
+  var MATIERES = {
+    L1: [
+      { key: "L1_droit_constit",   label: "Droit constitutionnel" },
+      { key: "L1_intro_au_droit",  label: "Introduction au droit" },
+      { key: "L1_droit_ijae",      label: "Droit IJAE" }
+    ],
+    L2: [
+      { key: "L2_droit_administratif",   label: "Droit administratif" },
+      { key: "L2_droit_des_obligations", label: "Droit des obligations" },
+      { key: "L2_droit_penal",           label: "Droit pénal" }
+    ],
+    L3: [
+      { key: "L3_droit_des_societes",          label: "Droit des sociétés" },
+      { key: "L3_droit_des_suretes",           label: "Droit des sûretés" },
+      { key: "L3_droit_des_contrats_speciaux", label: "Droit des contrats spéciaux" }
+    ]
+  };
+
+  var TICK = '<span class="aj-tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none">'
+           + '<path d="M5 12.5L10 17.5L19 7" stroke="#fff" stroke-width="3.2" '
+           + 'stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+
+  var form        = document.getElementById("aj-form");
+  var matField    = document.getElementById("aj-matieres-field");
+  var matList     = document.getElementById("aj-matieres");
+  var promoEl     = document.getElementById("aj-promo");
+  var promoMsg    = document.getElementById("aj-promo-msg");
+  var emailEl         = document.getElementById("aj-email");
+  var accountNote     = document.getElementById("aj-account-note");
+  var accountNoteText = document.getElementById("aj-account-note-text");
+  var passwordEl      = document.getElementById("aj-password");
+  var passwordMsg     = document.getElementById("aj-password-msg");
+  var passwordHint    = document.getElementById("aj-password-hint");
+  var pwdStrengthBox  = document.getElementById("aj-pwd-strength");
+  var pwdMeter        = document.getElementById("aj-pwd-meter");
+  var pwdStrengthLbl  = document.getElementById("aj-pwd-strength-label");
+  var confirmField    = document.getElementById("aj-confirm-field");
+  var confirmEl       = document.getElementById("aj-password-confirm");
+  var confirmMsg      = document.getElementById("aj-password-confirm-msg");
+  var errorBox    = document.getElementById("aj-error");
+  var submitBtn   = document.getElementById("aj-submit");
+  var doneBox     = document.getElementById("aj-done");
+  var doneSub     = document.getElementById("aj-done-sub");
+
+  /* ── Matières affichées selon le niveau ─────────────────── */
+  function renderMatieres(niveau) {
+    var items = MATIERES[niveau] || [];
+    matList.innerHTML = items.map(function (m, i) {
+      var id = "aj-mat-" + i;
+      return '<div class="aj-matiere">'
+           +   '<input type="checkbox" id="' + id + '" name="matieres" value="' + m.key + '" '
+           +          'data-label="' + m.label + '">'
+           +   '<label class="aj-matiere-box" for="' + id + '">' + TICK + m.label + '</label>'
+           + '</div>';
+    }).join("");
+    matField.hidden = items.length === 0;
+  }
+
+  Array.prototype.forEach.call(
+    form.querySelectorAll('input[name="niveau"]'),
+    function (radio) {
+      radio.addEventListener("change", function () {
+        renderMatieres(radio.value);
+        hideError();
+      });
+    }
+  );
+
+  /* ── Code promo — champ libre, vérifié seulement au clic sur "S'inscrire"
+     (pas d'endpoint de validation à part côté API : le prix promo n'est
+     confirmé qu'à la création de la session Stripe). On efface juste l'état
+     "erreur" affiché par une précédente tentative dès que le champ change. */
+  promoEl.addEventListener("input", function () {
+    promoEl.classList.remove("is-applied");
+    promoMsg.classList.remove("is-visible", "is-ok", "is-err");
+  });
+
+  /* Même logique pour le mot de passe : on efface l'erreur "email déjà
+     inscrit, mauvais mot de passe" dès que l'étudiant retape quelque chose. */
+  passwordEl.addEventListener("input", function () {
+    passwordEl.classList.remove("is-invalid");
+    passwordMsg.classList.remove("is-visible", "is-ok", "is-err");
+    updatePwdStrength();
+  });
+
+  confirmEl.addEventListener("input", function () {
+    confirmEl.classList.remove("is-invalid");
+    confirmMsg.classList.remove("is-visible", "is-ok", "is-err");
+  });
+
+  /* ── Détection "compte déjà existant" ───────────────────────
+     Bascule l'écran mot de passe entre connexion (un seul champ) et création
+     de compte (confirmation + barre de force), avant même la soumission. Un
+     accountExists resté à null (email pas encore vérifié, ou vérification
+     en échec réseau) est traité comme "inconnu" : le formulaire retombe
+     alors sur le comportement connexion-puis-création géré par
+     registerOrLogin() à la soumission. */
+  var accountExists = null;   // null = inconnu, true = existe, false = nouveau
+  var checkedEmail  = null;
+
+  function checkAccountExists(email) {
+    return fetch(CONFIG.API_BASE + "/auth/email-exists?email=" + encodeURIComponent(email))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (body) { return body ? !!body.exists : null; })
+      .catch(function () { return null; });
+  }
+
+  function ensureAccountChecked(email) {
+    if (accountExists !== null && checkedEmail === email) {
+      return Promise.resolve(accountExists);
+    }
+    return checkAccountExists(email).then(function (exists) {
+      checkedEmail = email;
+      accountExists = exists;
+      updateAccountUI();
+      return exists;
+    });
+  }
+
+  function updateAccountUI() {
+    if (accountExists === true) {
+      accountNoteText.textContent = "Compte existant détecté — entre son mot de passe pour continuer.";
+      accountNote.classList.add("is-visible", "is-known");
+      accountNote.classList.remove("is-new");
+      passwordEl.setAttribute("autocomplete", "current-password");
+      passwordHint.textContent = "Indique le mot de passe de ce compte, on te reconnaîtra.";
+      pwdStrengthBox.classList.remove("is-visible");
+      confirmField.classList.remove("is-visible");
+      confirmEl.required = false;
+    } else if (accountExists === false) {
+      accountNoteText.textContent = "Aucun compte avec cet email — crée-en un pour continuer.";
+      accountNote.classList.add("is-visible", "is-new");
+      accountNote.classList.remove("is-known");
+      passwordEl.setAttribute("autocomplete", "new-password");
+      passwordHint.textContent = "8 caractères minimum, avec une majuscule et un chiffre ou un symbole.";
+      confirmField.classList.add("is-visible");
+      confirmEl.required = true;
+      updatePwdStrength();
+    } else {
+      accountNote.classList.remove("is-visible", "is-known", "is-new");
+      passwordHint.textContent = "8 caractères minimum, avec une majuscule et un chiffre ou un symbole.";
+      pwdStrengthBox.classList.remove("is-visible");
+      confirmField.classList.remove("is-visible");
+      confirmEl.required = false;
+    }
+  }
+
+  function pwdStrengthScore(pw) {
+    if (!pw) return 0;
+    if (pw.length < 8) return 1;
+    var categories = 0;
+    if (/[a-z]/.test(pw)) categories++;
+    if (/[A-Z]/.test(pw)) categories++;
+    if (/\d/.test(pw)) categories++;
+    if (/[^\w\s]/.test(pw)) categories++;
+    if (pw.length >= 12 && categories >= 3) return 3;
+    if (categories >= 2) return 2;
+    return 1;
+  }
+
+  function updatePwdStrength() {
+    if (accountExists !== false) return;
+    var pw = passwordEl.value;
+    if (!pw) {
+      pwdStrengthBox.classList.remove("is-visible");
+      return;
+    }
+    pwdStrengthBox.classList.add("is-visible");
+    var score = pwdStrengthScore(pw);
+    var label = score === 3 ? "Fort" : score === 2 ? "Moyen" : "Faible";
+    pwdMeter.classList.remove("strength-1", "strength-2", "strength-3");
+    pwdStrengthLbl.classList.remove("strength-1", "strength-2", "strength-3");
+    pwdMeter.classList.add("strength-" + score);
+    pwdStrengthLbl.classList.add("strength-" + score);
+    pwdStrengthLbl.textContent = label;
+  }
+
+  emailEl.addEventListener("input", function () {
+    accountExists = null;
+    checkedEmail = null;
+    updateAccountUI();
+  });
+
+  emailEl.addEventListener("blur", function () {
+    var email = emailEl.value.trim();
+    if (email && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      ensureAccountChecked(email);
+    }
+  });
+
+  /* ── Erreurs ────────────────────────────────────────────── */
+  function showError(msg, field) {
+    errorBox.textContent = msg;
+    errorBox.classList.add("is-visible");
+    if (field) {
+      field.classList.add("is-invalid");
+      field.focus();
+    }
+  }
+  function hideError() {
+    errorBox.classList.remove("is-visible");
+    Array.prototype.forEach.call(
+      form.querySelectorAll(".is-invalid"),
+      function (el) { el.classList.remove("is-invalid"); }
+    );
+  }
+
+  /* ── Miroir Google Forms (fire-and-forget) ──────────────── */
+  function mirrorToGoogleForms(data) {
+    var E = CONFIG.GOOGLE_ENTRIES || {};
+    if (!CONFIG.GOOGLE_FORM_ID || !E.email) return;  // non configuré → on saute
+
+    var gf = document.createElement("form");
+    gf.action = "https://docs.google.com/forms/d/e/" + CONFIG.GOOGLE_FORM_ID + "/formResponse";
+    gf.method = "POST";
+    gf.target = "aj-gf-sink";
+    gf.style.display = "none";
+
+    function add(name, value) {
+      if (!name) return;
+      var input = document.createElement("input");
+      input.type  = "hidden";
+      input.name  = name;
+      input.value = value;
+      gf.appendChild(input);
+    }
+
+    add(E.prenom, data.prenom);
+    add(E.nom,    data.nom);
+    add(E.email,  data.email);
+    add(E.niveau, data.niveau);
+
+    if (CONFIG.GOOGLE_MATIERES_AS_TEXT) {
+      add(E.matieres, data.labels.join(" | "));
+    } else {
+      data.labels.forEach(function (label) { add(E.matieres, label); });
+    }
+
+    document.body.appendChild(gf);
+    try { gf.submit(); } catch (e) { /* le miroir ne doit jamais bloquer */ }
+    setTimeout(function () { gf.remove(); }, 4000);
+  }
+
+  /* ── Redirection vers Stripe ────────────────────────────── */
+  function redirectToStripe(url) {
+    // Stripe Checkout envoie X-Frame-Options : il refuse d'être affiché dans
+    // une iframe. Il faut donc naviguer la fenêtre principale, pas l'embed.
+    try {
+      if (window.top && window.top !== window.self) {
+        window.top.location.href = url;   // autorisé : le clic fait activation
+        return;
+      }
+    } catch (e) {
+      // Iframe sandboxée sans droit de navigation top → nouvel onglet.
+      window.open(url, "_blank", "noopener");
+      return;
+    }
+    window.location.href = url;
+  }
+
+  /* Politique de création de compte (app/schemas/auth.py::PWD_REGEX) : 8-72
+     caractères, au moins 1 majuscule, au moins 1 chiffre ou 1 symbole. Ne
+     s'applique qu'à la création — un compte existant se connecte avec son
+     mot de passe actuel quel qu'il soit (cf. registerOrLogin). */
+  var PWD_REGEX = /^(?=.*[A-Z])(?=.*(\d|[^\w\s])).{8,72}$/;
+
+  function buildUsername(prenom, nom) {
+    var raw = (prenom + " " + nom).replace(/\s+/g, " ").trim();
+    while (raw.length < 3) raw += "_";
+    return raw.slice(0, 64);
+  }
+
+  /* ── Compte NAVIRE : connexion, avec repli sur création ────
+     Le formulaire public exige désormais un compte AVANT le paiement. On
+     tente d'abord /auth/login : un compte existant se connecte quel que
+     soit son mot de passe (même un ancien, plus faible que la politique
+     actuelle — la politique de force ne s'applique qu'à la CRÉATION d'un
+     compte, pas à sa connexion). Seulement si la connexion échoue on tente
+     /auth/register ; si ce dernier répond "Email already registered", la
+     connexion avait donc déjà échoué pour la bonne raison : mauvais mot de
+     passe sur un compte existant. Retourne une Promise<access_token>. */
+  function registerOrLogin(email, password, username) {
+    return fetch(CONFIG.API_BASE + "/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: password })
+    }).then(function (loginResponse) {
+      return loginResponse.json().catch(function () { return {}; }).then(function (loginBody) {
+        if (loginResponse.ok) return loginBody.access_token;
+
+        return fetch(CONFIG.API_BASE + "/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email,
+            password: password,
+            username: username,
+            newsletter_opt_in: false
+          })
+        }).then(function (registerResponse) {
+          return registerResponse.json().catch(function () { return {}; }).then(function (registerBody) {
+            if (registerResponse.ok) return registerBody.access_token;
+
+            var detail = registerResponse.status === 400 ? (registerBody && registerBody.detail) : null;
+            var msg = typeof detail === "string" ? detail : null;
+
+            if (msg === "Email already registered") {
+              var wrongPwd = new Error(
+                "Un compte existe déjà avec cet email. Le mot de passe indiqué "
+                + "ne correspond pas — indique celui de ce compte pour continuer."
+              );
+              wrongPwd.field = "password";
+              throw wrongPwd;
+            }
+
+            if (msg) {
+              var pwdErr = new Error(msg);
+              pwdErr.field = "password";
+              throw pwdErr;
+            }
+
+            console.error("[Prép'AdJuris] HTTP " + registerResponse.status, registerBody);
+            throw new Error("Impossible de créer le compte. Réessaie dans un instant.");
+          });
+        });
+      });
+    });
+  }
+
+  /* ── Soumission ─────────────────────────────────────────── */
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    hideError();
+
+    var prenomEl = document.getElementById("aj-prenom");
+    var nomEl    = document.getElementById("aj-nom");
+
+    var prenom   = prenomEl.value.trim();
+    var nom      = nomEl.value.trim();
+    var email    = emailEl.value.trim();
+    var password = passwordEl.value;
+    var niveauEl = form.querySelector('input[name="niveau"]:checked');
+    var promo    = promoEl.value.trim().toUpperCase();
+
+    if (!prenom) return showError("Indique ton prénom.", prenomEl);
+    if (!nom)    return showError("Indique ton nom.", nomEl);
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      return showError("Indique une adresse email valide.", emailEl);
+    }
+    if (password.length < 8) {
+      // Longueur minimale des DEUX endpoints (login et register). Le reste de
+      // la politique (majuscule + chiffre/symbole) n'est exigé que côté
+      // création de compte — un compte existant se connecte avec son mot de
+      // passe actuel quel qu'il soit.
+      return showError(
+        "Le mot de passe doit faire au moins 8 caractères.",
+        passwordEl
+      );
+    }
+    if (!niveauEl) return showError("Sélectionne ton niveau (L1, L2 ou L3).");
+
+    var checked = form.querySelectorAll('input[name="matieres"]:checked');
+    if (checked.length === 0) return showError("Sélectionne au moins une matière.");
+
+    var keys   = [];
+    var labels = [];
+    Array.prototype.forEach.call(checked, function (box) {
+      keys.push(box.value);
+      labels.push(box.getAttribute("data-label"));
+    });
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Vérification…";
+
+    ensureAccountChecked(email)
+      .then(function (exists) {
+        // Nouveau compte (ou statut encore inconnu suite à un échec réseau
+        // du check — on ne bloque pas pour autant, registerOrLogin() gère
+        // aussi ce cas en retombant sur la création) : on exige un mot de
+        // passe conforme à la politique + une confirmation identique.
+        if (exists === false) {
+          if (!PWD_REGEX.test(password)) {
+            var weakErr = new Error(
+              "Mot de passe trop faible : ajoute une majuscule et un chiffre ou un symbole."
+            );
+            weakErr.field = "password";
+            throw weakErr;
+          }
+          if (confirmEl.value !== password) {
+            var mismatch = new Error("Les deux mots de passe ne correspondent pas.");
+            mismatch.field = "confirm";
+            throw mismatch;
+          }
+        }
+
+        submitBtn.textContent = "Vérification du compte…";
+        return registerOrLogin(email, password, buildUsername(prenom, nom));
+      })
+      .then(function (token) {
+        if (!token) {
+          throw new Error("Connexion impossible. Réessaie dans un instant.");
+        }
+
+        // On NE stocke PAS le token ici : ce formulaire tourne dans un embed
+        // sur navire-ai.com (même origine que le site), et écrire dans le
+        // localStorage partagé réveille aussitôt le script du site qui
+        // redirige un utilisateur connecté vers /home — cette redirection
+        // gagne la course contre celle vers Stripe juste en dessous. Le
+        // compte est déjà créé/authentifié côté API ; l'élève se reconnectera
+        // normalement sur /login après le paiement (Stripe y redirige).
+        submitBtn.textContent = "Redirection…";
+
+        return fetch(CONFIG.API_BASE + "/prepa/adjuris/checkout-session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({ matieres: keys, promo_code: promo || null })
+        });
+      })
+      .then(function (response) {
+        return response.json()
+          .catch(function () { return {}; })
+          .then(function (body) {
+            if (!response.ok) {
+              // Seules nos erreurs métier (400) portent un message destiné à
+              // l'étudiant. Le reste (404 si l'API n'est pas à jour, 5xx…)
+              // ne doit jamais s'afficher brut : "Not Found" n'aide personne.
+              var msg = null;
+              var errCode = null;
+              if (response.status === 400) {
+                var detail = body && body.detail;
+                if (typeof detail === "string") msg = detail;
+                else if (detail && typeof detail.message === "string") {
+                  msg = detail.message;
+                  errCode = detail.code;
+                }
+              }
+              // Erreur de code promo : affichée sous le champ, pas dans le
+              // bandeau général — le reste du formulaire reste utilisable.
+              if (errCode && errCode.indexOf("PROMO_") === 0) {
+                promoEl.classList.add("is-invalid");
+                promoMsg.textContent = msg;
+                promoMsg.classList.add("is-visible", "is-err");
+                submitBtn.disabled = false;
+                submitBtn.textContent = "S'inscrire";
+                var skip = new Error(msg);
+                skip.silent = true;
+                throw skip;
+              }
+              if (!msg) {
+                console.error("[Prép'AdJuris] HTTP " + response.status, body);
+                msg = "Le service d'inscription est momentanément indisponible. "
+                    + "Réessaie dans quelques minutes.";
+              }
+              throw new Error(msg);
+            }
+            return body;
+          });
+      })
+      .then(function (body) {
+        mirrorToGoogleForms({
+          prenom: prenom, nom: nom, email: email,
+          niveau: niveauEl.value, labels: labels
+        });
+
+        if (!body || !body.checkout_url) {
+          throw new Error("Lien de paiement indisponible. Réessaie dans un instant.");
+        }
+
+        // Écran d'attente : la redirection vers Stripe peut prendre un instant.
+        doneSub.textContent = "Redirection vers le paiement sécurisé…";
+        form.style.display = "none";
+        doneBox.classList.add("is-visible");
+
+        redirectToStripe(body.checkout_url);
+      })
+      .catch(function (err) {
+        if (err && err.silent) return;   // déjà affichée sous le champ promo
+
+        if (err && err.field === "password") {
+          passwordEl.classList.add("is-invalid");
+          passwordMsg.textContent = err.message;
+          passwordMsg.classList.add("is-visible", "is-err");
+          passwordEl.focus();
+        } else if (err && err.field === "confirm") {
+          confirmEl.classList.add("is-invalid");
+          confirmMsg.textContent = err.message;
+          confirmMsg.classList.add("is-visible", "is-err");
+          confirmEl.focus();
+        } else {
+          showError(err.message || "Connexion impossible. Vérifie ta connexion et réessaie.");
+        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = "S'inscrire";
+      });
+  });
+})();
+</script>
+
+</body>
+</html>
