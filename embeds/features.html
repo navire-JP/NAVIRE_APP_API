@@ -3,13 +3,14 @@
   ========================================================
   Même style que equipe.html : verre, fond BLANC posé par la page, épuré.
     - PC (>= 860px) : liste des fonctionnalités à gauche, écran animé à droite ;
-    - mobile        : pastilles défilantes au-dessus de l'écran.
-  Défilement automatique (6 s par fonctionnalité), en pause au survol ;
-  un clic sur une fonctionnalité l'affiche. Animations coupées si l'appareil
-  demande « moins de mouvement ».
-  Textes : modifier les <button class="item"> ; écrans : les <div class="screen">.
+    - mobile        : pastilles défilantes, description, puis l'écran.
+  Défilement automatique (durée propre à chaque écran : data-dur, en secondes),
+  en pause au survol ; un clic sur une fonctionnalité l'affiche. Animations
+  coupées si l'appareil demande « moins de mouvement ».
+  Textes : les <button class="item"> ; écrans : les <div class="screen">.
+  Les extraits viennent du cours NAVIRE Lib « Droit des obligations » (L2).
 -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
 <style>
 #nv-feat {
   --ink: #0a0a12;
@@ -20,7 +21,7 @@
   --accent: #5B6FFF;
   --ok: #2E9E6B;
   --ease: cubic-bezier(.2,.8,.2,1);
-  --dur: 6s;
+  --serif: 'Source Serif 4', Georgia, serif;
 
   position: relative; box-sizing: border-box; width: 100%;
   padding: 56px 16px 64px;
@@ -57,15 +58,15 @@
   position: absolute; left: 0; bottom: 0; height: 2px; width: 100%;
   background: var(--accent); transform: scaleX(0); transform-origin: left;
 }
-#nv-feat .item.on i { animation: nvProg var(--dur) linear forwards; }
-#nv-feat.paused .item.on i { animation-play-state: paused; }
+#nv-feat .item.on i { animation: nvProg var(--dur, 6s) linear forwards; }
 @keyframes nvProg { to { transform: scaleX(1); } }
+#nv-feat .caption { margin: -12px 0 0; min-height: 44px; font-size: 14px; line-height: 1.55; color: var(--ink-2); text-align: center; }
 
 /* Écran */
 #nv-feat .stage { animation: nvFloat 7s ease-in-out infinite; }
 @keyframes nvFloat { 50% { transform: translateY(-8px); } }
 #nv-feat .device {
-  position: relative; height: 380px; border-radius: 24px; overflow: hidden;
+  position: relative; height: 400px; border-radius: 24px; overflow: hidden;
   background: rgba(255,255,255,.6); border: 1px solid rgba(255,255,255,.95);
   box-shadow: 0 30px 60px -30px rgba(30,40,100,.28), inset 0 1px 0 #fff;
   backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
@@ -74,21 +75,32 @@
 #nv-feat .bar-top em { width: 9px; height: 9px; border-radius: 50%; background: var(--bar); }
 #nv-feat .bar-top strong { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--ink-3); }
 #nv-feat .screen {
-  position: absolute; inset: 46px 0 0; padding: 22px;
+  position: absolute; inset: 46px 0 0; padding: 22px; overflow: hidden;
   opacity: 0; visibility: hidden; transform: translateY(10px);
   transition: opacity .5s var(--ease), transform .5s var(--ease), visibility 0s .5s;
 }
 #nv-feat .screen.on { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+#nv-feat.paused .screen.on, #nv-feat.paused .screen.on *, #nv-feat.paused .item.on i { animation-play-state: paused !important; }
 
-/* Éléments communs des maquettes */
+/* Éléments communs */
 #nv-feat .ln { height: 9px; border-radius: 9px; background: var(--bar); margin: 0 0 10px; }
 #nv-feat .chip { display: inline-block; font-size: 11px; font-weight: 600; color: var(--accent); background: rgba(91,111,255,.1); padding: 5px 10px; border-radius: 999px; }
 #nv-feat .ttl { font-size: 15px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 14px; }
-#nv-feat .opt { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; background: rgba(255,255,255,.7); }
+#nv-feat .opt { position: relative; display: flex; align-items: center; gap: 10px; font-size: 13px; line-height: 1.4; padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; background: rgba(255,255,255,.75); }
 #nv-feat .opt::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid rgba(10,10,18,.2); flex: none; }
 #nv-feat .pop { opacity: 0; transform: translateY(8px); }
 #nv-feat .on .pop { animation: nvPop .5s var(--ease) forwards; }
 @keyframes nvPop { to { opacity: 1; transform: none; } }
+@keyframes nvGood { to { border-color: var(--ok); background: rgba(46,158,107,.08); } }
+@keyframes nvFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes nvFadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* Curseur : placé dans l'élément visé, il arrive depuis le bas à droite */
+#nv-feat .cursor {
+  position: absolute; right: 18%; top: 55%; width: 18px; height: 18px; z-index: 3; opacity: 0; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l16 9.5-7 1.6-3.6 6.9z' fill='%230a0a12' stroke='white' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,.25));
+}
 
 /* 1. NAVIRE AI */
 #nv-feat .msg { max-width: 82%; padding: 12px 14px; border-radius: 16px; font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
@@ -101,16 +113,62 @@
 @keyframes nvDot { 50% { opacity: .2; transform: translateY(-2px); } }
 #nv-feat .on .typing { animation: nvPop .3s .6s var(--ease) forwards, nvOut .2s 1.9s forwards; }
 @keyframes nvOut { to { opacity: 0; height: 0; padding: 0; margin: 0; border: 0; } }
+#nv-feat .input { position: absolute; left: 22px; right: 22px; bottom: 22px; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 10px 16px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.85); font-size: 13px; color: var(--ink-3); }
+#nv-feat .input em { width: 28px; height: 28px; border-radius: 50%; background: var(--ink); }
 
-/* 2. Lib+ */
-#nv-feat .doc .ln { background: rgba(10,10,18,.06); }
-#nv-feat .blur { filter: blur(4px); opacity: .6; }
-#nv-feat .check { border: 1px solid rgba(91,111,255,.3); background: rgba(91,111,255,.05); border-radius: 14px; padding: 14px; margin: 14px 0; }
-#nv-feat .check .opt { padding: 8px 12px; font-size: 12.5px; }
-#nv-feat .on .check .opt.good { animation: nvGood .4s 2.4s forwards; }
-@keyframes nvGood { to { border-color: var(--ok); background: rgba(46,158,107,.08); } }
-#nv-feat .on .unblur { animation: nvUnblur .8s 3s forwards; }
-@keyframes nvUnblur { to { filter: none; opacity: 1; } }
+/* 2. NAVIRE Lib+ : bibliothèque → clic → cours → défilement → point de passage */
+#nv-feat .lib { padding: 0; }
+#nv-feat .lib-list, #nv-feat .lib-course { position: absolute; inset: 0; padding: 20px 22px; }
+#nv-feat .lib-list { display: flex; flex-direction: column; }
+#nv-feat .lib-list .ttl { flex: none; margin: 0; padding-bottom: 12px; }
+#nv-feat .lib-view { flex: 1; overflow: hidden; margin: 0 -6px; padding: 4px 6px; -webkit-mask-image: linear-gradient(#000 calc(100% - 24px), transparent); mask-image: linear-gradient(#000 calc(100% - 24px), transparent); }
+#nv-feat .lib-track { display: grid; gap: 10px; }
+#nv-feat .course { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.8); }
+#nv-feat .course .lvl { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--accent); background: rgba(91,111,255,.1); }
+#nv-feat .course b { display: block; font-size: 13.5px; font-weight: 600; }
+#nv-feat .course small { font-size: 12px; color: var(--ink-3); }
+#nv-feat .lib-course { opacity: 0; display: flex; flex-direction: column; }
+#nv-feat .lib-head { flex: none; padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+#nv-feat .lib-head small { display: block; font-size: 11.5px; color: var(--ink-3); margin-bottom: 3px; }
+#nv-feat .lib-head b { font-size: 14px; font-weight: 700; }
+#nv-feat .lib-scroll { position: relative; flex: 1; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 24px), transparent); }
+#nv-feat .lib-body { padding-top: 12px; font-family: var(--serif); font-size: 13.5px; line-height: 1.65; color: rgba(10,10,18,.8); }
+#nv-feat .lib-body p { margin: 0 0 12px; }
+#nv-feat .lib-body p b { font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+#nv-feat .lib-body blockquote { margin: 0 0 12px; padding: 8px 12px; border-left: 2px solid var(--accent); background: rgba(91,111,255,.05); border-radius: 0 10px 10px 0; font-size: 12.5px; font-style: italic; }
+#nv-feat .check { font-family: 'Inter', sans-serif; border: 1px solid rgba(91,111,255,.3); background: rgba(255,255,255,.9); border-radius: 14px; padding: 14px; margin: 4px 0 14px; }
+#nv-feat .check p { font-size: 13px; font-weight: 600; margin: 10px 0; color: var(--ink); line-height: 1.4; }
+#nv-feat .check .opt { padding: 9px 12px; font-size: 12.5px; }
+#nv-feat .after { filter: blur(4px); opacity: .55; }
+
+#nv-feat .lib.on .lib-track  { animation: nvLibScroll 12s ease-in-out forwards; }
+#nv-feat .lib.on .target     { animation: nvTarget 12s linear forwards; }
+#nv-feat .lib.on .c1         { animation: nvCursor1 12s ease-out forwards; }
+#nv-feat .lib.on .lib-list   { animation: nvListOut 12s linear forwards; }
+#nv-feat .lib.on .lib-course { animation: nvCourseIn 12s var(--ease) forwards; }
+#nv-feat .lib.on .lib-body   { animation: nvBodyScroll 12s ease-in-out forwards; }
+#nv-feat .lib.on .c2         { animation: nvCursor2 12s ease-out forwards; }
+#nv-feat .lib.on .good       { animation: nvGoodAt 12s linear forwards; }
+#nv-feat .lib.on .after      { animation: nvUnblur 12s linear forwards; }
+@keyframes nvLibScroll { 0%, 6% { transform: none; } 22%, 100% { transform: translateY(calc(var(--ls, 0px) * -1)); } }
+@keyframes nvTarget { 0%, 26% { border-color: var(--line); } 27%, 100% { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,111,255,.15); } }
+@keyframes nvCursor1 {
+  0%, 18% { opacity: 0; transform: translate(70px, 50px); }
+  24% { opacity: 1; transform: none; }
+  26% { transform: scale(.8); } 28% { opacity: 1; transform: none; }
+  31%, 100% { opacity: 0; }
+}
+@keyframes nvListOut { 0%, 30% { opacity: 1; } 33%, 100% { opacity: 0; visibility: hidden; } }
+@keyframes nvCourseIn { 0%, 31% { opacity: 0; transform: translateY(10px); } 36%, 100% { opacity: 1; transform: none; } }
+@keyframes nvBodyScroll { 0%, 40% { transform: none; } 62%, 78% { transform: translateY(calc(var(--cs, 0px) * -1)); } 90%, 100% { transform: translateY(calc(var(--cs2, 0px) * -1)); } }
+@keyframes nvCursor2 {
+  0%, 64% { opacity: 0; transform: translate(70px, 50px); }
+  71% { opacity: 1; transform: none; }
+  73% { transform: scale(.8); } 75% { opacity: 1; transform: none; }
+  79%, 100% { opacity: 0; }
+}
+@keyframes nvGoodAt { 0%, 73% { border-color: var(--line); background: rgba(255,255,255,.75); } 75%, 100% { border-color: var(--ok); background: rgba(46,158,107,.08); } }
+@keyframes nvUnblur { 0%, 78% { filter: blur(4px); opacity: .55; } 86%, 100% { filter: none; opacity: 1; } }
 
 /* 3. QCM & Elo */
 #nv-feat .on .opt.pick { animation: nvPop .5s .5s var(--ease) forwards, nvGood .4s 1.6s forwards; }
@@ -120,38 +178,30 @@
 #nv-feat .elo .gain { font-size: 13px; font-weight: 700; color: #5BE3A3; opacity: 0; }
 #nv-feat .on .elo .gain { animation: nvPop .4s 2.2s forwards; }
 
-/* 4. Flashcards */
-#nv-feat .fc-wrap { perspective: 900px; height: 190px; margin: 6px 0 18px; }
-#nv-feat .fc { position: relative; height: 100%; transform-style: preserve-3d; transition: transform .8s var(--ease); }
-#nv-feat .on .fc { animation: nvFlip 6s var(--ease) forwards; }
-@keyframes nvFlip { 0%, 30% { transform: none; } 45%, 100% { transform: rotateY(180deg); } }
-#nv-feat .face {
-  position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
-  display: grid; place-items: center; text-align: center; padding: 20px; border-radius: 18px;
-  background: #fff; border: 1px solid var(--line); box-shadow: 0 14px 30px -18px rgba(30,40,100,.3);
-}
-#nv-feat .face.back { transform: rotateY(180deg); background: var(--ink); color: #fff; }
-#nv-feat .face p { margin: 8px 0 0; font-size: 15px; font-weight: 600; line-height: 1.45; }
-#nv-feat .face.back p { font-size: 13.5px; font-weight: 500; opacity: .9; }
-#nv-feat .fc-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-#nv-feat .fc-btns span { text-align: center; font-size: 12px; font-weight: 600; padding: 10px 0; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.7); color: var(--ink-2); }
+/* 4. Flashcards : import d'un PDF → génération → les cartes arrivent */
+#nv-feat .pdf { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.85); }
+#nv-feat .pdf .ico { flex: none; width: 32px; height: 38px; border-radius: 6px; background: #C2384A; color: #fff; font-size: 9px; font-weight: 700; display: grid; place-items: end center; padding-bottom: 5px; }
+#nv-feat .pdf div { flex: 1; min-width: 0; }
+#nv-feat .pdf b { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-feat .gen { position: relative; height: 16px; margin-top: 6px; font-size: 12px; color: var(--ink-3); }
+#nv-feat .gen span { position: absolute; left: 0; top: 0; }
+#nv-feat .gen .done { color: var(--ok); font-weight: 600; opacity: 0; }
+#nv-feat .on .gen .wait { animation: nvFadeOut .3s 2.3s forwards; }
+#nv-feat .on .gen .done { animation: nvFadeIn .3s 2.4s forwards; }
+#nv-feat .prog { height: 4px; border-radius: 4px; background: var(--bar); margin-top: 8px; overflow: hidden; }
+#nv-feat .prog i { display: block; height: 100%; width: 100%; background: var(--accent); transform: scaleX(0); transform-origin: left; }
+#nv-feat .on .prog i { animation: nvFill 1.8s .5s ease-in-out forwards; }
+@keyframes nvFill { to { transform: scaleX(1); } }
+#nv-feat .cards { display: grid; gap: 8px; margin-top: 14px; }
+#nv-feat .fcard { padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.85); box-shadow: 0 10px 24px -18px rgba(30,40,100,.3); }
+#nv-feat .fcard b { display: block; font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+#nv-feat .fcard span { font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
 
-/* 5. NavireCab */
-#nv-feat .step { display: flex; align-items: center; gap: 10px; font-size: 13px; margin-bottom: 10px; color: var(--ink-2); }
-#nv-feat .step::before { content: ""; width: 18px; height: 18px; border-radius: 50%; flex: none; background: var(--ok) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 10px no-repeat; }
-#nv-feat .note { display: flex; align-items: baseline; gap: 4px; justify-content: center; margin-top: 18px; padding: 18px; border-radius: 16px; background: rgba(255,255,255,.85); border: 1px solid var(--line); }
-#nv-feat .note b { font-size: 40px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
-#nv-feat .note span { font-size: 16px; color: var(--ink-3); font-weight: 600; }
-
-/* 6. Veille */
+/* 5. Veille */
 #nv-feat .news { display: flex; gap: 12px; align-items: flex-start; padding: 12px; margin-bottom: 10px; border-radius: 14px; background: rgba(255,255,255,.8); border: 1px solid var(--line); }
 #nv-feat .news .ico { width: 34px; height: 34px; border-radius: 10px; flex: none; background: rgba(91,111,255,.1); }
 #nv-feat .news div { flex: 1; }
 #nv-feat .news .ln { margin: 8px 0 0; }
-
-#nv-feat .caption { margin: -12px 0 0; min-height: 44px; font-size: 14px; line-height: 1.55; color: var(--ink-2); text-align: center; }
-#nv-feat .input { position: absolute; left: 22px; right: 22px; bottom: 22px; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 10px 16px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.85); font-size: 13px; color: var(--ink-3); }
-#nv-feat .input em { width: 28px; height: 28px; border-radius: 50%; background: var(--ink); }
 
 @media (min-width: 860px) {
   #nv-feat .caption { display: none; }
@@ -163,12 +213,12 @@
   #nv-feat .item.on { color: var(--ink); background: rgba(255,255,255,.7); border-color: var(--line); box-shadow: 0 14px 30px -20px rgba(30,40,100,.25); }
   #nv-feat .item.on span { max-height: 80px; opacity: 1; }
   #nv-feat .item:not(.on):hover b { color: var(--accent); }
-  #nv-feat .device { height: 420px; }
+  #nv-feat .device { height: 440px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #nv-feat .stage, #nv-feat .on .fc, #nv-feat .dots span { animation: none; }
-  #nv-feat .on .pop, #nv-feat .on .typing, #nv-feat .on .unblur, #nv-feat .on .opt, #nv-feat .on .elo .gain { animation-duration: .01s; animation-delay: 0s; }
+  #nv-feat .stage, #nv-feat .dots span { animation: none; }
+  #nv-feat .on *, #nv-feat .lib.on * { animation-duration: .01s !important; animation-delay: 0s !important; }
 }
 </style>
 
@@ -180,12 +230,11 @@
 
   <div class="layout">
     <div class="list" role="tablist">
-      <button class="item on" role="tab"><b>NAVIRE AI</b><span>Pose tes questions de droit : l'IA répond à partir des cours et de tes propres PDF.</span><i></i></button>
-      <button class="item" role="tab"><b>NAVIRE Lib+</b><span>Cours, fiches et dissertations, avec des points de passage pour vérifier que tu as compris.</span><i></i></button>
-      <button class="item" role="tab"><b>QCM &amp; classement</b><span>Entraîne-toi en QCM, gagne des points Elo et grimpe au classement de ta fac.</span><i></i></button>
-      <button class="item" role="tab"><b>Flashcards</b><span>Génère tes cartes depuis un PDF et révise-les au bon moment.</span><i></i></button>
-      <button class="item" role="tab"><b>NavireCab</b><span>Mets-toi dans la peau d'un avocat : traite un dossier client et obtiens une note sur 20.</span><i></i></button>
-      <button class="item" role="tab"><b>Veille juridique</b><span>Les actualités du droit qui comptent pour toi, aussi sur Discord.</span><i></i></button>
+      <button class="item on" role="tab" data-dur="6"><b>NAVIRE AI</b><span>Pose tes questions de droit : l'IA répond à partir des cours et de tes propres PDF.</span><i></i></button>
+      <button class="item" role="tab" data-dur="12"><b>NAVIRE Lib+</b><span>Cours, fiches et dissertations, avec des points de passage pour vérifier que tu as compris.</span><i></i></button>
+      <button class="item" role="tab" data-dur="6"><b>QCM &amp; classement</b><span>Entraîne-toi en QCM, gagne des points Elo et grimpe au classement de ta fac.</span><i></i></button>
+      <button class="item" role="tab" data-dur="7"><b>Flashcards</b><span>Importe ton cours en PDF : tes cartes de révision sont prêtes en quelques secondes.</span><i></i></button>
+      <button class="item" role="tab" data-dur="6"><b>Veille juridique</b><span>Les actualités du droit qui comptent pour toi, aussi sur Discord.</span><i></i></button>
     </div>
     <p class="caption" aria-live="polite"></p>
 
@@ -204,28 +253,50 @@
           <div class="input">Pose ta question…<em></em></div>
         </div>
 
-        <!-- 2. Lib+ -->
-        <div class="screen">
-          <p class="ttl pop">La formation du contrat</p>
-          <div class="doc pop" style="animation-delay:.2s"><div class="ln"></div><div class="ln"></div><div class="ln" style="width:70%"></div></div>
-          <div class="check pop" style="animation-delay:.6s">
-            <span class="chip">Point de passage</span>
-            <p style="font-size:13px;font-weight:600;margin:10px 0">Une offre peut-elle être rétractée librement ?</p>
-            <div class="opt">Oui, à tout moment</div>
-            <div class="opt good">Non, pas avant l'expiration du délai fixé</div>
+        <!-- 2. NAVIRE Lib+ -->
+        <div class="screen lib">
+          <div class="lib-list">
+            <p class="ttl">Bibliothèque</p>
+            <div class="lib-view"><div class="lib-track">
+              <div class="course"><span class="lvl">L1</span><div><b>Introduction au droit</b><small>Cours · Licence 1</small></div></div>
+              <div class="course"><span class="lvl">L1</span><div><b>Droit constitutionnel</b><small>Cours · Licence 1</small></div></div>
+              <div class="course"><span class="lvl">L2</span><div><b>Droit administratif</b><small>Cours · Licence 2</small></div></div>
+              <div class="course target"><span class="lvl">L2</span><div><b>Droit des obligations</b><small>Cours · Licence 2</small></div><span class="cursor c1"></span></div>
+              <div class="course"><span class="lvl">L2</span><div><b>Droit pénal</b><small>Cours · Licence 2</small></div></div>
+              <div class="course"><span class="lvl">L3</span><div><b>Droit des sociétés</b><small>Cours · Licence 3</small></div></div>
+              <div class="course"><span class="lvl">L3</span><div><b>Droit des sûretés</b><small>Cours · Licence 3</small></div></div>
+            </div></div>
           </div>
-          <div class="doc blur unblur"><div class="ln"></div><div class="ln"></div><div class="ln" style="width:55%"></div></div>
+
+          <div class="lib-course">
+            <div class="lib-head"><small>Droit des obligations · Étape 1 · Titre 3</small><b>L'offre et l'acceptation</b></div>
+            <div class="lib-scroll">
+              <div class="lib-body">
+                <p><b>17. Principe.</b> Le contrat est formé par la rencontre d'une offre et d'une acceptation, en vertu de l'article 1113. La volonté de s'engager peut résulter d'une déclaration ou d'un comportement non équivoque de son auteur.</p>
+                <blockquote>Art. 1113 C. civ. : « Le contrat est formé par la rencontre d'une offre et d'une acceptation par lesquelles les parties manifestent leur volonté de s'engager. »</blockquote>
+                <p><b>18. L'offre.</b> L'offre comprend les éléments essentiels du contrat envisagé et exprime la volonté de son auteur d'être lié en cas d'acceptation (art. 1114). L'offre peut être librement rétractée tant qu'elle n'est pas parvenue à son destinataire. Elle ne peut l'être avant l'expiration du délai fixé par son auteur ou, à défaut, d'un délai raisonnable (art. 1116).</p>
+                <div class="check">
+                  <span class="chip">Point de passage</span>
+                  <p>Jusqu'à quand l'offre peut-elle être librement rétractée ?</p>
+                  <div class="opt">Jusqu'à son acceptation</div>
+                  <div class="opt good">Tant qu'elle n'est pas parvenue à son destinataire<span class="cursor c2"></span></div>
+                  <div class="opt">À tout moment</div>
+                </div>
+                <div class="after">
+                  <p><b>19. L'acceptation.</b> L'acceptation est la manifestation de volonté de son auteur d'être lié dans les termes de l'offre (art. 1118). Le silence ne vaut pas acceptation, à moins qu'il n'en résulte autrement de la loi, des usages, des relations d'affaires ou de circonstances particulières (art. 1120).</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 3. QCM & Elo -->
         <div class="screen">
-          <p class="ttl pop">Question 4 / 10</p>
-          <div class="pop" style="animation-delay:.2s">
-            <div class="ln" style="width:90%"></div><div class="ln" style="width:65%;margin-bottom:16px"></div>
-          </div>
-          <div class="opt pop" style="animation-delay:.4s">Réponse A</div>
-          <div class="opt pick pop">Réponse B</div>
-          <div class="opt pop" style="animation-delay:.6s">Réponse C</div>
+          <p class="ttl pop">Question 4 / 10 · Droit des obligations</p>
+          <p class="pop" style="animation-delay:.2s;font-size:14px;font-weight:600;line-height:1.45;margin:0 0 14px">Le silence vaut-il acceptation d'une offre ?</p>
+          <div class="opt pop" style="animation-delay:.4s">Oui, toujours</div>
+          <div class="opt pick pop">Non, sauf si la loi, les usages ou les circonstances en disposent autrement</div>
+          <div class="opt pop" style="animation-delay:.6s">Seulement entre commerçants</div>
           <div class="elo pop" style="animation-delay:.8s">
             <div><small>Ton Elo</small><b data-count="1240:1268">1240</b></div>
             <span class="gain">+28</span>
@@ -234,26 +305,22 @@
 
         <!-- 4. Flashcards -->
         <div class="screen">
-          <div class="fc-wrap pop">
-            <div class="fc">
-              <div class="face"><div><span class="chip">Droit de la responsabilité</span><p>Article 1240 du Code civil</p></div></div>
-              <div class="face back"><p>Tout fait quelconque de l'homme, qui cause à autrui un dommage, oblige celui par la faute duquel il est arrivé à le réparer.</p></div>
+          <div class="pdf pop">
+            <span class="ico">PDF</span>
+            <div>
+              <b>Cours_Droit_des_obligations.pdf</b>
+              <div class="gen"><span class="wait">Génération des cartes…</span><span class="done">Cartes prêtes</span></div>
+              <div class="prog"><i></i></div>
             </div>
           </div>
-          <div class="fc-btns pop" style="animation-delay:.3s"><span>À revoir</span><span>Difficile</span><span>Facile</span></div>
+          <div class="cards">
+            <div class="fcard pop" style="animation-delay:2.5s"><b>Quand le contrat est-il conclu ?</b><span>Dès que l'acceptation parvient à l'offrant (art. 1121).</span></div>
+            <div class="fcard pop" style="animation-delay:2.9s"><b>Le silence vaut-il acceptation ?</b><span>Non, sauf exceptions prévues par l'article 1120.</span></div>
+            <div class="fcard pop" style="animation-delay:3.3s"><b>Qu'est-ce qu'un pacte de préférence ?</b><span>L'engagement de proposer en priorité au bénéficiaire de traiter avec lui (art. 1123).</span></div>
+          </div>
         </div>
 
-        <!-- 5. NavireCab -->
-        <div class="screen">
-          <span class="chip pop">Dossier client</span>
-          <p class="ttl pop" style="margin-top:12px;animation-delay:.1s">Rupture brutale d'une relation commerciale</p>
-          <div class="step pop" style="animation-delay:.5s">Analyse des faits</div>
-          <div class="step pop" style="animation-delay:1s">Qualification juridique</div>
-          <div class="step pop" style="animation-delay:1.5s">Conseil au client</div>
-          <div class="note pop" style="animation-delay:2s"><b data-count="0:16">0</b><span>/20</span></div>
-        </div>
-
-        <!-- 6. Veille -->
+        <!-- 5. Veille -->
         <div class="screen">
           <p class="ttl pop">Ta veille du jour</p>
           <div class="news pop" style="animation-delay:.3s"><span class="ico"></span><div><span class="chip">Jurisprudence</span><div class="ln" style="width:85%"></div></div></div>
@@ -271,8 +338,25 @@
   var items = root.querySelectorAll(".item");
   var screens = root.querySelectorAll(".screen");
   var caption = root.querySelector(".caption");
-  var DUR = 6000, idx = 0, timer = null, left = DUR, started = 0;
+  var idx = 0, timer = null, left = 0, started = 0;
   var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Lib+ : distances de défilement mesurées, pour tomber pile sur le cours
+  // visé puis sur le point de passage, quelle que soit la largeur.
+  function measureLib() {
+    var lib = root.querySelector(".lib");
+    var track = lib.querySelector(".lib-track"), target = lib.querySelector(".target");
+    var listView = lib.querySelector(".lib-view").clientHeight;
+    var ls = target.offsetTop - Math.max(0, (listView - target.offsetHeight) / 2);
+    lib.style.setProperty("--ls", Math.max(0, Math.min(ls, track.scrollHeight - listView)) + "px");
+    var scroll = lib.querySelector(".lib-scroll"), check = lib.querySelector(".check");
+    var cs = check.offsetTop - Math.max(12, (scroll.clientHeight - check.offsetHeight) / 2 - 30);
+    lib.style.setProperty("--cs", Math.max(0, cs) + "px");
+    // Après la bonne réponse : on descend encore pour montrer la suite dévoilée.
+    var after = lib.querySelector(".after");
+    var cs2 = Math.max(cs, after.offsetTop + Math.min(after.offsetHeight, 90) - scroll.clientHeight + 24);
+    lib.style.setProperty("--cs2", Math.max(0, cs2) + "px");
+  }
 
   function count(el) {
     var p = el.getAttribute("data-count").split(":"), a = +p[0], b = +p[1];
@@ -291,7 +375,13 @@
 
   function show(i) {
     idx = i;
-    items.forEach(function (el, j) { el.classList.toggle("on", j === i); el.setAttribute("aria-selected", j === i); });
+    var dur = (+items[i].getAttribute("data-dur") || 6) * 1000;
+    items.forEach(function (el, j) {
+      el.classList.toggle("on", j === i);
+      el.setAttribute("aria-selected", j === i);
+      el.style.setProperty("--dur", dur + "ms");
+    });
+    if (screens[i].classList.contains("lib")) measureLib();
     screens.forEach(function (el, j) {
       el.classList.remove("on");
       if (j === i) { void el.offsetWidth; el.classList.add("on"); }   // relance les animations
@@ -300,7 +390,7 @@
     caption.textContent = items[i].querySelector("span").textContent;
     var list = root.querySelector(".list");
     if (list.scrollWidth > list.clientWidth) list.scrollTo({ left: items[i].offsetLeft - 16, behavior: "smooth" });
-    restart(DUR);
+    restart(dur);
   }
 
   function restart(ms) {
@@ -317,6 +407,7 @@
   root.addEventListener("mouseleave", function () {
     root.classList.remove("paused"); started = Date.now(); timer = setTimeout(next, Math.max(left, 300));
   });
+  window.addEventListener("resize", function () { if (screens[idx].classList.contains("lib")) measureLib(); });
 
   show(0);
 })();
