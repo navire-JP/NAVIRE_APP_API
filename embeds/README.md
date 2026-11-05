@@ -3,6 +3,7 @@
 | Fichier | Où | Rôle |
 |---|---|---|
 | `home.html` | page d'accueil (`/home`) | Accueil épuré : barre de recherche au centre qui démarre NAVIRE AI sur place (la barre glisse en bas, la discussion s'ouvre), et trois accès dessous : Veilles, Cours (NAVIRE Lib), Fichiers. DA de NAVIRE Lib (bleu et blanc, cartes à halo, sans traits ni logo — le header du site les porte — ; barre latérale repliée par défaut, avec raccourcis Veilles / Cours / Fichiers / QCM et discussions récentes). `/home?q=…` pose directement une question. Liens des trois accès : bloc CONFIG (`LINKS`) |
+| `veille.html` | page `/actus` | Veille juridique : même DA que Lib et l'accueil (bleu et blanc, sans traits, menu à gauche replié par défaut). À la une, rubriques, recherche, non lues, à relire, sources officielles, références cliquables, « Réviser dans la Lib ». Chaque actu affiche qui l'a postée (`author` de l'API : photo, pseudo, rôle) ; lien direct `?actu=ID` |
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |

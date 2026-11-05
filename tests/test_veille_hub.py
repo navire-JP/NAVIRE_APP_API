@@ -41,13 +41,20 @@ def env():
         user = User(email="veille-hub@test.fr", username="lecteur")
         db.add(user)
 
-    def actu(n, title, category, days_ago, essentiel="Résumé.", published=True):
+    auteur = db.query(User).filter(User.email == "veille-auteur@test.fr").one_or_none()
+    if not auteur:
+        auteur = User(email="veille-auteur@test.fr", username="redaction", is_admin=True)
+        db.add(auteur)
+    db.flush()
+
+    def actu(n, title, category, days_ago, essentiel="Résumé.", published=True, author=None):
         when = now - timedelta(days=days_ago)
         return VeilleItem(
             external_id=f"test:hub:{n}", title=title, essentiel=essentiel,
             impact="Impact.", category=category,
             source_url=f"https://exemple.fr/{n}", source_name="Dalloz",
             published_at=when if published else None, created_at=when,
+            author_id=author.id if author else None,
         )
 
     items = [
@@ -55,7 +62,7 @@ def env():
              essentiel="La responsabilité civile extracontractuelle est réécrite."),
         actu(2, "Responsabilité civile : la Cour de cassation précise le préjudice", "civil", 40,
              essentiel="Le préjudice d'anxiété et la responsabilité civile."),
-        actu(3, "Garde à vue : nouvelles garanties", "penal", 3),
+        actu(3, "Garde à vue : nouvelles garanties", "penal", 3, author=auteur),
         actu(4, "Contrats publics : seuils relevés", "public", 400),
         actu(5, "Actu ancienne sans date de publication", "affaires", 20, published=False),
         actu(6, "Taux d'intérêt 100% fixe", "affaires", 2),
@@ -166,3 +173,34 @@ def test_lu_et_a_relire_pour_un_utilisateur_connecte(env):
     assert c.get("/veille/actus", params={"status": "saved"}, headers=auth).json()["total"] == 0
 
     assert c.put("/veille/actus/999999/save", headers=auth).status_code == 404
+
+
+def test_auteur_de_l_actu(env):
+    # Postée par un admin : pseudo et rôle « Équipe NAVIRE » ; importée : pas d'auteur.
+    a = env.c.get(f"/veille/actus/{env.ids[3]}").json()["item"]["author"]
+    assert a["name"] == "redaction" and a["role"] == "Équipe NAVIRE"
+    assert env.c.get(f"/veille/actus/{env.ids[1]}").json()["item"]["author"] is None
+    rows = {x["id"]: x for x in env.c.get("/veille/actus", params={"limit": 50}).json()["items"]}
+    assert rows[env.ids[3]]["author"]["name"] == "redaction"
+
+
+def test_anciennes_actus_rattachees_a_un_admin(env):
+    # Une actu postée à la main avant le champ auteur : la migration la rattache
+    # au premier admin ; une actu importée (hors « manual: ») reste sans auteur.
+    from app.db.database import SessionLocal
+    from app.db.lib_migration import run_lib_migration
+    from app.db.models import User, VeilleItem
+
+    db = SessionLocal()
+    old = VeilleItem(external_id="manual:ancienne", title="Ancienne actu", essentiel="E.",
+                     impact="I.", category="civil", source_url="https://x.fr/a", source_name="X")
+    rss = VeilleItem(external_id="rss:import", title="Importée", essentiel="E.",
+                     impact="I.", category="civil", source_url="https://x.fr/b", source_name="X")
+    db.add_all([old, rss])
+    db.commit()
+    first_admin = db.query(User).filter(User.is_admin.is_(True)).order_by(User.id).first()
+    run_lib_migration()
+    db.refresh(old); db.refresh(rss)
+    assert old.author_id == first_admin.id
+    assert rss.author_id is None
+    db.close()

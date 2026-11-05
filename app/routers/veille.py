@@ -8,11 +8,12 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select, and_, case, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.bot_discord.veille_publish import publish_veille_item_sync
 from app.db.database import get_db
 from app.db.models import (
+    PrepaAdjurisProfesseur,
     User,
     VeilleBookmark,
     VeilleItem,
@@ -345,6 +346,7 @@ def admin_create_item(
         source_url=payload.source_url,
         source_name=payload.source_name,
         published_at=payload.published_at or utcnow(),
+        author_id=user.id,
     )
     db.add(item)
     db.commit()
@@ -456,6 +458,26 @@ def _reading_minutes(it: VeilleItem) -> int:
     return max(1, math.ceil(words / WORDS_PER_MINUTE))
 
 
+def _author(it: VeilleItem) -> dict | None:
+    """Qui a posté l'actu : pseudo, photo et rôle (Équipe NAVIRE, Professeur, Étudiant).
+    None pour une actu importée automatiquement ou postée avant ce champ."""
+    u = it.author
+    if u is None:
+        return None
+    role = "Équipe NAVIRE" if u.is_admin else "Étudiant"
+    if not u.is_admin:
+        db = object_session(it)
+        prof = db.execute(
+            select(PrepaAdjurisProfesseur.id).where(
+                PrepaAdjurisProfesseur.user_id == u.id,
+                PrepaAdjurisProfesseur.status == "active",
+            )
+        ).first() if db is not None else None
+        if prof:
+            role = "Professeur"
+    return {"id": u.id, "name": u.username, "avatar_url": u.avatar_url, "role": role}
+
+
 def _hub_item(it: VeilleItem, read_ids: set[int], saved_ids: set[int]) -> dict:
     when = it.published_at or it.created_at
     return {
@@ -471,6 +493,7 @@ def _hub_item(it: VeilleItem, read_ids: set[int], saved_ids: set[int]) -> dict:
         "reading_minutes": _reading_minutes(it),
         "is_read":         it.id in read_ids,
         "is_saved":        it.id in saved_ids,
+        "author":          _author(it),
     }
 
 
