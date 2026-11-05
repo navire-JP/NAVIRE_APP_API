@@ -6,6 +6,18 @@
     - >= 760px de conteneur : barre latérale, masquable (bouton « « » en
       haut du menu, retenu d'une visite à l'autre) ; < 760px : menu tiroir ;
     - prend la hauteur de l'écran sous sa position, seule la page défile.
+    - Tout est fixe sauf la page : le menu est une carte en verre bleu nuit
+      de la hauteur de l'écran ; l'en-tête (titre, curseur Lib / Lib+) et la
+      barre de recherche de la bibliothèque flottent en verre au-dessus de la
+      page, qui défile dessous (rien ne coupe le haut du texte).
+    - Tout à gauche, une barre d'encarts : fine (largeur d'une icône) et
+      transparente quand elle est repliée, déployée elle montre 3 encarts
+      fixes. Chaque emplacement se choisit (bouton ⇄ de l'encart, retenu
+      d'une visite à l'autre) : streak du mois, veille, classement facs,
+      classement joueurs, stats QCM, stats globales, fichiers.
+        → GET /stats/calendar, /stats/streaks, /stats/summary, /files,
+          /veille/state, /veille/actus, /leaderboard/universities, /leaderboard/users
+      Sous 1100px, l'encart déployé passe par-dessus le menu (tiroir).
 
   Un curseur passe de NAVIRE Lib à NAVIRE Lib+ :
     Lib   → consultation : le cours entier, sans point de passage ni Elo.
@@ -55,6 +67,12 @@
   --blue-soft: rgba(122,167,255,0.1);
   --blue-line: rgba(122,167,255,0.35);
   --radius: 14px;
+  --glass: rgba(13,18,40,0.62);
+  --glass-2: rgba(16,22,50,0.78);
+  --glass-line: rgba(122,167,255,0.13);
+  --glass-blur: blur(22px) saturate(150%);
+  --gap: 10px;
+  --head-h: 60px;         /* hauteur de l'en-tête flottant, mesurée au rendu */
   --ease: cubic-bezier(.2,.8,.2,1);
   --serif: 'Source Serif 4', Georgia, serif;
   --mono: 'IBM Plex Mono', monospace;
@@ -64,6 +82,7 @@
   height: 640px;          /* remplacé par la hauteur de l'écran au chargement */
   min-height: 460px;
   display: flex;
+  gap: var(--gap);
   overflow: hidden;
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -81,9 +100,10 @@
 #nv-lib .nv-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9px; }
 
 /* ================= SIDEBAR ================= */
-#nv-lib .nv-side { width: 244px; flex-shrink: 0; display: flex; flex-direction: column; padding: 12px 8px 10px; gap: 2px; border-right: 1px solid var(--line); z-index: 30; min-height: 0; transition: margin-left .3s var(--ease), visibility 0s; }
-#nv-lib:not(.is-compact).is-side-off .nv-side { margin-left: -244px; visibility: hidden; transition: margin-left .3s var(--ease), visibility 0s .3s; }
-#nv-lib.is-solo .nv-side, #nv-lib.is-solo .nv-scrim, #nv-lib.is-solo .nv-topbar { display: none !important; }
+/* Carte fixe en verre bleu nuit, de la hauteur de l'écran : seul le plan défile dedans. */
+#nv-lib .nv-side { width: 244px; flex-shrink: 0; display: flex; flex-direction: column; padding: 12px 8px 10px; gap: 2px; z-index: 30; min-height: 0; align-self: stretch; border-radius: 18px; background: linear-gradient(180deg, rgba(18,26,60,0.7), rgba(10,14,32,0.66)); border: 1px solid var(--glass-line); box-shadow: 0 18px 50px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.04); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); transition: margin-left .3s var(--ease), visibility 0s; }
+#nv-lib:not(.is-compact).is-side-off .nv-side { margin-left: calc(-244px - var(--gap)); visibility: hidden; transition: margin-left .3s var(--ease), visibility 0s .3s; }
+#nv-lib.is-solo .nv-side, #nv-lib.is-solo .nv-scrim, #nv-lib.is-solo .nv-head, #nv-lib.is-solo .nl-rail { display: none !important; }
 #nv-lib .nv-brand { display: flex; align-items: center; gap: 9px; padding: 2px 4px 10px 8px; }
 #nv-lib .nv-logo { width: 24px; height: 24px; background: center/contain no-repeat; flex-shrink: 0; }
 #nv-lib .nv-brand-name { font-weight: 800; font-size: 13.5px; letter-spacing: .5px; }
@@ -154,7 +174,12 @@
 
 /* ================= MAIN ================= */
 #nv-lib .nv-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
-#nv-lib .nv-topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; min-height: 52px; flex-shrink: 0; position: relative; }
+/* En-tête flottant en verre : la page défile dessous. */
+#nv-lib .nv-head { position: absolute; top: 0; left: 0; right: 0; z-index: 20; border-radius: 16px; overflow: hidden; background: rgba(12,16,36,0.5); border: 1px solid var(--glass-line); box-shadow: 0 12px 36px rgba(0,0,0,0.22); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+#nv-lib .nv-topbar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; min-height: 52px; position: relative; }
+#nv-lib .nl-searchrow { display: none; padding: 0 12px 10px; }
+#nv-lib.is-lib-view .nl-searchrow { display: block; }
+#nv-lib .nl-searchrow .nl-search { margin: 0; background: rgba(255,255,255,0.05); }
 #nv-lib .nv-topbar-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
 #nv-lib .nv-icon-btn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: none; background: transparent; color: var(--text-3); cursor: pointer; transition: background .15s, color .15s; padding: 0; }
 #nv-lib .nv-icon-btn:hover { background: var(--panel-2); color: var(--text); }
@@ -165,7 +190,7 @@
 #nv-lib .nl-pill { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; font-weight: 600; white-space: nowrap; }
 #nv-lib .nl-pill:empty { display: none; }
 #nv-lib .nl-pill svg { width: 13px; height: 13px; color: var(--blue); }
-#nv-lib .nl-readbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: transparent; }
+#nv-lib .nl-readbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: transparent; pointer-events: none; }
 #nv-lib .nl-readbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blue-deep), var(--blue-hi)); transition: width .15s linear; }
 
 /* Curseur Lib / Lib+ */
@@ -175,8 +200,8 @@
 #nv-lib .nl-mode i { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 99px; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.25); transition: transform .3s var(--ease), background .3s; }
 #nv-lib .nl-mode.is-plus i { transform: translateX(100%); background: var(--blue); }
 
-#nv-lib .nv-page { flex: 1; min-height: 0; position: relative; }
-#nv-lib .nv-page-inner { max-width: 760px; margin: 0 auto; padding: 8px 20px 60px; animation: nv-fade .28s var(--ease); }
+#nv-lib .nv-page { flex: 1; min-height: 0; position: relative; scroll-padding-top: calc(var(--head-h) + 12px); }
+#nv-lib .nv-page-inner { max-width: 760px; margin: 0 auto; padding: calc(var(--head-h) + 14px) 20px 60px; animation: nv-fade .28s var(--ease); }
 #nv-lib.is-solo .nv-page-inner { padding-top: 24px; }
 @keyframes nv-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes nv-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -273,7 +298,7 @@
 #nv-lib .nl-cover h1 { margin: 10px 0 8px; font-size: 32px; font-weight: 800; letter-spacing: -.8px; line-height: 1.15; }
 #nv-lib .nl-cover p { margin: 0 auto; max-width: 520px; font-size: 14px; color: var(--text-3); line-height: 1.55; }
 #nv-lib .nl-cover .nl-cover-meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
-#nv-lib .nl-article h2, #nv-lib .nl-article h3, #nv-lib .nl-article h4, #nv-lib .nl-article h5 { font-family: 'Inter', sans-serif; scroll-margin-top: 14px; }
+#nv-lib .nl-article h2, #nv-lib .nl-article h3, #nv-lib .nl-article h4, #nv-lib .nl-article h5 { font-family: 'Inter', sans-serif; }
 #nv-lib .nl-h1 { margin: 44px 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -.4px; line-height: 1.25; color: #fff; }
 #nv-lib .nl-h1 .nl-step-num { display: block; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--blue); letter-spacing: 1.4px; margin-bottom: 4px; }
 #nv-lib .nl-h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 700; letter-spacing: .3px; color: #fff; text-transform: none; }
@@ -500,6 +525,111 @@
 #nv-lib .nl-pdf-pages canvas { display: block; width: 100%; height: auto; background: #fff; border-radius: 4px; box-shadow: 0 6px 30px rgba(0,0,0,0.4); pointer-events: none; }
 #nv-lib .nl-pdf-pages canvas + canvas { margin-top: 14px; }
 
+/* ================= BARRE D'ENCARTS (tout à gauche) ================= */
+/* Repliée : une colonne d'icônes, sans fond. Déployée : 3 encarts fixes en verre. */
+#nv-lib .nl-rail { position: relative; flex-shrink: 0; width: 290px; display: flex; min-height: 0; z-index: 31; transition: width .3s var(--ease); }
+#nv-lib.is-rail-off .nl-rail, #nv-lib.is-narrow .nl-rail { width: 44px; }
+#nv-lib.is-compact .nl-rail { position: absolute; width: 0; top: 0; bottom: 0; left: 0; }
+#nv-lib .nl-rail-icons { display: none; flex-direction: column; align-items: center; gap: 6px; width: 44px; padding-top: 4px; background: transparent; }
+#nv-lib.is-rail-off .nl-rail-icons, #nv-lib.is-narrow .nl-rail-icons { display: flex; }
+#nv-lib.is-compact .nl-rail-icons { display: none; }
+#nv-lib .nl-ri { position: relative; width: 40px; min-height: 40px; padding: 6px 0 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; border-radius: 12px; background: transparent; color: var(--text-3); cursor: pointer; transition: background .15s, color .15s; }
+#nv-lib .nl-ri:hover { background: rgba(255,255,255,0.06); color: #fff; }
+#nv-lib .nl-ri svg { width: 18px; height: 18px; }
+#nv-lib .nl-ri small { font-family: var(--mono); font-size: 9px; font-weight: 600; color: var(--text-4); max-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#nv-lib .nl-ri:hover small { color: var(--text-2); }
+#nv-lib .nl-ri.is-toggle { margin-bottom: 6px; color: var(--text-4); }
+#nv-lib .nl-ri-sep { width: 18px; height: 1px; background: var(--line-2); margin: 2px 0 4px; }
+
+#nv-lib .nl-rail-panel { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: var(--gap); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+#nv-lib .nl-rail-panel::-webkit-scrollbar { display: none; }
+#nv-lib.is-rail-off:not(.is-narrow) .nl-rail-panel { display: none; }
+/* Sous 1100px : l'encart déployé passe par-dessus le menu. */
+#nv-lib.is-narrow .nl-rail-panel { position: absolute; top: 0; bottom: 0; left: 0; width: min(300px, calc(100vw - 32px)); padding: 0; visibility: hidden; transform: translateX(-104%); transition: transform .32s var(--ease), visibility 0s .32s; z-index: 1002; }
+#nv-lib.is-narrow.is-rail-pop .nl-rail-panel { visibility: visible; transform: none; transition: transform .32s var(--ease); }
+#nv-lib.is-narrow.is-rail-pop .nv-scrim { opacity: 1; pointer-events: auto; z-index: 1000; }
+#nv-lib .nl-rail-top { display: flex; align-items: center; gap: 6px; padding: 4px 4px 0 10px; flex-shrink: 0; }
+#nv-lib .nl-rail-top b { flex: 1; font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); }
+#nv-lib .nl-rail-top .nv-icon-btn { width: 28px; height: 28px; border-radius: 8px; color: var(--text-4); }
+#nv-lib .nl-rail-top .nv-icon-btn svg { width: 15px; height: 15px; }
+#nv-lib.is-narrow .nl-rail-panel { padding: 8px; border-radius: 0 20px 20px 0; background: rgba(9,12,28,0.88); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: 20px 0 60px rgba(0,0,0,0.4); }
+#nv-lib.is-narrow .nl-rail-panel .nl-w { background: var(--glass-2); }
+
+/* Un encart */
+#nv-lib .nl-w { position: relative; flex: 1 0 auto; display: flex; flex-direction: column; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-line); box-shadow: 0 18px 50px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.04); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); overflow: hidden; animation: nv-rise .4s var(--ease) both; }
+#nv-lib .nl-w.is-flash { animation: nl-wflash 1.2s var(--ease); }
+@keyframes nl-wflash { 0%, 40% { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(122,167,255,0.18); } 100% { border-color: var(--glass-line); } }
+#nv-lib .nl-w-head { display: flex; align-items: center; gap: 4px; padding: 10px 8px 4px 14px; flex-shrink: 0; }
+#nv-lib .nl-w-head small { flex: 1; min-width: 0; font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-w-btn { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: var(--text-4); cursor: pointer; padding: 0; transition: background .15s, color .15s; }
+#nv-lib .nl-w-btn:hover, #nv-lib .nl-w-btn.is-on { background: rgba(255,255,255,0.07); color: #fff; }
+#nv-lib .nl-w-btn svg { width: 14px; height: 14px; }
+#nv-lib .nl-w-body { flex: 1; padding: 4px 14px 14px; }
+#nv-lib .nl-w-pick { position: absolute; inset: 40px 8px 8px; z-index: 3; padding: 6px; border-radius: 14px; background: rgba(14,19,44,0.97); border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,0.45); animation: nv-fade .2s var(--ease); }
+#nv-lib .nl-w-pick button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 9px; border: 0; border-radius: 9px; background: transparent; font-size: 12.5px; color: var(--text-2); cursor: pointer; text-align: left; }
+#nv-lib .nl-w-pick button:hover { background: rgba(255,255,255,0.06); color: #fff; }
+#nv-lib .nl-w-pick button.is-on { background: var(--blue-soft); color: #fff; }
+#nv-lib .nl-w-pick button svg { width: 15px; height: 15px; color: var(--blue); }
+#nv-lib .nl-w-pick button em { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 9.5px; color: var(--text-4); }
+#nv-lib .nl-w-msg { font-size: 12px; color: var(--text-3); line-height: 1.5; padding: 6px 0; }
+#nv-lib .nl-w-msg .nv-btn { margin-top: 10px; height: 32px; font-size: 12px; width: 100%; }
+#nv-lib .nl-w .nv-skel { height: 34px; margin-bottom: 6px; }
+
+/* Grille de chiffres (stats QCM, stats globales) */
+#nv-lib .nl-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+#nv-lib .nl-kpi { min-width: 0; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+#nv-lib .nl-kpi b { display: block; font-size: 19px; font-weight: 800; letter-spacing: -.4px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-kpi b.is-txt { font-size: 13px; font-weight: 700; letter-spacing: -.1px; line-height: 1.45; }
+#nv-lib .nl-kpi small { display: block; margin-top: 3px; font-size: 9px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-kpi .nl-bar { margin-top: 8px; height: 3px; }
+
+/* Streak du mois : carte claire, dégradé blanc → bleu nuit */
+#nv-lib .nl-cal { position: relative; display: flex; flex-direction: column; border-radius: 14px; padding: 10px 10px 12px; color: #0d1030; background: linear-gradient(135deg, #ffffff 0%, #eef1ff 38%, #7f8be6 72%, #1f2687 100%); overflow: hidden; }
+#nv-lib .nl-cal-top { display: flex; align-items: center; gap: 4px; }
+#nv-lib .nl-cal-top b { flex: 1; font-size: 13px; font-weight: 800; letter-spacing: -.2px; text-transform: capitalize; padding-left: 4px; }
+#nv-lib .nl-cal-top button { width: 24px; height: 24px; border: 0; border-radius: 7px; background: transparent; color: rgba(13,16,48,0.55); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+#nv-lib .nl-cal-top button:hover:not(:disabled) { background: rgba(13,16,48,0.07); color: #0d1030; }
+#nv-lib .nl-cal-top button:disabled { opacity: .3; cursor: default; }
+#nv-lib .nl-cal-top button svg { width: 14px; height: 14px; }
+#nv-lib .nl-flame { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 99px; background: #fff; box-shadow: 0 4px 14px rgba(31,38,135,0.18); font-weight: 800; font-size: 14px; color: #0d1030; }
+#nv-lib .nl-flame svg { width: 15px; height: 15px; }
+#nv-lib .nl-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 10px; }
+#nv-lib .nl-cal-grid span { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: rgba(13,16,48,0.8); }
+#nv-lib .nl-cal-grid i { aspect-ratio: 1; border-radius: 7px; background: rgba(255,255,255,0.32); border: 1px solid rgba(255,255,255,0.35); }
+#nv-lib .nl-cal-grid i.is-out { visibility: hidden; }
+#nv-lib .nl-cal-grid i.is-future { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.18); }
+#nv-lib .nl-cal-grid i.is-on { background: rgba(122,140,255,calc(.35 + var(--v) * .65)); border-color: transparent; box-shadow: 0 2px 8px rgba(60,70,200,0.25); }
+#nv-lib .nl-cal-grid i.is-today { outline: 2px solid #fff; outline-offset: 1px; }
+#nv-lib .nl-cal-foot { display: flex; justify-content: space-between; gap: 6px; margin-top: 10px; }
+#nv-lib .nl-cal-foot span { padding: 3px 9px; border-radius: 99px; background: rgba(255,255,255,0.7); font-size: 10.5px; font-weight: 700; color: #0d1030; }
+
+/* Listes (classements, veille, fichiers) */
+#nv-lib .nl-wl { display: flex; flex-direction: column; }
+#nv-lib .nl-wr { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 2px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; color: inherit; text-decoration: none; cursor: default; }
+#nv-lib button.nl-wr, #nv-lib a.nl-wr { cursor: pointer; border-radius: 0; }
+#nv-lib button.nl-wr:hover, #nv-lib a.nl-wr:hover { background: rgba(255,255,255,0.03); }
+#nv-lib .nl-wr:last-child { border-bottom: 0; }
+#nv-lib .nl-wr.is-me { background: var(--blue-soft); border-radius: 10px; padding-left: 8px; padding-right: 8px; border-bottom-color: transparent; }
+#nv-lib .nl-wr > i { font-style: normal; font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--blue); width: 18px; flex-shrink: 0; text-align: center; }
+#nv-lib .nl-wr-av { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; background: var(--panel-2) center/cover no-repeat; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text-2); border: 1px solid var(--line-2); }
+#nv-lib .nl-wr-txt { flex: 1; min-width: 0; }
+#nv-lib .nl-wr-txt b { display: block; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-wr-txt b.is-2 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.35; font-weight: 600; }
+#nv-lib .nl-wr-txt small { display: block; margin-top: 2px; font-size: 9px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-lib .nl-wr-val { flex-shrink: 0; text-align: right; min-width: 58px; }
+#nv-lib .nl-wr-val b { display: block; font-size: 12px; font-weight: 700; color: var(--text-2); white-space: nowrap; }
+#nv-lib .nl-wr-val .nl-bar { margin-top: 5px; height: 3px; }
+#nv-lib .nl-wr-ico { width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--blue-soft); color: var(--blue); }
+#nv-lib .nl-wr-ico svg { width: 14px; height: 14px; }
+#nv-lib .nl-wgoal { display: flex; align-items: center; gap: 12px; padding: 4px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 2px; }
+#nv-lib .nl-ring { --p: 0; width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: conic-gradient(var(--blue) calc(var(--p) * 1%), rgba(255,255,255,0.08) 0); }
+#nv-lib .nl-ring span { width: 36px; height: 36px; border-radius: 50%; background: #10142e; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 10.5px; font-weight: 700; }
+#nv-lib .nl-wgoal div { flex: 1; min-width: 0; }
+#nv-lib .nl-wgoal b { display: block; font-size: 13px; }
+#nv-lib .nl-wgoal small { font-size: 11px; color: var(--text-3); }
+#nv-lib .nl-wfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--text-3); }
+#nv-lib .nl-wfoot .nl-bar { flex: 1; height: 3px; }
+
 /* Toasts */
 #nv-lib .nv-toasts { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 3000; pointer-events: none; }
 #nv-lib .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,32,50,0.95); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
@@ -507,12 +637,13 @@
 @keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
 
 /* ================= COMPACT (téléphone / embed étroit) ================= */
-#nv-lib.is-compact .nv-side { position: absolute; top: 0; bottom: 0; left: 0; overflow-y: auto; visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s; z-index: 1001; width: min(320px, 88%); transform: translateX(-102%); background: #0c0c14; box-shadow: 20px 0 60px rgba(0,0,0,0.4); }
+#nv-lib.is-compact .nv-side { position: absolute; top: 0; bottom: 0; left: 0; overflow-y: auto; visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s; z-index: 1001; width: min(320px, 88%); transform: translateX(-102%); background: linear-gradient(180deg, rgba(18,26,60,0.94), rgba(10,14,32,0.94)); border-radius: 0 18px 18px 0; box-shadow: 20px 0 60px rgba(0,0,0,0.4); }
 #nv-lib.is-compact.is-drawer .nv-side { transform: none; visibility: visible; transition: transform .32s var(--ease); }
 #nv-lib.is-compact .nv-scrim { z-index: 1000; }
 #nv-lib.is-compact.is-drawer .nv-scrim { opacity: 1; pointer-events: auto; }
 #nv-lib.is-compact .nv-side-close { width: 42px; height: 42px; }
-#nv-lib.is-compact .nv-topbar { padding: 8px; border-bottom: 1px solid var(--line); min-height: 58px; }
+#nv-lib.is-compact .nv-topbar { padding: 8px; min-height: 58px; }
+#nv-lib.is-compact .nl-searchrow { padding: 0 8px 8px; }
 #nv-lib.is-compact .nv-topbar-title { font-size: 14px; }
 #nv-lib.is-compact .nv-page-inner { padding-left: 16px; padding-right: 16px; }
 #nv-lib.is-compact .nl-grid, #nv-lib.is-compact .nl-compare { grid-template-columns: 1fr; }
@@ -532,6 +663,9 @@
 #nv-lib.is-compact .nl-stats b { font-size: 18px; }
 #nv-lib.is-compact .nl-form textarea, #nv-lib.is-compact .nl-form select { font-size: 16px; }
 #nv-lib.is-compact .nl-slot { flex-wrap: wrap; }
+#nv-lib:not(.is-compact) .nl-rail-btn { display: none; }
+#nv-lib.is-rail-pop .nl-rail { z-index: 1003; }
+#nv-lib.is-compact.is-rail-pop .nv-scrim { opacity: 1; pointer-events: auto; z-index: 1000; }
 
 /* ================= NAVIRE LIB (sans +) : police du cours un peu plus petite ================= */
 #nv-lib.is-lib .nl-article { font-size: 15.5px; line-height: 1.7; }
@@ -553,6 +687,10 @@
 </style>
 
 <div id="nv-lib" class="is-solo">
+  <aside class="nl-rail" data-el="rail" aria-label="Encarts">
+    <div class="nl-rail-icons" data-el="rail-icons"></div>
+    <div class="nl-rail-panel" data-el="rail-panel"></div>
+  </aside>
   <aside class="nv-side nv-scroll">
     <div class="nv-brand">
       <div class="nv-logo" data-logo></div>
@@ -572,9 +710,13 @@
   <div class="nv-scrim" data-act="close-drawer"></div>
 
   <main class="nv-main">
+    <div class="nv-head" data-el="head">
     <div class="nv-topbar">
       <button class="nv-icon-btn nv-menu-btn" data-act="side-open" aria-label="Afficher le menu" title="Afficher le menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      </button>
+      <button class="nv-icon-btn nl-rail-btn" data-act="rail-toggle" aria-label="Encarts" title="Encarts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="2"/><path d="M14 4h7M14 9h7M14 15h7M14 20h7"/></svg>
       </button>
       <div class="nv-topbar-title" data-el="title">Bibliothèque</div>
       <button class="nv-icon-btn" data-act="toggle-hl" data-el="hl-btn" aria-label="Surlignage" title="Surlignage des références">
@@ -584,9 +726,11 @@
       <div class="nl-mode" data-el="mode" data-act="toggle-mode" role="switch" aria-label="NAVIRE Lib ou Lib+">
         <i></i><button data-mode="lib">Lib</button><button data-mode="plus">Lib+</button>
       </div>
-      <div class="nl-readbar"><i data-el="readbar"></i></div>
     </div>
+    <div class="nl-searchrow"><div class="nl-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="lib-search" placeholder="Rechercher un cours, une matière…" autocomplete="off"></div></div>
     <div class="nl-apercu" data-el="apercu"></div>
+    <div class="nl-readbar"><i data-el="readbar"></i></div>
+    </div>
     <div class="nv-page nv-scroll" data-el="page"></div>
     <div class="nv-toasts" data-el="toasts"></div>
   </main>
@@ -610,7 +754,10 @@
     QCM_URL: "https://navire-ai.com/qcm",            // page QCM NAVIRE (gagner de l'Elo)
     AI_URL: "https://navire-ai.com/navire",       // page NAVIRE AI
     ACTUS_URL: "https://navire-ai.com/actus",        // page actus / veille
-    OFFRES_URL: "https://navire-ai.com/subscribe"       // abonnements (accès Lib+)
+    OFFRES_URL: "https://navire-ai.com/subscribe",      // abonnements (accès Lib+)
+    CLASSEMENT_URL: "https://navire-ai.com/classement", // encarts « Classement »
+    PROFIL_URL: "https://navire-ai.com/profil",          // encarts « Streak », « Stats globales »
+    FICHIERS_URL: "https://navire-ai.com/fichiers"       // encart « Mes fichiers » (ajout de PDF)
   };
   var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
   // perso : les PDF de « Mes fichiers » de l'élève (visibles par lui seul).
@@ -724,7 +871,18 @@
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></svg>',
     cap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>',
     link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
-    grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>'
+    grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>',
+    flame: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.6 3.2-1.1 5.2-2.7 7C7.7 10.8 6 12.7 6 15.5 6 19.1 8.7 22 12 22s6-2.9 6-6.5c0-2.3-1-4.1-2.3-5.6-.3 1.4-1 2.5-2.2 3.1.6-3.9-.3-8.3-1.5-11zm0 18c-1.9 0-3.2-1.4-3.2-3.2 0-1.6 1-2.6 2-3.6.4 1.1 1.2 1.8 2.3 2 .1-.9.5-1.6 1-2.2.7.9 1.1 2 1.1 3.3C15.2 18.6 13.9 20 12 20z"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>',
+    users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
+    stats: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>',
+    swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>',
+    out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>',
+    panel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18"/></svg>',
+    fold: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg>',
+    chevL: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+    chevR: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'
   };
   // Photo de profil de NAVIRE AI (même image que la bulle du chat).
   function pp(size) { return '<span class="nl-pp" style="width:' + size + 'px;height:' + size + 'px;background-image:url(&quot;' + LOGO + '&quot;)"></span>'; }
@@ -763,9 +921,11 @@
   setTimeout(sizeApp, 600);
 
   function updateCompact() {
-    var compact = root.clientWidth < 760;
+    var compact = root.clientWidth < 760, narrow = root.clientWidth < 1100;
     root.classList.toggle("is-compact", compact);
+    root.classList.toggle("is-narrow", narrow);
     if (!compact) root.classList.remove("is-drawer");
+    if (!narrow) root.classList.remove("is-rail-pop");
   }
   if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
   else window.addEventListener("resize", updateCompact);
@@ -776,12 +936,29 @@
   function setSide(on) { root.classList.toggle("is-side-off", !on); store("navire_lib_side", on ? null : "off"); }
   root.classList.toggle("is-side-off", load("navire_lib_side") === "off");
 
+  // Barre d'encarts repliée (grand écran) : retenu aussi.
+  function setRail(on) { root.classList.toggle("is-rail-off", !on); store("navire_lib_rail", on ? null : "off"); }
+  root.classList.toggle("is-rail-off", load("navire_lib_rail") === "off");
+
+  // En-tête flottant : la page réserve sa hauteur en haut et défile dessous.
+  function headH() { var h = el("head"); return h && !root.classList.contains("is-solo") ? h.offsetHeight : 0; }
+  function measureHead() { root.style.setProperty("--head-h", (el("head").offsetHeight || 60) + "px"); }
+  if (window.ResizeObserver) new ResizeObserver(measureHead).observe(el("head"));
+  measureHead();
+  function syncHead() {
+    root.classList.toggle("is-lib-view", S.view === "library");
+    var s = document.getElementById("lib-search");
+    if (s && s.value !== S.query) s.value = S.query;
+    measureHead();
+  }
+
   S.plain = load("navire_lib_plain") === "1";
   root.classList.toggle("is-plain", S.plain);
 
   // ================= RENDU COMMUN =================
   function setPage(html, solo) {
     root.classList.toggle("is-solo", !!solo);
+    syncHead();
     var p = el("page");
     p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
     p.scrollTop = 0;
@@ -929,7 +1106,6 @@
         : '<div class="nv-page-head"><h2>Bibliothèque</h2><p>Les cours en libre consultation, et les PDF de tes fichiers.</p></div>';
     }
     if (hasPrepa()) html += prepaBanner();
-    html += '<div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="Rechercher un cours, une matière…" value="' + esc(S.query) + '"></div>';
     if (!items.length) html += '<div class="nv-empty"><b>La bibliothèque arrive</b>Les premiers cours sont en préparation.</div>';
     else if (!list.length) html += '<div class="nv-empty"><b>Aucun résultat</b>Essaie un autre mot.</div>';
     else html += '<div class="nl-grid">' + list.map(bookCard).join("") + '</div>';
@@ -939,14 +1115,12 @@
         (extra ? extra + " document" + (extra > 1 ? "s" : "") + " en plus, " : "") + 'une question à chaque étape et NAVIRE AI sous le cours.</span></div><span class="nv-tag solid">LIB+</span></button>';
     }
     setPage(html);
-    var s = document.getElementById("lib-search");
-    if (s) s.addEventListener("input", function (e) {
-      S.query = e.target.value;
-      var pos = e.target.selectionStart;
-      viewLibrary();
-      var n = document.getElementById("lib-search"); n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {}
-    });
   }
+  // Barre de recherche fixe de l'en-tête : seule la grille se redessine.
+  document.getElementById("lib-search").addEventListener("input", function (e) {
+    S.query = e.target.value;
+    if (S.view === "library") viewLibrary();
+  });
   function bookCard(d, i) {
     var p = plus();
     var lock = p && d.verrouille ? '<span class="nv-tag white nl-lockbadge">' + ico("lock", 11) + d.elo_requis + ' Elo</span>' : "";
@@ -972,6 +1146,7 @@
     S.view = "doc";
     root.classList.remove("is-solo");
     root.classList.remove("is-drawer");
+    syncHead();
     el("hl-btn").style.display = "";
     el("hl-btn").classList.toggle("is-on", !S.plain);
     var page = el("page"), keepTop = opts.keep ? page.scrollTop : null;
@@ -1276,14 +1451,14 @@
     var target = opts.scrollTo || (opts.keep ? null : load("navire_lib_pos_" + S.docId));
     if (target) {
       var t = document.getElementById("nl-" + target);
-      if (t) { page.scrollTop = Math.max(0, t.offsetTop - 20); if (opts.flash) flashFrom(target); }
+      if (t) { page.scrollTop = Math.max(0, t.offsetTop - headH() - 16); if (opts.flash) flashFrom(target); }
     }
     if (spy) spy.disconnect();
     var heads = page.querySelectorAll(".nl-h1, .nl-h2, .nl-h3");
     if (window.IntersectionObserver) {
       spy = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) { if (e.isIntersecting) setCurrent(e.target.getAttribute("data-block")); });
-      }, { root: page, rootMargin: "0px 0px -75% 0px" });
+      }, { root: page, rootMargin: "-" + headH() + "px 0px -75% 0px" });
       heads.forEach(function (h) { spy.observe(h); });
     }
     page.onscroll = function () {
@@ -1313,7 +1488,7 @@
     while (n && k < 3) { n.classList.add("nl-flash"); n = n.nextElementSibling; k++; }
   }
   function scrollToEl(t) {
-    if (t) el("page").scrollTo({ top: t.offsetTop - 16, behavior: "smooth" });
+    if (t) el("page").scrollTo({ top: t.offsetTop - headH() - 14, behavior: "smooth" });
     root.classList.remove("is-drawer");
   }
 
@@ -1587,11 +1762,242 @@
     }).catch(function (x) { toast(x.message, true); });
   }
 
+  // ================= ENCARTS (barre de gauche) =================
+  // 3 emplacements fixes ; chacun affiche l'encart choisi par l'élève (⇄),
+  // retenu dans navire_lib_slots. Repliée, la barre ne garde que les icônes,
+  // avec un chiffre clé sous chacune.
+  var WTYPES = {
+    streak:   { label: "Streak du mois",     icon: "flame",  auth: true,  url: "PROFIL_URL" },
+    veille:   { label: "Veille",             icon: "news",   auth: false, url: "ACTUS_URL" },
+    facs:     { label: "Classement facs",    icon: "trophy", auth: false, url: "CLASSEMENT_URL" },
+    joueurs:  { label: "Classement joueurs", icon: "users",  auth: false, url: "CLASSEMENT_URL" },
+    qcm:      { label: "Mes stats QCM",      icon: "chart",  auth: true,  url: "QCM_URL" },
+    global:   { label: "Stats globales",     icon: "stats",  auth: true,  url: "PROFIL_URL" },
+    fichiers: { label: "Mes fichiers",       icon: "file",   auth: true,  url: null }
+  };
+  var WORDER = ["streak", "veille", "facs", "joueurs", "qcm", "global", "fichiers"];
+  var W = { slots: null, pick: -1, month: 0, cache: {}, html: {}, mini: {} };
+  var TZ = new Date().getTimezoneOffset();
+  (function () {
+    var v = null;
+    try { v = JSON.parse(load("navire_lib_slots") || "null"); } catch (e) {}
+    var ok = Array.isArray(v) && v.length === 3 && v.every(function (t, i) { return WTYPES[t] && v.indexOf(t) === i; });
+    W.slots = ok ? v : ["streak", "qcm", "facs"];
+  })();
+
+  // Une même route sert plusieurs encarts (ex. /stats/summary) : une requête par minute.
+  function cached(path) {
+    var c = W.cache[path], now = Date.now();
+    if (c && now - c.at < 60000) return c.p;
+    var p = api("GET", path);
+    W.cache[path] = { at: now, p: p };
+    p.catch(function () { if (W.cache[path] && W.cache[path].p === p) delete W.cache[path]; });
+    return p;
+  }
+  function soft(p) { return p.catch(function () { return null; }); }
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function fmt(n) { return (n || 0).toLocaleString("fr-FR"); }
+  function kpi(value, label, pct, txt) {
+    return '<div class="nl-kpi"><b' + (txt ? ' class="is-txt"' : "") + ' title="' + esc(value) + '">' + esc(value) + '</b><small>' + esc(label) + '</small>' + (pct != null ? bar(pct) : "") + '</div>';
+  }
+  function wMsg(text, btn) { return '<div class="nl-w-msg">' + text + (btn || "") + '</div>'; }
+  function wLogin(what) {
+    return { mini: "", html: wMsg("Connecte-toi pour voir " + what + ".", '<button class="nv-btn is-blue" data-act="login-view">Me connecter</button>') };
+  }
+
+  var WLOAD = {
+    streak: function () {
+      var today = new Date(), d = new Date(today.getFullYear(), today.getMonth() + W.month, 1);
+      var y = d.getFullYear(), m = d.getMonth() + 1;
+      return Promise.all([cached("/stats/calendar?year=" + y + "&month=" + m + "&tz_offset=" + TZ), cached("/stats/streaks?tz_offset=" + TZ)]).then(function (r) {
+        var days = (r[0] && r[0].days) || {}, st = r[1] || {};
+        var first = (d.getDay() + 6) % 7, nd = new Date(y, m, 0).getDate(), actifs = 0;
+        var cells = ["L", "M", "M", "J", "V", "S", "D"].map(function (x) { return "<span>" + x + "</span>"; });
+        for (var i = 0; i < first; i++) cells.push('<i class="is-out"></i>');
+        for (var j = 1; j <= nd; j++) {
+          var dt = new Date(y, m - 1, j), v = days[y + "-" + pad2(m) + "-" + pad2(j)];
+          var cls = v ? "is-on" : dt > today ? "is-future" : "";
+          if (v) actifs++;
+          if (memeJour(dt, today)) cls += " is-today";
+          cells.push('<i class="' + cls + '"' + (v ? ' style="--v:' + Math.max(0, Math.min(1, +v)) + '"' : "") + ' title="' + j + '"></i>');
+        }
+        var mois = d.toLocaleDateString("fr-FR", y === today.getFullYear() ? { month: "long" } : { month: "long", year: "numeric" });
+        var cur = st.current_streak || 0;
+        return {
+          mini: cur ? String(cur) : "0",
+          html: '<div class="nl-cal"><div class="nl-cal-top">' +
+            '<button data-wmonth="-1" aria-label="Mois précédent"' + (W.month <= -11 ? " disabled" : "") + '>' + ICON.chevL + '</button>' +
+            '<b>' + esc(mois) + '</b>' +
+            '<button data-wmonth="1" aria-label="Mois suivant"' + (W.month >= 0 ? " disabled" : "") + '>' + ICON.chevR + '</button>' +
+            '<span class="nl-flame">' + cur + ICON.flame + '</span></div>' +
+            '<div class="nl-cal-grid">' + cells.join("") + '</div>' +
+            '<div class="nl-cal-foot"><span>' + actifs + ' jour' + (actifs > 1 ? "s" : "") + ' actif' + (actifs > 1 ? "s" : "") + '</span><span>Record : ' + (st.longest_streak || 0) + ' j</span></div></div>'
+        };
+      });
+    },
+    qcm: function () {
+      return Promise.all([cached("/stats/summary?tz_offset=" + TZ), soft(cached("/files"))]).then(function (r) {
+        var s = r[0] || {}, q = (r[1] && r[1].quota) || null, top = (s.files || [])[0];
+        var files = q ? q.used + "/" + (q.limit == null ? "∞" : q.limit) : "–";
+        return {
+          mini: (s.success_rate_pct || 0) + "%",
+          html: '<div class="nl-kpis">' +
+            kpi((s.success_rate_pct || 0) + "%", "Réussite", s.success_rate_pct || 0) +
+            kpi(fmt(s.total_sessions), "Sessions", Math.min(100, (s.total_sessions || 0) * 2)) +
+            kpi(String(s.current_streak || 0), "Streak actuel", Math.min(100, (s.current_streak || 0) * 100 / Math.max(1, s.longest_streak || 1))) +
+            kpi(files, "Fichiers", q && q.limit ? Math.round(100 * q.used / q.limit) : null) +
+            kpi(top ? String(top.file_name || "").replace(/\.pdf$/i, "") : "–", "Top fichier", top ? top.usage_pct : null, true) +
+            kpi(top ? top.success_rate_pct + "%" : "–", "Réussite top fichier", top ? top.success_rate_pct : null) +
+          '</div>'
+        };
+      });
+    },
+    global: function () {
+      return Promise.all([cached("/stats/summary?tz_offset=" + TZ), soft(cached("/leaderboard/users?limit=5")), soft(cached("/veille/state"))]).then(function (r) {
+        var s = r[0] || {}, lb = r[1] || {}, v = r[2], u = S.user || {};
+        var me = lb.current_user || (lb.top || []).filter(function (x) { return x.is_current_user; })[0];
+        var cps = ((S.cat && S.cat.items) || []).reduce(function (a, d) { return a + (d.valides || 0); }, 0);
+        var next = u.next_tier_min != null ? (u.next_tier_min - u.elo) + " Elo avant « " + (u.tier_next || u.next_tier || "") + " »" : "Rang maximal";
+        return {
+          mini: fmt(u.elo),
+          html: '<div class="nl-kpis">' +
+            kpi(fmt(u.elo), "Elo", Math.round((u.progress || 0) * 100)) +
+            kpi(me ? "#" + me.rank : "–", "Rang général") +
+            kpi(u.tier || "–", "Niveau", null, true) +
+            kpi(String(s.longest_streak || 0) + " j", "Record de streak") +
+            kpi(fmt(s.total_days), "Jours actifs") +
+            kpi(v ? v.streak + " j" : fmt(cps), v ? "Streak veille" : "Points de passage") +
+          '</div><div class="nl-wfoot"><span>' + esc(next) + '</span></div>'
+        };
+      });
+    },
+    facs: function () {
+      return cached("/leaderboard/universities?limit=5").then(function (r) {
+        var top = r.top || [], me = r.current_user_university, max = top.length ? top[0].total_elo || 1 : 1;
+        function row(f) {
+          return '<div class="nl-wr' + (f.is_current_user_university ? " is-me" : "") + '"><i>' + f.rank + '</i><div class="nl-wr-txt"><b title="' + esc(f.university) + '">' + esc(f.university) + '</b><small>' + f.member_count + ' membre' + (f.member_count > 1 ? "s" : "") + '</small></div>' +
+            '<div class="nl-wr-val"><b>' + fmt(f.total_elo) + ' elo</b>' + bar(Math.round(100 * f.total_elo / max)) + '</div></div>';
+        }
+        var inTop = me && top.some(function (f) { return f.is_current_user_university; });
+        return {
+          mini: me ? "#" + me.rank : top.length ? "#1" : "",
+          html: top.length ? '<div class="nl-wl">' + top.map(row).join("") + (me && !inTop ? row(me) : "") + '</div>' : wMsg("Le classement des facs arrive.")
+        };
+      });
+    },
+    joueurs: function () {
+      return cached("/leaderboard/users?limit=5").then(function (r) {
+        var top = r.top || [], me = r.current_user;
+        function row(p) {
+          var av = p.avatar_url ? ' style="background-image:url(&quot;' + esc(p.avatar_url) + '&quot;)">' : ">" + esc(String(p.username || "?").charAt(0).toUpperCase());
+          return '<div class="nl-wr' + (p.is_current_user ? " is-me" : "") + '"><i>' + p.rank + '</i><span class="nl-wr-av"' + av + '</span><div class="nl-wr-txt"><b>' + esc(p.username) + '</b></div><div class="nl-wr-val"><b>' + fmt(p.elo) + ' elo</b></div></div>';
+        }
+        var mine = me || top.filter(function (p) { return p.is_current_user; })[0];
+        return {
+          mini: mine ? "#" + mine.rank : "",
+          html: top.length ? '<div class="nl-wl">' + top.map(row).join("") + (me ? row(me) : "") + '</div>' : wMsg("Le classement arrive.")
+        };
+      });
+    },
+    veille: function () {
+      return Promise.all([S.user ? soft(cached("/veille/state")) : null, cached("/veille/actus?limit=3")]).then(function (r) {
+        var st = r[0], items = (r[1] && r[1].items) || [];
+        var html = "";
+        if (st) {
+          var pct = st.goal ? Math.min(100, Math.round(100 * st.read_today / st.goal)) : 0;
+          html += '<div class="nl-wgoal"><span class="nl-ring" style="--p:' + pct + '"><span>' + st.read_today + '/' + st.goal + '</span></span><div><b>' + (st.goal_reached ? "Objectif du jour atteint" : "Objectif du jour") + '</b><small>' + st.streak + ' jour' + (st.streak > 1 ? "s" : "") + ' de veille d\'affilée</small></div></div>';
+        }
+        html += items.length ? '<div class="nl-wl">' + items.map(function (it) {
+          return '<a class="nl-wr" href="' + CONFIG.ACTUS_URL + '" data-go><span class="nl-wr-ico">' + ICON.news + '</span><div class="nl-wr-txt"><small>' + esc(it.category_label || "") + (it.is_read ? " · lu" : "") + '</small><b class="is-2">' + esc(nodash(it.title)) + '</b></div></a>';
+        }).join("") + '</div>' : wMsg("Aucune actu pour le moment.");
+        return { mini: st ? st.read_today + "/" + st.goal : items.length ? String(items.length) : "", html: html };
+      });
+    },
+    fichiers: function () {
+      return soft(cached("/files")).then(function (f) {
+        var docs = ((S.cat && S.cat.items) || []).filter(function (d) { return d.perso; });
+        var q = f && f.quota, n = q ? q.used : docs.length;
+        var html = docs.length ? '<div class="nl-wl">' + docs.slice(0, 6).map(function (d) {
+          return '<button class="nl-wr" data-open="' + d.id + '"><span class="nl-wr-ico">' + ICON.file + '</span><div class="nl-wr-txt"><b>' + esc(d.titre) + '</b><small>' + (d.nb_points_passage ? d.valides + "/" + d.nb_points_passage + " points de passage" : "PDF") + '</small></div></button>';
+        }).join("") + '</div>' : wMsg("Aucun PDF pour l'instant. Ajoute tes fichiers, ils se lisent ici comme un cours.", '<a class="nv-btn" href="' + CONFIG.FICHIERS_URL + '" data-go>Ajouter un PDF</a>');
+        if (q) html += '<div class="nl-wfoot"><span>' + q.used + ' / ' + (q.limit == null ? "∞" : q.limit) + '</span>' + (q.limit ? bar(Math.round(100 * q.used / q.limit)) : "") + (docs.length > 6 ? '<button class="nv-chip" style="height:26px;font-size:11px;padding:0 10px" data-filter="perso">Tout voir</button>' : "") + '</div>';
+        return { mini: String(n || 0), html: html };
+      });
+    }
+  };
+  var WNEED = { streak: "ton streak", qcm: "tes stats QCM", global: "tes stats", fichiers: "tes fichiers" };
+
+  function railIcons() {
+    el("rail-icons").innerHTML =
+      '<button class="nl-ri is-toggle" data-act="rail-toggle" title="Afficher les encarts" aria-label="Afficher les encarts">' + ICON.panel + '</button>' +
+      W.slots.map(function (t, i) {
+        return '<button class="nl-ri" data-wgo="' + i + '" title="' + esc(WTYPES[t].label) + '">' + ICON[WTYPES[t].icon] + '<small>' + esc(W.mini[t] || "") + '</small></button>';
+      }).join("");
+  }
+  function pickMenu(i) {
+    return '<div class="nl-w-pick" role="menu">' + WORDER.map(function (t) {
+      var j = W.slots.indexOf(t);
+      return '<button data-wset="' + i + ':' + t + '"' + (j === i ? ' class="is-on"' : "") + '>' + ICON[WTYPES[t].icon] + esc(WTYPES[t].label) + (j !== -1 && j !== i ? "<em>encart " + (j + 1) + "</em>" : "") + '</button>';
+    }).join("") + '</div>';
+  }
+  function slotShell(t, i) {
+    var w = WTYPES[t], url = w.url && CONFIG[w.url];
+    var outBtn = url ? '<a class="nl-w-btn" href="' + url + '" data-go title="Ouvrir la page">' + ICON.out + '</a>'
+      : t === "fichiers" ? '<button class="nl-w-btn" data-filter="perso" title="Voir dans la bibliothèque">' + ICON.out + '</button>' : "";
+    return '<section class="nl-w" data-wslot="' + i + '"><div class="nl-w-head"><small>' + esc(w.label) + '</small>' +
+      '<button class="nl-w-btn' + (W.pick === i ? " is-on" : "") + '" data-wpick="' + i + '" title="Changer d\'encart" aria-label="Changer d\'encart">' + ICON.swap + '</button>' + outBtn + '</div>' +
+      '<div class="nl-w-body" data-wbody="' + i + '">' + (W.html[t] || '<div class="nv-skel"></div><div class="nv-skel"></div><div class="nv-skel"></div>') + '</div>' +
+      (W.pick === i ? pickMenu(i) : "") + '</section>';
+  }
+  function renderRail() {
+    railIcons();
+    el("rail-panel").innerHTML =
+      '<div class="nl-rail-top"><b>Mes encarts</b><button class="nv-icon-btn" data-act="rail-toggle" title="Replier les encarts" aria-label="Replier les encarts">' + ICON.fold + '</button></div>' +
+      W.slots.map(slotShell).join("");
+    W.slots.forEach(function (t, i) { fillSlot(i); });
+  }
+  function paintType(t) {
+    W.slots.forEach(function (s, i) { if (s !== t) return; var b = root.querySelector('[data-wbody="' + i + '"]'); if (b) b.innerHTML = W.html[t]; });
+    railIcons();
+  }
+  function fillSlot(i) {
+    var t = W.slots[i];
+    if (WTYPES[t].auth && !S.user) { var r = wLogin(WNEED[t]); W.html[t] = r.html; W.mini[t] = r.mini; return paintType(t); }
+    WLOAD[t]().then(function (r) { W.html[t] = r.html; W.mini[t] = r.mini; paintType(t); })
+      .catch(function (x) {
+        W.html[t] = x.status === 401 ? wLogin(WNEED[t] || "cet encart").html : wMsg("Indisponible pour le moment.");
+        paintType(t);
+      });
+  }
+  function setSlot(i, t) {
+    var j = W.slots.indexOf(t);
+    if (j !== -1 && j !== i) W.slots[j] = W.slots[i];   // déjà affiché ailleurs : les deux encarts s'échangent
+    W.slots[i] = t; W.pick = -1;
+    store("navire_lib_slots", JSON.stringify(W.slots));
+    renderRail();
+  }
+  function railToggle() {
+    if (root.classList.contains("is-narrow")) root.classList.toggle("is-rail-pop");
+    else setRail(root.classList.contains("is-rail-off"));
+  }
+  function railGo(i) {
+    if (root.classList.contains("is-narrow")) root.classList.add("is-rail-pop"); else setRail(true);
+    var n = root.querySelector('[data-wslot="' + i + '"]');
+    if (n) { n.classList.remove("is-flash"); void n.offsetWidth; n.classList.add("is-flash"); }
+  }
+  function closePops() { root.classList.remove("is-drawer"); root.classList.remove("is-rail-pop"); }
+
   // ================= ÉVÉNEMENTS =================
   root.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg],[data-ptab],[data-voir],[data-dv-file],[data-dv-corr],[data-dv-del]");
+    if (W.pick !== -1 && !e.target.closest("[data-wpick],.nl-w-pick")) { W.pick = -1; renderRail(); }
+    var t = e.target.closest("[data-wgo],[data-wpick],[data-wset],[data-wmonth],[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg],[data-ptab],[data-voir],[data-dv-file],[data-dv-corr],[data-dv-del]");
     if (!t || !root.contains(t)) return;
     var a = function (n) { return +t.getAttribute(n); };
+    if (t.hasAttribute("data-wgo")) return railGo(a("data-wgo"));
+    if (t.hasAttribute("data-wpick")) { var pi = a("data-wpick"); W.pick = W.pick === pi ? -1 : pi; return renderRail(); }
+    if (t.hasAttribute("data-wset")) { var ws = t.getAttribute("data-wset").split(":"); return setSlot(+ws[0], ws[1]); }
+    if (t.hasAttribute("data-wmonth")) { W.month = Math.max(-11, Math.min(0, W.month + a("data-wmonth"))); return W.slots.forEach(function (x, i) { if (x === "streak") fillSlot(i); }); }
+    if (t.closest(".nl-rail") && (t.hasAttribute("data-open") || t.hasAttribute("data-filter"))) root.classList.remove("is-rail-pop");
     if (t.hasAttribute("data-go")) {
       e.preventDefault();
       var href = t.getAttribute("href");
@@ -1654,14 +2060,15 @@
     if (act === "toggle-mode") setMode(plus() ? "lib" : "plus");
     else if (act === "side-open") { if (root.classList.contains("is-compact")) root.classList.add("is-drawer"); else setSide(true); }
     else if (act === "side-close") { if (root.classList.contains("is-compact")) root.classList.remove("is-drawer"); else setSide(false); }
-    else if (act === "close-drawer") root.classList.remove("is-drawer");
+    else if (act === "close-drawer") closePops();
+    else if (act === "rail-toggle") railToggle();
     else if (act === "library") { root.classList.remove("is-drawer"); refreshCatalogue().then(viewLibrary); }
     else if (act === "toggle-hl") { S.plain = !S.plain; root.classList.toggle("is-plain", S.plain); t.classList.toggle("is-on", !S.plain); store("navire_lib_plain", S.plain ? "1" : null); toast(S.plain ? "Surlignage masqué" : "Surlignage affiché"); }
     else if (act === "prepa") viewPrepa();
     else if (act === "pdf-close") closePdf();
     else if (act === "dv-submit") submitDevoir();
     else if (act === "logout") { S.token = null; S.user = null; S.prepa = null; S.voir = null; store(CONFIG.TOKEN_KEY, null); store("navire_lib_voir", null); renderAdmin(); boot(); }
-    else if (act === "login-view") { root.classList.remove("is-drawer"); viewLogin(); }
+    else if (act === "login-view") { closePops(); viewLogin(); }
     else if (act === "login") login(t);
     else if (act === "google") google();
     else if (act === "signup") { e.preventDefault(); go(CONFIG.SIGNUP_URL); }
@@ -1699,7 +2106,8 @@
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     if (el("pdf").classList.contains("is-on")) closePdf();
-    else root.classList.remove("is-drawer");
+    else if (W.pick !== -1) { W.pick = -1; renderRail(); }
+    else closePops();
   });
 
   function login(b) {
@@ -1739,6 +2147,8 @@
       var m = pageParam("mode") || (S.user ? load("navire_lib_mode") : null);
       S.mode = m === "lib" || m === "plus" ? m : (hasPlus() ? "plus" : "lib");
       renderMode();
+      W.cache = {}; W.html = {}; W.mini = {};
+      renderRail();
       var want = +(pageParam("doc") || 0), ptab = pageParam("prepa");
       loadPrepa();
       if (ptab && hasPrepa() && !want) return viewPrepa(ptab);
