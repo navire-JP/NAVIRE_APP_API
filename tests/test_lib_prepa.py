@@ -354,16 +354,19 @@ def test_onglet_fichiers_cloisonne(monde, tmp_path):
 
     a = c.get("/files/explorer", headers=alice).json()
     secs = {s["id"]: s for s in a["sections"]}
-    assert [i["label"] for i in secs["mes-fichiers"]["items"]] == ["Ma fiche.pdf"]
-    assert secs["mes-fichiers"]["items"][0]["delete"] == f"/files/{fid}"
-    assert [n["label"] for n in plat(secs["prepa"]["items"]) if n["type"] == "pdf"] == ["TD 1"]
-    assert [n["label"] for n in plat(secs["devoirs"]["items"]) if n["type"] == "pdf"] == ["Dissert (copie)"]
-    lib = [n["label"] for n in plat(secs["lib"]["items"]) if n["type"] == "lib"]
+    assert list(secs) == ["mes-pdf", "copies", "enregistres"]
+    mon_pdf = secs["mes-pdf"]["items"][0]
+    assert mon_pdf["label"] == "Ma fiche.pdf" and mon_pdf["delete"] == f"/files/{fid}"
+    assert mon_pdf["study"].startswith("/lib?doc=")          # son double dans la Lib
+    copies = [n for n in plat(secs["copies"]["items"]) if n["type"] == "pdf"]
+    assert [(n["label"], n["matiere"]) for n in copies] == [("Dissert (copie)", "Introduction au droit")]
+    # Le contenu NAVIRE n'est plus recopié ici : pas de documents Prépa, cours Lib en nœuds fantômes
+    assert "TD 1" not in [n["label"] for s in a["sections"] for n in plat(s["items"])]
+    lib = [n["label"] for n in a["liens"]["lib"]]
     assert "Introduction au droit : les sources" in lib and "Brouillon intro" not in lib
-    assert all(n["read"].startswith("/lib/documents/") for n in plat(secs["lib"]["items"]) if n["type"] == "lib")
-    assert "prepasserelle" not in secs          # pas d'accès Prépa NAVIRE
-    # Seuls les PDF de « Mes fichiers » se suppriment
-    assert all("delete" not in n for s in a["sections"] if s["id"] != "mes-fichiers" for n in plat(s["items"]))
+    # Seuls les PDF de « Mes PDF » se suppriment
+    assert all("delete" not in n for s in a["sections"] if s["id"] != "mes-pdf" for n in plat(s["items"]))
+    secs["mes-fichiers"] = secs["mes-pdf"]
 
     # Les liens servent bien le PDF à Alice, en ligne
     r = c.get(secs["mes-fichiers"]["items"][0]["src"], headers=alice)
@@ -373,7 +376,7 @@ def test_onglet_fichiers_cloisonne(monde, tmp_path):
     # Zoé : rien d'Alice, ni Prépa ni devoirs, et les liens lui sont refusés
     z = c.get("/files/explorer", headers=zoe).json()
     zs = {s["id"]: s for s in z["sections"]}
-    assert zs["mes-fichiers"]["items"] == [] and "prepa" not in zs and "devoirs" not in zs
+    assert zs["mes-pdf"]["items"] == [] and zs["copies"]["items"] == []
     assert c.get(f"/files/{fid}/download?inline=1", headers=zoe).status_code == 403
     assert c.get(f"/lib/prepa/devoirs/{dv}/fichier", headers=zoe).status_code == 404
     assert c.delete(f"/files/{fid}", headers=zoe).status_code == 403

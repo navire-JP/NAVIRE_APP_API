@@ -31,7 +31,7 @@
 
   Visiteur (sans compte) : la bibliothèque Lib se parcourt ; chaque document
   s'ouvre en aperçu (le début du document), la suite floutée sous une carte
-  « Crée ton compte ». Lib+, la vue Prépa et Mes fichiers demandent un compte.
+  « Crée ton compte ». Lib+, la vue Prépa et Mes PDF demandent un compte.
 
   Un lien vers un cours précis : /lib?doc=12 (et &mode=lib pour forcer Lib)
   La vue Prépa : /lib?prepa=edt|cours|devoirs
@@ -610,13 +610,15 @@
     QCM_URL: "https://navire-ai.com/qcm",            // page QCM NAVIRE (gagner de l'Elo)
     AI_URL: "https://navire-ai.com/navire",       // page NAVIRE AI
     ACTUS_URL: "https://navire-ai.com/actus",        // page actus / veille
+    FILES_URL: "https://navire-ai.com/fichiers",     // onglet Fichiers (ajouter / supprimer ses PDF)
     OFFRES_URL: "https://navire-ai.com/subscribe"       // abonnements (accès Lib+)
   };
   var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
-  // perso : les PDF de « Mes fichiers » de l'élève (visibles par lui seul).
+  // perso : les PDF de l'élève (onglet Fichiers), visibles par lui seul. On les
+  // étudie ici ; on les ajoute et on les supprime dans l'onglet Fichiers.
   // prepa : les documents de l'espace Prép'AdJuris, lus comme des cours (inscrits seulement).
-  var KINDS = { perso: "Mes fichiers", prepa: "Prépa", cours: "Cours", fiche: "Fiche", fiche_arret: "Fiche d'arrêt", commentaire: "Commentaire", dissertation: "Dissertation", cas_pratique: "Cas pratique" };
-  var KINDS_PL = { perso: "Mes fichiers", prepa: "Documents Prépa", cours: "Cours", fiche: "Fiches", fiche_arret: "Fiches d'arrêt", commentaire: "Commentaires", dissertation: "Dissertations", cas_pratique: "Cas pratiques" };
+  var KINDS = { perso: "Mon PDF", prepa: "Prépa", cours: "Cours", fiche: "Fiche", fiche_arret: "Fiche d'arrêt", commentaire: "Commentaire", dissertation: "Dissertation", cas_pratique: "Cas pratique" };
+  var KINDS_PL = { perso: "Mes PDF", prepa: "Documents Prépa", cours: "Cours", fiche: "Fiches", fiche_arret: "Fiches d'arrêt", commentaire: "Commentaires", dissertation: "Dissertations", cas_pratique: "Cas pratiques" };
 
   var root = document.getElementById("nv-lib");
   var S = {
@@ -894,6 +896,7 @@
       '<a class="nl-action" href="' + CONFIG.QCM_URL + '" data-go>' + ICON.qcm + 'QCM</a>' +
       '<a class="nl-action" href="' + CONFIG.AI_URL + '" data-go data-ai>' + pp(15) + 'NAVIRE AI</a>' +
       '<a class="nl-action" href="' + CONFIG.ACTUS_URL + '" data-go>' + ICON.news + 'Actus</a>' +
+      (S.user ? '<a class="nl-action" href="' + CONFIG.FILES_URL + '" data-go title="Ajouter ou supprimer tes PDF">' + ICON.file + 'Gérer mes PDF</a>' : "") +
     '</div><div data-el="prepa-side">' + prepaSide() + '</div>';
   }
 

@@ -268,7 +268,7 @@
   .fx-graph line.is-x { stroke-dasharray: 3 4; stroke: rgba(91,111,255,0.25); }
   .fx-graph .g-n { cursor: pointer; transition: opacity .15s; }
   .fx-graph .g-n text { fill: rgba(255,255,255,0.62); font-size: 10px; pointer-events: none; opacity: 0; transition: opacity .15s; }
-  .fx-graph .g-n.is-hub text, .fx-graph .g-n.is-dir text { opacity: 1; }
+  .fx-graph .g-n.is-hub text, .fx-graph .g-n.is-ghub text, .fx-graph .g-n.is-dir text { opacity: 1; }
   .fx-graph .g-n.is-hub text { font-size: 12px; font-weight: 600; fill: rgba(255,255,255,0.88); }
   .fx-graph.is-zoom .g-n text { opacity: 1; }
   .fx-graph.is-hover .g-n { opacity: .18; }
@@ -283,18 +283,8 @@
   .fx-graph-tools .fx-ibtn { background: rgba(13,15,23,0.7); border-color: var(--line); }
   .fx-tab.is-pin { padding-right: 10px; }
 
-  /* ---------- cours Lib lus dans l'onglet ---------- */
-  .fx-article .lb h2 { font-size: 16px; font-weight: 600; margin: 26px 0 8px; letter-spacing: -0.01em; }
-  .fx-article .lb h3 { font-size: 14px; font-weight: 600; margin: 18px 0 6px; color: rgba(255,255,255,0.9); text-transform: none; letter-spacing: 0; }
-  .fx-article .lb h4, .fx-article .lb h5 { font-size: 13.5px; font-weight: 600; margin: 14px 0 4px; }
-  .fx-article .lb p { margin: 0 0 10px; white-space: normal; }
-  .fx-article .lb blockquote { margin: 10px 0; padding: 8px 14px; border-left: 2px solid var(--accent); color: rgba(255,255,255,0.8); font-size: 13.5px; }
-  .fx-article .lb .lb-goal, .fx-article .lb .lb-pdp { margin: 12px 0; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.02); font-size: 13.5px; }
-  .fx-article .lb .lb-table { overflow-x: auto; margin: 12px 0; }
-  .fx-article .lb table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
-  .fx-article .lb td, .fx-article .lb th { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
-  .fx-article .lb a { color: #aab4ff; }
-  .fx-teaser { position: relative; max-height: 180px; overflow: hidden; filter: blur(4px); opacity: .5; pointer-events: none; user-select: none; }
+  #nv-files .fx-go { color: var(--muted); font-size: 12px; }
+  #nv-files .fx-go:hover { color: var(--text); }
   .fx-banner { margin: 10px 14px 0; padding: 8px 12px; border-radius: 9px; font-size: 12px; color: var(--warn);
     border: 1px solid rgba(255,209,102,0.25); background: rgba(255,209,102,0.06); flex-shrink: 0; }
 
@@ -338,9 +328,6 @@
   #nv-files .fx-banner { border: 0; }
   #nv-files .fx-list { border: 0; gap: 2px; }
   #nv-files .fx-li { border-bottom: 0; border-radius: 10px; }
-  #nv-files .fx-article .lb td, #nv-files .fx-article .lb th { border: 0; background: rgba(255,255,255,0.03); }
-  #nv-files .fx-article .lb blockquote { border-left: 0; background: rgba(91,111,255,0.07); border-radius: 10px; }
-  #nv-files .fx-article .lb .lb-goal, #nv-files .fx-article .lb .lb-pdp { border: 0; background: rgba(255,255,255,0.04); }
   #nv-files .fx-overlay { background: rgba(6,7,12,0.45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
   #nv-files .fx-sheet { border: 0; background: rgba(22,24,34,0.72); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
   #nv-files .fx-toast { border: 0; background: rgba(30,33,46,0.75); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border-radius: 11px; }
@@ -427,7 +414,8 @@
     API: "https://navire-app-api.onrender.com",
     TOKEN_KEY: "navire_token",
     LOGIN_URL: "https://navire-ai.com/login",
-    SITE: "https://navire-ai.com",         // préfixe des liens NAVIRE Lib (/lib?doc=…)
+    SITE: "https://navire-ai.com",         // préfixe des liens NAVIRE Lib (/lib?doc=…, /lib?prepa=devoirs)
+    ACTUS_URL: "https://navire-ai.com/actus", // page Actus (une actu enregistrée s'y ouvre : ?actu=ID)
     // Carte 3D (WebGL, three.js inclus). Si elle ne charge pas, la carte 2D prend le relais.
     GRAPH3D: "https://cdn.jsdelivr.net/npm/3d-force-graph@1.79.1/dist/3d-force-graph.min.js"
   };
@@ -446,7 +434,6 @@
   };
   var IDX = {};             // id → { node, trail: [nœuds parents], sec }
   var BLOBS = {};
-  var LIBS = {};            // url de lecture d'un cours Lib → { loading | data | error }
   var GRAPH = null;         // carte 2D de secours (positions calculées une fois par chargement)
   var G3 = { state: "idle", fg: null, el: null, lab: null, data: null, hover: null, near: {}, labels: [], waiters: [] };  // carte 3D
 
@@ -512,6 +499,8 @@
     graph: '<circle cx="5" cy="6" r="2"/><circle cx="15" cy="5" r="2"/><circle cx="10" cy="14.5" r="2.2"/><circle cx="16" cy="13" r="1.5"/><path d="M6.8 7l2.2 5.8M13.3 6l-2.4 6.7M7 6l6-.8M12.2 14.2l2.3-.8"/>',
     zin: '<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4M6.5 9h5M9 6.5v5"/>',
     zout: '<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4M6.5 9h5"/>',
+    bookmark: '<path d="M6 3.5h8a1 1 0 0 1 1 1v12l-5-3.2L5 16.5v-12a1 1 0 0 1 1-1z"/>',
+    study: '<path d="M10 5.5C8.5 4.3 6.3 4 3.5 4v11c2.8 0 5 .3 6.5 1.5 1.5-1.2 3.7-1.5 6.5-1.5V4c-2.8 0-5 .3-6.5 1.5zM10 5.5v11"/>',
     home: '<path d="M3.5 9L10 3.5 16.5 9v7a1 1 0 0 1-1 1h-3.5v-5h-4v5H4.5a1 1 0 0 1-1-1z"/>'
   };
   function ic(name, size, color) {
@@ -570,7 +559,7 @@
       if (e.status !== 405 && e.status !== 404) throw e;
       return api("GET", "/files").then(function (j) {
         return { fallback: true, sections: [{
-          id: "mes-fichiers", label: "Mes fichiers", icon: "user", upload: true, quota: j.quota,
+          id: "mes-pdf", label: "Mes PDF", icon: "user", upload: true, quota: j.quota,
           items: (j.items || []).map(function (f) {
             return { id: "f-" + f.id, type: "pdf", label: f.filename_original, size_bytes: f.size_bytes, date: f.created_at,
                      src: "/files/" + f.id + "/download?inline=1", "delete": "/files/" + f.id };
@@ -629,7 +618,7 @@
       S.uploading++;
       api("POST", "/files/upload", fd).then(function (j) {
         t.remove(); toast("Ajouté à Mes fichiers.", "ok");
-        S.open["s:mes-fichiers"] = true;
+        S.open["s:mes-pdf"] = true;
         notify();
         return fetchAll(true).then(function () { if (j && j.id && S.view === "lecture") openTab("f-" + j.id); });
       }).catch(function (e) {
@@ -714,6 +703,15 @@
       + (canDelete(n) ? '<button class="fx-del" data-act="del" data-id="' + esc(n.id) + '" title="Supprimer">' + ic("trash", 13) + '</button>' : "")
       + '</div>';
   }
+  function emptyText(s) {
+    return s.id === "copies" ? "Aucune copie pour l'instant"
+      : s.id === "enregistres" ? "Enregistre une actu dans Actus pour la retrouver ici"
+      : s.upload ? "Aucun PDF pour l'instant" : "Vide";
+  }
+  function actionCard(s) {
+    return s.action ? '<button class="fx-card is-dashed" data-act="go" data-link="' + esc(s.action.link) + '" style="align-items:center;justify-content:center;color:var(--muted)">'
+      + ic("ext", 18) + '<span style="font-size:12px">' + esc(s.action.label) + '</span></button>' : "";
+  }
   function renderTree() {
     var t = el("tree");
     if (!S.data) { t.innerHTML = ""; el("quota").innerHTML = ""; return; }
@@ -726,13 +724,15 @@
         + '<button class="fx-row is-sec" data-act="fold" data-id="' + esc(id) + '" data-sec="1">' + ic("chev", 11) + ic(s.icon || "folder", 13)
         + '<span class="fx-lbl">' + esc(s.label) + '</span></button>'
         + '<div class="fx-kids" style="border-left:0;margin-left:0;padding-left:4px">'
-        + (kids || (s.upload ? '<div class="fx-empty">Aucun PDF pour l\'instant</div>' : '<div class="fx-empty">Vide</div>')) + '</div></div>';
+        + (kids || '<div class="fx-empty">' + esc(emptyText(s)) + '</div>')
+        + (s.action && !S.q ? '<button class="fx-row fx-go" data-act="go" data-link="' + esc(s.action.link) + '"><span style="width:12px"></span>' + ic("ext", 13) + '<span class="fx-lbl">' + esc(s.action.label) + '</span></button>' : "")
+        + '</div></div>';
     }).join("") || '<div class="fx-empty" style="padding:10px">Aucun résultat</div>';
     var mine = S.data.sections[0], q = mine && mine.quota;
     if (q) {
       var lim = q.limit === -1 || q.limit == null ? "∞" : q.limit;
       var pct = q.limit > 0 ? Math.min(100, Math.round(q.used / q.limit * 100)) : 0;
-      el("quota").innerHTML = '<div class="fx-quota-l"><span>Mes fichiers</span><span>' + q.used + " / " + lim + '</span></div>'
+      el("quota").innerHTML = '<div class="fx-quota-l"><span>Mes PDF</span><span>' + q.used + " / " + lim + '</span></div>'
         + '<div class="fx-track"><div class="fx-fill" style="width:' + pct + '%"></div></div>';
     }
   }
@@ -741,8 +741,9 @@
   function crumbOf(id) { var x = IDX[id]; return x ? x.trail.map(function (n) { return n.label; }).join(" / ") : ""; }
   function headActions(n) {
     var h = "";
+    if (n.study) h += '<button class="fx-btn is-primary" data-act="study" data-id="' + esc(n.id) + '" title="Lire avec le plan, les questions et NAVIRE AI">' + ic("study", 13) + '<span>Étudier dans la Lib</span></button>';
     if (n.type === "pdf") h += '<button class="fx-btn" data-act="dl" data-id="' + esc(n.id) + '">' + ic("down", 13) + '<span class="fx-hide-sm">Télécharger</span></button>';
-    if (n.type === "lib") h += '<button class="fx-btn" data-act="lib" data-id="' + esc(n.id) + '">' + ic("ext", 13) + '<span>Ouvrir dans NAVIRE Lib</span></button>';
+    if (n.type === "actu") h += '<button class="fx-btn is-primary" data-act="actus" data-id="' + esc(n.id) + '">' + ic("ext", 13) + '<span>Ouvrir dans Actus</span></button>';
     if (n.type === "actu" && n.meta && n.meta.source_url) h += '<a class="fx-btn" href="' + esc(n.meta.source_url) + '" target="_blank" rel="noopener" style="text-decoration:none">' + ic("ext", 13) + '<span class="fx-hide-sm">Source</span></a>';
     if (canDelete(n)) h += '<button class="fx-btn is-danger" data-act="del" data-id="' + esc(n.id) + '" title="Supprimer">' + ic("trash", 13) + '</button>';
     return h;
@@ -776,57 +777,13 @@
     }
     if (n.type === "actu") {
       return head + '<div class="fx-scroll"><article class="fx-article">'
-        + '<div class="fx-kick">' + esc(m.rubrique || "Veille") + '</div><h1>' + esc(n.label) + '</h1>'
+        + '<div class="fx-kick">' + esc(m.rubrique || "Veille") + ' · ↗ Actus</div><h1>' + esc(n.label) + '</h1>'
         + '<div class="fx-sub">' + esc([m.source_name, fmtDate(n.date), m.minutes ? m.minutes + " min de lecture" : ""].filter(Boolean).join(" · ")) + '</div>'
         + '<h3>L\'essentiel</h3><p>' + esc(m.essentiel) + '</p>'
         + (m.impact ? '<h3>Pourquoi c\'est important</h3><p>' + esc(m.impact) + '</p>' : "")
         + '</article></div>';
     }
-    // lib : le cours se lit ici ; la route revérifie Lib / Lib+ / points de passage
-    return head + '<div class="fx-scroll"><article class="fx-article">'
-      + '<div class="fx-kick">' + esc([crumbOf(id).split(" / ").pop(), m.niveau].filter(Boolean).join(" · ")) + '</div>'
-      + '<h1>' + esc(n.label) + '</h1>'
-      + '<div class="fx-sub">' + esc([m.matiere, n.date ? "Mis à jour le " + fmtDate(n.date) : ""].filter(Boolean).join(" · ")) + '</div>'
-      + libBody(n)
-      + '</article></div>';
-  }
-  function libBlock(b) {
-    switch (b.t) {
-      case "h1": return '<h2>' + esc(b.text) + '</h2>';
-      case "h2": return '<h3>' + b.html + '</h3>';
-      case "h3": return '<h4>' + b.html + '</h4>';
-      case "h4": return '<h5>' + b.html + '</h5>';
-      case "goal": return '<div class="lb-goal">' + b.html + '</div>';
-      case "quote": return '<blockquote>' + b.html + '</blockquote>';
-      case "pdp": return '<div class="lb-pdp">' + b.html + '</div>';
-      case "table": return '<div class="lb-table">' + b.html + '</div>';
-      default: return '<p>' + (b.html != null ? b.html : esc(b.text)) + '</p>';
-    }
-  }
-  function libCard(n, text, label) {
-    return '<div class="fx-note" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
-      + (n.meta && n.meta.plus ? '<span class="fx-pill is-acc">Lib+</span>' : '<span class="fx-pill">Lib</span>')
-      + '<span style="flex:1;min-width:180px;color:var(--muted);font-size:12.5px">' + esc(text) + '</span>'
-      + '<button class="fx-btn is-primary" data-act="lib" data-id="' + esc(n.id) + '">' + ic("ext", 13) + esc(label || "Ouvrir dans NAVIRE Lib") + '</button></div>';
-  }
-  function libBody(n) {
-    if (!n.read) return libCard(n, "Ce cours se lit dans NAVIRE Lib.", "Ouvrir");
-    var c = LIBS[n.read];
-    if (!c) {
-      LIBS[n.read] = { loading: true };
-      api("GET", n.read).then(function (j) { LIBS[n.read] = { data: j }; })
-        .catch(function (e) { LIBS[n.read] = { error: e.message, status: e.status }; })
-        .then(function () { if (S.active === n.id || S.peek === n.id) render(); });
-      c = LIBS[n.read];
-    }
-    if (c.loading) return '<div class="fx-center" style="padding:40px 0"><div class="fx-spin"></div><span>Ouverture du cours…</span></div>';
-    if (c.error) return libCard(n, c.status === 403 ? "Ce cours est réservé à NAVIRE Lib+." : c.error);
-    var d = c.data, g = d.gate, html = '<div class="lb">' + (d.blocks || []).map(libBlock).join("") + '</div>';
-    if (d.teaser && d.teaser.length) html += '<div class="fx-teaser lb" aria-hidden="true">' + d.teaser.map(libBlock).join("") + '</div>';
-    if (g && g.type === "document") html += libCard(n, "Il te faut " + g.elo_requis + " Elo pour ouvrir ce cours (tu en as " + g.elo + ").");
-    else if (g && g.type === "checkpoint" && !g.final) html += libCard(n, "La suite se débloque en répondant au point de passage, dans NAVIRE Lib.", "Continuer dans NAVIRE Lib");
-    else html += libCard(n, "Plan, surlignage et NAVIRE AI : retrouve ce cours dans NAVIRE Lib.");
-    return html;
+    return head;
   }
 
   // ================= RENDU : vue Lecture =================
@@ -843,36 +800,47 @@
   }
 
   // ================= CARTE DES DOCUMENTS =================
-  var GCOL = { hub: "#ffffff", dir: "rgba(255,255,255,0.45)", pdf: "#8b98ff", actu: "#FFD166", lib: "#5BE3A3" };
+  var GCOL = { hub: "#ffffff", ghub: "rgba(255,255,255,0.35)", dir: "rgba(255,255,255,0.45)", pdf: "#8b98ff", actu: "#FFD166", lib: "#5BE3A3", ghost: "rgba(91,227,163,0.35)" };
+  function openNode(n) {
+    if (!n) return;
+    if (n.kind === "ghost") return go(CONFIG.SITE + n.link);
+    if (IDX[n.id]) openTab(n.id);
+  }
   // Modèle commun aux deux cartes : sections → dossiers → fichiers, + liens par matière
+  // Carte par matière : mes documents en clair, le contenu NAVIRE lié en nœuds fantômes
+  // (ils s'ouvrent dans la Bibliothèque). Une matière sans document à moi reste en retrait.
   function graphModel() {
     var nodes = [], links = [], by = {};
-    function add(id, kind, label, r, ref) { var n = { id: id, kind: kind, label: label, r: r, ref: ref, x: 0, y: 0, vx: 0, vy: 0 }; by[id] = n; nodes.push(n); return n; }
+    function add(id, kind, label, r, extra) {
+      var n = { id: id, kind: kind, label: label, r: r, x: 0, y: 0, vx: 0, vy: 0 };
+      if (extra) for (var k in extra) n[k] = extra[k];
+      by[id] = n; nodes.push(n); return n;
+    }
     function link(a, b, cross) { links.push({ a: by[a], b: by[b], x: !!cross }); }
-    var secs = S.data ? S.data.sections : [];
-    function walk(parent, kids) {
-      (kids || []).forEach(function (k) {
-        if (k.type === "folder") { add(k.id, "dir", k.label, 5, k.id); link(parent, k.id); walk(k.id, k.children); }
-        else { add(k.id, k.type, k.label, 3.4, k.id); link(parent, k.id); }
-      });
+    var hubs = {};
+    function hub(name, own) {
+      var key = "m:" + norm(name);
+      if (!by[key]) { hubs[key] = { name: name, own: false }; add(key, "ghub", name, 5.5); }
+      if (own && !hubs[key].own) { hubs[key].own = true; by[key].kind = "hub"; by[key].r = 9; }
+      return key;
     }
-    secs.forEach(function (s, i) {
-      var h = add("s:" + s.id, "hub", s.label, 9, "s:" + s.id);
-      var a = (i / Math.max(1, secs.length)) * Math.PI * 2;
-      h.x = Math.cos(a) * 240; h.y = Math.sin(a) * 240;
-      walk(h.id, s.items);
+    allFiles().forEach(function (f) {
+      var h = f.type === "actu" ? hub("Actus enregistrées", true) : hub(f.matiere || "Non classés", true);
+      add(f.id, f.type, f.label, 3.4);
+      link(h, f.id);
     });
-    // Liens entre sections : même matière (dossiers homonymes, cours Lib de la matière)
-    var dirs = nodes.filter(function (n) { return n.kind === "dir"; });
-    for (var i = 0; i < dirs.length; i++) for (var j = i + 1; j < dirs.length; j++) {
-      if (norm(dirs[i].label) === norm(dirs[j].label)) link(dirs[i].id, dirs[j].id, true);
-    }
-    nodes.forEach(function (n) {
-      if (n.kind !== "lib") return;
-      var m = IDX[n.id] && IDX[n.id].node.meta, mat = m && norm(m.matiere);
-      if (!mat || mat.length < 4) return;
-      dirs.forEach(function (d) { if (norm(d.label).indexOf(mat) !== -1 && sectionOf(d.id) && sectionOf(d.id).id !== "lib") link(n.id, d.id, true); });
+    var lib = (S.data && S.data.liens && S.data.liens.lib) || [];
+    lib.forEach(function (d) {
+      if (!d.matiere) return;
+      var h = hub(d.matiere, false);
+      add(d.id, "ghost", d.label, 2.2, { link: d.link, plus: d.plus });
+      link(h, d.id, hubs[h].own);
     });
+    // Les matières de départ : celles qui contiennent mes documents, réparties en cercle
+    var own = nodes.filter(function (n) { return n.kind === "hub"; });
+    own.forEach(function (n, i) { var a = i / Math.max(1, own.length) * Math.PI * 2; n.x = Math.cos(a) * 200; n.y = Math.sin(a) * 200; });
+    // Les liens fantômes des matières sans document à moi ne font pas de particules
+    links.forEach(function (l) { if (l.b.kind === "ghost" && l.a.kind !== "hub") l.x = false; });
     return { nodes: nodes, links: links, by: by };
   }
   function buildGraph() {
@@ -906,8 +874,8 @@
   function graphShell() {
     if (!S.data) return "";
     return '<div class="fx-graph" data-el="graph"><svg data-el="gsvg" preserveAspectRatio="xMidYMid meet"></svg>'
-      + '<div class="fx-graph-ui"><span><i style="background:' + GCOL.pdf + '"></i>PDF</span><span><i style="background:' + GCOL.lib + '"></i>Cours Lib</span>'
-      + '<span><i style="background:' + GCOL.actu + '"></i>Veille</span><span><i style="background:' + GCOL.hub + '"></i>Sections</span></div>'
+      + '<div class="fx-graph-ui"><span><i style="background:' + GCOL.hub + '"></i>Matières</span><span><i style="background:' + GCOL.pdf + '"></i>Mes PDF et copies</span>'
+      + '<span><i style="background:' + GCOL.actu + '"></i>Actus enregistrées</span><span><i style="background:' + GCOL.lib + ';opacity:.45"></i>Cours Lib ↗</span></div>'
       + '<div class="fx-graph-tools"><button class="fx-ibtn" data-act="g-zin" title="Zoom avant">' + ic("zin", 15) + '</button>'
       + '<button class="fx-ibtn" data-act="g-zout" title="Zoom arrière">' + ic("zout", 15) + '</button>'
       + '<button class="fx-ibtn" data-act="g-fit" title="Tout voir">' + ic("graph", 15) + '</button></div></div>';
@@ -965,17 +933,12 @@
     svg.addEventListener("click", function (e) {
       if (moved) return;
       var g = e.target.closest("[data-g]"); if (!g) return;
-      var id = g.getAttribute("data-g"), n = IDX[id] && IDX[id].node; if (!n) return;
-      if (n.type === "folder") {
-        S.open[id] = true; IDX[id].trail.forEach(function (p) { S.open[p.id] = true; });
-        if (!S.side) setSide(true);
-        renderTree();
-      } else openTab(id);
+      openNode(GRAPH.by[g.getAttribute("data-g")]);
     });
   }
 
   // ================= CARTE 3D =================
-  var COL3 = { hub: "#eef0ff", dir: "#8a93b8", pdf: "#8b98ff", actu: "#FFD166", lib: "#5BE3A3" };
+  var COL3 = { hub: "#eef0ff", ghub: "#4d5370", dir: "#8a93b8", pdf: "#8b98ff", actu: "#FFD166", lib: "#5BE3A3", ghost: "#2f7a5f" };
   function webgl() { try { var c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch (e) { return false; } }
   function load3D(cb) {
     if (window.ForceGraph3D) return cb(true);
@@ -1012,7 +975,7 @@
   function linkEnd(v) { return typeof v === "object" ? v.id : v; }
   function data3D() {
     var M = graphModel(), adj = {};
-    var nodes = M.nodes.map(function (n) { return { id: n.id, kind: n.kind, label: n.label }; });
+    var nodes = M.nodes.map(function (n) { return { id: n.id, kind: n.kind, label: n.label, link: n.link, plus: n.plus }; });
     var links = M.links.map(function (l) {
       (adj[l.a.id] = adj[l.a.id] || []).push(l.b.id); (adj[l.b.id] = adj[l.b.id] || []).push(l.a.id);
       return { source: l.a.id, target: l.b.id, x: l.x, hub: l.a.kind === "hub" };
@@ -1022,7 +985,7 @@
   }
   function dimmed(n) {
     if (G3.hover) return !G3.near[n.id];
-    if (S.q && n.kind !== "hub" && n.kind !== "dir") { var x = IDX[n.id]; return !(x && matches(x.node)); }
+    if (S.q && n.kind !== "hub" && n.kind !== "ghub") { var x = IDX[n.id]; return x ? !matches(x.node) : !matches({ label: n.label }); }
     return false;
   }
   function refresh3D() {
@@ -1037,11 +1000,14 @@
         .backgroundColor("rgba(0,0,0,0)")
         .showNavInfo(false)
         .nodeRelSize(4.6)
-        .nodeVal(function (n) { return n.kind === "hub" ? 9 : n.kind === "dir" ? 2.6 : 1; })
+        .nodeVal(function (n) { return n.kind === "hub" ? 9 : n.kind === "ghub" ? 2.6 : n.kind === "ghost" ? 0.45 : 1; })
         .nodeResolution(20)
         .nodeOpacity(0.95)
         .nodeColor(function (n) { return dimmed(n) ? "#262a3a" : COL3[n.kind] || COL3.pdf; })
-        .nodeLabel(function (n) { return n.kind === "hub" || n.kind === "dir" ? "" : '<div class="fx-g3-tip">' + esc(n.label) + '</div>'; })
+        .nodeLabel(function (n) {
+          if (n.kind === "hub" || n.kind === "ghub") return "";
+          return '<div class="fx-g3-tip">' + (n.kind === "ghost" ? "↗ NAVIRE Lib" + (n.plus ? "+" : "") + " · " : "") + esc(n.label) + '</div>';
+        })
         .linkColor(function (l) {
           if (G3.hover) { var on = G3.hover.id === linkEnd(l.source) || G3.hover.id === linkEnd(l.target); return on ? (l.x ? "#8b98ff" : "#ffffff") : "#20232f"; }
           return l.x ? "#5B6FFF" : "#c8ccdc";
@@ -1059,11 +1025,10 @@
           refresh3D();
         })
         .onNodeClick(function (n) {
-          if (n.kind === "hub" || n.kind === "dir") {
+          if (n.kind === "hub" || n.kind === "ghub") {
             var d = 90, r = 1 + d / (Math.hypot(n.x, n.y, n.z) || 1);
             fg.cameraPosition({ x: n.x * r, y: n.y * r, z: n.z * r }, n, 900);
-            if (IDX[n.id]) { S.open[n.id] = true; IDX[n.id].trail.forEach(function (p) { S.open[p.id] = true; }); renderTree(); }
-          } else openTab(n.id);
+          } else openNode(n);
         })
         .warmupTicks(60)
         .cooldownTicks(160)
@@ -1087,7 +1052,7 @@
       G3.fg.graphData(d);
       setTimeout(function () { if (!G3.fitted && g3on()) G3.fg.zoomToFit(600, 8); }, 700);
       G3.lab.innerHTML = "";
-      G3.labels = d.nodes.filter(function (n) { return n.kind === "hub" || n.kind === "dir"; }).map(function (n) {
+      G3.labels = d.nodes.filter(function (n) { return n.kind === "hub" || n.kind === "ghub"; }).map(function (n) {
         var div = document.createElement("div");
         div.className = "fx-g3-l" + (n.kind === "hub" ? " is-hub" : "");
         div.textContent = n.label.length > 34 ? n.label.slice(0, 32) + "…" : n.label;
@@ -1124,8 +1089,7 @@
 
   // ================= RENDU : vue Classeur =================
   // Halo des cartes, couleur de la section (comme les cartes NAVIRE Lib)
-  var GLOW = { "mes-fichiers": "rgba(139,152,255,0.22)", prepa: "rgba(122,167,255,0.2)", devoirs: "rgba(74,222,128,0.16)",
-               prepasserelle: "rgba(122,167,255,0.2)", veille: "rgba(255,209,102,0.18)", lib: "rgba(91,227,163,0.18)" };
+  var GLOW = { "mes-pdf": "rgba(139,152,255,0.22)", copies: "rgba(74,222,128,0.16)", enregistres: "rgba(255,209,102,0.18)" };
   function glowOf(sec) { return (sec && GLOW[sec.id]) || "rgba(122,167,255,0.16)"; }
   function card(n) {
     if (n.type === "folder") {
@@ -1154,11 +1118,12 @@
         var kids = s.items || [];
         var head = '<button class="fx-gsec" data-act="cd" data-id="' + esc(node.id) + '">' + esc(s.label) + '</button>';
         if (!kids.length) {
-          return head + '<div class="fx-grid">' + (s.upload ? '<div class="fx-card is-dashed" data-act="pick" style="align-items:center;justify-content:center;color:var(--muted)">' + ic("upload", 18) + '<span style="font-size:12px">Ajouter un PDF</span></div>' : '<div class="fx-m">Vide</div>') + '</div>';
+          return head + '<div class="fx-grid">' + (s.upload ? '<div class="fx-card is-dashed" data-act="pick" style="align-items:center;justify-content:center;color:var(--muted)">' + ic("upload", 18) + '<span style="font-size:12px">Ajouter un PDF</span></div>'
+            : actionCard(s) || '<div class="fx-card is-dashed" style="align-items:center;justify-content:center;color:var(--faint);cursor:default;font-size:12px;text-align:center">' + esc(emptyText(s)) + '</div>') + '</div>';
         }
         var show = kids.slice(0, 7).map(card).join("");
         var more = kids.length > 7 ? '<button class="fx-card is-folder" style="--glow:' + glowOf(s) + '" data-act="cd" data-id="' + esc(node.id) + '"><div class="fx-ic">' + ic("folder", 17) + '</div><div class="fx-nm">Tout voir</div><div class="fx-m">' + kids.length + ' éléments</div></button>' : "";
-        return head + '<div class="fx-grid">' + show + more + '</div>';
+        return head + '<div class="fx-grid">' + show + more + actionCard(s) + '</div>';
       }).join("");
     } else {
       var kids = cur.children || [];
@@ -1202,7 +1167,7 @@
       if (tabs && S.view === "lecture") { var tmp = document.createElement("div"); tmp.innerHTML = html; tabs.innerHTML = tmp.querySelector(".fx-tabs").innerHTML; }
       return;
     }
-    if (S.data && S.data.fallback) html = '<div class="fx-banner">Seuls tes fichiers s\'affichent pour l\'instant : l\'API NAVIRE doit être mise à jour pour voir Prép\'AdJuris, tes devoirs, la veille et NAVIRE Lib.</div>' + html;
+    if (S.data && S.data.fallback) html = '<div class="fx-banner">Seuls tes PDF s\'affichent pour l\'instant : l\'API NAVIRE doit être mise à jour pour voir tes copies, tes enregistrés et la carte par matière.</div>' + html;
     main.innerHTML = html;
     main.setAttribute("data-key", S.view + (S.view === "lecture" ? S.active : S.peek));
     main.classList.toggle("is-bare", S.view === "lecture" && !S.active && !!S.data);
@@ -1240,7 +1205,9 @@
           document.body.appendChild(a); a.click(); a.remove();
         }).catch(function (er) { toast(er.message, "err"); });
         break;
-      case "lib": go(CONFIG.SITE + IDX[id].node.link); break;
+      case "study": go(CONFIG.SITE + IDX[id].node.study); break;
+      case "actus": go(CONFIG.ACTUS_URL + "?actu=" + String(IDX[id].node.link || "").replace("actu:", "")); break;
+      case "go": go(CONFIG.SITE + t.getAttribute("data-link")); break;
       case "login": go(CONFIG.LOGIN_URL); break;
       case "retry": fetchAll(); break;
     }

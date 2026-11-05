@@ -224,20 +224,75 @@ def list_files(
 # ============================================================
 
 _EMBED = Path(__file__).resolve().parents[2] / "embeds" / "fichiers.html"
-VEILLE_RECENTES = 60
+
+# Onglet Fichiers = « mon espace » : ce qui est à l'élève (déposé, rendu, reçu,
+# mis de côté). Le contenu NAVIRE a sa maison ailleurs (cours → Bibliothèque,
+# fil d'actus → Actus) ; ici il n'apparaît qu'en raccourci ou en nœud
+# fantôme de la carte, jamais en copie.
+
+_MOTS_VIDES = {"droit", "des", "les", "et", "de", "du", "la", "le", "aux", "en", "a"}
 
 
 def _iso(d) -> str | None:
     return d.isoformat() if d else None
 
 
-def _section_mes_fichiers(db: Session, user: User) -> dict:
+def _sans_accents(s: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", (s or "").lower()) if unicodedata.category(c) != "Mn")
+
+
+def _matiere_du_nom(nom: str, matieres: list[str]) -> str | None:
+    """
+    Rattache un PDF à une matière d'après son nom (tous les mots marquants de la
+    matière présents dans le nom). Sinon None : le PDF va dans « Non classés ».
+    """
+    n = set(_sans_accents(nom).replace("_", " ").replace("-", " ").replace(".", " ").split())
+    meilleur, score = None, 0
+    for m in matieres:
+        mots = [w for w in _sans_accents(m).split() if len(w) > 3 and w not in _MOTS_VIDES]
+        if mots and all(w in n for w in mots) and len(mots) > score:
+            meilleur, score = m, len(mots)
+    return meilleur
+
+
+def _catalogue_lib(db: Session) -> list:
+    from app.db.models import LibDocument
+    from app.routers.lib import KINDS
+
+    return db.execute(
+        select(LibDocument)
+        .where(
+            LibDocument.owner_id.is_(None),
+            LibDocument.prepa_ressource_id.is_(None),
+            LibDocument.is_published.is_(True),
+            LibDocument.kind.in_(KINDS),
+        )
+        .order_by(LibDocument.ordre, LibDocument.id)
+    ).scalars().all()
+
+
+def _section_mes_pdf(db: Session, user: User, matieres: list[str]) -> dict:
+    from app.db.models import LibDocument
+
     rows = db.execute(
         select(FileModel).where(FileModel.user_id == user.id).order_by(desc(FileModel.created_at))
     ).scalars().all()
+    # Chaque PDF a son double « perso » dans la Lib (créé par /lib/catalogue) : bouton « Étudier dans la Lib ».
+    try:
+        from app.routers.lib import _sync_perso
+        _sync_perso(db, user)
+    except Exception as e:
+        db.rollback()
+        print(f"⚠️ Explorateur : synchro Lib perso impossible : {e}")
+    lib_ids = {
+        d.source_file_id: d.id for d in db.execute(
+            select(LibDocument).where(LibDocument.owner_id == user.id)
+        ).scalars().all()
+    }
     return {
-        "id": "mes-fichiers",
-        "label": "Mes fichiers",
+        "id": "mes-pdf",
+        "label": "Mes PDF",
         "icon": "user",
         "upload": True,
         "items": [
@@ -250,6 +305,8 @@ def _section_mes_fichiers(db: Session, user: User) -> dict:
                 "expires_at": _iso(r.expires_at),
                 "src": f"/files/{r.id}/download?inline=1",
                 "delete": f"/files/{r.id}",
+                "study": f"/lib?doc={lib_ids[r.id]}" if r.id in lib_ids else None,
+                "matiere": _matiere_du_nom(r.filename_original, matieres),
             }
             for r in rows
         ],
@@ -257,205 +314,84 @@ def _section_mes_fichiers(db: Session, user: User) -> dict:
     }
 
 
-def _par_dossier(items: list[dict], cle: str, prefixe: str) -> list[dict]:
-    """Range des fichiers en sous-dossiers, dans l'ordre d'apparition."""
-    dossiers: dict[str, dict] = {}
-    for it in items:
-        nom = it.pop(cle, None) or "Autres"
-        d = dossiers.setdefault(nom, {"id": f"{prefixe}-{len(dossiers)}", "type": "folder", "label": nom, "children": []})
-        d["children"].append(it)
-    return list(dossiers.values())
-
-
-def _section_prepa(db: Session, user: User) -> dict | None:
-    from app.routers.lib import adjuris  # import local : évite un cycle
-
-    rows = adjuris(db, user)["items"]
-    if not rows:
-        return None
-    items = [
-        {
-            "id": f"r-{r['id']}",
-            "type": "pdf",
-            "label": r["titre"],
-            "size_bytes": r["size_bytes"],
-            "date": r["created_at"],
-            "src": r["url"],
-            "meta": {"description": r["description"], "auteur": "Ton chargé de TD" if r["professeur"] else "NAVIRE"},
-            "_dossier": r["matiere_label"],
-        }
-        for r in rows
-    ]
-    return {"id": "prepa", "label": "Prép'AdJuris", "icon": "school", "items": _par_dossier(items, "_dossier", "prepa")}
-
-
-def _section_devoirs(db: Session, user: User) -> dict | None:
-    from app.db.models import PrepaAdjurisDevoir
+def _section_copies(db: Session, user: User) -> dict:
+    """Copies rendues et corrigés reçus : Prép'AdJuris (et l'ancienne Prépa NAVIRE si l'accès est actif)."""
+    from app.core.limits import has_active_prepa_access
+    from app.core.prepa_adjuris_config import PREPA_MATIERE_NAMES
+    from app.db.models import PrepaAdjurisDevoir, PrepaExercise, PrepaSubmission
     from app.services.devoirs import devoir_row
 
-    rows = db.execute(
+    dossiers: dict[str, dict] = {}
+
+    def dossier(nom: str) -> list:
+        d = dossiers.setdefault(nom, {"id": f"copies-{len(dossiers)}", "type": "folder", "label": nom, "children": []})
+        return d["children"]
+
+    for d in db.execute(
         select(PrepaAdjurisDevoir)
         .where(PrepaAdjurisDevoir.user_id == user.id)
         .order_by(PrepaAdjurisDevoir.created_at.desc(), PrepaAdjurisDevoir.id.desc())
-    ).scalars().all()
-    if not rows:
-        return None
-    items = []
-    for d in rows:
+    ).scalars().all():
         r = devoir_row(db, d)
         meta = {
             "statut": "Corrigé" if r["statut"] == "corrige" else "En attente de correction",
-            "note": r["note"] or None,
-            "commentaire": r["commentaire"] or None,
-            "corrige_par": r["corrige_par"],
+            "note": r["note"] or None, "commentaire": r["commentaire"] or None, "corrige_par": r["corrige_par"],
         }
-        items.append({
-            "id": f"d-{d.id}", "type": "pdf", "label": f"{r['titre']} (copie)",
-            "size_bytes": r["size_bytes"], "date": r["created_at"],
-            "src": f"/lib/prepa/devoirs/{d.id}/fichier", "meta": meta, "_dossier": r["matiere_label"],
-        })
+        matiere = PREPA_MATIERE_NAMES.get(d.matiere_key, r["matiere"])
+        enfants = dossier(r["matiere_label"])
+        enfants.append({"id": f"d-{d.id}", "type": "pdf", "label": f"{r['titre']} (copie)", "size_bytes": r["size_bytes"],
+                        "date": r["created_at"], "src": f"/lib/prepa/devoirs/{d.id}/fichier", "meta": meta,
+                        "matiere": matiere})
         if r["correction"]:
-            items.append({
-                "id": f"c-{d.id}", "type": "pdf", "label": f"{r['titre']} (corrigé)",
-                "date": r["corrige_le"], "src": f"/lib/prepa/devoirs/{d.id}/correction",
-                "meta": meta, "_dossier": r["matiere_label"],
+            enfants.append({"id": f"c-{d.id}", "type": "pdf", "label": f"{r['titre']} (corrigé)", "date": r["corrige_le"],
+                            "src": f"/lib/prepa/devoirs/{d.id}/correction", "meta": meta, "matiere": matiere})
+
+    if has_active_prepa_access(user):
+        for sub, exo in db.execute(
+            select(PrepaSubmission, PrepaExercise)
+            .join(PrepaExercise, PrepaExercise.id == PrepaSubmission.exercise_id)
+            .where(PrepaSubmission.user_id == user.id)
+            .order_by(PrepaSubmission.submitted_at.desc())
+        ).all():
+            nom = f"S{exo.week_number} · {exo.titre}" if exo.week_number else exo.titre
+            dossier("Prépa NAVIRE").append({
+                "id": f"pr-{sub.id}", "type": "pdf", "label": f"{nom} (copie)", "size_bytes": sub.size_bytes,
+                "date": _iso(sub.submitted_at), "src": f"/prepa/submissions/{sub.id}/download",
+                "meta": {"statut": "Corrigé" if sub.corrected_at else "En attente de correction",
+                         "note": sub.note or None, "commentaire": sub.feedback or None},
             })
-    return {"id": "devoirs", "label": "Mes devoirs", "icon": "check", "items": _par_dossier(items, "_dossier", "devoirs")}
 
-
-def _section_prepasserelle(db: Session, user: User) -> dict | None:
-    """Prépa NAVIRE (PREPASSERELLE) : cours, sujets et corrigés publiés de l'année, mes rendus."""
-    from app.core.limits import has_active_prepa_access
-    from app.db.models import PrepaCourse, PrepaExercise, PrepaSubmission
-
-    if not has_active_prepa_access(user) or not user.prepa_annee:
-        return None
-    annee = user.prepa_annee
-    dossiers = []
-
-    cours = db.execute(
-        select(PrepaCourse)
-        .where(PrepaCourse.annee == annee, PrepaCourse.is_published.is_(True))
-        .order_by(PrepaCourse.ordre, PrepaCourse.id)
-    ).scalars().all()
-    for c in cours:
-        enfants = [
-            {"id": f"pc-{f.id}", "type": "pdf", "label": f.titre or f.filename_original, "size_bytes": f.size_bytes,
-             "date": _iso(c.updated_at), "src": f"/prepa/courses/files/{f.id}/download",
-             "meta": {"description": c.description}}
-            for f in c.files
-        ]
-        if enfants:
-            dossiers.append({"id": f"pc-dir-{c.id}", "type": "folder", "label": c.titre, "children": enfants})
-
-    exos = db.execute(
-        select(PrepaExercise)
-        .where(PrepaExercise.annee == annee, PrepaExercise.is_published.is_(True))
-        .order_by(PrepaExercise.week_number, PrepaExercise.id)
-    ).scalars().all()
-    rendus = {
-        r.exercise_id: r for r in db.execute(
-            select(PrepaSubmission).where(PrepaSubmission.user_id == user.id)
-        ).scalars().all()
+    return {
+        "id": "copies", "label": "Mes copies", "icon": "check",
+        "action": {"label": "Déposer une copie", "link": "/lib?prepa=devoirs"},
+        "items": list(dossiers.values()),
     }
-    exo_items = []
-    for e in exos:
-        nom = f"S{e.week_number} · {e.titre}" if e.week_number else e.titre
-        if e.subject_path:
-            exo_items.append({"id": f"ps-{e.id}", "type": "pdf", "label": f"{nom} (sujet)",
-                              "src": f"/prepa/exercises/{e.id}/subject/download",
-                              "meta": {"description": e.consigne}})
-        if e.corrige_published and e.corrige_path:
-            exo_items.append({"id": f"pk-{e.id}", "type": "pdf", "label": f"{nom} (corrigé)",
-                              "src": f"/prepa/exercises/{e.id}/corrige/download"})
-        r = rendus.get(e.id)
-        if r:
-            exo_items.append({
-                "id": f"pr-{r.id}", "type": "pdf", "label": f"{nom} (ma copie)", "size_bytes": r.size_bytes,
-                "date": _iso(r.submitted_at), "src": f"/prepa/submissions/{r.id}/download",
-                "meta": {"statut": "Corrigé" if r.corrected_at else "En attente de correction",
-                         "note": r.note or None, "commentaire": r.feedback or None},
-            })
-    if exo_items:
-        dossiers.append({"id": "pe-dir", "type": "folder", "label": "Exercices", "children": exo_items})
-    if not dossiers:
-        return None
-    return {"id": "prepasserelle", "label": "Prépa NAVIRE", "icon": "school", "items": dossiers}
 
 
-def _section_veille(db: Session, user: User) -> dict | None:
+def _section_enregistres(db: Session, user: User) -> dict:
+    """Raccourcis : actus mises de côté (elles s'ouvrent dans Actus)."""
     from app.db.models import VeilleBookmark, VeilleItem
-    from app.routers.veille import RUBRIQUES, _date_key, _hub_item, _read_ids, _saved_ids
+    from app.routers.veille import RUBRIQUES
 
-    read_ids, saved_ids = _read_ids(db, user), _saved_ids(db, user)
-
-    def actu(it: VeilleItem, prefixe: str) -> dict:
-        h = _hub_item(it, read_ids, saved_ids)
-        return {
-            "id": f"{prefixe}-{it.id}", "type": "actu", "label": h["title"], "date": h["published_at"],
-            "meta": {
-                "essentiel": h["essentiel"], "impact": h["impact"], "rubrique": h["category_label"],
-                "source_name": h["source_name"], "source_url": h["source_url"],
-                "minutes": h["reading_minutes"], "lu": h["is_read"],
-            },
-        }
-
-    enregistrees = db.execute(
+    actus = db.execute(
         select(VeilleItem)
         .join(VeilleBookmark, VeilleBookmark.item_id == VeilleItem.id)
         .where(VeilleBookmark.user_id == user.id)
-        .order_by(_date_key().desc())
+        .order_by(VeilleBookmark.id.desc())
     ).scalars().all()
-    recentes = db.execute(
-        select(VeilleItem).order_by(_date_key().desc(), VeilleItem.id.desc()).limit(VEILLE_RECENTES)
-    ).scalars().all()
-    if not enregistrees and not recentes:
-        return None
-
-    dossiers = []
-    if enregistrees:
-        dossiers.append({"id": "veille-saved", "type": "folder", "label": "Enregistrées",
-                         "children": [actu(it, "vs") for it in enregistrees]})
-    par_rub: dict[str, list] = {}
-    for it in recentes:
-        par_rub.setdefault(it.category, []).append(actu(it, "v"))
-    for cat, enfants in par_rub.items():
-        dossiers.append({"id": f"veille-{cat}", "type": "folder",
-                         "label": RUBRIQUES.get(cat, cat.capitalize()), "children": enfants})
-    return {"id": "veille", "label": "Veille juridique", "icon": "news", "items": dossiers}
-
-
-def _section_lib(db: Session, user: User) -> dict | None:
-    from app.db.models import LibDocument
-    from app.routers.lib import KINDS
-
-    labels = {"cours": "Cours", "fiche": "Fiches", "fiche_arret": "Fiches d'arrêt", "commentaire": "Commentaires",
-              "dissertation": "Dissertations", "cas_pratique": "Cas pratiques"}
-    docs = db.execute(
-        select(LibDocument)
-        .where(
-            LibDocument.owner_id.is_(None),
-            LibDocument.prepa_ressource_id.is_(None),
-            LibDocument.is_published.is_(True),
-            LibDocument.kind.in_(KINDS),
-        )
-        .order_by(LibDocument.ordre, LibDocument.id)
-    ).scalars().all()
-    if not docs:
-        return None
-    dossiers: dict[str, dict] = {}
-    for d in docs:
-        dossier = dossiers.setdefault(d.kind, {"id": f"lib-{d.kind}", "type": "folder",
-                                               "label": labels.get(d.kind, d.kind), "children": []})
-        dossier["children"].append({
-            "id": f"l-{d.id}", "type": "lib", "label": d.titre, "date": _iso(d.updated_at),
-            "link": f"/lib?doc={d.id}",
-            "read": f"/lib/documents/{d.id}?mode={'plus' if d.is_plus else 'lib'}",
-            "meta": {"matiere": d.matiere, "niveau": d.niveau, "description": d.description or d.sous_titre,
-                     "plus": d.is_plus},
-        })
-    ordre = [k for k in labels if k in dossiers]
-    return {"id": "lib", "label": "NAVIRE Lib", "icon": "book", "items": [dossiers[k] for k in ordre]}
+    return {
+        "id": "enregistres", "label": "Enregistrés", "icon": "bookmark",
+        "items": [
+            {
+                "id": f"a-{it.id}", "type": "actu", "label": it.title,
+                "date": _iso(it.published_at or it.created_at), "link": f"actu:{it.id}",
+                "meta": {"essentiel": it.essentiel, "impact": it.impact,
+                         "rubrique": RUBRIQUES.get(it.category, it.category.capitalize()),
+                         "source_name": it.source_name, "source_url": it.source_url},
+            }
+            for it in actus
+        ],
+    }
 
 
 @router.get("/explorer")
@@ -464,24 +400,44 @@ def explorer(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Arborescence de l'onglet Fichiers : uniquement ce que l'utilisateur a le
-    droit de lire. Ses PDF (seule section modifiable : ajout / suppression),
-    les documents Prép'AdJuris de ses matières, ses copies et corrigés, la
-    veille (enregistrées + dernières actus) et le catalogue NAVIRE Lib.
+    Onglet Fichiers = l'espace de l'élève, en trois sections :
+      - Mes PDF      : ses PDF (seule écriture possible : ajout / suppression),
+                       chacun avec son lien « Étudier dans la Lib »
+      - Mes copies   : copies rendues et corrigés reçus
+      - Enregistrés  : raccourcis vers les actus mises de côté
+    `liens.lib` : cours NAVIRE Lib publiés, nœuds fantômes de la carte (ils
+    s'ouvrent dans la Bibliothèque, jamais ici).
     Chaque fichier pointe vers une route qui revérifie l'accès côté serveur.
     """
+    from app.core.prepa_adjuris_config import PREPA_MATIERE_NAMES
+
     purge_expired_files(db, current_user)
-    sections = [_section_mes_fichiers(db, current_user)]
-    for build in (_section_prepa, _section_devoirs, _section_prepasserelle, _section_veille, _section_lib):
+    try:
+        lib = _catalogue_lib(db)
+    except Exception as e:
+        db.rollback()
+        print(f"⚠️ Explorateur : catalogue Lib indisponible : {e}")
+        lib = []
+    matieres = sorted({d.matiere for d in lib if d.matiere} | set(PREPA_MATIERE_NAMES.values()))
+
+    sections = [_section_mes_pdf(db, current_user, matieres)]
+    for build in (_section_copies, _section_enregistres):
         try:
-            s = build(db, current_user)
+            sections.append(build(db, current_user))
         except Exception as e:  # une source en panne ne vide pas tout l'onglet
             db.rollback()
             print(f"⚠️ Explorateur : section {build.__name__} indisponible : {e}")
-            continue
-        if s:
-            sections.append(s)
-    return {"sections": sections, "max_upload_bytes": MAX_UPLOAD_BYTES}
+    return {
+        "sections": sections,
+        "liens": {
+            "lib": [
+                {"id": f"l-{d.id}", "label": d.titre, "matiere": d.matiere or None, "niveau": d.niveau,
+                 "kind": d.kind, "plus": d.is_plus, "link": f"/lib?doc={d.id}"}
+                for d in lib
+            ],
+        },
+        "max_upload_bytes": MAX_UPLOAD_BYTES,
+    }
 
 
 @router.get("/embed", response_class=HTMLResponse, include_in_schema=False)

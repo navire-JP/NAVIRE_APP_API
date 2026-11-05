@@ -281,39 +281,49 @@ Fichiers (servi aussi par l'API : `GET /files/embed`). Il remplace les deux
 anciens embeds (zone de dépôt + grille « Mes fichiers »). Il reprend la
 connexion du site (`navire_token`) et agrandit lui-même son iframe à la
 hauteur de l'écran, comme NAVIRE Lib (rien à régler dans Framer).
-- **Téléphone** (cadre de moins de 700 px) : gestion simple uniquement, sans
-  panneau latéral ni bascule de vue. Une liste par section, les dossiers,
-  puis les fichiers ; un fichier s'ouvre en plein écran ; ajout et
-  suppression toujours accessibles.
 
-- **Panneau latéral** rabattable (bouton en haut à gauche, état retenu par
-  navigateur) : l'arborescence de tout ce que l'élève peut lire.
-- **Vue Lecture** : un onglet « Carte » fixe, graphe **3D** de tous les
-  documents (sections, dossiers, fichiers ; particules sur les liens entre
-  documents d'une même matière), sans fond, en rotation lente ; rotation à la
-  souris, zoom, survol = voisins éclairés, clic = ouvrir le fichier ou
-  centrer le dossier. WebGL via `3d-force-graph@1.79.1` (three.js inclus),
-  chargé depuis jsDelivr à la première ouverture de la carte ; sans WebGL ou
-  si le script ne charge pas, une carte 2D prend le relais. Puis un
-  onglet par fichier ouvert : PDF dans le lecteur, actu de veille mise en
-  page, cours NAVIRE Lib lu directement (mêmes règles que la Lib : Lib+,
-  Elo, points de passage, la suite floutée renvoie vers NAVIRE Lib).
-- **Mode téléphone** décidé par la largeur de l'écran, pas du cadre : sur PC
-  la vue complète reste même dans un cadre étroit.
-- **Vue Classeur** : dossiers et fichiers en grille, fil d'Ariane, aperçu en
-  surimpression.
-- **Écriture** : seulement ajouter (bouton, glisser-déposer n'importe où) ou
-  supprimer un PDF de « Mes fichiers » (confirmation dans une petite fenêtre
-  en verre). Pas de renommage ni d'édition. Le reste est en lecture seule.
+**Un rôle par onglet.** Bibliothèque = étudier (le seul lecteur de cours),
+Actus = s'informer, **Fichiers = mon espace** : ce qui est à l'élève. Chaque
+document a une seule maison ; ailleurs, il n'apparaît qu'en raccourci.
 
-Ce qui est listé (`GET /files/explorer`), uniquement pour l'utilisateur
-connecté : ses PDF (+ quota), les documents Prép'AdJuris de ses matières et
-de son groupe, ses copies et corrigés (statut, note, commentaire), la Prépa
-NAVIRE si son accès est actif (cours, sujets, corrigés publiés, ses copies),
-la veille (actus enregistrées + 60 dernières, par rubrique), le catalogue
-NAVIRE Lib publié. Chaque PDF est relu par sa route habituelle, qui revérifie l'accès
-côté serveur (`/files/{id}/download?inline=1`,
-`/prepa/adjuris/ressources/{id}/download`, `/lib/prepa/devoirs/{id}/…`).
+Trois sections (`GET /files/explorer`, uniquement pour l'utilisateur connecté) :
+
+- **Mes PDF** : seule écriture possible, ajouter (bouton, glisser-déposer) ou
+  supprimer (confirmation dans une petite fenêtre en verre). Pas de renommage
+  ni d'édition. Chaque PDF a un bouton **« Étudier dans la Lib »** (son double
+  « Mon PDF » de la Lib : plan, questions, NAVIRE AI).
+- **Mes copies** : copies rendues et corrigés reçus (Prép'AdJuris, et
+  l'ancienne Prépa NAVIRE si l'accès est actif), avec statut, note et
+  commentaire. Le dépôt reste dans la vue Prépa de la Lib : raccourci
+  « Déposer une copie » (`/lib?prepa=devoirs`).
+- **Enregistrés** : les actus mises de côté, en raccourci. Aperçu court, puis
+  « Ouvrir dans Actus » (`ACTUS_URL?actu=ID`).
+
+Les cours Lib et les documents Prép'AdJuris ne sont plus recopiés ici. Dans
+la Lib, la catégorie s'appelle « Mes PDF » et un raccourci « Gérer mes PDF »
+renvoie vers Fichiers (`FILES_URL` dans le `CONFIG` de `lib.html`).
+
+Vues :
+
+- **PC** : panneau latéral rabattable, bascule **Lecture / Classeur**.
+  - Lecture : onglet fixe « Carte », graphe **3D** sans fond, rangé **par
+    matière** : mes PDF et copies en clair autour de leurs matières, les
+    actus enregistrées et les PDF « Non classés » (sans matière reconnue dans
+    le nom) à part, et les cours NAVIRE Lib de chaque matière en **nœuds
+    fantômes** (clic = ouvrir dans la Bibliothèque). Les matières sans
+    document à moi restent en retrait. Rotation lente, rotation à la souris,
+    zoom, survol = voisins éclairés. WebGL via `3d-force-graph@1.79.1`
+    (three.js inclus), chargé depuis jsDelivr à la première ouverture ; carte
+    2D si WebGL ou le CDN manque. Puis un onglet par fichier ouvert.
+  - Classeur : cartes en verre façon NAVIRE Lib (halo lumineux), fil
+    d'Ariane, aperçu en surimpression.
+- **Téléphone** (écran de moins de 760 px) : les trois sections en liste,
+  sans panneau, sans bascule, sans carte.
+
+Chaque PDF est relu par sa route habituelle, qui revérifie l'accès côté
+serveur (`/files/{id}/download?inline=1`, `/lib/prepa/devoirs/{id}/…`,
+`/prepa/submissions/{id}/download`). Si l'API n'a pas encore
+`/files/explorer`, l'embed affiche Mes PDF via `GET /files` avec un bandeau.
 
 Le PDF ajouté prévient les autres embeds (`navire-files-updated`,
 `navire_files_refresh`), et l'onglet se recharge quand un autre embed en fait
