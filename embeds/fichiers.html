@@ -406,7 +406,19 @@
   function fetchAll(silent) {
     if (!token()) { S.loading = false; S.data = null; S.error = "auth"; render(); return Promise.resolve(); }
     if (!silent) { S.loading = true; render(); }
-    return api("GET", "/files/explorer").then(function (j) {
+    return api("GET", "/files/explorer").catch(function (e) {
+      // API pas encore à jour (405/404) : au moins « Mes fichiers », via l'ancienne route GET /files.
+      if (e.status !== 405 && e.status !== 404) throw e;
+      return api("GET", "/files").then(function (j) {
+        return { fallback: true, sections: [{
+          id: "mes-fichiers", label: "Mes fichiers", icon: "user", upload: true, quota: j.quota,
+          items: (j.items || []).map(function (f) {
+            return { id: "f-" + f.id, type: "pdf", label: f.filename_original, size_bytes: f.size_bytes, date: f.created_at,
+                     src: "/files/" + f.id + "/download?inline=1", "delete": "/files/" + f.id };
+          })
+        }] };
+      });
+    }).then(function (j) {
       S.data = j; S.error = null; S.loading = false;
       index();
       // Ferme ce qui n'existe plus (fichier supprimé ailleurs)
