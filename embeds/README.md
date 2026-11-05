@@ -288,9 +288,13 @@ hauteur de l'écran, comme NAVIRE Lib (rien à régler dans Framer).
 
 - **Panneau latéral** rabattable (bouton en haut à gauche, état retenu par
   navigateur) : l'arborescence de tout ce que l'élève peut lire.
-- **Vue Lecture** : un onglet « Carte » fixe (graphe de tous les documents :
-  sections, dossiers, fichiers, liens entre documents d'une même matière ;
-  zoom à la molette, déplacement à la souris, survol = voisins), puis un
+- **Vue Lecture** : un onglet « Carte » fixe, graphe **3D** de tous les
+  documents (sections, dossiers, fichiers ; particules sur les liens entre
+  documents d'une même matière), sans fond, en rotation lente ; rotation à la
+  souris, zoom, survol = voisins éclairés, clic = ouvrir le fichier ou
+  centrer le dossier. WebGL via `3d-force-graph@1.79.1` (three.js inclus),
+  chargé depuis jsDelivr à la première ouverture de la carte ; sans WebGL ou
+  si le script ne charge pas, une carte 2D prend le relais. Puis un
   onglet par fichier ouvert : PDF dans le lecteur, actu de veille mise en
   page, cours NAVIRE Lib lu directement (mêmes règles que la Lib : Lib+,
   Elo, points de passage, la suite floutée renvoie vers NAVIRE Lib).

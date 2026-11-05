@@ -245,8 +245,23 @@
   @keyframes fx-pop { from { opacity: 0; transform: translateY(6px) scale(.97); } }
 
   /* ---------- carte des documents ---------- */
-  .fx-graph { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab;
-    background: radial-gradient(ellipse at center, rgba(91,111,255,0.05), transparent 70%); }
+  .fx-graph { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; background: none; }
+  .fx-graph.is-3d > svg { display: none; }
+  .fx-graph.is-3d { cursor: default; }
+  .fx-g3 { position: absolute; inset: 0; z-index: 0; }
+  .fx-graph-ui, .fx-graph-tools { z-index: 2; }
+  .fx-g3-labels { z-index: 1; }
+  .fx-g3 canvas { display: block; background: transparent !important; }
+  .fx-g3-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .fx-g3-l { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 11px; color: rgba(255,255,255,0.72);
+    text-shadow: 0 1px 6px rgba(0,0,0,0.8); transition: opacity .2s; will-change: transform; }
+  .fx-g3-l.is-hub { font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.95); }
+  .fx-g3-tip { padding: 5px 9px; border-radius: 8px; font: 500 11.5px 'DM Sans', system-ui, sans-serif; color: #fff;
+    background: rgba(20,22,32,0.6); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  .fx-g3-wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); font-size: 12px; pointer-events: none; }
+  #nv-files .fx-main.is-bare { background: transparent; }
+  #nv-files .fx-main.is-bare .fx-graph-ui { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  #nv-files .fx-main.is-bare .fx-graph-tools .fx-ibtn { background: rgba(255,255,255,0.05); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .fx-graph.is-panning { cursor: grabbing; }
   .fx-graph svg { width: 100%; height: 100%; display: block; user-select: none; }
   .fx-graph line { stroke: rgba(255,255,255,0.09); stroke-width: 1; transition: stroke .15s, opacity .15s; }
@@ -412,7 +427,9 @@
     API: "https://navire-app-api.onrender.com",
     TOKEN_KEY: "navire_token",
     LOGIN_URL: "https://navire-ai.com/login",
-    SITE: "https://navire-ai.com"          // préfixe des liens NAVIRE Lib (/lib?doc=…)
+    SITE: "https://navire-ai.com",         // préfixe des liens NAVIRE Lib (/lib?doc=…)
+    // Carte 3D (WebGL, three.js inclus). Si elle ne charge pas, la carte 2D prend le relais.
+    GRAPH3D: "https://cdn.jsdelivr.net/npm/3d-force-graph@1.79.1/dist/3d-force-graph.min.js"
   };
 
   var root = document.getElementById("nv-files");
@@ -430,7 +447,8 @@
   var IDX = {};             // id → { node, trail: [nœuds parents], sec }
   var BLOBS = {};
   var LIBS = {};            // url de lecture d'un cours Lib → { loading | data | error }
-  var GRAPH = null;         // carte des documents (positions calculées une fois par chargement)           // src → { url } | { promise }
+  var GRAPH = null;         // carte 2D de secours (positions calculées une fois par chargement)
+  var G3 = { state: "idle", fg: null, el: null, lab: null, data: null, hover: null, near: {}, labels: [], waiters: [] };  // carte 3D
 
   // ================= OUTILS =================
   function el(n) { return root.querySelector('[data-el="' + n + '"]'); }
@@ -826,7 +844,8 @@
 
   // ================= CARTE DES DOCUMENTS =================
   var GCOL = { hub: "#ffffff", dir: "rgba(255,255,255,0.45)", pdf: "#8b98ff", actu: "#FFD166", lib: "#5BE3A3" };
-  function buildGraph() {
+  // Modèle commun aux deux cartes : sections → dossiers → fichiers, + liens par matière
+  function graphModel() {
     var nodes = [], links = [], by = {};
     function add(id, kind, label, r, ref) { var n = { id: id, kind: kind, label: label, r: r, ref: ref, x: 0, y: 0, vx: 0, vy: 0 }; by[id] = n; nodes.push(n); return n; }
     function link(a, b, cross) { links.push({ a: by[a], b: by[b], x: !!cross }); }
@@ -854,6 +873,10 @@
       if (!mat || mat.length < 4) return;
       dirs.forEach(function (d) { if (norm(d.label).indexOf(mat) !== -1 && sectionOf(d.id) && sectionOf(d.id).id !== "lib") link(n.id, d.id, true); });
     });
+    return { nodes: nodes, links: links, by: by };
+  }
+  function buildGraph() {
+    var M = graphModel(), nodes = M.nodes, links = M.links, by = M.by;
     // Positions initiales autour du parent
     links.forEach(function (l) { if (!l.x && !l.b.placed) { var a = Math.random() * 6.283; l.b.x = l.a.x + Math.cos(a) * 40; l.b.y = l.a.y + Math.sin(a) * 40; l.b.placed = true; } });
     // Simulation de forces (calculée une fois)
@@ -951,6 +974,154 @@
     });
   }
 
+  // ================= CARTE 3D =================
+  var COL3 = { hub: "#eef0ff", dir: "#8a93b8", pdf: "#8b98ff", actu: "#FFD166", lib: "#5BE3A3" };
+  function webgl() { try { var c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch (e) { return false; } }
+  function load3D(cb) {
+    if (window.ForceGraph3D) return cb(true);
+    if (G3.state === "fail" || !webgl()) { G3.state = "fail"; return cb(false); }
+    G3.waiters.push(cb);
+    if (G3.state === "loading") return;
+    G3.state = "loading";
+    var sc = document.createElement("script"), t = setTimeout(function () { fin(false); }, 15000);
+    function fin(ok) {
+      clearTimeout(t);
+      if (G3.state !== "loading") return;
+      G3.state = ok && window.ForceGraph3D ? "ready" : "fail";
+      var w = G3.waiters; G3.waiters = [];
+      w.forEach(function (f) { f(G3.state === "ready"); });
+    }
+    sc.src = CONFIG.GRAPH3D; sc.async = true;
+    sc.onload = function () { fin(true); }; sc.onerror = function () { fin(false); };
+    document.head.appendChild(sc);
+  }
+  function showCarte() {
+    var box = el("graph"); if (!box) return;
+    function flat() { if (!GRAPH) buildGraph(); paintGraph(); }
+    if (G3.state === "fail") return flat();
+    if (window.ForceGraph3D) return mount3D(box);
+    box.classList.add("is-3d");
+    box.insertAdjacentHTML("beforeend", '<div class="fx-g3-wait"><div class="fx-spin"></div>Carte 3D…</div>');
+    load3D(function (ok) {
+      var b = el("graph"); if (!b) return;
+      var w = b.querySelector(".fx-g3-wait"); if (w) w.remove();
+      if (ok) { try { mount3D(b); return; } catch (e) { G3.state = "fail"; } }
+      b.classList.remove("is-3d"); flat();
+    });
+  }
+  function linkEnd(v) { return typeof v === "object" ? v.id : v; }
+  function data3D() {
+    var M = graphModel(), adj = {};
+    var nodes = M.nodes.map(function (n) { return { id: n.id, kind: n.kind, label: n.label }; });
+    var links = M.links.map(function (l) {
+      (adj[l.a.id] = adj[l.a.id] || []).push(l.b.id); (adj[l.b.id] = adj[l.b.id] || []).push(l.a.id);
+      return { source: l.a.id, target: l.b.id, x: l.x, hub: l.a.kind === "hub" };
+    });
+    G3.adj = adj;
+    return { nodes: nodes, links: links };
+  }
+  function dimmed(n) {
+    if (G3.hover) return !G3.near[n.id];
+    if (S.q && n.kind !== "hub" && n.kind !== "dir") { var x = IDX[n.id]; return !(x && matches(x.node)); }
+    return false;
+  }
+  function refresh3D() {
+    if (!G3.fg) return;
+    G3.fg.nodeColor(G3.fg.nodeColor()).linkColor(G3.fg.linkColor()).linkWidth(G3.fg.linkWidth());
+  }
+  function mount3D(box) {
+    if (!G3.fg) {
+      G3.el = document.createElement("div"); G3.el.className = "fx-g3";
+      G3.lab = document.createElement("div"); G3.lab.className = "fx-g3-labels";
+      var fg = G3.fg = window.ForceGraph3D({ controlType: "orbit" })(G3.el)
+        .backgroundColor("rgba(0,0,0,0)")
+        .showNavInfo(false)
+        .nodeRelSize(4.6)
+        .nodeVal(function (n) { return n.kind === "hub" ? 9 : n.kind === "dir" ? 2.6 : 1; })
+        .nodeResolution(20)
+        .nodeOpacity(0.95)
+        .nodeColor(function (n) { return dimmed(n) ? "#262a3a" : COL3[n.kind] || COL3.pdf; })
+        .nodeLabel(function (n) { return n.kind === "hub" || n.kind === "dir" ? "" : '<div class="fx-g3-tip">' + esc(n.label) + '</div>'; })
+        .linkColor(function (l) {
+          if (G3.hover) { var on = G3.hover.id === linkEnd(l.source) || G3.hover.id === linkEnd(l.target); return on ? (l.x ? "#8b98ff" : "#ffffff") : "#20232f"; }
+          return l.x ? "#5B6FFF" : "#c8ccdc";
+        })
+        .linkOpacity(0.32)
+        .linkWidth(function (l) { return G3.hover && (G3.hover.id === linkEnd(l.source) || G3.hover.id === linkEnd(l.target)) ? 0.7 : 0; })
+        .linkDirectionalParticles(function (l) { return l.x ? 2 : 0; })
+        .linkDirectionalParticleWidth(1.6)
+        .linkDirectionalParticleSpeed(0.005)
+        .linkDirectionalParticleColor(function () { return "#aab4ff"; })
+        .onNodeHover(function (n) {
+          G3.hover = n || null; G3.near = {};
+          if (n) { G3.near[n.id] = 1; (G3.adj[n.id] || []).forEach(function (k) { G3.near[k] = 1; }); }
+          G3.el.style.cursor = n ? "pointer" : "";
+          refresh3D();
+        })
+        .onNodeClick(function (n) {
+          if (n.kind === "hub" || n.kind === "dir") {
+            var d = 90, r = 1 + d / (Math.hypot(n.x, n.y, n.z) || 1);
+            fg.cameraPosition({ x: n.x * r, y: n.y * r, z: n.z * r }, n, 900);
+            if (IDX[n.id]) { S.open[n.id] = true; IDX[n.id].trail.forEach(function (p) { S.open[p.id] = true; }); renderTree(); }
+          } else openTab(n.id);
+        })
+        .warmupTicks(60)
+        .cooldownTicks(160)
+        .onEngineStop(function () {
+          if (G3.fitted) return;
+          G3.fitted = true;
+          fg.zoomToFit(900, 8);
+          setTimeout(function () { var c = fg.camera().position, t = fg.controls().target; G3.ref = Math.hypot(c.x - t.x, c.y - t.y, c.z - t.z); }, 950);
+        });
+      fg.d3Force("charge").strength(-70);
+      fg.d3Force("link").distance(function (l) { return l.x ? 90 : l.hub ? 48 : 22; });
+      var ctl = fg.controls();
+      ctl.autoRotate = true; ctl.autoRotateSpeed = 0.55;
+      ctl.addEventListener("start", function () { ctl.autoRotate = false; clearTimeout(G3.idle); });
+      ctl.addEventListener("end", function () { clearTimeout(G3.idle); G3.idle = setTimeout(function () { ctl.autoRotate = true; }, 6000); });
+      if (window.ResizeObserver) new ResizeObserver(function () { if (G3.el.clientWidth) fg.width(G3.el.clientWidth).height(G3.el.clientHeight); }).observe(G3.el);
+    }
+    if (G3.data !== S.data) {
+      G3.data = S.data; G3.fitted = false; G3.hover = null;
+      var d = data3D();
+      G3.fg.graphData(d);
+      setTimeout(function () { if (!G3.fitted && g3on()) G3.fg.zoomToFit(600, 8); }, 700);
+      G3.lab.innerHTML = "";
+      G3.labels = d.nodes.filter(function (n) { return n.kind === "hub" || n.kind === "dir"; }).map(function (n) {
+        var div = document.createElement("div");
+        div.className = "fx-g3-l" + (n.kind === "hub" ? " is-hub" : "");
+        div.textContent = n.label.length > 34 ? n.label.slice(0, 32) + "…" : n.label;
+        G3.lab.appendChild(div);
+        return { n: n, div: div };
+      });
+    }
+    box.classList.add("is-3d");
+    box.appendChild(G3.el); box.appendChild(G3.lab);
+    G3.fg.width(box.clientWidth).height(box.clientHeight);
+    G3.fg.resumeAnimation();
+    refresh3D();
+    if (!G3.raf) G3.raf = requestAnimationFrame(tick3D);
+  }
+  function tick3D() {
+    if (!G3.el || !G3.el.isConnected) { G3.raf = null; if (G3.fg) G3.fg.pauseAnimation(); return; }
+    G3.raf = requestAnimationFrame(tick3D);
+    var fg = G3.fg, cam = fg.camera().position, ref = G3.ref || 400;
+    G3.labels.forEach(function (L) {
+      var n = L.n; if (n.x == null) return;
+      var p = fg.graph2ScreenCoords(n.x, n.y, n.z);
+      var dist = Math.hypot(cam.x - n.x, cam.y - n.y, cam.z - n.z);
+      var o = n.kind === "hub" ? Math.max(0.55, Math.min(1, 1.9 - dist / ref)) : Math.max(0, Math.min(0.9, 1.7 - dist / ref));
+      if (G3.hover && !G3.near[n.id]) o *= 0.15;
+      L.div.style.opacity = o.toFixed(2);
+      L.div.style.transform = "translate(" + p.x.toFixed(1) + "px," + p.y.toFixed(1) + "px) translate(" + (n.kind === "hub" ? 12 : 8) + "px,-50%)";
+    });
+  }
+  function zoom3D(f) {
+    var fg = G3.fg, c = fg.camera().position, t = fg.controls().target;
+    fg.cameraPosition({ x: t.x + (c.x - t.x) * f, y: t.y + (c.y - t.y) * f, z: t.z + (c.z - t.z) * f }, null, 300);
+  }
+  function g3on() { return G3.fg && G3.el && G3.el.isConnected; }
+
   // ================= RENDU : vue Classeur =================
   // Halo des cartes, couleur de la section (comme les cartes NAVIRE Lib)
   var GLOW = { "mes-fichiers": "rgba(139,152,255,0.22)", prepa: "rgba(122,167,255,0.2)", devoirs: "rgba(74,222,128,0.16)",
@@ -1034,7 +1205,8 @@
     if (S.data && S.data.fallback) html = '<div class="fx-banner">Seuls tes fichiers s\'affichent pour l\'instant : l\'API NAVIRE doit être mise à jour pour voir Prép\'AdJuris, tes devoirs, la veille et NAVIRE Lib.</div>' + html;
     main.innerHTML = html;
     main.setAttribute("data-key", S.view + (S.view === "lecture" ? S.active : S.peek));
-    if (S.view === "lecture" && !S.active && S.data) { if (!GRAPH) buildGraph(); paintGraph(); }
+    main.classList.toggle("is-bare", S.view === "lecture" && !S.active && !!S.data);
+    if (S.view === "lecture" && !S.active && S.data) showCarte();
     var ns = main.querySelector(".fx-scroll"); if (ns && !S.peek) ns.scrollTop = top;
   }
 
@@ -1053,9 +1225,9 @@
       case "file": e.stopPropagation(); openFile(id); break;
       case "del": e.stopPropagation(); remove(id); break;
       case "tab": S.active = id || null; render(); break;
-      case "g-zin": zoomGraph(0.8); break;
-      case "g-zout": zoomGraph(1.25); break;
-      case "g-fit": if (GRAPH) { GRAPH.vb = GRAPH.fit.slice(); paintGraph(); } break;
+      case "g-zin": if (g3on()) zoom3D(0.75); else zoomGraph(0.8); break;
+      case "g-zout": if (g3on()) zoom3D(1.3); else zoomGraph(1.25); break;
+      case "g-fit": if (g3on()) G3.fg.zoomToFit(700, 8); else if (GRAPH) { GRAPH.vb = GRAPH.fit.slice(); paintGraph(); } break;
       case "tab-close": e.stopPropagation(); closeTab(id); break;
       case "cd": S.path = id ? IDX[id].trail.map(function (n) { return n.id; }).concat([id]) : []; render(); break;
       case "peek-close": S.peek = null; render(); break;
