@@ -182,3 +182,25 @@ def test_auteur_de_l_actu(env):
     assert env.c.get(f"/veille/actus/{env.ids[1]}").json()["item"]["author"] is None
     rows = {x["id"]: x for x in env.c.get("/veille/actus", params={"limit": 50}).json()["items"]}
     assert rows[env.ids[3]]["author"]["name"] == "redaction"
+
+
+def test_anciennes_actus_rattachees_a_un_admin(env):
+    # Une actu postée à la main avant le champ auteur : la migration la rattache
+    # au premier admin ; une actu importée (hors « manual: ») reste sans auteur.
+    from app.db.database import SessionLocal
+    from app.db.lib_migration import run_lib_migration
+    from app.db.models import User, VeilleItem
+
+    db = SessionLocal()
+    old = VeilleItem(external_id="manual:ancienne", title="Ancienne actu", essentiel="E.",
+                     impact="I.", category="civil", source_url="https://x.fr/a", source_name="X")
+    rss = VeilleItem(external_id="rss:import", title="Importée", essentiel="E.",
+                     impact="I.", category="civil", source_url="https://x.fr/b", source_name="X")
+    db.add_all([old, rss])
+    db.commit()
+    first_admin = db.query(User).filter(User.is_admin.is_(True)).order_by(User.id).first()
+    run_lib_migration()
+    db.refresh(old); db.refresh(rss)
+    assert old.author_id == first_admin.id
+    assert rss.author_id is None
+    db.close()

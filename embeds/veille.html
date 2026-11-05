@@ -128,7 +128,21 @@
 #nv-news:not(.is-compact):not(.is-side-off) .nv-menu-btn { display: none; }
 
 #nv-news .nv-content { flex: 1; min-height: 0; }
-#nv-news .nv-inner { max-width: 820px; margin: 0 auto; padding: 4px 24px 40px; animation: nv-fade .28s var(--ease); }
+#nv-news .nv-inner { max-width: 860px; margin: 0 auto; padding: 4px 24px 40px; animation: nv-fade .28s var(--ease); }
+/* Grand écran : la page s'élargit avec l'écran, les actus passent sur 2 colonnes
+   (3 sur très grand écran), l'actu à la une reste en pleine largeur */
+#nv-news.is-wide .nv-inner { max-width: 1240px; padding-left: 40px; padding-right: 40px; }
+#nv-news.is-wide [data-el="list"] .nv-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#nv-news.is-xl .nv-inner { max-width: 1560px; }
+#nv-news.is-xl [data-el="list"] .nv-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#nv-news.is-wide [data-el="list"] .nv-card { display: flex; flex-direction: column; min-height: 84px; }
+#nv-news.is-wide [data-el="list"] .nv-card-meta { margin-top: auto; padding-top: 8px; }
+#nv-news.is-wide .nv-feature { padding: 26px 28px 18px; }
+#nv-news.is-wide .nv-feature h3 { font-size: 23px; max-width: 900px; }
+#nv-news.is-wide .nv-feature p { max-width: 900px; -webkit-line-clamp: 3; }
+#nv-news.is-wide .nv-page-head h1 { font-size: 30px; }
+#nv-news.is-wide .nv-search { max-width: 720px; }
+#nv-news.is-wide .nv-links { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 /* ---------- En-tête de page ---------- */
 #nv-news .nv-page-head { margin: 6px 0 16px; }
@@ -213,6 +227,9 @@
 
 /* ---------- Article ---------- */
 #nv-news .nv-article { max-width: 700px; margin: 0 auto; }
+#nv-news.is-wide .nv-article { max-width: 780px; }
+#nv-news.is-wide .nv-article h1 { font-size: 32px; }
+#nv-news.is-wide .nv-prose { font-size: 16.5px; }
 #nv-news .nv-crumbs { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; }
 #nv-news .nv-crumbs button { background: var(--panel); border: none; height: 32px; padding: 0 12px 0 10px; border-radius: 99px; color: var(--text-2); font-size: 12.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 #nv-news .nv-crumbs button:hover { background: var(--panel-2); color: #fff; }
@@ -665,6 +682,10 @@
     var compact = root.clientWidth < 760;
     root.classList.toggle('is-compact', compact);
     root.classList.toggle('is-side-off', !!state.sideOff);
+    // Largeur réellement disponible pour le contenu (menu ouvert ou non)
+    var w = root.clientWidth - (!compact && !state.sideOff ? 244 : 0);
+    root.classList.toggle('is-wide', !compact && w >= 1060);
+    root.classList.toggle('is-xl', !compact && w >= 1560);
     if (!compact) root.classList.remove('is-drawer');
     // La place a changé : on recalcule combien d'actus tiennent à l'écran
     clearTimeout(refit);
