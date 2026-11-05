@@ -877,7 +877,7 @@
       if (tabs && S.view === "lecture") { var tmp = document.createElement("div"); tmp.innerHTML = html; tabs.innerHTML = tmp.querySelector(".fx-tabs").innerHTML; }
       return;
     }
-    if (S.data && S.data.fallback) html = '<div class="fx-banner">Seuls tes PDF s\'affichent pour l\'instant : l\'API NAVIRE doit être mise à jour pour voir tes copies, tes enregistrés et la carte par matière.</div>' + html;
+    if (S.data && S.data.fallback) html = '<div class="fx-banner">Seuls tes PDF s\'affichent pour l\'instant : l\'API NAVIRE doit être mise à jour pour voir tes copies et tes enregistrés.</div>' + html;
     main.innerHTML = html;
     main.setAttribute("data-key", S.view + (S.view === "lecture" ? S.active : S.peek));
     var ns = main.querySelector(".fx-scroll"); if (ns && !S.peek) ns.scrollTop = top;
