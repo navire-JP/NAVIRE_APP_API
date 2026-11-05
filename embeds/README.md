@@ -2,7 +2,7 @@
 
 | Fichier | Où | Rôle |
 |---|---|---|
-| `home.html` | page d'accueil (`/home`) | Accueil épuré : barre de recherche au centre qui démarre NAVIRE AI sur place (la barre glisse en bas, la discussion s'ouvre), et trois accès dessous : Veilles, Cours (NAVIRE Lib), Fichiers. Menu (historique, sources, PDF) replié en tiroir, épinglable sur ordinateur. `/home?q=…` pose directement une question. Liens des trois accès : bloc CONFIG (`LINKS`) |
+| `home.html` | page d'accueil (`/home`) | Accueil épuré : barre de recherche au centre qui démarre NAVIRE AI sur place (la barre glisse en bas, la discussion s'ouvre), et trois accès dessous : Veilles, Cours (NAVIRE Lib), Fichiers. DA de NAVIRE Lib (bleu et blanc, cartes à halo, barre latérale masquable avec raccourcis Veilles / Cours / Fichiers / QCM et discussions récentes). `/home?q=…` pose directement une question. Liens des trois accès : bloc CONFIG (`LINKS`) |
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
@@ -21,7 +21,7 @@
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
 panneaux blancs translucides, bouton principal blanc, états vert / jaune /
 rouge `#5BE3A3` / `#FFD166` / `#FF6B6B`), y compris dans la console, sauf
-NAVIRE Lib : bleu et blanc.
+NAVIRE Lib et l'accueil (`home.html`) : bleu et blanc.
 
 ## `/rejoindre` et `/ambassadeur`
 
