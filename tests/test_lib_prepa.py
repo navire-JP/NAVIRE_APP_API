@@ -323,3 +323,59 @@ def test_document_prepa_lu_comme_un_cours_lib(monde):
     db = SessionLocal()
     assert db.query(LibDocument).filter(LibDocument.prepa_ressource_id == res).count() == 0
     db.close()
+
+
+def test_onglet_fichiers_cloisonne(monde, tmp_path):
+    """GET /files/explorer : chacun ne voit que ses PDF, ses documents Prépa et ses copies."""
+    from app.db.database import SessionLocal
+    from app.db.models import File
+
+    c, P = monde["c"], _headers(monde["prof"])
+    alice, zoe = _headers(monde["alice"]), _headers(monde["zoe"])
+    c.post(f"/professeurs/classes/{monde['g1']}/documents", headers=P,
+           files={"file": ("td.pdf", PDF, "application/pdf")}, data={"titre": "TD 1"})
+    dv = c.post("/lib/prepa/devoirs", headers=alice, data={"matiere_key": MATIERE, "titre": "Dissert"},
+                files={"file": ("copie.pdf", PDF, "application/pdf")}).json()["id"]
+
+    chemin = tmp_path / "perso.pdf"
+    chemin.write_bytes(PDF)
+    db = SessionLocal()
+    f = File(user_id=monde["alice"].id, filename_original="Ma fiche.pdf", filename_stored="perso.pdf",
+             path=str(chemin), size_bytes=len(PDF))
+    db.add(f)
+    db.commit()
+    fid = f.id
+    db.close()
+
+    def plat(nodes):
+        for n in nodes:
+            yield n
+            yield from plat(n.get("children") or [])
+
+    a = c.get("/files/explorer", headers=alice).json()
+    secs = {s["id"]: s for s in a["sections"]}
+    assert [i["label"] for i in secs["mes-fichiers"]["items"]] == ["Ma fiche.pdf"]
+    assert secs["mes-fichiers"]["items"][0]["delete"] == f"/files/{fid}"
+    assert [n["label"] for n in plat(secs["prepa"]["items"]) if n["type"] == "pdf"] == ["TD 1"]
+    assert [n["label"] for n in plat(secs["devoirs"]["items"]) if n["type"] == "pdf"] == ["Dissert (copie)"]
+    lib = [n["label"] for n in plat(secs["lib"]["items"]) if n["type"] == "lib"]
+    assert "Introduction au droit : les sources" in lib and "Brouillon intro" not in lib
+    assert all(n["read"].startswith("/lib/documents/") for n in plat(secs["lib"]["items"]) if n["type"] == "lib")
+    assert "prepasserelle" not in secs          # pas d'accès Prépa NAVIRE
+    # Seuls les PDF de « Mes fichiers » se suppriment
+    assert all("delete" not in n for s in a["sections"] if s["id"] != "mes-fichiers" for n in plat(s["items"]))
+
+    # Les liens servent bien le PDF à Alice, en ligne
+    r = c.get(secs["mes-fichiers"]["items"][0]["src"], headers=alice)
+    assert r.content == PDF and r.headers["content-disposition"].startswith("inline")
+    assert c.get(f"/lib/prepa/devoirs/{dv}/fichier", headers=alice).content == PDF
+
+    # Zoé : rien d'Alice, ni Prépa ni devoirs, et les liens lui sont refusés
+    z = c.get("/files/explorer", headers=zoe).json()
+    zs = {s["id"]: s for s in z["sections"]}
+    assert zs["mes-fichiers"]["items"] == [] and "prepa" not in zs and "devoirs" not in zs
+    assert c.get(f"/files/{fid}/download?inline=1", headers=zoe).status_code == 403
+    assert c.get(f"/lib/prepa/devoirs/{dv}/fichier", headers=zoe).status_code == 404
+    assert c.delete(f"/files/{fid}", headers=zoe).status_code == 403
+    assert c.get("/files/explorer").status_code == 401
+    assert "nv-files" in c.get("/files/embed").text
