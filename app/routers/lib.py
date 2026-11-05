@@ -580,6 +580,31 @@ def document(
     }
 
 
+@router.get("/documents/{doc_id}/actus")
+def actus_du_document(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    """
+    Encart « Actualité de la matière » du lecteur : jusqu'à 3 actus récentes et
+    proches du cours (app/services/lib_actus.py), ou aucune. Même accès que le
+    document ; un PDF perso n'a pas d'actus liées.
+    """
+    from app.routers.veille import _hub_item, _read_ids, _saved_ids
+    from app.services.lib_actus import actus_du_cours
+
+    doc = db.get(LibDocument, doc_id)
+    if doc is not None and doc.owner_id is not None:
+        if not user or doc.owner_id != user.id:
+            raise HTTPException(404, detail="Document introuvable.")
+        return {"items": []}
+    doc = _get_published(db, doc_id, user)
+    items = actus_du_cours(db, doc)
+    read_ids, saved_ids = _read_ids(db, user), _saved_ids(db, user)
+    return {"items": [_hub_item(it, read_ids, saved_ids) for it in items]}
+
+
 def _coupe_visiteur(blocks: list[dict]) -> int:
     """Nombre de blocs lisibles sans compte : un aperçu, jamais tout le document."""
     n = len(blocks)

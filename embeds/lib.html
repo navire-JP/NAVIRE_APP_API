@@ -501,6 +501,26 @@
 #nv-lib .nl-pdf-pages canvas + canvas { margin-top: 14px; }
 
 /* Toasts */
+/* ================= ACTUALITÉ DE LA MATIÈRE (passerelle vers Actus) ================= */
+#nv-lib .nl-actus { display: flex; flex-direction: column; gap: 2px; margin: 0 -2px 4px; }
+#nv-lib .nl-actu { display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; text-align: left; color: var(--text-2); transition: background .15s, color .15s; }
+#nv-lib .nl-actu:hover { background: var(--panel); color: #fff; }
+#nv-lib .nl-actu b { font-size: 12px; font-weight: 500; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-lib .nl-actu small { font-size: 10.5px; color: var(--text-4); display: flex; align-items: center; gap: 6px; }
+#nv-lib .nl-actu small i { width: 5px; height: 5px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+#nv-lib .nl-actu.is-read b { color: var(--text-3); }
+#nv-lib .nl-actu.is-read small i { background: var(--text-4); }
+#nv-lib .nl-peek { position: absolute; inset: 0; z-index: 2500; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(6,7,14,0.55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); animation: nl-peek-in .18s ease both; }
+#nv-lib .nl-peek-card { width: 100%; max-width: 520px; max-height: 100%; overflow-y: auto; padding: 22px 22px 18px; border-radius: 16px; background: rgba(22,24,36,0.92); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+#nv-lib .nl-peek-card small { font-size: 10.5px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--blue); }
+#nv-lib .nl-peek-card h3 { margin: 8px 0 4px; font-size: 18px; line-height: 1.3; letter-spacing: -.2px; }
+#nv-lib .nl-peek-card .nl-peek-meta { font-size: 12px; color: var(--text-3); }
+#nv-lib .nl-peek-card h4 { margin: 16px 0 6px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+#nv-lib .nl-peek-card p { margin: 0; font-size: 14px; line-height: 1.6; color: rgba(255,255,255,0.88); white-space: pre-line; }
+#nv-lib .nl-peek-card .nl-peek-why { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--blue-soft); }
+#nv-lib .nl-peek-card .nl-peek-why h4 { margin-top: 0; color: var(--blue); }
+#nv-lib .nl-peek-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+@keyframes nl-peek-in { from { opacity: 0; } }
 #nv-lib .nv-toasts { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 3000; pointer-events: none; }
 #nv-lib .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,32,50,0.95); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
 #nv-lib .nv-toast.is-error { border-color: var(--blue-line); color: var(--blue-hi); }
@@ -628,6 +648,7 @@
     redo: {},      // points de passage validés que l'élève refait
     after: {},     // résultat qui vient d'ouvrir la suite (message sous le point de passage)
     chat: {},      // chat NAVIRE AI, par point de passage : { open, conv, msgs, busy, draft }
+    actus: {},     // actus liées par cours : { [docId]: { loading } | { items } }
     view: "library", // library | doc | prepa | upsell
     prepa: null,   // GET /lib/prepa (inscrits Prép'AdJuris, ou aperçu admin)
     ptab: "edt",   // onglet de la vue Prépa : edt | cours | docs | devoirs
@@ -984,6 +1005,7 @@
       if (d.user && S.user) { d.user.prepa = S.user.prepa; d.user.apercu = S.user.apercu; }
       S.doc = d; S.user = d.user || S.user; renderElo();
       renderReader(opts);
+      if (!d.document.perso) loadActus(id);
       if (keepTop != null && !opts.scrollTo) page.scrollTop = keepTop;
     }).catch(function (x) {
       if (x.status === 404) { toast("Ce document n'est plus disponible.", true); return refreshCatalogue().then(viewLibrary); }
@@ -1018,7 +1040,63 @@
       '</div>' +
       '<div class="nv-group-label">Plan</div>' +
       '<div class="nl-plan nv-scroll" data-el="plan">' + items.join("") + '</div>' +
+      '<div data-el="lib-actus">' + actusSide() + '</div>' +
       actions();
+  }
+
+  // ================= ACTUALITÉ DE LA MATIÈRE =================
+  // Jusqu'à 3 actus récentes et proches du cours (GET /lib/documents/{id}/actus),
+  // ou rien. Au clic : un aperçu sans quitter le cours, qui compte pour
+  // l'objectif du jour d'Actus ; l'actu complète s'ouvre dans Actus.
+  function loadActus(id) {
+    if (S.actus[id]) return;
+    S.actus[id] = { loading: true };
+    api("GET", "/lib/documents/" + id + "/actus").then(function (d) { S.actus[id] = { items: d.items || [] }; })
+      .catch(function () { S.actus[id] = { items: [] }; })
+      .then(function () { var box = el("lib-actus"); if (box && S.docId === id) box.innerHTML = actusSide(); });
+  }
+  function actusSide() {
+    var c = S.docId != null && S.actus[S.docId];
+    if (!c || !c.items || !c.items.length) return "";
+    return '<div class="nv-group-label">Actualité de la matière</div><div class="nl-actus">' + c.items.map(function (a) {
+      return '<button class="nl-actu' + (a.is_read ? " is-read" : "") + '" data-actu="' + a.id + '" title="' + esc(a.title) + '"><b>' + esc(a.title) + '</b>'
+        + '<small><i></i>' + esc(a.category_label) + ' · ' + esc(dateCourte(a.published_at)) + '</small></button>';
+    }).join("") + '</div>';
+  }
+  function dateCourte(iso) {
+    var d = new Date(iso); if (isNaN(d)) return "";
+    return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  }
+  function actuLiee(id) {
+    var c = S.actus[S.docId]; if (!c || !c.items) return null;
+    for (var i = 0; i < c.items.length; i++) if (c.items[i].id === id) return c.items[i];
+    return null;
+  }
+  function openPeek(id) {
+    var a = actuLiee(id); if (!a) return;
+    closePeek();
+    var box = document.createElement("div");
+    box.className = "nl-peek"; box.setAttribute("data-el", "peek");
+    box.innerHTML = '<div class="nl-peek-card" role="dialog" aria-modal="true">'
+      + '<small>' + esc(a.category_label) + ' · Actus</small><h3>' + esc(a.title) + '</h3>'
+      + '<div class="nl-peek-meta">' + esc([a.source_name, dateCourte(a.published_at), a.reading_minutes ? a.reading_minutes + " min" : ""].filter(Boolean).join(" · ")) + '</div>'
+      + '<h4>L\'essentiel</h4><p>' + esc(a.essentiel) + '</p>'
+      + (a.impact ? '<div class="nl-peek-why"><h4>Pourquoi c\'est important</h4><p>' + esc(a.impact) + '</p></div>' : "")
+      + '<div class="nl-peek-btns"><button class="nv-chip" data-peek-close>Revenir au cours</button>'
+      + '<a class="nv-btn" href="' + CONFIG.ACTUS_URL + '?actu=' + a.id + '" data-go>' + ICON.news + 'Lire dans Actus</a></div></div>';
+    root.appendChild(box);
+    markActuRead(a);
+  }
+  function closePeek() { var p = el("peek"); if (p) p.remove(); }
+  function markActuRead(a) {
+    if (!S.token || a.is_read) return;
+    api("POST", "/veille/read/" + a.id).then(function (d) {
+      a.is_read = true;
+      var box = el("lib-actus"); if (box) box.innerHTML = actusSide();
+      if (d.already_read) return;
+      toast(d.goal_reached && d.read_today === d.goal ? "Objectif Actus du jour atteint · série de " + d.streak + " jour" + (d.streak > 1 ? "s" : "")
+        : "Actu lue · " + Math.min(d.read_today, d.goal) + "/" + d.goal + " aujourd'hui");
+    }).catch(function () {});
   }
   function planCp(c) {
     if (!c) return "";
@@ -1699,9 +1777,16 @@
     if (e.key === "Enter" && (e.target.id === "l-email" || e.target.id === "l-pass")) login($('[data-act="login"]'));
     if (e.key === "Enter" && e.target.hasAttribute && e.target.hasAttribute("data-short")) { e.preventDefault(); submitQuestion(+e.target.getAttribute("data-short")); }
   });
+  root.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-actu],[data-peek-close],.nl-peek");
+    if (!t || !root.contains(t)) return;
+    if (t.hasAttribute("data-actu")) { e.stopPropagation(); root.classList.remove("is-drawer"); return openPeek(+t.getAttribute("data-actu")); }
+    if (t.hasAttribute("data-peek-close") || e.target === t) closePeek();
+  });
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
-    if (el("pdf").classList.contains("is-on")) closePdf();
+    if (el("peek")) closePeek();
+    else if (el("pdf").classList.contains("is-on")) closePdf();
     else root.classList.remove("is-drawer");
   });
 

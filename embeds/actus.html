@@ -5,6 +5,8 @@
   Hauteur : l'embed prend toute la hauteur de l'écran sous sa position
   (donc sous le header du site). Barre latérale fixe, seul le contenu défile.
   Lien direct vers une actu : ajoute ?actu=ID à l'adresse de la page.
+  Passerelle vers NAVIRE Lib : sous une actu, « Réviser dans la Lib » propose
+  jusqu'à 2 cours de la matière (champ `cours` de GET /veille/actus/{id}).
 -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -386,6 +388,22 @@
 #nv-news .nv-art-nav small { display: block; font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--text-4); font-weight: 600; }
 #nv-news .nv-art-nav span { display: block; margin-top: 4px; font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Réviser dans la Lib (cours liés à l'actu) */
+#nv-news .nv-cours { display: flex; flex-direction: column; gap: 6px; }
+#nv-news .nv-cours-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--line);
+  text-decoration: none; transition: background .15s, border-color .15s;
+}
+#nv-news .nv-cours-item:hover { background: var(--panel-2); border-color: rgba(255,255,255,0.14); }
+#nv-news .nv-cours-ic { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: rgba(138,180,255,0.1); color: var(--r-civil); flex-shrink: 0; }
+#nv-news .nv-cours-ic svg { width: 16px; height: 16px; }
+#nv-news .nv-cours-txt { flex: 1; min-width: 0; }
+#nv-news .nv-cours-txt small { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-3); letter-spacing: .3px; }
+#nv-news .nv-cours-txt b { display: block; margin-top: 2px; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-news .nv-cours-item > svg { width: 15px; height: 15px; color: var(--text-3); }
+
 /* Recherche Légifrance (page Sources) */
 #nv-news .nv-lf { padding: 18px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 8px; }
 #nv-news .nv-lf b { font-size: 14px; }
@@ -561,6 +579,7 @@
   var API = 'https://navire-app-api.onrender.com';
   var LOGIN_URL = '/login';       // page de connexion du site
   var AI_URL = '/navire';         // page de l'embed NAVIRE AI
+  var LIB_URL = '/lib';           // page NAVIRE Lib (un cours s'ouvre avec ?doc=ID)
   var PAGE_SIZE = 20;
 
   var RUBRIQUES = [
@@ -731,7 +750,8 @@
     link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
     ai: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
-    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>'
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>'
   };
 
   el('ai-link').href = AI_URL;
@@ -1092,7 +1112,7 @@
       state.article = d;
       setTitle(d.item.category_label);
       var keep = content.scrollTop;
-      content.querySelector('.nv-inner').innerHTML = articleHtml(d.item, d.related);
+      content.querySelector('.nv-inner').innerHTML = articleHtml(d.item, d.related, d.cours || []);
       content.scrollTop = keep;
       markRead(d.item);
     }).catch(function (e) {
@@ -1102,7 +1122,18 @@
         : errorHtml(e.status ? 'Erreur ' + e.status + ' du serveur.' : '');
     });
   }
-  function articleHtml(it, related) {
+  // Cours NAVIRE Lib à réviser après l'actu : ils s'ouvrent dans la Lib.
+  function coursHtml(cours) {
+    if (!cours || !cours.length) return '';
+    return '<section class="nv-section"><div class="nv-section-head"><h2>Réviser dans la Lib</h2><span>Le cours de la matière</span></div><div class="nv-cours">' +
+      cours.map(function (c) {
+        return '<a class="nv-cours-item" href="' + esc(LIB_URL + (LIB_URL.indexOf('?') < 0 ? '?' : '&') + 'doc=' + c.id) + '" target="_top">' +
+          '<span class="nv-cours-ic">' + ICON.book + '</span>' +
+          '<span class="nv-cours-txt"><small>' + esc([c.kind_label, c.niveau, c.plus ? 'Lib+' : ''].filter(Boolean).join(' · ')) + '</small><b>' + esc(c.titre) + '</b></span>' +
+          ICON.arrow + '</a>';
+      }).join('') + '</div></section>';
+  }
+  function articleHtml(it, related, cours) {
     var refs = findRefs(it.essentiel + '\n' + it.impact), seen = {};
     refs = refs.filter(function (r) { var k = r.text.toLowerCase().replace(/\s+/g, ' '); if (seen[k]) return false; seen[k] = 1; return true; });
     var backLabel = state.back && state.back.view === 'list' ? listTitle(state.back.filters) : 'Actualités juridiques';
@@ -1125,6 +1156,7 @@
         '<button class="nv-btn" data-copy="' + it.id + '">' + ICON.link + 'Copier le lien</button>' +
         '<a class="nv-btn" href="' + esc(aiLink('Explique-moi cette actu juridique et ses conséquences : « ' + it.title + ' »')) + '" target="_top">' + ICON.ai + 'Demander à NAVIRE AI</a>' +
       '</div>' +
+      coursHtml(cours) +
       (related === null ? '<section class="nv-section">' + skeleton(2, 80) + '</section>' :
         related.length ? '<section class="nv-section"><div class="nv-section-head"><h2>À lire aussi</h2></div><div class="nv-list">' +
           related.map(function (x, i) { return cardHtml(x, { small: true, i: i }); }).join('') + '</div></section>' : '') +

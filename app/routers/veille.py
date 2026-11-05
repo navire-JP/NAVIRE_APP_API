@@ -616,6 +616,7 @@ def get_actu(
     """
     Une actu et jusqu'à 4 actus « À lire aussi » : celles qui partagent le plus
     de mots-clés avec elle, la même rubrique départageant les égalités.
+    `cours` : jusqu'à 2 cours NAVIRE Lib à réviser (app/services/lib_actus.py).
     """
     item = db.execute(select(VeilleItem).where(VeilleItem.id == item_id)).scalar_one_or_none()
     if not item:
@@ -640,10 +641,20 @@ def get_actu(
     scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
     related = [c for _, _, c in scored[:4]]
 
+    # Cours NAVIRE Lib à réviser après cette actu (pertinents ou aucun)
+    try:
+        from app.services.lib_actus import cours_de_l_actu
+        cours = cours_de_l_actu(db, item)
+    except Exception as e:  # la passerelle ne doit jamais casser la lecture de l'actu
+        db.rollback()
+        print(f"⚠️ Veille : cours liés indisponibles pour l'actu {item.id} : {e}")
+        cours = []
+
     read_ids, saved_ids = _read_ids(db, user), _saved_ids(db, user)
     return {
         "item":    _hub_item(item, read_ids, saved_ids),
         "related": [_hub_item(c, read_ids, saved_ids) for c in related],
+        "cours":   cours,
     }
 
 

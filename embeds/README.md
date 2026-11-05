@@ -9,6 +9,7 @@
 | `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, devoirs à corriger, rémunération prévisionnelle |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
 | `fichiers.html` | onglet Fichiers | Tous les fichiers de l'élève dans un seul embed : panneau latéral rabattable, vue Lecture (arborescence + lecteur à onglets) ou vue Classeur (dossiers en grille). Ajout / suppression de PDF uniquement |
+| `actus.html` | page Actus | Actualités juridiques : à la une, rubriques, recherche, non lues, à relire, objectif du jour et série, sources officielles ; « Réviser dans la Lib » sous chaque actu. Lien direct : `?actu=ID` |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
@@ -324,3 +325,27 @@ qui renverrait encore des cours Lib ou le fil de veille, il ne les affiche pas.
 Le PDF ajouté prévient les autres embeds (`navire-files-updated`,
 `navire_files_refresh`), et l'onglet se recharge quand un autre embed en fait
 autant.
+
+
+## Passerelles NAVIRE Lib ↔ Actus
+
+Chaque contenu garde sa maison (le cours dans la Lib, l'actu dans Actus) ; on
+ajoute seulement des passerelles, **pertinentes ou absentes**
+(`app/services/lib_actus.py`) :
+
+1. la matière du cours est rattachée à une rubrique de la veille (sûretés,
+   obligations, famille… → civil ; constitutionnel, administratif → public ;
+   pénal → pénal ; sociétés, distribution… → affaires) ;
+2. on compte les mots-clés communs entre l'actu (titre, essentiel, impact) et
+   le cours (titre, description, plan) ; sous le seuil, rien n'est proposé.
+
+- **Dans la Lib** (`lib.html`) : sous le plan d'un cours, l'encart
+  « Actualité de la matière » (3 actus au plus, des 120 derniers jours,
+  `GET /lib/documents/{id}/actus`). Au clic, un aperçu s'ouvre sans quitter le
+  cours (l'essentiel, pourquoi c'est important) ; il **compte pour l'objectif
+  du jour** d'Actus (`POST /veille/read/{id}`). « Lire dans Actus » ouvre
+  l'actu complète (`ACTUS_URL?actu=ID`). Rien pour un PDF perso.
+- **Dans Actus** (`actus.html`) : sous une actu, « Réviser dans la Lib »
+  (2 cours au plus, champ `cours` de `GET /veille/actus/{id}`), fiche d'arrêt
+  en tête si elle colle ; pastille « Lib+ » si le cours est réservé. Le lien
+  ouvre `LIB_URL?doc=ID` (`LIB_URL` en haut du script d'`actus.html`).
