@@ -230,49 +230,11 @@ _EMBED = Path(__file__).resolve().parents[2] / "embeds" / "fichiers.html"
 # fil d'actus → Actus) ; ici il n'apparaît qu'en raccourci ou en nœud
 # fantôme de la carte, jamais en copie.
 
-_MOTS_VIDES = {"droit", "des", "les", "et", "de", "du", "la", "le", "aux", "en", "a"}
-
-
 def _iso(d) -> str | None:
     return d.isoformat() if d else None
 
 
-def _sans_accents(s: str) -> str:
-    import unicodedata
-    return "".join(c for c in unicodedata.normalize("NFD", (s or "").lower()) if unicodedata.category(c) != "Mn")
-
-
-def _matiere_du_nom(nom: str, matieres: list[str]) -> str | None:
-    """
-    Rattache un PDF à une matière d'après son nom (tous les mots marquants de la
-    matière présents dans le nom). Sinon None : le PDF va dans « Non classés ».
-    """
-    n = set(_sans_accents(nom).replace("_", " ").replace("-", " ").replace(".", " ").split())
-    meilleur, score = None, 0
-    for m in matieres:
-        mots = [w for w in _sans_accents(m).split() if len(w) > 3 and w not in _MOTS_VIDES]
-        if mots and all(w in n for w in mots) and len(mots) > score:
-            meilleur, score = m, len(mots)
-    return meilleur
-
-
-def _catalogue_lib(db: Session) -> list:
-    from app.db.models import LibDocument
-    from app.routers.lib import KINDS
-
-    return db.execute(
-        select(LibDocument)
-        .where(
-            LibDocument.owner_id.is_(None),
-            LibDocument.prepa_ressource_id.is_(None),
-            LibDocument.is_published.is_(True),
-            LibDocument.kind.in_(KINDS),
-        )
-        .order_by(LibDocument.ordre, LibDocument.id)
-    ).scalars().all()
-
-
-def _section_mes_pdf(db: Session, user: User, matieres: list[str]) -> dict:
+def _section_mes_pdf(db: Session, user: User) -> dict:
     from app.db.models import LibDocument
 
     rows = db.execute(
@@ -306,7 +268,6 @@ def _section_mes_pdf(db: Session, user: User, matieres: list[str]) -> dict:
                 "src": f"/files/{r.id}/download?inline=1",
                 "delete": f"/files/{r.id}",
                 "study": f"/lib?doc={lib_ids[r.id]}" if r.id in lib_ids else None,
-                "matiere": _matiere_du_nom(r.filename_original, matieres),
             }
             for r in rows
         ],
@@ -317,7 +278,6 @@ def _section_mes_pdf(db: Session, user: User, matieres: list[str]) -> dict:
 def _section_copies(db: Session, user: User) -> dict:
     """Copies rendues et corrigés reçus : Prép'AdJuris (et l'ancienne Prépa NAVIRE si l'accès est actif)."""
     from app.core.limits import has_active_prepa_access
-    from app.core.prepa_adjuris_config import PREPA_MATIERE_NAMES
     from app.db.models import PrepaAdjurisDevoir, PrepaExercise, PrepaSubmission
     from app.services.devoirs import devoir_row
 
@@ -337,14 +297,12 @@ def _section_copies(db: Session, user: User) -> dict:
             "statut": "Corrigé" if r["statut"] == "corrige" else "En attente de correction",
             "note": r["note"] or None, "commentaire": r["commentaire"] or None, "corrige_par": r["corrige_par"],
         }
-        matiere = PREPA_MATIERE_NAMES.get(d.matiere_key, r["matiere"])
         enfants = dossier(r["matiere_label"])
         enfants.append({"id": f"d-{d.id}", "type": "pdf", "label": f"{r['titre']} (copie)", "size_bytes": r["size_bytes"],
-                        "date": r["created_at"], "src": f"/lib/prepa/devoirs/{d.id}/fichier", "meta": meta,
-                        "matiere": matiere})
+                        "date": r["created_at"], "src": f"/lib/prepa/devoirs/{d.id}/fichier", "meta": meta})
         if r["correction"]:
             enfants.append({"id": f"c-{d.id}", "type": "pdf", "label": f"{r['titre']} (corrigé)", "date": r["corrige_le"],
-                            "src": f"/lib/prepa/devoirs/{d.id}/correction", "meta": meta, "matiere": matiere})
+                            "src": f"/lib/prepa/devoirs/{d.id}/correction", "meta": meta})
 
     if has_active_prepa_access(user):
         for sub, exo in db.execute(
@@ -405,39 +363,19 @@ def explorer(
                        chacun avec son lien « Étudier dans la Lib »
       - Mes copies   : copies rendues et corrigés reçus
       - Enregistrés  : raccourcis vers les actus mises de côté
-    `liens.lib` : cours NAVIRE Lib publiés, nœuds fantômes de la carte (ils
-    s'ouvrent dans la Bibliothèque, jamais ici).
+    Le contenu NAVIRE (cours Lib, documents Prépa, fil d'actus) n'est pas
+    recopié ici : il a sa maison dans la Bibliothèque et dans Actus.
     Chaque fichier pointe vers une route qui revérifie l'accès côté serveur.
     """
-    from app.core.prepa_adjuris_config import PREPA_MATIERE_NAMES
-
     purge_expired_files(db, current_user)
-    try:
-        lib = _catalogue_lib(db)
-    except Exception as e:
-        db.rollback()
-        print(f"⚠️ Explorateur : catalogue Lib indisponible : {e}")
-        lib = []
-    matieres = sorted({d.matiere for d in lib if d.matiere} | set(PREPA_MATIERE_NAMES.values()))
-
-    sections = [_section_mes_pdf(db, current_user, matieres)]
+    sections = [_section_mes_pdf(db, current_user)]
     for build in (_section_copies, _section_enregistres):
         try:
             sections.append(build(db, current_user))
         except Exception as e:  # une source en panne ne vide pas tout l'onglet
             db.rollback()
             print(f"⚠️ Explorateur : section {build.__name__} indisponible : {e}")
-    return {
-        "sections": sections,
-        "liens": {
-            "lib": [
-                {"id": f"l-{d.id}", "label": d.titre, "matiere": d.matiere or None, "niveau": d.niveau,
-                 "kind": d.kind, "plus": d.is_plus, "link": f"/lib?doc={d.id}"}
-                for d in lib
-            ],
-        },
-        "max_upload_bytes": MAX_UPLOAD_BYTES,
-    }
+    return {"sections": sections, "max_upload_bytes": MAX_UPLOAD_BYTES}
 
 
 @router.get("/embed", response_class=HTMLResponse, include_in_schema=False)

@@ -306,24 +306,20 @@ renvoie vers Fichiers (`FILES_URL` dans le `CONFIG` de `lib.html`).
 Vues :
 
 - **PC** : panneau latéral rabattable, bascule **Lecture / Classeur**.
-  - Lecture : onglet fixe « Carte », graphe **3D** sans fond, rangé **par
-    matière** : mes PDF et copies en clair autour de leurs matières, les
-    actus enregistrées et les PDF « Non classés » (sans matière reconnue dans
-    le nom) à part, et les cours NAVIRE Lib de chaque matière en **nœuds
-    fantômes** (clic = ouvrir dans la Bibliothèque). Les matières sans
-    document à moi restent en retrait. Rotation lente, rotation à la souris,
-    zoom, survol = voisins éclairés. WebGL via `3d-force-graph@1.79.1`
-    (three.js inclus), chargé depuis jsDelivr à la première ouverture ; carte
-    2D si WebGL ou le CDN manque. Puis un onglet par fichier ouvert.
+  - Lecture : arborescence à gauche, lecteur à onglets à droite. L'onglet
+    fixe « Accueil » propose le dépôt d'un PDF, les récents, les copies
+    corrigées et les enregistrés.
   - Classeur : cartes en verre façon NAVIRE Lib (halo lumineux), fil
     d'Ariane, aperçu en surimpression.
 - **Téléphone** (écran de moins de 760 px) : les trois sections en liste,
-  sans panneau, sans bascule, sans carte.
+  sans panneau ni bascule.
 
 Chaque PDF est relu par sa route habituelle, qui revérifie l'accès côté
 serveur (`/files/{id}/download?inline=1`, `/lib/prepa/devoirs/{id}/…`,
 `/prepa/submissions/{id}/download`). Si l'API n'a pas encore
 `/files/explorer`, l'embed affiche Mes PDF via `GET /files` avec un bandeau.
+L'embed ne garde que ces trois sections : même face à une API plus ancienne
+qui renverrait encore des cours Lib ou le fil de veille, il ne les affiche pas.
 
 Le PDF ajouté prévient les autres embeds (`navire-files-updated`,
 `navire_files_refresh`), et l'onglet se recharge quand un autre embed en fait

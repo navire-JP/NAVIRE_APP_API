@@ -359,11 +359,10 @@ def test_onglet_fichiers_cloisonne(monde, tmp_path):
     assert mon_pdf["label"] == "Ma fiche.pdf" and mon_pdf["delete"] == f"/files/{fid}"
     assert mon_pdf["study"].startswith("/lib?doc=")          # son double dans la Lib
     copies = [n for n in plat(secs["copies"]["items"]) if n["type"] == "pdf"]
-    assert [(n["label"], n["matiere"]) for n in copies] == [("Dissert (copie)", "Introduction au droit")]
-    # Le contenu NAVIRE n'est plus recopié ici : pas de documents Prépa, cours Lib en nœuds fantômes
-    assert "TD 1" not in [n["label"] for s in a["sections"] for n in plat(s["items"])]
-    lib = [n["label"] for n in a["liens"]["lib"]]
-    assert "Introduction au droit : les sources" in lib and "Brouillon intro" not in lib
+    assert [n["label"] for n in copies] == ["Dissert (copie)"]
+    # Le contenu NAVIRE n'est pas recopié ici : ni documents Prépa, ni cours Lib
+    tout = [n["label"] for s in a["sections"] for n in plat(s["items"])]
+    assert "TD 1" not in tout and "Introduction au droit : les sources" not in tout and "liens" not in a
     # Seuls les PDF de « Mes PDF » se suppriment
     assert all("delete" not in n for s in a["sections"] if s["id"] != "mes-pdf" for n in plat(s["items"]))
     secs["mes-fichiers"] = secs["mes-pdf"]
