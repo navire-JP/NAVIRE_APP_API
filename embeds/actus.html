@@ -1,0 +1,1329 @@
+<!--
+  NAVIRE — Actualités juridiques : embed unique, responsive (ordinateur + téléphone).
+  Même charte et même fonctionnement que l'embed NAVIRE AI :
+    >= 760px : barre latérale ; < 760px : menu tiroir.
+  Hauteur : l'embed prend toute la hauteur de l'écran sous sa position
+  (donc sous le header du site). Barre latérale fixe, seul le contenu défile.
+  Lien direct vers une actu : ajoute ?actu=ID à l'adresse de la page.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+#nv-news {
+  --bg: transparent;
+  --panel: rgba(255,255,255,0.035);
+  --panel-2: rgba(255,255,255,0.06);
+  --panel-3: rgba(255,255,255,0.1);
+  --line: rgba(255,255,255,0.07);
+  --text: #fff;
+  --text-2: rgba(255,255,255,0.72);
+  --text-3: rgba(255,255,255,0.45);
+  --text-4: rgba(255,255,255,0.28);
+  --danger: #FF6B6B;
+  --ok: #5BE3A3;
+  --warn: #FFD166;
+  /* Rubriques : uniquement des nuances de bleu */
+  --r-civil: #8AB4FF;
+  --r-penal: #4F86F7;
+  --r-public: #B9D3FF;
+  --r-affaires: #2F6BEA;
+  --r-general: #6F9DD8;
+  --radius: 8px;
+  --logo: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAFvklEQVR42uWba4hVVRTHf2ffUSfL0opmMHNMGrLMkPxoH3pKxTBQRERQVF+K3g+SypKggoiiqPBDUdCDKKQyoRGhwqiIChJ7kQ6VmOHYYGHz8DFzzu7D/m/dczxXJ+89c8+5s2Bz7z33zJ3zX+u/1l57rb0jay0ZUgFivT8JuBxYBpwDnAi0Aa0US/YD/cBO4AfgU2CdrqUxHZAoQwH+xpOBO4GbgNMop2wH3gReAPqylJBWgL/hGuBZYI6uJ4AFomAUUWwwIsDoeh9wP/D2IUqw1vpR0evj9qCMWGsTW15JhMHLSmFs8birgR+x1sa2eSQOFLEixBxZa0PavwuMAC0Fpnkt7hEL25XAGqASWWsjRfZfFPFt4DvNJokMuxM4C9htBPhuRf24icEjbDHQrhnORtbaGcBPivi2yRUQsmA7sNAAFwXzvCkRiFpYYIX5EgN06UJSEvD1YKnPFZYZYHHBk5ss+vYCQzX8jse72ACnBBeLDt4oz39J01lSgwIA2oyif9EV4Ck7DDwA3AFMq8PvthrgmBJQP1YOfz1wPtAJjNYhFkwrQ8Y3Kro/B2wCVgcKoUYXmN5SAsu3AF8A9wGfB8lMPQw3NbJVKiIFCnp9wNnAhcB7dbD+mNhSVAX4oDcKXAB8B/ymFLauCZspKHi/JrkZ+Ap4FJgdsKJuUkQGjABTgIeAp4AOzf3H5pGwmYKCXyXwAMuBGUEWSLMywIP/ALhKxpkv60/NK103BQP/MXCdonwi67fmZf2iMMCD/0wr0yGBnY2rUk3PM1VvJANsAP4TgR/U5wS4QYEvJsds1TQAdKL5PRLY1QH4CgeLslfnMe1NpAI82FiAvSWNAA4DK3HV6L267hswJwCLgrQ3Dr4rRAywqYzNZhQbTJWFzc/AR8DrwOaA3jYwSgQ8BtwDHJeRIiep/8XRzhJ5BsH9wF9KYTcB3wDfAlsCsJkNy0DmApcBl6pyNVdTYkMZEMtP9wD/AH8D24AduErrH3rdJgVkla5aUpas5p7h9624Qman8oNOfZ6rqtYs3VP5P0w4kgJ8k3FYK7GNwK/Anxp941h3m+CBkgyX4QjuY4/AElTV6tA4A1gKdNeTAf4h9kkZe4EBMaBfFv9d9O4Ftupexkl1ozFa5bs2YJ7GfFm9HdfJmqXpcppGq9yk0qgYMCJlbFRmt15uUU1C5VSAM4ElwHm49tU84NSMYNiwGJCeAdIRPB39B4BngCcCNyAV/RfgNmJ06b05zLRqU39f7bVhs0A4NSZKdvYpUP0b+LlXxCPAw4wtzsYcuiEjl2wwj5pg+mETFTUGAst6xbwBXBvkCD5gVpggmYiiqAHekkWnKEa0Au/jNl/51LchBdo8EyG/hN0hvx4KAt0a4IpgMdQwyXstEAEviv4VXXunKODzZIC3fr+sv1vXXsUVOgsBPk8GeAU8r2QpAZ4sGvi8GBD6/iKtFW7HdXRHGxXsJpIB3vefFvguxYF6dnQKywBv/S24fcULgC9xZe1C7j8yOVn/Xi1MPgSOn4jSVhESIU/xHtwu7R6t3Arn93m4gA0KHHOAu4AVRQdfTwV4oA/ian5rywDeu0Ct0TnR73yP28iwvqgRP+vZjbI0qK3kHGvNv4qcurg5BGuAQaM8vRbrG9wu827gXMq133hXC7ALV0y0R2E1D3SpfiMpCfU91q0Gt/3E1ugCHZRro7XH+rXBdWmiGh/eUq4DFh7rBr9d/kdck2EybZfvRXuFB4BXGFuonAwKeBnY44/MzMQdmmhnchyZ2Q4s9NOgUdHi1oAFtgnB20ABt4j5xgRZ21qlsuNpXJbR8kmQrq/Dd6QyDk4uTx2cjJvkvKAVtjEHJ6sdne3G1fNOz6BPWY7Ohl3pXtxmix5SjdrDHZ6eCdwG3IjrxZdRNgOvaY0yyDgOT6eVAK4re7HGElyntp36nNiop+zFFWK3KbvdgNt9NpSB6YD8B6T7yuHn5545AAAAAElFTkSuQmCC");
+  --ease: cubic-bezier(.2,.8,.2,1);
+
+  position: relative;
+  width: 100%;
+  height: 640px;          /* remplacé par la hauteur de l'écran au chargement */
+  min-height: 460px;
+  display: flex;
+  flex-direction: row-reverse;   /* volet de navigation à droite */
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+  background: var(--bg);
+  box-sizing: border-box;
+  font-size: 14px;
+}
+#nv-news *, #nv-news *::before, #nv-news *::after { box-sizing: border-box; }
+#nv-news button { font-family: inherit; color: inherit; }
+#nv-news a { color: inherit; }
+#nv-news ::selection { background: rgba(255,255,255,0.22); }
+#nv-news .nv-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+#nv-news .nv-scroll::-webkit-scrollbar { width: 6px; }
+#nv-news .nv-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 6px; }
+#nv-news svg { flex-shrink: 0; }
+#nv-news [data-cat="civil"]    { --c: var(--r-civil); }
+#nv-news [data-cat="penal"]    { --c: var(--r-penal); }
+#nv-news [data-cat="public"]   { --c: var(--r-public); }
+#nv-news [data-cat="affaires"] { --c: var(--r-affaires); }
+#nv-news [data-cat="general"]  { --c: var(--r-general); }
+/* Mini logo NAVIRE (étoile dans le cercle), teinté par la couleur de la rubrique */
+#nv-news .nv-dot, #nv-news .nv-rub i, #nv-news .nv-chip i, #nv-news .nv-page-head h1 i {
+  display: inline-block; flex-shrink: 0;
+  background: var(--c, var(--text-3));
+  -webkit-mask: var(--logo) center/contain no-repeat; mask: var(--logo) center/contain no-repeat;
+}
+
+/* ================= SIDEBAR ================= */
+#nv-news .nv-side {
+  width: 264px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 10px 12px;
+  gap: 2px;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  z-index: 30;
+  overflow-y: auto;
+  scrollbar-width: none;
+  transition: transform .32s var(--ease);
+}
+#nv-news .nv-side::-webkit-scrollbar { display: none; }
+#nv-news .nv-brand { display: none; align-items: center; gap: 10px; padding: 0 0 10px 8px; }
+#nv-news .nv-brand-name { font-weight: 700; font-size: 15px; }
+#nv-news .nv-side-close { margin-left: auto; display: none; }
+
+#nv-news .nv-side-search {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 10px 12px; margin-bottom: 8px;
+  border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel-2);
+  cursor: pointer; font-size: 13px; font-weight: 600; text-align: left;
+  transition: background .15s;
+}
+#nv-news .nv-side-search:hover { background: var(--panel-3); }
+#nv-news .nv-side-search:active { transform: scale(.98); }
+#nv-news .nv-side-search svg { width: 16px; height: 16px; }
+#nv-news .nv-side-search kbd { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4); }
+
+#nv-news .nv-nav {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 9px 12px;
+  border-radius: 8px; border: none; background: transparent;
+  cursor: pointer; font-size: 13px; font-weight: 500;
+  color: var(--text-2); text-align: left; text-decoration: none;
+  transition: background .15s, color .15s;
+}
+#nv-news .nv-nav svg { width: 17px; height: 17px; opacity: .8; }
+#nv-news .nv-nav:hover { background: var(--panel); color: var(--text); }
+#nv-news .nv-nav.is-active { background: var(--panel-2); color: var(--text); }
+#nv-news .nv-nav .nv-badge { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-3); }
+#nv-news .nv-nav .nv-badge.is-hot { color: #0a0a12; background: #fff; border-radius: 8px; padding: 1px 6px; font-weight: 600; }
+#nv-news .nv-nav .nv-dot { width: 15px; height: 15px; margin: 0 1px; }
+#nv-news .nv-nav .nv-new { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--c, var(--text-3)); }
+#nv-news .nv-nav .nv-new + .nv-badge { margin-left: 8px; }
+#nv-news .nv-side-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); padding: 16px 12px 6px; }
+#nv-news .nv-side-spacer { flex: 1; min-height: 12px; }
+
+/* Objectif du jour */
+#nv-news .nv-goal { padding: 12px; border-radius: 8px; background: var(--panel); font-size: 12px; color: var(--text-3); }
+#nv-news .nv-goal-head { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-weight: 600; font-size: 12.5px; }
+#nv-news .nv-goal-head span:last-child { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); font-weight: 400; }
+#nv-news .nv-goal-steps { display: flex; gap: 4px; margin-top: 10px; }
+#nv-news .nv-goal-steps i { flex: 1; height: 4px; border-radius: 6px; background: var(--panel-3); transition: background .4s var(--ease); }
+#nv-news .nv-goal-steps i.on { background: #fff; }
+#nv-news .nv-goal.is-done .nv-goal-steps i.on { background: var(--r-civil); }
+#nv-news .nv-goal-foot { margin-top: 9px; line-height: 1.45; }
+#nv-news .nv-goal a { color: #fff; font-weight: 600; text-decoration: none; }
+
+#nv-news .nv-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 25; }
+
+/* ================= MAIN ================= */
+#nv-news .nv-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+#nv-news .nv-topbar { display: none; align-items: center; gap: 8px; padding: 10px 14px; min-height: 52px; flex-shrink: 0; }
+#nv-news .nv-topbar-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+#nv-news .nv-icon-btn {
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; border: none; background: transparent;
+  color: var(--text-3); cursor: pointer; padding: 0;
+  transition: background .15s, color .15s;
+}
+#nv-news .nv-icon-btn:hover { background: var(--panel-2); color: var(--text); }
+#nv-news .nv-icon-btn svg { width: 18px; height: 18px; }
+#nv-news .nv-icon-btn.nv-side-close, #nv-news .nv-icon-btn.nv-menu-btn, #nv-news .nv-icon-btn.nv-top-search { display: none; }
+
+#nv-news .nv-content { flex: 1; min-height: 0; }
+#nv-news .nv-inner { max-width: 860px; margin: 0 auto; padding: 22px 24px 40px; }
+@keyframes nv-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes nv-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes nv-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+/* ---------- Accueil ---------- */
+#nv-news .nv-hero { padding: 14px 0 6px; }
+#nv-news .nv-hero-date { font-size: 12.5px; color: var(--text-3); }
+#nv-news .nv-hero h1 { margin: 4px 0 0; font-size: 24px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2; }
+#nv-news .nv-hero p { margin: 8px 0 0; font-size: 14px; color: var(--text-3); line-height: 1.55; }
+#nv-news .nv-hero p b { color: var(--text); font-weight: 600; }
+#nv-news .nv-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+#nv-news .nv-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; color: var(--text-2); }
+#nv-news .nv-pill b { color: #fff; font-weight: 600; }
+#nv-news .nv-pill .nv-mini-steps { display: inline-flex; gap: 3px; }
+#nv-news .nv-pill .nv-mini-steps i { width: 10px; height: 4px; border-radius: 6px; background: var(--panel-3); }
+#nv-news .nv-pill .nv-mini-steps i.on { background: #fff; }
+
+#nv-news .nv-bigsearch {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 18px; padding: 0 6px 0 14px; height: 46px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  transition: border-color .2s;
+}
+#nv-news .nv-bigsearch:focus-within { border-color: rgba(255,255,255,0.22); }
+#nv-news .nv-bigsearch svg { width: 18px; height: 18px; color: var(--text-3); }
+#nv-news .nv-bigsearch input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: #fff; font: inherit; font-size: 14.5px; }
+#nv-news .nv-bigsearch input::placeholder { color: var(--text-4); }
+#nv-news .nv-go { width: 38px; height: 38px; border-radius: 6px; border: none; background: #fff; color: #0a0a12; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: transform .15s; }
+#nv-news .nv-go:hover { transform: scale(1.06); }
+#nv-news .nv-go svg { width: 17px; height: 17px; color: #0a0a12; }
+
+#nv-news .nv-section { margin-top: 34px; }
+#nv-news .nv-section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+#nv-news .nv-section-head h2 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
+#nv-news .nv-section-head span { font-size: 12.5px; color: var(--text-3); }
+#nv-news .nv-section-head .nv-more { margin-left: auto; }
+#nv-news .nv-more { background: none; border: none; color: var(--text-2); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 4px 6px; border-radius: 6px; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+#nv-news .nv-more:hover { color: #fff; background: var(--panel); }
+#nv-news .nv-more svg { width: 13px; height: 13px; }
+
+/* Rubriques (puces) */
+#nv-news .nv-rubs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+#nv-news .nv-rubcard {
+  text-align: left; padding: 13px 14px 12px;
+  border-radius: var(--radius); border: 1px solid var(--line);
+  background: var(--panel); cursor: pointer;
+  transition: background .15s, border-color .15s;
+  position: relative; overflow: hidden;
+}
+#nv-news .nv-rubcard:hover { background: var(--panel-2); border-color: rgba(255,255,255,0.12); }
+#nv-news .nv-rubcard b { display: block; font-size: 13px; font-weight: 600; }
+#nv-news .nv-rubcard span { display: block; font-size: 11.5px; color: var(--text-3); margin-top: 4px; }
+#nv-news .nv-rubcard em { font-style: normal; color: var(--c); }
+
+/* À la une */
+#nv-news .nv-une { display: grid; grid-template-columns: 1.35fr 1fr; gap: 10px; }
+#nv-news .nv-une-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#nv-news .nv-feature {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column;
+  padding: 22px 22px 18px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.045);
+  cursor: pointer; min-height: 100%;
+  transition: border-color .2s;
+}
+#nv-news .nv-feature:hover { border-color: rgba(255,255,255,0.2); }
+#nv-news .nv-feature h3 { margin: 14px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -.4px; line-height: 1.25; }
+#nv-news .nv-feature p { margin: 10px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-news .nv-feature .nv-why { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.18); font-size: 12.5px; color: var(--text-2); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-news .nv-feature .nv-why b { color: #fff; font-weight: 600; }
+#nv-news .nv-feature .nv-card-meta { margin-top: auto; padding-top: 16px; }
+
+/* Cartes */
+#nv-news .nv-list { display: flex; flex-direction: column; gap: 8px; }
+#nv-news .nv-card {
+  position: relative;
+  padding: 14px 16px 12px; border-radius: var(--radius);
+  background: var(--panel); border: 1px solid transparent;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+#nv-news .nv-card:hover { background: var(--panel-2); border-color: var(--line); }
+#nv-news .nv-card:focus-visible, #nv-news .nv-feature:focus-visible, #nv-news .nv-rubcard:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 2px; }
+#nv-news .nv-card-top { display: flex; align-items: center; gap: 10px; }
+#nv-news .nv-card-date { margin-left: auto; font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+#nv-news .nv-card-title { margin: 8px 0 0; font-size: 15px; font-weight: 600; line-height: 1.38; letter-spacing: -.1px; }
+#nv-news .nv-card-text { margin: 6px 0 0; font-size: 13px; line-height: 1.55; color: var(--text-3); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-news .nv-card.is-read .nv-card-title { color: var(--text-2); font-weight: 500; }
+#nv-news .nv-card.is-unread .nv-card-title::before { content: ''; display: inline-block; width: 13px; height: 13px; background: #fff; -webkit-mask: var(--logo) center/contain no-repeat; mask: var(--logo) center/contain no-repeat; margin-right: 8px; vertical-align: -1px; }
+#nv-news .nv-card.is-small { padding: 12px 14px 10px; }
+#nv-news .nv-card.is-small .nv-card-title { font-size: 14px; }
+#nv-news .nv-card-meta { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; margin-top: 10px; font-size: 11.5px; color: var(--text-3); }
+#nv-news .nv-card-meta .nv-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--text-4); }
+#nv-news .nv-readmark { display: inline-flex; align-items: center; gap: 4px; color: var(--text-2); }
+#nv-news .nv-readmark svg { width: 12px; height: 12px; }
+#nv-news .nv-save { margin-left: auto; width: 30px; height: 30px; margin-top: -6px; margin-bottom: -6px; border-radius: 8px; }
+#nv-news .nv-save svg { width: 15px; height: 15px; }
+#nv-news .nv-save.is-on { color: var(--r-civil); }
+#nv-news .nv-save.is-on svg { fill: currentColor; }
+
+/* Étiquette de rubrique */
+#nv-news .nv-rub { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--c, var(--text-2)); white-space: nowrap; background: none; border: none; padding: 0; cursor: pointer; }
+#nv-news .nv-rub i { width: 13px; height: 13px; }
+#nv-news .nv-rub:hover { text-decoration: underline; text-underline-offset: 3px; }
+#nv-news .nv-tag { display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 8px; background: var(--panel-2); color: var(--text-2); }
+#nv-news .nv-tag.is-new { background: none; padding: 0; color: var(--r-civil); }
+
+/* Par rubrique */
+#nv-news .nv-bycat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+#nv-news .nv-catbox { padding: 16px 16px 8px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+#nv-news .nv-catbox-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+#nv-news .nv-catbox-head b { font-size: 14px; }
+#nv-news .nv-catbox-head small { font-size: 11.5px; color: var(--text-3); }
+#nv-news .nv-catbox-head .nv-more { margin-left: auto; }
+#nv-news .nv-catline { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--line); cursor: pointer; font-size: 13px; line-height: 1.45; color: var(--text-2); transition: color .15s; }
+#nv-news .nv-catbox-head + .nv-catline { border-top: none; }
+#nv-news .nv-catline:hover { color: #fff; }
+#nv-news .nv-catline span:first-child { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-news .nv-catline small { font-size: 11px; color: var(--text-4); white-space: nowrap; }
+#nv-news .nv-catline.is-unread span:first-child { color: #fff; }
+
+/* Sources officielles (aperçu accueil + page) */
+#nv-news .nv-links { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+#nv-news .nv-link {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 13px 14px; border-radius: var(--radius);
+  background: var(--panel); border: 1px solid var(--line);
+  text-decoration: none; transition: background .15s, border-color .15s;
+}
+#nv-news .nv-link:hover { background: var(--panel-2); border-color: rgba(255,255,255,0.14); }
+#nv-news .nv-link b { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+#nv-news .nv-link b svg { width: 12px; height: 12px; margin-left: auto; color: var(--text-3); }
+#nv-news .nv-link span { font-size: 11.5px; color: var(--text-3); line-height: 1.45; }
+#nv-news .nv-link small { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4); margin-top: 4px; }
+#nv-news .nv-links.is-page { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#nv-news .nv-group-label { font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 26px 4px 10px; }
+#nv-news .nv-group-label:first-child { margin-top: 0; }
+
+/* ---------- Liste ---------- */
+#nv-news .nv-page-head { margin: 8px 0 18px; display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+#nv-news .nv-page-head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.5px; display: flex; align-items: center; gap: 10px; }
+#nv-news .nv-page-head h1 i { width: 22px; height: 22px; }
+#nv-news .nv-page-head p { margin: 4px 0 0; font-size: 13px; color: var(--text-3); width: 100%; }
+#nv-news .nv-search {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 6px 0 14px; height: 44px;
+  border-radius: 8px; background: var(--panel); border: 1px solid var(--line);
+  transition: border-color .2s;
+}
+#nv-news .nv-search:focus-within { border-color: rgba(255,255,255,0.2); }
+#nv-news .nv-search svg { width: 16px; height: 16px; color: var(--text-3); }
+#nv-news .nv-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: #fff; font: inherit; font-size: 13.5px; }
+#nv-news .nv-search input::placeholder { color: var(--text-4); }
+#nv-news .nv-search .nv-icon-btn { width: 30px; height: 30px; }
+#nv-news .nv-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 4px; }
+#nv-news .nv-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 30px; padding: 0 12px; border-radius: 6px;
+  border: 1px solid var(--line); background: transparent;
+  font-size: 12px; color: var(--text-2); cursor: pointer; white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s;
+}
+#nv-news .nv-chip:hover { background: var(--panel-2); color: #fff; }
+#nv-news .nv-chip.is-on { background: #fff; color: #0a0a12; border-color: #fff; font-weight: 600; }
+#nv-news .nv-chip i { width: 13px; height: 13px; }
+#nv-news .nv-chip.is-on i { background: #0a0a12; }
+#nv-news .nv-filters-sep { width: 1px; height: 18px; background: var(--line); align-self: center; margin: 0 4px; }
+#nv-news .nv-result { font-size: 12px; color: var(--text-3); margin: 14px 4px 0; }
+#nv-news .nv-result b { color: var(--text); }
+#nv-news .nv-day { font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 22px 4px 8px; }
+#nv-news [data-el="list"] > .nv-feature { margin-top: 18px; min-height: 0; }
+#nv-news .nv-loadmore { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 14px; }
+#nv-news .nv-pagecount { font-size: 12px; color: var(--text-3); }
+#nv-news .nv-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 38px; padding: 0 16px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background .15s, transform .15s, border-color .15s;
+}
+#nv-news .nv-btn:hover { background: var(--panel-3); }
+#nv-news .nv-btn:active { transform: scale(.98); }
+#nv-news .nv-btn svg { width: 15px; height: 15px; }
+#nv-news .nv-btn.is-primary { background: #fff; color: #0a0a12; border-color: #fff; }
+#nv-news .nv-btn.is-primary:hover { background: rgba(255,255,255,0.88); }
+#nv-news .nv-btn.is-on { color: var(--r-civil); border-color: rgba(138,180,255,0.35); background: rgba(138,180,255,0.08); }
+#nv-news .nv-btn.is-on svg { fill: currentColor; }
+#nv-news mark { background: rgba(138,180,255,0.25); color: #fff; border-radius: 3px; padding: 0 1px; }
+
+/* ---------- Article ---------- */
+#nv-news .nv-article { max-width: 720px; margin: 0 auto; }
+#nv-news .nv-crumbs { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); margin: 4px 0 18px; flex-wrap: wrap; }
+#nv-news .nv-crumbs button { background: none; border: none; padding: 4px 6px; margin-left: -6px; border-radius: 6px; color: var(--text-2); font-size: 12.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+#nv-news .nv-crumbs button:hover { background: var(--panel); color: #fff; }
+#nv-news .nv-crumbs svg { width: 14px; height: 14px; }
+#nv-news .nv-article h1 { margin: 12px 0 0; font-size: 28px; font-weight: 700; line-height: 1.22; letter-spacing: -.6px; }
+#nv-news .nv-art-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 14px; font-size: 12.5px; color: var(--text-3); }
+#nv-news .nv-art-meta .nv-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--text-4); }
+#nv-news .nv-art-meta a { color: var(--text-2); text-decoration: none; border-bottom: 1px solid var(--line); }
+#nv-news .nv-art-meta a:hover { color: #fff; }
+#nv-news .nv-block { margin-top: 26px; }
+#nv-news .nv-block h4, #nv-news .nv-callout h4 { margin: 0 0 10px; font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
+#nv-news .nv-prose { font-size: 15.5px; line-height: 1.72; color: rgba(255,255,255,0.9); overflow-wrap: anywhere; }
+#nv-news .nv-prose p { margin: 0 0 12px; }
+#nv-news .nv-prose p:last-child { margin-bottom: 0; }
+#nv-news .nv-callout {
+  margin-top: 22px; padding: 16px 18px; border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c, rgba(255,255,255,0.3));
+}
+#nv-news .nv-callout h4 { color: var(--c, var(--text-3)); }
+#nv-news .nv-callout .nv-prose { font-size: 14.5px; }
+#nv-news .nv-ref { color: #fff; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.4); transition: border-color .15s, background .15s; border-radius: 2px; }
+#nv-news .nv-ref:hover { border-bottom-style: solid; border-color: #fff; background: rgba(255,255,255,0.06); }
+#nv-news .nv-ref sup { font-size: 9px; margin-left: 2px; color: var(--text-3); }
+#nv-news .nv-refs { display: flex; flex-wrap: wrap; gap: 6px; }
+#nv-news .nv-refchip {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+  padding: 6px 10px 6px 9px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--line);
+  font-size: 12px; color: var(--text-2); text-decoration: none;
+  transition: background .15s, color .15s, border-color .15s;
+}
+#nv-news .nv-refchip:hover { background: var(--panel-2); color: #fff; border-color: rgba(255,255,255,0.14); }
+#nv-news .nv-refchip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-news .nv-refchip small { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: var(--text-4); white-space: nowrap; }
+#nv-news .nv-refchip svg { width: 11px; height: 11px; color: var(--text-4); }
+#nv-news .nv-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
+#nv-news .nv-art-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 30px; }
+#nv-news .nv-art-nav button { text-align: left; padding: 12px 14px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; transition: background .15s; min-width: 0; }
+#nv-news .nv-art-nav button:hover { background: var(--panel-2); }
+#nv-news .nv-art-nav button:last-child { text-align: right; }
+#nv-news .nv-art-nav small { display: block; font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--text-4); font-weight: 600; }
+#nv-news .nv-art-nav span { display: block; margin-top: 4px; font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Recherche Légifrance (page Sources) */
+#nv-news .nv-lf { padding: 18px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 8px; }
+#nv-news .nv-lf b { font-size: 14px; }
+#nv-news .nv-lf p { margin: 4px 0 12px; font-size: 12.5px; color: var(--text-3); }
+#nv-news .nv-lf-row { display: flex; gap: 8px; }
+#nv-news .nv-lf-row .nv-search { flex: 1; }
+#nv-news .nv-lf-targets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+/* États */
+#nv-news .nv-empty { text-align: center; padding: 46px 20px; font-size: 13px; color: var(--text-3); line-height: 1.6; }
+#nv-news .nv-empty b { display: block; color: var(--text-2); font-size: 14.5px; margin-bottom: 4px; }
+#nv-news .nv-empty .nv-btn { margin-top: 14px; }
+#nv-news .nv-skel { border-radius: var(--radius); margin-bottom: 8px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nv-shimmer 1.4s linear infinite; }
+#nv-news .nv-banner { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); font-size: 12.5px; color: var(--text-2); margin-top: 18px; }
+#nv-news .nv-banner a { margin-left: auto; color: #fff; font-weight: 600; text-decoration: none; white-space: nowrap; }
+
+/* Toasts */
+#nv-news .nv-toasts { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 50; pointer-events: none; }
+#nv-news .nv-toast {
+  padding: 9px 14px; border-radius: 8px;
+  background: rgba(30,30,44,0.95); border: 1px solid rgba(255,255,255,0.1);
+  font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  animation: nv-toast 2.8s var(--ease) both; white-space: nowrap;
+}
+#nv-news .nv-toast.is-error { color: #ffb3b3; }
+#nv-news .nv-toast.is-ok { color: #cfe0ff; }
+@keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* ================= COMPACT (téléphone / embed étroit) ================= */
+#nv-news.is-compact .nv-side {
+  position: absolute; top: 0; bottom: 0; right: 0;
+  width: min(300px, 86%);
+  transform: translateX(102%);
+  background: rgba(12,12,20,0.98);
+  border-left: 1px solid var(--line);
+}
+#nv-news.is-compact.is-drawer .nv-side { transform: none; }
+#nv-news.is-compact.is-drawer .nv-scrim { opacity: 1; pointer-events: auto; }
+#nv-news.is-compact .nv-icon-btn.nv-side-close,
+#nv-news.is-compact .nv-icon-btn.nv-menu-btn,
+#nv-news.is-compact .nv-icon-btn.nv-top-search { display: inline-flex; }
+#nv-news.is-compact .nv-topbar { display: flex; padding: 8px; min-height: 58px; border-bottom: 1px solid var(--line); }
+#nv-news.is-compact .nv-topbar-title { text-align: center; font-size: 15px; }
+#nv-news.is-compact .nv-icon-btn { width: 42px; height: 42px; border-radius: 8px; }
+#nv-news.is-compact .nv-icon-btn svg { width: 22px; height: 22px; }
+#nv-news.is-compact .nv-save { width: 38px; height: 38px; }
+#nv-news.is-compact .nv-save svg { width: 18px; height: 18px; }
+#nv-news.is-compact .nv-nav { padding: 12px; font-size: 15px; gap: 12px; }
+#nv-news.is-compact .nv-nav svg { width: 21px; height: 21px; }
+#nv-news.is-compact .nv-side-search { padding: 13px 12px; font-size: 14.5px; }
+#nv-news.is-compact .nv-side-search kbd { display: none; }
+#nv-news.is-compact .nv-brand { display: flex; }
+#nv-news.is-compact .nv-inner { padding: 14px 14px 32px; }
+#nv-news.is-compact .nv-hero h1 { font-size: 24px; }
+#nv-news.is-compact .nv-bigsearch input,
+#nv-news.is-compact .nv-search input { font-size: 16px; } /* 16px : évite le zoom auto d'iOS */
+#nv-news.is-compact .nv-rubs { display: flex; overflow-x: auto; scrollbar-width: none; margin: 0 -14px; padding: 0 14px; }
+#nv-news.is-compact .nv-rubs::-webkit-scrollbar { display: none; }
+#nv-news.is-compact .nv-rubcard { flex: 0 0 148px; }
+#nv-news.is-compact .nv-une,
+#nv-news.is-compact .nv-bycat,
+#nv-news.is-compact .nv-art-nav { grid-template-columns: 1fr; }
+#nv-news.is-compact .nv-links { grid-template-columns: 1fr 1fr; }
+#nv-news.is-compact .nv-links.is-page { grid-template-columns: 1fr; }
+#nv-news.is-compact .nv-feature h3 { font-size: 19px; }
+#nv-news.is-compact .nv-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: -14px; margin-right: -14px; padding: 0 14px; }
+#nv-news.is-compact .nv-filters::-webkit-scrollbar { display: none; }
+#nv-news.is-compact .nv-chip { height: 36px; padding: 0 14px; font-size: 13px; }
+#nv-news.is-compact .nv-article h1 { font-size: 23px; }
+#nv-news.is-compact .nv-prose { font-size: 15px; }
+#nv-news.is-compact .nv-actions .nv-btn { flex: 1 1 calc(50% - 4px); height: 42px; }
+#nv-news.is-compact .nv-actions .nv-btn.is-primary { flex-basis: 100%; }
+#nv-news.is-compact .nv-lf-row { flex-direction: column; }
+
+
+/* Liste compacte : titre + infos sur une ligne, pour en voir le plus possible sans défiler */
+#nv-news [data-el="list"] .nv-list { gap: 6px; margin-top: 14px; }
+#nv-news .nv-card.is-row .nv-card-meta .nv-tag { margin-left: 2px; }
+#nv-news [data-el="list"] .nv-card { padding: 10px 14px; }
+#nv-news [data-el="list"] .nv-card-title { margin-top: 4px; font-size: 14.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-news [data-el="list"] .nv-card-text { display: none; }
+#nv-news [data-el="list"] .nv-card-meta { margin-top: 4px; }
+#nv-news [data-el="list"] .nv-day { margin: 14px 4px 6px; }
+#nv-news [data-el="list"] > .nv-feature { padding: 16px 18px 12px; margin-top: 14px; }
+#nv-news [data-el="list"] > .nv-feature + .nv-list { margin-top: 6px; }
+#nv-news [data-el="list"] > .nv-feature h3 { margin-top: 8px; font-size: 18px; }
+#nv-news [data-el="list"] > .nv-feature p { -webkit-line-clamp: 2; margin-top: 6px; }
+#nv-news [data-el="list"] > .nv-feature .nv-why { display: none; }
+#nv-news [data-el="list"] > .nv-feature .nv-card-meta { padding-top: 8px; }
+#nv-news .nv-result:empty { display: none; }
+#nv-news .nv-inner.is-list { padding-bottom: 16px; }
+#nv-news.is-compact .nv-inner.is-list .nv-page-head { display: none; }  /* le titre est déjà dans la barre du haut */
+#nv-news.is-compact .nv-page-head { margin: 0 0 12px; }
+#nv-news.is-compact .nv-page-head p { display: none; }
+#nv-news.is-compact .nv-page-head h1 { font-size: 21px; }
+#nv-news.is-compact .nv-inner { padding-top: 12px; }
+#nv-news.is-compact [data-el="list"] > .nv-feature p { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  #nv-news *, #nv-news *::before, #nv-news *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+
+<div id="nv-news">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="nv-side" data-el="side" aria-label="Navigation des actualités">
+    <div class="nv-brand">
+      <span class="nv-brand-name">Menu</span>
+      <button class="nv-icon-btn nv-side-close" data-act="close-drawer" aria-label="Fermer le menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <button class="nv-side-search" data-act="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      Rechercher une actu
+      <kbd data-el="kbd">Ctrl K</kbd>
+    </button>
+
+    <button class="nv-nav is-active" data-nav="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>
+      À la une
+    </button>
+    <button class="nv-nav" data-nav="unread">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+      Non lues
+      <span class="nv-badge" data-el="count-unread"></span>
+    </button>
+    <button class="nv-nav" data-nav="saved">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+      À relire
+      <span class="nv-badge" data-el="count-saved"></span>
+    </button>
+
+    <div class="nv-side-label">Rubriques</div>
+    <div data-el="side-rubs"></div>
+
+    <div class="nv-side-label">Aller plus loin</div>
+    <button class="nv-nav" data-nav="sources">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 4.5v1H3v-1z"/><path d="M5 10v7M9.5 10v7M14.5 10v7M19 10v7M3 20h18"/></svg>
+      Sources officielles
+    </button>
+    <a class="nv-nav" data-el="ai-link" href="#" target="_top">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      NAVIRE AI
+    </a>
+
+    <div class="nv-side-spacer"></div>
+    <div class="nv-goal" data-el="goal"></div>
+  </aside>
+  <div class="nv-scrim" data-act="close-drawer"></div>
+
+  <!-- ============ MAIN ============ -->
+  <main class="nv-main">
+    <div class="nv-topbar">
+      <button class="nv-icon-btn nv-top-search" data-act="search" aria-label="Rechercher">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      </button>
+      <div class="nv-topbar-title" data-el="title">À la une</div>
+      <button class="nv-icon-btn nv-menu-btn" data-act="open-drawer" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M10 17h10"/></svg>
+      </button>
+    </div>
+    <div class="nv-content nv-scroll" data-el="content"></div>
+    <div class="nv-toasts" data-el="toasts" aria-live="polite"></div>
+  </main>
+</div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var API = 'https://navire-app-api.onrender.com';
+  var LOGIN_URL = '/login';       // page de connexion du site
+  var AI_URL = '/navire';         // page de l'embed NAVIRE AI
+  var PAGE_SIZE = 20;
+
+  var RUBRIQUES = [
+    { key: 'civil',    label: 'Droit civil',        desc: 'Contrats, responsabilité, famille, biens' },
+    { key: 'penal',    label: 'Droit pénal',        desc: 'Infractions, procédure pénale, peines' },
+    { key: 'public',   label: 'Droit public',       desc: 'Constitutionnel, administratif, libertés' },
+    { key: 'affaires', label: 'Droit des affaires', desc: 'Sociétés, commercial, concurrence' },
+    { key: 'general',  label: 'Général',            desc: 'Institutions, réformes, vie du droit' }
+  ];
+
+  // Sources officielles : liens permanents de la rubrique « Aller plus loin »
+  var SOURCES = [
+    { group: 'Textes', items: [
+      { n: 'Légifrance', d: 'Codes, lois, décrets et jurisprudence : le service public de diffusion du droit.', u: 'https://www.legifrance.gouv.fr/' },
+      { n: 'Journal officiel', d: 'Les textes publiés au JO du jour.', u: 'https://www.legifrance.gouv.fr/jorf/jo' },
+      { n: 'EUR-Lex', d: 'Droit de l\'Union européenne : traités, règlements, directives.', u: 'https://eur-lex.europa.eu/homepage.html?locale=fr' }
+    ]},
+    { group: 'Jurisprudence', items: [
+      { n: 'Cour de cassation', d: 'Arrêts et Judilibre, la base ouverte des décisions judiciaires.', u: 'https://www.courdecassation.fr/recherche-judilibre' },
+      { n: 'Conseil d\'État', d: 'Décisions de la juridiction administrative (ArianeWeb).', u: 'https://www.conseil-etat.fr/decisions-de-justice/jurisprudence' },
+      { n: 'Conseil constitutionnel', d: 'Décisions DC et QPC, commentaires officiels.', u: 'https://www.conseil-constitutionnel.fr/decisions' },
+      { n: 'CEDH — HUDOC', d: 'Arrêts de la Cour européenne des droits de l\'homme.', u: 'https://hudoc.echr.coe.int/fre' },
+      { n: 'CJUE — Curia', d: 'Arrêts de la Cour de justice de l\'Union européenne.', u: 'https://curia.europa.eu/jcms/jcms/j_6/fr/' }
+    ]},
+    { group: 'Institutions et réformes', items: [
+      { n: 'Assemblée nationale', d: 'Projets et propositions de loi en cours d\'examen.', u: 'https://www.assemblee-nationale.fr/' },
+      { n: 'Sénat', d: 'Dossiers législatifs et travaux des commissions.', u: 'https://www.senat.fr/' },
+      { n: 'Vie publique', d: 'Les lois et réformes expliquées simplement.', u: 'https://www.vie-publique.fr/' },
+      { n: 'Ministère de la Justice', d: 'Circulaires, réformes et actualités de la justice.', u: 'https://www.justice.gouv.fr/' }
+    ]}
+  ];
+  var HOME_LINKS = ['Légifrance', 'Cour de cassation', 'Conseil d\'État', 'Conseil constitutionnel'];
+
+  // ================= IFRAME FRAMER =================
+  var root = document.getElementById('nv-news');
+  var FRAMED = window.self !== window.top;
+  var HOST = null;
+  if (FRAMED) {
+    // On masque la barre de défilement de l'iframe (sans bloquer le défilement).
+    var hideBar = document.createElement('style');
+    hideBar.textContent = 'html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}';
+    document.head.appendChild(hideBar);
+    document.body.style.margin = '0';
+    try { if (window.frameElement && window.parent.document) HOST = window.parent; } catch (e) {}
+  }
+
+  // Hauteur de l'embed = hauteur de l'écran moins sa position en haut de
+  // page (le header du site est au-dessus). On règle aussi l'iframe Framer
+  // et ses blocs parents qui ne contiennent que lui, pour qu'ils ne coupent rien.
+  var frameEl = HOST ? window.frameElement : null;
+  var wrappers = [];
+  if (frameEl) {
+    for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+  }
+  function sizeApp() {
+    var win = HOST || window;
+    var anchor = frameEl || root;
+    var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
+    var h = Math.max(460, Math.round(win.innerHeight - top - 12));
+    root.style.height = h + 'px';
+    if (frameEl) {
+      frameEl.style.height = h + 'px';
+      frameEl.style.minHeight = h + 'px';
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + 'px'; });
+    }
+  }
+  sizeApp();
+  (HOST || window).addEventListener('resize', sizeApp);
+  window.addEventListener('load', sizeApp);
+  setTimeout(sizeApp, 600);   // après la mise en place de la page Framer
+
+  // ================= ÉTAT =================
+  function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
+  var content = el('content');
+
+  var token = '';
+  try { token = localStorage.getItem('navire_token') || ''; } catch (e) {}
+
+  var state = {
+    view: 'home',               // home | list | article | sources
+    filters: { status: 'all', category: '', q: '', period: 'all' },
+    items: [], total: 0, hasMore: false, loading: false,
+    start: 0, starts: [], shown: 0,   // pagination « Charger plus » sans défilement
+    rubriques: null,            // réponse de /veille/rubriques
+    me: null,                   // progression du jour (/veille/state)
+    userName: '',
+    counts: { unread: null, saved: null },
+    article: null,              // { item, related }
+    back: null,                 // vue à retrouver en quittant un article
+    known: {}                   // actus déjà chargées, par id
+  };
+  var listSeq = 0;              // ignore les réponses d'une recherche dépassée
+
+  // ================= OUTILS =================
+  function api(path, opts) {
+    opts = opts || {};
+    var h = {};
+    if (token) h['Authorization'] = 'Bearer ' + token;
+    if (opts.body) h['Content-Type'] = 'application/json';
+    return fetch(API + path, {
+      method: opts.method || 'GET', headers: h,
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (r.status === 401 && token && !opts.authOnly) {
+          // Jeton expiré : on continue en lecture seule plutôt que de bloquer.
+          token = ''; renderGoal(); updateCounts();
+          return api(path, opts);
+        }
+        if (!r.ok) { var err = new Error('HTTP ' + r.status); err.status = r.status; err.data = data; throw err; }
+        return data;
+      });
+    });
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function cssUrl(u) { return 'url("' + u.replace(/"/g, '%22') + '")'; }
+  function toast(msg, kind) {
+    var t = document.createElement('div');
+    t.className = 'nv-toast' + (kind ? ' is-' + kind : '');
+    t.textContent = msg;
+    el('toasts').appendChild(t);
+    setTimeout(function () { t.remove(); }, 2900);
+  }
+  function rub(key) {
+    for (var i = 0; i < RUBRIQUES.length; i++) if (RUBRIQUES[i].key === key) return RUBRIQUES[i];
+    return { key: key, label: key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Général', desc: '' };
+  }
+  function day0(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function relTime(iso) {
+    if (!iso) return '';
+    var t = new Date(iso).getTime(); if (isNaN(t)) return '';
+    var m = Math.floor(Math.max(0, Date.now() - t) / 60000);
+    if (m < 1) return "à l'instant";
+    if (m < 60) return 'il y a ' + m + ' min';
+    var h = Math.floor(m / 60); if (h < 24) return 'il y a ' + h + ' h';
+    var d = Math.floor(h / 24); if (d === 1) return 'hier';
+    if (d < 7) return 'il y a ' + d + ' j';
+    var dt = new Date(iso);
+    return dt.toLocaleDateString('fr-FR', dt.getFullYear() === new Date().getFullYear() ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function longDate(iso) {
+    var d = new Date(iso); if (isNaN(d)) return '';
+    return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function isNew(it) { var t = new Date(it.published_at).getTime(); return !isNaN(t) && Date.now() - t < 48 * 3600000; }
+  function plural(n, one, many) { return n + ' ' + (n > 1 ? many : one); }
+  // URL de la page qui contient l'embed (la page Framer, pas l'iframe)
+  function pageLocation() { try { return (HOST || window).location; } catch (e) { return window.location; } }
+  function actuLink(id) { var l = pageLocation(); return l.origin + l.pathname + '?actu=' + id; }
+  function aiLink(q) { return AI_URL + (q ? (AI_URL.indexOf('?') < 0 ? '?' : '&') + 'q=' + encodeURIComponent(q) : ''); }
+  function hilite(html, q) {
+    // Surligne les mots recherchés dans un texte déjà échappé
+    var words = (q || '').trim().split(/\s+/).filter(function (w) { return w.length > 1; });
+    if (!words.length) return html;
+    var re = new RegExp('(' + words.map(function (w) { return esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')', 'gi');
+    return html.replace(/(<[^>]*>)|([^<]+)/g, function (m, tag, txt) { return tag || txt.replace(re, '<mark>$1</mark>'); });
+  }
+
+  var ICON = {
+    save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>',
+    arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>',
+    link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
+    ai: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>'
+  };
+
+  el('ai-link').href = AI_URL;
+  if (/Mac|iPhone|iPad/.test(navigator.platform || '')) el('kbd').textContent = '⌘ K';
+
+  // ================= RÉFÉRENCES JURIDIQUES CLIQUABLES =================
+  // Repère dans le texte les articles de code, lois, décrets, arrêts… et les
+  // relie à la bonne base officielle (Légifrance, Judilibre, EUR-Lex).
+  var MOIS = '(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)';
+  var DATE = '\\d{1,2}(?:er)?\\s+' + MOIS + '\\s+\\d{4}';
+  var CODES = '(?:civil|pénal|penal|de commerce|du travail|de la consommation|de procédure civile|de procédure pénale|de justice administrative|général des collectivités territoriales|général des impôts|de la sécurité sociale|de la santé publique|de l[\'’]environnement|de l[\'’]urbanisme|monétaire et financier|des assurances|de la propriété intellectuelle|rural et de la pêche maritime|de la construction et de l[\'’]habitation|de l[\'’]entrée et du séjour des étrangers et du droit d[\'’]asile|de la route|de l[\'’]éducation|électoral|des relations entre le public et l[\'’]administration|de la commande publique|de l[\'’]organisation judiciaire|de la défense|des transports|de l[\'’]action sociale et des familles)';
+  var ART_NUM = '(?:[LRDA]\\.?\\s?)?\\d+(?:[-‑.]\\d+)*(?:\\s(?:bis|ter|quater|quinquies))?';
+  var REF_RULES = [
+    { kind: 'Code', re: new RegExp('\\b(?:articles?|art\\.)\\s+' + ART_NUM + '(?:\\s?(?:,|et|à)\\s?' + ART_NUM + ')*\\s+(?:du|de la|de l[\'’])\\s*(?:Code\\s+' + CODES + '|Constitution|Convention européenne des droits de l[\'’]homme|Déclaration des droits de l[\'’]homme et du citoyen)', 'gi'), to: 'legifrance' },
+    { kind: 'Code', re: new RegExp('\\b(?:art\\.?|article)\\s+' + ART_NUM + '\\s+C\\.\\s?(?:civ|pén|pen|com|trav|consom|pr\\.\\s?civ|pr\\.\\s?pén|pr\\.\\s?pen)\\.?', 'gi'), to: 'legifrance' },
+    { kind: 'Texte', re: new RegExp('\\b(?:loi organique|loi|décret|ordonnance|arrêté)\\s+n[°o]\\s?\\d{2,4}-\\d+(?:\\s+du\\s+' + DATE + ')?', 'gi'), to: 'legifrance' },
+    { kind: 'Cass.', re: new RegExp('\\bCass\\.?,?\\s*(?:civ\\.?\\s*(?:1(?:re|ère)|2e|3e)?|crim\\.?|com\\.?|soc\\.?|ass\\.?\\s*plén\\.?|ch\\.?\\s*mixte)[^\\n;()]{0,30}?' + DATE + '(?:,\\s*n[°o]\\s?\\d{2}-\\d{2}\\.\\d{3})?', 'gi'), to: 'cass' },
+    { kind: 'Pourvoi', re: /\b(?:pourvoi\s+)?n[°o]\s?\d{2}-\d{2}\.\d{3}\b/gi, to: 'cass' },
+    { kind: 'CE', re: new RegExp('\\bCE,?\\s*(?:Ass\\.?,?\\s*|Sect\\.?,?\\s*|\\d+(?:e|ème)\\s+(?:et\\s+\\d+(?:e|ème)\\s+)?(?:ch\\.|chambres?)\\s*(?:réunies)?,?\\s*)?' + DATE + '(?:,\\s*n[°o]\\s?\\d{5,6})?', 'gi'), to: 'legifrance' },
+    { kind: 'Cons. const.', re: /\b(?:décision|déc\.)\s+n[°o]\s?\d{4}-\d+\s?(?:QPC|DC|L|LP|ORGA|LOM|FNR|REF)\b/gi, to: 'legifrance' },
+    { kind: 'UE', re: /\b(?:règlement|directive)\s+(?:\((?:UE|CE)\)\s+)?(?:n[°o]\s?)?\d{2,4}\/\d+(?:\/(?:UE|CE))?/gi, to: 'eurlex' }
+  ];
+  var TARGETS = {
+    legifrance: { name: 'Légifrance', url: function (q) { return 'https://www.legifrance.gouv.fr/search/all?tab_selection=all&searchField=ALL&query=' + encodeURIComponent(q) + '&page=1&init=true'; } },
+    cass: { name: 'Judilibre', url: function (q) {
+      var num = q.match(/\d{2}-\d{2}\.\d{3}/);
+      return num ? 'https://www.courdecassation.fr/recherche-judilibre?search_api_fulltext=' + encodeURIComponent(num[0])
+                 : TARGETS.legifrance.url(q);
+    } },
+    eurlex: { name: 'EUR-Lex', url: function (q) { return 'https://eur-lex.europa.eu/search.html?scope=EURLEX&type=quick&lang=fr&text=' + encodeURIComponent(q); } }
+  };
+  function findRefs(text) {
+    var found = [];
+    REF_RULES.forEach(function (rule) {
+      rule.re.lastIndex = 0;
+      var m;
+      while ((m = rule.re.exec(text))) {
+        var s = m.index, e = s + m[0].replace(/[\s,.;]+$/, '').length;
+        // Première règle gagnante : pas de chevauchement (ex. le n° de pourvoi déjà dans un arrêt)
+        if (found.some(function (f) { return s < f.e && e > f.s; })) continue;
+        found.push({ s: s, e: e, text: text.slice(s, e), kind: rule.kind, to: rule.to });
+      }
+    });
+    return found.sort(function (a, b) { return a.s - b.s; });
+  }
+  function refHref(r) { return TARGETS[r.to].url(r.text.replace(/\s+/g, ' ')); }
+  function linkify(text) {
+    var refs = findRefs(text), out = '', pos = 0;
+    refs.forEach(function (r) {
+      out += esc(text.slice(pos, r.s));
+      out += '<a class="nv-ref" href="' + esc(refHref(r)) + '" target="_blank" rel="noopener" title="Ouvrir sur ' + TARGETS[r.to].name + '">' + esc(r.text) + '<sup>↗</sup></a>';
+      pos = r.e;
+    });
+    return out + esc(text.slice(pos));
+  }
+  function prose(text) {
+    return String(text || '').replace(/\r/g, '').split(/\n\s*\n|\n/).filter(function (p) { return p.trim(); })
+      .map(function (p) { return '<p>' + linkify(p.trim()) + '</p>'; }).join('');
+  }
+
+  // ================= RESPONSIVE =================
+  function updateCompact() {
+    var compact = root.clientWidth < 760;
+    root.classList.toggle('is-compact', compact);
+    if (!compact) root.classList.remove('is-drawer');
+    // La hauteur a changé : on recalcule combien d'actus tiennent à l'écran
+    clearTimeout(refit);
+    refit = setTimeout(function () { if (state.view === 'list' && state.items.length && !state.loading) renderList(); }, 150);
+  }
+  var refit = null;
+  if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
+  else window.addEventListener('resize', updateCompact);
+  updateCompact();
+
+  // ================= BARRE LATÉRALE =================
+  function renderSideRubs() {
+    var stats = {};
+    ((state.rubriques && state.rubriques.rubriques) || []).forEach(function (r) { stats[r.key] = r; });
+    el('side-rubs').innerHTML = RUBRIQUES.map(function (r) {
+      var s = stats[r.key];
+      return '<button class="nv-nav" data-nav="rub:' + r.key + '" data-cat="' + r.key + '">' +
+        '<i class="nv-dot"></i>' + esc(r.label) +
+        (s && s.week_count ? '<span class="nv-new" title="Cette semaine">+' + s.week_count + '</span>' : '') +
+        '<span class="nv-badge">' + (s ? s.count : '') + '</span></button>';
+    }).join('');
+    markNav();
+  }
+  function updateCounts() {
+    var u = el('count-unread'), s = el('count-saved');
+    u.textContent = token && state.counts.unread != null ? state.counts.unread : '';
+    u.classList.toggle('is-hot', !!(token && state.counts.unread));
+    s.textContent = token && state.counts.saved ? state.counts.saved : '';
+  }
+  function loadCounts() {
+    if (!token) { updateCounts(); return; }
+    api('/veille/actus?status=unread&limit=1').then(function (d) { state.counts.unread = d.total; updateCounts(); }).catch(function () {});
+    api('/veille/actus?status=saved&limit=1').then(function (d) { state.counts.saved = d.total; updateCounts(); }).catch(function () {});
+  }
+  function goalHtml(inline) {
+    var me = state.me, goal = me ? me.goal : 5, done = me ? Math.min(me.read_today, goal) : 0, steps = '';
+    for (var i = 0; i < goal; i++) steps += '<i' + (i < done ? ' class="on"' : '') + '></i>';
+    if (inline) return '<span class="nv-pill"><span class="nv-mini-steps">' + steps + '</span><b>' + done + '/' + goal + '</b> lues aujourd\'hui</span>' +
+      (me && me.streak ? '<span class="nv-pill">Série : <b>' + plural(me.streak, 'jour', 'jours') + '</b></span>' : '');
+    return { steps: steps, done: done, goal: goal };
+  }
+  function renderGoal() {
+    var box = el('goal');
+    if (!token) {
+      box.className = 'nv-goal';
+      box.innerHTML = '<div class="nv-goal-head">Ta veille quotidienne</div>' +
+        '<div class="nv-goal-foot"><a href="' + esc(LOGIN_URL) + '" target="_top">Connecte-toi</a> pour suivre tes lectures, garder des actus à relire et tenir ta série.</div>';
+      return;
+    }
+    var g = goalHtml(false), me = state.me;
+    box.className = 'nv-goal' + (me && me.goal_reached ? ' is-done' : '');
+    box.innerHTML = '<div class="nv-goal-head"><span>Objectif du jour</span><span>' + g.done + '/' + g.goal + '</span></div>' +
+      '<div class="nv-goal-steps">' + g.steps + '</div>' +
+      '<div class="nv-goal-foot">' + (me && me.goal_reached ? 'Objectif atteint, bravo.' : 'Encore ' + plural(g.goal - g.done, 'actu', 'actus') + ' à lire aujourd\'hui.') +
+      (me && me.streak ? ' Série : ' + plural(me.streak, 'jour', 'jours') + '.' : '') + '</div>';
+  }
+
+  // ================= NAVIGATION =================
+  function isDefault(f) { return f.status === 'all' && !f.category && !f.q && f.period === 'all'; }
+  function navKey() {
+    if (state.view === 'sources') return 'sources';
+    if (state.view === 'list') {
+      var f = state.filters;
+      if (f.status !== 'all') return f.status;
+      if (f.category && !f.q) return 'rub:' + f.category;
+      if (isDefault(f)) return 'home';
+    }
+    return '';
+  }
+  function markNav() {
+    var k = navKey();
+    root.querySelectorAll('.nv-nav[data-nav]').forEach(function (b) { b.classList.toggle('is-active', b.getAttribute('data-nav') === k); });
+  }
+  function setTitle(t) { el('title').textContent = t; }
+  function show(view, html) {
+    state.view = view;
+    content.innerHTML = '<div class="nv-inner' + (view === 'list' ? ' is-list' : '') + '">' + html + '</div>';
+    content.scrollTop = 0;
+    root.classList.remove('is-drawer');
+    markNav();
+  }
+  function goNav(key) {
+    if (key === 'home' || key === 'all') return renderHome();
+    if (key === 'sources') return renderSources();
+    var f = { status: 'all', category: '', q: '', period: 'all' };
+    if (key === 'unread' || key === 'saved') {
+      if (!token) { root.classList.remove('is-drawer'); return needLogin(key === 'saved' ? 'garder des actus à relire' : 'voir tes actus non lues'); }
+      f.status = key;
+    }
+    if (key.indexOf('rub:') === 0) f.category = key.slice(4);
+    openList(f);
+  }
+  function needLogin(what) {
+    toast('Connecte-toi pour ' + what + '.');
+  }
+
+  // ================= RENDU DES CARTES =================
+  function remember(items) { items.forEach(function (it) { state.known[it.id] = it; }); return items; }
+  function rubTag(it) {
+    return '<button class="nv-rub" data-cat="' + esc(it.category) + '" data-rub="' + esc(it.category) + '"><i></i>' + esc(it.category_label) + '</button>';
+  }
+  function saveBtn(it) {
+    return '<button class="nv-icon-btn nv-save' + (it.is_saved ? ' is-on' : '') + '" data-save="' + it.id + '" aria-pressed="' + !!it.is_saved + '" aria-label="' + (it.is_saved ? 'Retirer de À relire' : 'Garder pour plus tard') + '" title="' + (it.is_saved ? 'Retirer de À relire' : 'À relire') + '">' + ICON.save + '</button>';
+  }
+  function metaHtml(it) {
+    return '<div class="nv-card-meta">' +
+      (it.source_name ? '<span>' + esc(it.source_name) + '</span><i class="nv-sep"></i>' : '') +
+      '<span>' + it.reading_minutes + ' min</span>' +
+      (it.is_read ? '<i class="nv-sep"></i><span class="nv-readmark">' + ICON.check + 'Lue</span>' : '') +
+      saveBtn(it) + '</div>';
+  }
+  // Ligne compacte de la liste : titre, puis rubrique · source · date
+  function rowHtml(it) {
+    var q = state.filters.q;
+    return '<article class="nv-card is-row' + (it.is_read ? ' is-read' : (token ? ' is-unread' : '')) + '" data-open="' + it.id + '" tabindex="0">' +
+      '<h3 class="nv-card-title">' + hilite(esc(it.title), q) + '</h3>' +
+      '<div class="nv-card-meta">' + rubTag(it) +
+        (it.source_name ? '<i class="nv-sep"></i><span>' + esc(it.source_name) + '</span>' : '') +
+        '<i class="nv-sep"></i><span>' + esc(relTime(it.published_at)) + '</span>' +
+        (isNew(it) ? '<span class="nv-tag is-new">Nouveau</span>' : '') +
+        (it.is_read ? '<i class="nv-sep"></i><span class="nv-readmark">' + ICON.check + 'Lue</span>' : '') +
+        saveBtn(it) + '</div></article>';
+  }
+  function cardHtml(it, opts) {
+    opts = opts || {};
+    var q = state.view === 'list' ? state.filters.q : '';
+    return '<article class="nv-card' + (opts.small ? ' is-small' : '') + (it.is_read ? ' is-read' : (token ? ' is-unread' : '')) + '" data-open="' + it.id + '" tabindex="0">' +
+      '<div class="nv-card-top">' + rubTag(it) + (isNew(it) ? '<span class="nv-tag is-new">Nouveau</span>' : '') +
+      '<span class="nv-card-date">' + esc(relTime(it.published_at)) + '</span></div>' +
+      '<h3 class="nv-card-title">' + hilite(esc(it.title), q) + '</h3>' +
+      (opts.small ? '' : '<p class="nv-card-text">' + hilite(esc(it.essentiel), q) + '</p>') +
+      metaHtml(it) + '</article>';
+  }
+  function featureHtml(it) {
+    return '<article class="nv-feature" data-open="' + it.id + '" data-cat="' + esc(it.category) + '" tabindex="0">' +
+      '<div class="nv-card-top">' + rubTag(it) + (isNew(it) ? '<span class="nv-tag is-new">Nouveau</span>' : '') +
+      '<span class="nv-card-date">' + esc(relTime(it.published_at)) + '</span></div>' +
+      '<h3>' + esc(it.title) + '</h3><p>' + esc(it.essentiel) + '</p>' +
+      (it.impact ? '<div class="nv-why"><b>Pourquoi c\'est important · </b>' + esc(it.impact) + '</div>' : '') +
+      metaHtml(it) + '</article>';
+  }
+  function skeleton(n, h) { var s = ''; for (var i = 0; i < n; i++) s += '<div class="nv-skel" style="height:' + (h || 104) + 'px"></div>'; return s; }
+  function errorHtml(msg) {
+    return '<div class="nv-empty"><b>Impossible de charger les actus</b>' + esc(msg || 'Vérifie ta connexion puis réessaie.') +
+      '<br><button class="nv-btn" data-act="retry">Réessayer</button></div>';
+  }
+  function linkCard(s) {
+    var host = s.u.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+    return '<a class="nv-link" href="' + esc(s.u) + '" target="_blank" rel="noopener"><b>' + esc(s.n) + ICON.ext + '</b><span>' + esc(s.d) + '</span><small>' + esc(host) + '</small></a>';
+  }
+  function findSource(name) {
+    for (var g = 0; g < SOURCES.length; g++) for (var i = 0; i < SOURCES[g].items.length; i++) if (SOURCES[g].items[i].n === name) return SOURCES[g].items[i];
+  }
+
+  // ================= ACCUEIL = LISTE DE TOUTES LES ACTUS =================
+  var lastRetry = null;
+  function renderHome() { openList({ status: 'all', category: '', q: '', period: 'all' }); }
+  function heroSub(r) {
+    if (!r || !r.total) return 'Les actus publiées par l\'équipe NAVIRE apparaissent ici.';
+    return (r.week_total ? plural(r.week_total, 'nouvelle actu', 'nouvelles actus') + ' cette semaine · ' : '') +
+      plural(r.total, 'actu', 'actus') + ' au total.';
+  }
+
+  // ================= LISTE (toutes, rubrique, recherche, non lues, à relire) =================
+  function listTitle(f) {
+    if (f.status === 'unread') return 'Non lues';
+    if (f.status === 'saved') return 'À relire';
+    if (f.category) return rub(f.category).label;
+    if (f.q) return 'Recherche';
+    return 'Actualités juridiques';
+  }
+  function openList(f, focus) {
+    lastRetry = function () { openList(state.filters); };
+    state.filters = f;
+    var title = listTitle(f), r = f.category ? rub(f.category) : null;
+    var desc = f.status === 'unread' ? 'Les actus que tu n\'as pas encore ouvertes.' :
+      f.status === 'saved' ? 'Les actus que tu as gardées pour plus tard.' :
+      r ? r.desc + '.' : heroSub(state.rubriques);
+    setTitle(title);
+    show('list',
+      '<div class="nv-page-head"><h1' + (r ? ' data-cat="' + r.key + '"' : '') + '>' + (r ? '<i></i>' : '') + esc(title) + '</h1><p data-el="list-sub">' + esc(desc) + '</p></div>' +
+      '<form class="nv-search" data-form="filter">' + ICON.search +
+        '<input type="text" enterkeyhint="search" name="q" data-el="q" value="' + esc(f.q) + '" placeholder="Rechercher dans ' + (r ? 'la rubrique' : 'les actus') + '…" autocomplete="off" aria-label="Rechercher">' +
+        (f.q ? '<button type="button" class="nv-icon-btn" data-act="clear-q" aria-label="Effacer">' + ICON.close + '</button>' : '') + '</form>' +
+      '<div class="nv-filters">' +
+        '<button class="nv-chip' + (!f.category ? ' is-on' : '') + '" data-filter-cat="">Toutes</button>' +
+        RUBRIQUES.map(function (x) { return '<button class="nv-chip' + (f.category === x.key ? ' is-on' : '') + '" data-filter-cat="' + x.key + '" data-cat="' + x.key + '"><i></i>' + esc(x.label) + '</button>'; }).join('') +
+      '</div>' +
+      '<div data-el="result" class="nv-result"></div>' +
+      '<div data-el="list">' + skeleton(5) + '</div>' +
+      '<div class="nv-loadmore" data-el="more"></div>'
+    );
+    if (focus) setTimeout(function () { var q = el('q'); if (q) { q.focus({ preventScroll: true }); q.select(); } }, 60);
+    state.items = []; state.total = 0; state.hasMore = false;
+    state.start = 0; state.starts = []; state.shown = 0;
+    loadPage();
+  }
+  function listQuery(offset) {
+    var f = state.filters, p = ['limit=' + PAGE_SIZE, 'offset=' + offset];
+    if (f.category) p.push('category=' + encodeURIComponent(f.category));
+    if (f.q) p.push('q=' + encodeURIComponent(f.q));
+    if (f.status !== 'all') p.push('status=' + f.status);
+    if (f.period !== 'all') p.push('period=' + f.period);
+    return '/veille/actus?' + p.join('&');
+  }
+  function loadPage() {
+    var seq = ++listSeq, offset = state.items.length;
+    state.loading = true;
+    renderMore();
+    api(listQuery(offset)).then(function (d) {
+      if (seq !== listSeq || state.view !== 'list') return;
+      state.loading = false;
+      state.items = state.items.concat(remember(d.items));
+      state.total = d.total; state.hasMore = d.has_more;
+      if (state.filters.status === 'unread' && !state.filters.q && !state.filters.category && state.filters.period === 'all') { state.counts.unread = d.total; updateCounts(); }
+      renderList();
+    }).catch(function (e) {
+      if (seq !== listSeq) return;
+      state.loading = false;
+      el('list').innerHTML = errorHtml(e.status ? 'Erreur ' + e.status + ' du serveur.' : '');
+      renderMore();
+    });
+  }
+  function renderList() {
+    var f = state.filters, box = el('list'); if (!box) return;
+    el('result').innerHTML = f.q && state.total ? '<b>' + plural(state.total, 'actu', 'actus') + '</b> pour « ' + esc(f.q) + ' »' : '';
+    if (!state.items.length) {
+      var empty = f.status === 'saved' ? '<b>Rien à relire pour l\'instant</b>Touche l\'icône marque-page d\'une actu pour la garder ici.' :
+        f.status === 'unread' ? '<b>Tu es à jour</b>Tu as ouvert toutes les actus. Reviens demain pour la suite.' :
+        f.q ? '<b>Aucun résultat pour « ' + esc(f.q) + ' »</b>Essaie un autre mot.<br>' +
+          (f.category ? '<button class="nv-btn" data-act="widen">Chercher dans toutes les actus</button> ' : '') +
+          '<a class="nv-btn" href="' + esc(TARGETS.legifrance.url(f.q)) + '" target="_blank" rel="noopener">Chercher « ' + esc(f.q) + ' » sur Légifrance' + ICON.ext + '</a>' :
+        '<b>Aucune actu ici</b>Rien n\'a encore été publié avec ces filtres.';
+      box.innerHTML = '<div class="nv-empty">' + empty + '</div>';
+      renderMore();
+      return;
+    }
+    var html = '', items = state.items.slice(state.start, state.start + PAGE_SIZE);
+    if (isDefault(f) && state.start === 0) { html = featureHtml(items[0]); items = items.slice(1); }
+    box.innerHTML = html + '<div class="nv-list">' + items.map(rowHtml).join('') + '</div>';
+    fitList();
+    renderMore();
+  }
+  // Garde seulement les actus qui tiennent dans la hauteur visible : pas de
+  // défilement dans l'embed, la suite s'affiche avec « Charger plus ».
+  function fitList() {
+    var box = el('list'); if (!box) return;
+    var cards = [].slice.call(box.querySelectorAll('.nv-card, .nv-feature'));
+    var limit = content.getBoundingClientRect().bottom - 72;   // place du bouton + marge du bas
+    var shown = 0;
+    for (var i = 0; i < cards.length; i++) {
+      if (shown >= 1 && cards[i].getBoundingClientRect().bottom > limit) {
+        for (var j = i; j < cards.length; j++) cards[j].remove();
+        break;
+      }
+      shown++;
+    }
+    state.shown = shown;
+  }
+  function renderMore() {
+    var m = el('more'); if (!m) return;
+    if (!state.items.length) { m.innerHTML = ''; return; }
+    var end = Math.min(state.start + state.shown, state.total);
+    m.innerHTML = (state.starts.length ? '<button class="nv-btn" data-act="prev">' + ICON.back + 'Plus récentes</button>' : '') +
+      (state.total > state.shown || state.start ? '<span class="nv-pagecount">' + (state.start + 1) + '–' + end + ' sur ' + state.total + '</span>' : '') +
+      (state.loading ? '<button class="nv-btn" disabled>Chargement…</button>' :
+        end < state.total ? '<button class="nv-btn" data-act="more">Charger plus' + ICON.arrow + '</button>' : '');
+  }
+  function nextPage() {
+    state.starts.push(state.start);
+    state.start += Math.max(1, state.shown);
+    content.scrollTop = 0;
+    if (state.start + PAGE_SIZE > state.items.length && state.hasMore) loadPage();
+    else renderList();
+  }
+  function prevPage() {
+    if (!state.starts.length) return;
+    state.start = state.starts.pop();
+    content.scrollTop = 0;
+    renderList();
+  }
+
+  // ================= ARTICLE =================
+  function openArticle(id, fromView) {
+    id = +id;
+    if (state.view !== 'article') state.back = { view: state.view, filters: state.filters, scroll: content.scrollTop, items: state.items, total: state.total, hasMore: state.hasMore, start: state.start, starts: state.starts.slice() };
+    lastRetry = function () { openArticle(id); };
+    var known = state.known[id];
+    setTitle(known ? known.category_label : 'Actu');
+    show('article', known ? articleHtml(known, null) : '<div class="nv-article">' + skeleton(1, 40) + skeleton(1, 90) + skeleton(3, 70) + '</div>');
+    api('/veille/actus/' + id).then(function (d) {
+      if (state.view !== 'article') return;
+      remember([d.item]); remember(d.related);
+      state.article = d;
+      setTitle(d.item.category_label);
+      var keep = content.scrollTop;
+      content.querySelector('.nv-inner').innerHTML = articleHtml(d.item, d.related);
+      content.scrollTop = keep;
+      markRead(d.item);
+    }).catch(function (e) {
+      if (state.view !== 'article') return;
+      content.querySelector('.nv-inner').innerHTML = e.status === 404
+        ? '<div class="nv-empty"><b>Cette actu n\'existe plus</b>Elle a peut-être été retirée.<br><button class="nv-btn" data-nav="home">Retour à la une</button></div>'
+        : errorHtml(e.status ? 'Erreur ' + e.status + ' du serveur.' : '');
+    });
+  }
+  function articleHtml(it, related) {
+    var refs = findRefs(it.essentiel + '\n' + it.impact), seen = {};
+    refs = refs.filter(function (r) { var k = r.text.toLowerCase().replace(/\s+/g, ' '); if (seen[k]) return false; seen[k] = 1; return true; });
+    var backLabel = state.back && state.back.view === 'list' ? listTitle(state.back.filters) : 'Actualités juridiques';
+    return '<div class="nv-article" data-cat="' + esc(it.category) + '">' +
+      '<div class="nv-crumbs"><button data-act="back">' + ICON.back + esc(backLabel) + '</button></div>' +
+      '<div class="nv-card-top">' + rubTag(it) + (isNew(it) ? '<span class="nv-tag is-new">Nouveau</span>' : '') + '</div>' +
+      '<h1>' + esc(it.title) + '</h1>' +
+      '<div class="nv-art-meta"><span>' + esc(longDate(it.published_at)) + '</span>' +
+        (it.source_name ? '<i class="nv-sep"></i><a href="' + esc(it.source_url) + '" target="_blank" rel="noopener" data-src="' + it.id + '">' + esc(it.source_name) + '</a>' : '') +
+        '<i class="nv-sep"></i><span>' + it.reading_minutes + ' min de lecture</span>' +
+        (it.is_read ? '<i class="nv-sep"></i><span class="nv-readmark">' + ICON.check + 'Lue</span>' : '') + '</div>' +
+      '<section class="nv-block"><h4>L\'essentiel</h4><div class="nv-prose">' + prose(it.essentiel) + '</div></section>' +
+      (it.impact ? '<section class="nv-callout"><h4>Pourquoi c\'est important</h4><div class="nv-prose">' + prose(it.impact) + '</div></section>' : '') +
+      (refs.length ? '<section class="nv-block"><h4>Textes et décisions cités</h4><div class="nv-refs">' + refs.map(function (r) {
+        return '<a class="nv-refchip" href="' + esc(refHref(r)) + '" target="_blank" rel="noopener"><small>' + esc(r.kind) + '</small><span>' + esc(r.text) + '</span>' + ICON.ext + '</a>';
+      }).join('') + '</div></section>' : '') +
+      '<div class="nv-actions">' +
+        (it.source_url ? '<a class="nv-btn is-primary" href="' + esc(it.source_url) + '" target="_blank" rel="noopener" data-src="' + it.id + '">Lire la source' + ICON.ext + '</a>' : '') +
+        '<button class="nv-btn' + (it.is_saved ? ' is-on' : '') + '" data-save="' + it.id + '" aria-pressed="' + !!it.is_saved + '">' + ICON.save + (it.is_saved ? 'Gardée' : 'À relire') + '</button>' +
+        '<button class="nv-btn" data-copy="' + it.id + '">' + ICON.link + 'Copier le lien</button>' +
+        '<a class="nv-btn" href="' + esc(aiLink('Explique-moi cette actu juridique et ses conséquences : « ' + it.title + ' »')) + '" target="_top">' + ICON.ai + 'Demander à NAVIRE AI</a>' +
+      '</div>' +
+      (related === null ? '<section class="nv-section">' + skeleton(2, 80) + '</section>' :
+        related.length ? '<section class="nv-section"><div class="nv-section-head"><h2>À lire aussi</h2></div><div class="nv-list">' +
+          related.map(function (x, i) { return cardHtml(x, { small: true, i: i }); }).join('') + '</div></section>' : '') +
+    '</div>';
+  }
+  function goBack() {
+    var b = state.back;
+    if (!b || b.view !== 'list' && b.view !== 'sources') return renderHome();
+    if (b.view === 'sources') return renderSources();
+    // Retour à la liste telle qu'on l'a laissée (sans recharger ni perdre la position)
+    openListFromCache(b);
+  }
+  function openListFromCache(b) {
+    state.filters = b.filters;
+    openList(b.filters);
+    listSeq++;   // annule le chargement lancé par openList
+    state.items = b.items.map(function (x) { return state.known[x.id] || x; });
+    state.total = b.total; state.hasMore = b.hasMore; state.loading = false;
+    state.start = b.start || 0; state.starts = b.starts || [];
+    renderList();
+  }
+  function markRead(it) {
+    if (!token || it.is_read) return;
+    api('/veille/read/' + it.id, { method: 'POST', authOnly: true }).then(function (d) {
+      setRead(it.id);
+      var before = state.me && state.me.goal_reached;
+      state.me = { read_today: d.read_today, goal: d.goal, goal_reached: d.goal_reached, streak: d.streak };
+      renderGoal();
+      if (state.counts.unread) { state.counts.unread--; updateCounts(); }
+      if (d.goal_reached && !before) toast('Objectif du jour atteint · série de ' + plural(d.streak, 'jour', 'jours'), 'ok');
+      else if (!d.already_read) toast('Actu lue · ' + Math.min(d.read_today, d.goal) + '/' + d.goal + ' aujourd\'hui');
+    }).catch(function () {});
+  }
+  function setRead(id) {
+    if (state.known[id]) state.known[id].is_read = true;
+    var meta = content.querySelector('.nv-art-meta');
+    if (meta && !meta.querySelector('.nv-readmark')) meta.insertAdjacentHTML('beforeend', '<i class="nv-sep"></i><span class="nv-readmark">' + ICON.check + 'Lue</span>');
+  }
+
+  // ================= À RELIRE =================
+  function toggleSave(id, btn) {
+    if (!token) return needLogin('garder des actus à relire');
+    var it = state.known[id] || { id: id, is_saved: btn.classList.contains('is-on') };
+    var on = !it.is_saved;
+    paintSave(id, on);
+    api('/veille/actus/' + id + '/save', { method: on ? 'PUT' : 'DELETE', authOnly: true }).then(function () {
+      if (state.counts.saved != null) { state.counts.saved += on ? 1 : -1; updateCounts(); }
+      toast(on ? 'Gardée dans « À relire »' : 'Retirée de « À relire »');
+    }).catch(function () {
+      paintSave(id, !on);
+      toast('Impossible d\'enregistrer. Réessaie.', 'error');
+    });
+  }
+  function paintSave(id, on) {
+    if (state.known[id]) state.known[id].is_saved = on;
+    root.querySelectorAll('[data-save="' + id + '"]').forEach(function (b) {
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', on);
+      if (b.classList.contains('nv-btn')) b.innerHTML = ICON.save + (on ? 'Gardée' : 'À relire');
+      else { b.title = on ? 'Retirer de À relire' : 'À relire'; b.setAttribute('aria-label', b.title); }
+    });
+  }
+
+  // ================= SOURCES OFFICIELLES =================
+  function renderSources() {
+    lastRetry = renderSources;
+    setTitle('Sources officielles');
+    show('sources',
+      '<div class="nv-page-head"><h1>Sources officielles</h1><p>Les bases à consulter pour vérifier un texte, retrouver une décision ou suivre une réforme.</p></div>' +
+      '<form class="nv-lf" data-form="official"><b>Chercher un texte ou une décision</b>' +
+        '<p>Un article, une loi, un numéro de pourvoi… La recherche s\'ouvre directement sur le site officiel.</p>' +
+        '<div class="nv-lf-row"><div class="nv-search">' + ICON.search + '<input name="q" placeholder="Ex. article 1240 du Code civil, loi n° 2026-248, 21-12.345" autocomplete="off" aria-label="Recherche officielle"></div>' +
+        '<button class="nv-btn is-primary" type="submit">Rechercher' + ICON.ext + '</button></div>' +
+        '<div class="nv-lf-targets"><button type="button" class="nv-chip is-on" data-target="legifrance">Légifrance</button><button type="button" class="nv-chip" data-target="cass">Judilibre</button><button type="button" class="nv-chip" data-target="eurlex">EUR-Lex</button></div>' +
+      '</form>' +
+      SOURCES.map(function (g) {
+        return '<div class="nv-group-label" style="margin-top:26px">' + esc(g.group) + '</div><div class="nv-links is-page">' + g.items.map(linkCard).join('') + '</div>';
+      }).join('')
+    );
+  }
+
+  // ================= ÉVÉNEMENTS =================
+  root.addEventListener('click', function (e) {
+    var t = e.target;
+    var save = t.closest('[data-save]');
+    if (save && root.contains(save)) { e.preventDefault(); e.stopPropagation(); return toggleSave(+save.getAttribute('data-save'), save); }
+    var copy = t.closest('[data-copy]');
+    if (copy) {
+      var link = actuLink(copy.getAttribute('data-copy'));
+      var done = function () { toast('Lien copié'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, function () { window.prompt('Copie ce lien :', link); });
+      else window.prompt('Copie ce lien :', link);
+      return;
+    }
+    var src = t.closest('[data-src]');
+    if (src && token) { api('/veille/event', { method: 'POST', body: { item_id: +src.getAttribute('data-src'), event_type: 'open' }, authOnly: true }).catch(function () {}); }
+    if (t.closest('a')) return;   // liens externes : comportement normal
+    var rb = t.closest('[data-rub]');
+    if (rb) { e.stopPropagation(); return openList({ status: 'all', category: rb.getAttribute('data-rub'), q: '', period: 'all' }); }
+    var nav = t.closest('[data-nav]');
+    if (nav) return goNav(nav.getAttribute('data-nav'));
+    var fc = t.closest('[data-filter-cat]');
+    if (fc) { var f1 = copyF(); f1.category = fc.getAttribute('data-filter-cat'); return openList(f1); }
+    var tg = t.closest('[data-target]');
+    if (tg) { tg.parentNode.querySelectorAll('.nv-chip').forEach(function (c) { c.classList.toggle('is-on', c === tg); }); return; }
+    var open = t.closest('[data-open]');
+    if (open) return openArticle(open.getAttribute('data-open'));
+    var a = t.closest('[data-act]');
+    if (!a) return;
+    var act = a.getAttribute('data-act');
+    if (act === 'open-drawer') root.classList.add('is-drawer');
+    else if (act === 'close-drawer') root.classList.remove('is-drawer');
+    else if (act === 'search') openSearch();
+    else if (act === 'more') nextPage();
+    else if (act === 'prev') prevPage();
+    else if (act === 'back') goBack();
+    else if (act === 'retry') { loadMeta(); if (lastRetry) lastRetry(); }
+    else if (act === 'widen') openList({ status: state.filters.status, category: '', q: state.filters.q, period: 'all' });
+    else if (act === 'clear-q') { var f3 = copyF(); f3.q = ''; openList(f3, true); }
+  });
+  function copyF() { var f = state.filters; return { status: f.status, category: f.category, q: f.q, period: f.period }; }
+  function openSearch() {
+    if (state.view === 'list' && el('q')) { el('q').focus(); el('q').select(); root.classList.remove('is-drawer'); return; }
+    openList({ status: 'all', category: '', q: '', period: 'all' }, true);
+  }
+  root.addEventListener('keydown', function (e) {
+    // Entrée sur une carte = l'ouvrir (accessibilité clavier)
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-open][tabindex]')) { e.preventDefault(); openArticle(e.target.getAttribute('data-open')); }
+  });
+  root.addEventListener('submit', function (e) {
+    var form = e.target.closest('[data-form]'); if (!form) return;
+    e.preventDefault();
+    var q = (form.querySelector('input[name="q"]').value || '').trim();
+    var kind = form.getAttribute('data-form');
+    if (kind === 'official') {
+      if (!q) return;
+      var on = form.querySelector('[data-target].is-on');
+      window.open(TARGETS[on ? on.getAttribute('data-target') : 'legifrance'].url(q), '_blank', 'noopener');
+      return;
+    }
+    var f = kind === 'filter' ? copyF() : { status: 'all', category: '', q: '', period: 'all' };
+    f.q = q.slice(0, 120);
+    openList(f, kind === 'filter');
+  });
+  // Recherche au fil de la frappe dans la liste (avec un court délai)
+  var typing = null;
+  root.addEventListener('input', function (e) {
+    if (!e.target.matches('[data-el="q"]')) return;
+    clearTimeout(typing);
+    typing = setTimeout(function () {
+      var input = el('q'); if (!input) return;
+      var q = input.value.trim().slice(0, 120);
+      if (q === state.filters.q) return;
+      var f = copyF(); f.q = q;
+      var pos = input.selectionStart;
+      openList(f, true);
+      var again = el('q'); if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (err) {} }
+    }, 380);
+  });
+  function onKey(e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K') && document.body.contains(root)) { e.preventDefault(); openSearch(); }
+    if (e.key === 'Escape') {
+      if (root.classList.contains('is-drawer')) root.classList.remove('is-drawer');
+      else if (state.view === 'article') goBack();
+    }
+  }
+  document.addEventListener('keydown', onKey);
+  if (HOST) try { HOST.document.addEventListener('keydown', onKey); } catch (e) {}
+
+  // ================= DÉMARRAGE =================
+  function loadMeta() {
+    return api('/veille/rubriques').then(function (d) {
+      state.rubriques = d;
+      renderSideRubs();
+      var sub = el('list-sub');
+      if (sub && state.view === 'list' && isDefault(state.filters)) sub.textContent = heroSub(d);
+    }).catch(function () {});
+  }
+  function loadMe() {
+    if (!token) return;
+    api('/veille/state', { authOnly: true }).then(function (d) {
+      state.me = d; renderGoal();
+    }).catch(function () {});
+    api('/users/me/profile-summary', { authOnly: true }).then(function (d) {
+      if (d && d.user && d.user.username) {
+        state.userName = d.user.username;
+      }
+    }).catch(function () {});
+  }
+
+  renderSideRubs();
+  renderGoal();
+  updateCounts();
+  var start = null;
+  try { start = new URLSearchParams(pageLocation().search).get('actu'); } catch (e) {}
+  if (start && /^\d+$/.test(start)) { state.back = { view: 'home' }; openArticle(start); }
+  else renderHome();
+  loadMeta();
+  loadMe();
+  loadCounts();
+})();
+</script>
