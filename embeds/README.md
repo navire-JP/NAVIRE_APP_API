@@ -2,6 +2,7 @@
 
 | Fichier | Où | Rôle |
 |---|---|---|
+| `home.html` | page d'accueil (`/home`) | Accueil épuré : barre de recherche au centre qui démarre NAVIRE AI sur place (la barre glisse en bas, la discussion s'ouvre), et trois accès dessous : Veilles, Cours (NAVIRE Lib), Fichiers. Menu (historique, sources, PDF) replié en tiroir, épinglable sur ordinateur. `/home?q=…` pose directement une question. Liens des trois accès : bloc CONFIG (`LINKS`) |
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
