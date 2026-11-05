@@ -288,20 +288,26 @@ hauteur de l'écran, comme NAVIRE Lib (rien à régler dans Framer).
 
 - **Panneau latéral** rabattable (bouton en haut à gauche, état retenu par
   navigateur) : l'arborescence de tout ce que l'élève peut lire.
-- **Vue Lecture** : clic sur un fichier, il s'ouvre dans un onglet à droite
-  (PDF dans le lecteur, actu de veille mise en page, cours Lib avec un bouton
-  vers NAVIRE Lib). Plusieurs onglets restent ouverts.
+- **Vue Lecture** : un onglet « Carte » fixe (graphe de tous les documents :
+  sections, dossiers, fichiers, liens entre documents d'une même matière ;
+  zoom à la molette, déplacement à la souris, survol = voisins), puis un
+  onglet par fichier ouvert : PDF dans le lecteur, actu de veille mise en
+  page, cours NAVIRE Lib lu directement (mêmes règles que la Lib : Lib+,
+  Elo, points de passage, la suite floutée renvoie vers NAVIRE Lib).
+- **Mode téléphone** décidé par la largeur de l'écran, pas du cadre : sur PC
+  la vue complète reste même dans un cadre étroit.
 - **Vue Classeur** : dossiers et fichiers en grille, fil d'Ariane, aperçu en
   surimpression.
 - **Écriture** : seulement ajouter (bouton, glisser-déposer n'importe où) ou
-  supprimer un PDF de « Mes fichiers ». Pas de renommage ni d'édition. Le
-  reste est en lecture seule.
+  supprimer un PDF de « Mes fichiers » (confirmation dans une petite fenêtre
+  en verre). Pas de renommage ni d'édition. Le reste est en lecture seule.
 
 Ce qui est listé (`GET /files/explorer`), uniquement pour l'utilisateur
 connecté : ses PDF (+ quota), les documents Prép'AdJuris de ses matières et
-de son groupe, ses copies et corrigés (statut, note, commentaire), la veille
-(actus enregistrées + 30 dernières, par rubrique), le catalogue NAVIRE Lib
-publié. Chaque PDF est relu par sa route habituelle, qui revérifie l'accès
+de son groupe, ses copies et corrigés (statut, note, commentaire), la Prépa
+NAVIRE si son accès est actif (cours, sujets, corrigés publiés, ses copies),
+la veille (actus enregistrées + 60 dernières, par rubrique), le catalogue
+NAVIRE Lib publié. Chaque PDF est relu par sa route habituelle, qui revérifie l'accès
 côté serveur (`/files/{id}/download?inline=1`,
 `/prepa/adjuris/ressources/{id}/download`, `/lib/prepa/devoirs/{id}/…`).
 

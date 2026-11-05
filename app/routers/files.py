@@ -224,7 +224,7 @@ def list_files(
 # ============================================================
 
 _EMBED = Path(__file__).resolve().parents[2] / "embeds" / "fichiers.html"
-VEILLE_RECENTES = 30
+VEILLE_RECENTES = 60
 
 
 def _iso(d) -> str | None:
@@ -323,6 +323,66 @@ def _section_devoirs(db: Session, user: User) -> dict | None:
     return {"id": "devoirs", "label": "Mes devoirs", "icon": "check", "items": _par_dossier(items, "_dossier", "devoirs")}
 
 
+def _section_prepasserelle(db: Session, user: User) -> dict | None:
+    """Prépa NAVIRE (PREPASSERELLE) : cours, sujets et corrigés publiés de l'année, mes rendus."""
+    from app.core.limits import has_active_prepa_access
+    from app.db.models import PrepaCourse, PrepaExercise, PrepaSubmission
+
+    if not has_active_prepa_access(user) or not user.prepa_annee:
+        return None
+    annee = user.prepa_annee
+    dossiers = []
+
+    cours = db.execute(
+        select(PrepaCourse)
+        .where(PrepaCourse.annee == annee, PrepaCourse.is_published.is_(True))
+        .order_by(PrepaCourse.ordre, PrepaCourse.id)
+    ).scalars().all()
+    for c in cours:
+        enfants = [
+            {"id": f"pc-{f.id}", "type": "pdf", "label": f.titre or f.filename_original, "size_bytes": f.size_bytes,
+             "date": _iso(c.updated_at), "src": f"/prepa/courses/files/{f.id}/download",
+             "meta": {"description": c.description}}
+            for f in c.files
+        ]
+        if enfants:
+            dossiers.append({"id": f"pc-dir-{c.id}", "type": "folder", "label": c.titre, "children": enfants})
+
+    exos = db.execute(
+        select(PrepaExercise)
+        .where(PrepaExercise.annee == annee, PrepaExercise.is_published.is_(True))
+        .order_by(PrepaExercise.week_number, PrepaExercise.id)
+    ).scalars().all()
+    rendus = {
+        r.exercise_id: r for r in db.execute(
+            select(PrepaSubmission).where(PrepaSubmission.user_id == user.id)
+        ).scalars().all()
+    }
+    exo_items = []
+    for e in exos:
+        nom = f"S{e.week_number} · {e.titre}" if e.week_number else e.titre
+        if e.subject_path:
+            exo_items.append({"id": f"ps-{e.id}", "type": "pdf", "label": f"{nom} (sujet)",
+                              "src": f"/prepa/exercises/{e.id}/subject/download",
+                              "meta": {"description": e.consigne}})
+        if e.corrige_published and e.corrige_path:
+            exo_items.append({"id": f"pk-{e.id}", "type": "pdf", "label": f"{nom} (corrigé)",
+                              "src": f"/prepa/exercises/{e.id}/corrige/download"})
+        r = rendus.get(e.id)
+        if r:
+            exo_items.append({
+                "id": f"pr-{r.id}", "type": "pdf", "label": f"{nom} (ma copie)", "size_bytes": r.size_bytes,
+                "date": _iso(r.submitted_at), "src": f"/prepa/submissions/{r.id}/download",
+                "meta": {"statut": "Corrigé" if r.corrected_at else "En attente de correction",
+                         "note": r.note or None, "commentaire": r.feedback or None},
+            })
+    if exo_items:
+        dossiers.append({"id": "pe-dir", "type": "folder", "label": "Exercices", "children": exo_items})
+    if not dossiers:
+        return None
+    return {"id": "prepasserelle", "label": "Prépa NAVIRE", "icon": "school", "items": dossiers}
+
+
 def _section_veille(db: Session, user: User) -> dict | None:
     from app.db.models import VeilleBookmark, VeilleItem
     from app.routers.veille import RUBRIQUES, _date_key, _hub_item, _read_ids, _saved_ids
@@ -390,6 +450,7 @@ def _section_lib(db: Session, user: User) -> dict | None:
         dossier["children"].append({
             "id": f"l-{d.id}", "type": "lib", "label": d.titre, "date": _iso(d.updated_at),
             "link": f"/lib?doc={d.id}",
+            "read": f"/lib/documents/{d.id}?mode={'plus' if d.is_plus else 'lib'}",
             "meta": {"matiere": d.matiere, "niveau": d.niveau, "description": d.description or d.sous_titre,
                      "plus": d.is_plus},
         })
@@ -411,7 +472,7 @@ def explorer(
     """
     purge_expired_files(db, current_user)
     sections = [_section_mes_fichiers(db, current_user)]
-    for build in (_section_prepa, _section_devoirs, _section_veille, _section_lib):
+    for build in (_section_prepa, _section_devoirs, _section_prepasserelle, _section_veille, _section_lib):
         try:
             s = build(db, current_user)
         except Exception as e:  # une source en panne ne vide pas tout l'onglet

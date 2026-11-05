@@ -360,6 +360,8 @@ def test_onglet_fichiers_cloisonne(monde, tmp_path):
     assert [n["label"] for n in plat(secs["devoirs"]["items"]) if n["type"] == "pdf"] == ["Dissert (copie)"]
     lib = [n["label"] for n in plat(secs["lib"]["items"]) if n["type"] == "lib"]
     assert "Introduction au droit : les sources" in lib and "Brouillon intro" not in lib
+    assert all(n["read"].startswith("/lib/documents/") for n in plat(secs["lib"]["items"]) if n["type"] == "lib")
+    assert "prepasserelle" not in secs          # pas d'accès Prépa NAVIRE
     # Seuls les PDF de « Mes fichiers » se suppriment
     assert all("delete" not in n for s in a["sections"] if s["id"] != "mes-fichiers" for n in plat(s["items"]))
 
