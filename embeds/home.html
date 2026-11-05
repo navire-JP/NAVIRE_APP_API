@@ -17,18 +17,11 @@
   Le menu : nouvelle discussion, historique, sources et PDF de NAVIRE AI,
   raccourcis (Veilles, Cours, Fichiers, QCM) et discussions récentes.
 
-  Encart Prép'AdJuris sous les trois accès :
-    - inscrit : son niveau, sa prochaine séance (avec le lien pour la
-      rejoindre), ses matières, ses séances à venir, ses copies corrigées,
-      un paiement en échec s'il y en a un, et les liens Espace Prépa / Discord ;
-    - pas inscrit (ou pas connecté) : une présentation et « S'abonner ».
-
   Un lien qui pose directement une question : /home?q=Ta%20question
 
   Réglages : bloc CONFIG du script (liens des trois accès, offres).
   Routes : /navire/chat, /navire/conversations, /navire/documents,
            /navire/quota, /files, /veille/state, /veille/feed, /lib/catalogue,
-           /lib/prepa, /prepa/adjuris/me,
            /users/me/profile-summary
 -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -159,7 +152,12 @@
 #nv-home.is-home .nv-top-new { visibility: hidden; }
 /* Historique, Sources, PDF : une croix pour revenir à l'accueil / la discussion */
 #nv-home .nv-top-close { display: none; }
-#nv-home.is-page .nv-top-close { display: inline-flex; }
+#nv-home.is-compact.is-page .nv-top-close { display: inline-flex; }
+/* Ordinateur : la croix est à côté du titre de la page, pas au bout de l'écran */
+#nv-home .nv-page-head { position: relative; padding-right: 48px; }
+#nv-home .nv-page-close { position: absolute; top: -2px; right: 0; width: 38px; height: 38px; border-radius: 12px; background: var(--panel-2); color: var(--text-2); }
+#nv-home .nv-page-close:hover { background: var(--panel-3); color: #fff; }
+#nv-home.is-compact .nv-page-close { display: none; }
 #nv-home.is-page .nv-top-new { display: none; }
 
 #nv-home .nv-view { flex: 1; min-height: 0; display: none; flex-direction: column; animation: nv-fade .28s var(--ease); }
@@ -232,45 +230,6 @@
 #nv-home .nv-shortcut-text { margin-top: auto; min-width: 0; }
 #nv-home .nv-shortcut-text b { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
 #nv-home .nv-shortcut-text small { display: block; font-size: 12px; color: var(--text-3); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Encart Prép'AdJuris */
-#nv-home .nv-adj {
-  position: relative; overflow: hidden;
-  width: 100%; margin-top: 10px;
-  padding: 16px 18px;
-  border-radius: 16px;
-  background: var(--blue-soft);
-  text-align: left; text-decoration: none; color: inherit;
-  animation: nv-rise .5s var(--ease) .3s both;
-}
-#nv-home .nv-adj:empty { display: none; }
-#nv-home .nv-adj::after { content: ''; position: absolute; right: -60px; top: -70px; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(122,167,255,0.22), transparent 70%); pointer-events: none; }
-#nv-home .nv-adj > * { position: relative; z-index: 1; }
-#nv-home a.nv-adj { display: flex; align-items: center; gap: 14px; transition: background .2s, transform .2s var(--ease); }
-#nv-home a.nv-adj:hover { background: rgba(122,167,255,0.15); transform: translateY(-1px); }
-#nv-home .nv-adj-head { display: flex; align-items: center; gap: 14px; }
-#nv-home .nv-adj-ico { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: rgba(122,167,255,0.16); color: var(--blue-hi); }
-#nv-home .nv-adj-ico svg { width: 20px; height: 20px; }
-#nv-home .nv-adj-txt { flex: 1; min-width: 0; }
-#nv-home .nv-adj-txt b { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
-#nv-home .nv-adj-txt small { display: block; font-size: 12.5px; color: var(--text-2); margin-top: 3px; line-height: 1.5; }
-#nv-home .nv-adj-txt small strong { color: #fff; font-weight: 600; }
-#nv-home .nv-tag.solid { color: #0a0a12; background: var(--blue); }
-#nv-home .nv-adj-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
-#nv-home .nv-adj-stat { padding: 10px 12px; border-radius: 12px; background: rgba(10,10,20,0.35); min-width: 0; }
-#nv-home .nv-adj-stat small { display: block; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#nv-home .nv-adj-stat b { display: block; font-size: 19px; font-weight: 700; letter-spacing: -.4px; margin-top: 4px; }
-#nv-home .nv-adj-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-#nv-home .nv-adj-warn { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255,107,107,0.1); color: #ffc4c4; font-size: 12.5px; }
-#nv-home .nv-adj-warn a { margin-left: auto; color: #fff; font-weight: 600; text-decoration: none; white-space: nowrap; }
-#nv-home .nv-adj-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-#nv-home .nv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 16px; border-radius: 99px; border: none; background: #fff; color: #0a0a12; font-size: 12.5px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .15s, background .2s; flex-shrink: 0; }
-#nv-home .nv-btn:hover { transform: translateY(-1px); }
-#nv-home .nv-btn.is-blue { background: var(--blue); }
-#nv-home .nv-btn svg { width: 14px; height: 14px; }
-#nv-home .nv-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 99px; border: none; background: rgba(255,255,255,0.07); font-size: 12.5px; color: var(--text); cursor: pointer; text-decoration: none; white-space: nowrap; transition: background .15s; }
-#nv-home .nv-chip:hover { background: rgba(255,255,255,0.12); }
-#nv-home .nv-chip svg { width: 14px; height: 14px; }
-
 #nv-home .nv-shortcut-arrow { width: 14px; height: 14px; color: var(--text-4); transition: transform .2s var(--ease), color .2s; }
 #nv-home .nv-shortcut:hover .nv-shortcut-arrow { transform: translateX(3px); color: var(--blue); }
 
@@ -642,12 +601,7 @@
 #nv-home.is-compact .nv-shortcut-text b { justify-content: center; font-size: 14.5px; }
 #nv-home.is-compact .nv-shortcut-ico { width: 42px; height: 42px; border-radius: 12px; }
 #nv-home.is-compact .nv-shortcut-ico svg { width: 20px; height: 20px; }
-#nv-home.is-compact .nv-adj { padding: 14px; }
-#nv-home.is-compact a.nv-adj { flex-wrap: wrap; }
-#nv-home.is-compact a.nv-adj .nv-btn { width: 100%; height: 44px; }
-#nv-home.is-compact .nv-adj-stat { padding: 9px 10px; }
-#nv-home.is-compact .nv-adj-stat b { font-size: 17px; }
-#nv-home.is-compact .nv-adj-btns > * { flex: 1; height: 44px; }
+
 #nv-home.is-compact .nv-msg { gap: 10px; }
 #nv-home.is-compact .nv-md { font-size: 14px; }
 #nv-home.is-compact .nv-user-bubble { max-width: 88%; }
@@ -766,7 +720,6 @@
           <p class="nv-hero-sub">Qu'est-ce qu'on travaille aujourd'hui ?</p>
           <div class="nv-hero-slot" data-el="hero-slot"></div>
           <nav class="nv-shortcuts" data-el="shortcuts"></nav>
-          <div class="nv-adj" data-el="adj"></div>
         </div>
       </div>
 
@@ -804,6 +757,7 @@
       <div class="nv-page nv-scroll">
         <div class="nv-page-inner">
           <div class="nv-page-head">
+            <button class="nv-icon-btn nv-page-close" data-act="back" aria-label="Fermer" title="Fermer (Échap)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             <h2>Historique</h2>
             <p>Tes 10 dernières conversations sont conservées.</p>
           </div>
@@ -821,6 +775,7 @@
       <div class="nv-page nv-scroll">
         <div class="nv-page-inner">
           <div class="nv-page-head">
+            <button class="nv-icon-btn nv-page-close" data-act="back" aria-label="Fermer" title="Fermer (Échap)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             <h2>Sources</h2>
             <p>Choisis où NAVIRE cherche avant de te répondre.</p>
           </div>
@@ -862,6 +817,7 @@
       <div class="nv-page nv-scroll">
         <div class="nv-page-inner">
           <div class="nv-page-head">
+            <button class="nv-icon-btn nv-page-close" data-act="back" aria-label="Fermer" title="Fermer (Échap)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             <h2>PDF pour NAVIRE AI</h2>
             <p>Importe tes cours, fiches ou arrêts en PDF : NAVIRE pourra s'en servir pour te répondre.</p>
           </div>
@@ -900,13 +856,6 @@
     veilles:  { label: 'Veilles',  sub: 'Les actus juridiques du jour', url: 'https://navire-ai.com/actus' },
     cours:    { label: 'Cours',    sub: 'NAVIRE Lib : cours et fiches',  url: 'https://navire-ai.com/lib' },
     fichiers: { label: 'Fichiers', sub: 'Tes documents et tes PDF',      url: 'https://navire-ai.com/files' }
-  };
-  // Encart Prép'AdJuris
-  var ADJURIS = {
-    SUBSCRIBE_URL: 'https://navire-ai.com/adjuris',            // page d'abonnement Prép'AdJuris
-    ESPACE_URL: 'https://navire-ai.com/lib?prepa=edt',         // espace Prépa des inscrits (vue Prépa de Lib)
-    DEVOIRS_URL: 'https://navire-ai.com/lib?prepa=devoirs',
-    PROFIL_URL: 'https://navire-ai.com/profil'                 // mettre à jour sa carte
   };
   var QCM_URL = 'https://navire-ai.com/qcm';     // raccourci QCM du menu (vide : pas de raccourci)
 
@@ -1058,9 +1007,6 @@
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
     veilles: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>',
-    cap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>',
-    discord: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.4 18.4 0 0 0-5.6 0L8.6 3a19.7 19.7 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18.1a19.9 19.9 0 0 0 6 3l1.3-2a12.9 12.9 0 0 1-2-1l.5-.4a14.2 14.2 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1l1.3 2a19.8 19.8 0 0 0 6-3c.5-5.2-.9-9.7-3.6-13.7ZM8 15.3c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.5 8 10.5s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/></svg>',
-    video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>',
     cours: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
     fichiers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
     qcm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
@@ -1235,90 +1181,6 @@
   }
 
   // Petits compteurs sous les accès : actus à lire, objectif du jour, fichiers
-  // ================= ENCART PRÉP'ADJURIS =================
-  function safeUrl(u) { return /^https?:\/\//.test(u || '') ? u : ''; }
-  function seanceWhen(iso) {
-    var d = new Date(iso); if (isNaN(d)) return '';
-    var today = new Date(); today.setHours(0, 0, 0, 0);
-    var diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - today) / 86400000);
-    var day = diff === 0 ? "aujourd'hui" : diff === 1 ? 'demain'
-      : d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-    return day + ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  function renderAdjPitch() {
-    el('adj').outerHTML =
-      '<a class="nv-adj" data-el="adj" href="' + esc(ADJURIS.SUBSCRIBE_URL) + '" target="_top">' +
-        '<span class="nv-adj-ico">' + ICON.cap + '</span>' +
-        '<span class="nv-adj-txt"><b>Prép\'AdJuris <span class="nv-tag blue">L1 · L2 · L3</span></b>' +
-        '<small>Des TD en petit groupe avec un chargé de TD, ton emploi du temps, tes copies corrigées et les cours de ta classe.</small></span>' +
-        '<span class="nv-btn is-blue">S\'abonner' + ICON.arrow.replace('nv-shortcut-arrow', '') + '</span>' +
-      '</a>';
-  }
-
-  function renderAdjMember(p, me) {
-    var now = Date.now();
-    var matieres = (p.matieres || []).filter(function (m) { return m.debloquee; });
-    var avenir = (p.seances || []).filter(function (x) {
-      var t = new Date(x.date_debut).getTime();
-      return x.statut === 'prevue' && t + (x.duree_minutes || 60) * 60000 > now;
-    });
-    var devoirs = p.devoirs || [];
-    var corriges = devoirs.filter(function (d) { return d.statut === 'corrige'; }).length;
-    var s = p.prochaine_seance;
-    var next = s
-      ? 'Prochaine séance <strong>' + esc(seanceWhen(s.date_debut)) + '</strong> · ' + esc(s.titre || s.matiere)
-      : 'Pas de séance prévue pour l\'instant.';
-    // La séance commence dans moins de 30 min (ou est en cours) : bouton pour la rejoindre
-    var t0 = s ? new Date(s.date_debut).getTime() : 0;
-    var live = s && safeUrl(s.lien) && t0 - now < 30 * 60000 && t0 + (s.duree_minutes || 60) * 60000 > now;
-
-    var bad = ((me && me.items) || []).filter(function (it) { return it.status === 'payment_failed' || it.status === 'suspendu'; });
-    var warn = bad.length
-      ? '<div class="nv-adj-warn"><span>' + (bad[0].status === 'suspendu' ? 'Accès suspendu' : 'Paiement en échec') + ' pour ' +
-          esc(bad.map(function (b) { return b.label; }).join(', ')) + '.</span><a href="' + esc(ADJURIS.PROFIL_URL) + '" target="_top">Mettre à jour ma carte →</a></div>'
-      : '';
-
-    var discord = safeUrl(p.discord_url || (me && me.discord_url));
-    el('adj').outerHTML =
-      '<div class="nv-adj" data-el="adj">' +
-        '<div class="nv-adj-head"><span class="nv-adj-ico">' + ICON.cap + '</span>' +
-          '<div class="nv-adj-txt"><b>Prép\'AdJuris <span class="nv-tag solid">' + esc(p.niveau || '') + '</span></b><small>' + next + '</small></div></div>' +
-        '<div class="nv-adj-stats">' +
-          '<div class="nv-adj-stat"><small>Matières</small><b>' + matieres.length + '</b></div>' +
-          '<div class="nv-adj-stat"><small>Séances</small><b>' + avenir.length + '</b></div>' +
-          '<div class="nv-adj-stat"><small>Corrigées</small><b>' + corriges + (devoirs.length ? '<span style="font-size:12px;color:var(--text-3);font-weight:500"> / ' + devoirs.length + '</span>' : '') + '</b></div>' +
-        '</div>' +
-        (matieres.length ? '<div class="nv-adj-tags">' + matieres.map(function (m) { return '<span class="nv-tag blue">' + esc(m.label) + '</span>'; }).join('') + '</div>' : '') +
-        warn +
-        '<div class="nv-adj-btns">' +
-          (live ? '<a class="nv-btn" href="' + esc(s.lien) + '" target="_blank" rel="noopener">' + ICON.video + 'Rejoindre la séance</a>' : '') +
-          '<a class="nv-btn is-blue" href="' + esc(ADJURIS.ESPACE_URL) + '" target="_top">Mon espace Prépa</a>' +
-          (devoirs.length ? '<a class="nv-chip" href="' + esc(ADJURIS.DEVOIRS_URL) + '" target="_top">Mes devoirs</a>' : '') +
-          (discord ? '<a class="nv-chip" href="' + esc(discord) + '" target="_blank" rel="noopener">' + ICON.discord + 'Discord</a>' : '') +
-        '</div>' +
-      '</div>';
-  }
-
-  function loadAdjuris() {
-    if (!token) { renderAdjPitch(); return; }
-    Promise.all([
-      api('/lib/prepa'),
-      api('/prepa/adjuris/me').catch(function () { return null; })
-    ]).then(function (r) {
-      var p = r[0], me = r[1];
-      if (p && p.prepa && !p.apercu) renderAdjMember(p, me);
-      else if (me && me.items && me.items.length) {
-        // Inscrit mais sans matière active (paiement en échec, suspendu) : on l'affiche quand même
-        renderAdjMember({ niveau: me.niveau, matieres: [], seances: [], devoirs: [], discord_url: me.discord_url }, me);
-      }
-      else renderAdjPitch();
-    }).catch(function (err) {
-      // 401 : session expirée → présentation ; autre erreur : on n'affiche rien plutôt qu'une offre à un inscrit
-      if (err && err.status === 401) renderAdjPitch();
-    });
-  }
-
   function loadShortcutInfo() {
     api('/lib/catalogue').then(function (c) {
       var n = ((c && c.items) || []).length;
@@ -1995,11 +1857,9 @@
     loadDocs();
     loadQuota();
     loadShortcutInfo();
-    loadAdjuris();
   } else {
     renderRecent();
     loadShortcutInfo();
-    loadAdjuris();
   }
   var q0 = initialQuery();
   if (q0) { input.value = q0; autoGrow(); send(); }
