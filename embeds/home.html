@@ -9,8 +9,10 @@
   ChatGPT / Claude. « Nouvelle discussion » (ou Ctrl/⌘ K) ramène à l'accueil.
 
   Même DA que NAVIRE Lib (bleu et blanc, cartes à halo lumineux) :
-    - >= 760px de conteneur : barre latérale, masquable (bouton « « » en
-      haut du menu, retenu d'une visite à l'autre) ; < 760px : menu tiroir ;
+    - >= 760px de conteneur : barre latérale repliée par défaut (bouton
+      menu pour l'ouvrir, « « » pour la replier, retenu d'une visite à
+      l'autre) ; < 760px : menu tiroir ;
+    - aucun trait apparent : les blocs se distinguent par leur fond ;
     - prend la hauteur de l'écran sous sa position, seule la page défile.
   Le menu : nouvelle discussion, historique, sources et PDF de NAVIRE AI,
   raccourcis (Veilles, Cours, Fichiers, QCM) et discussions récentes.
@@ -29,12 +31,13 @@
   --panel: rgba(255,255,255,0.035);
   --panel-2: rgba(255,255,255,0.06);
   --panel-3: rgba(255,255,255,0.1);
-  --line: rgba(255,255,255,0.07);
+  --line: transparent;          /* aucun trait apparent : l'interface tient par les fonds */
+  --hair: rgba(255,255,255,0.07); /* traits gardés seulement dans les réponses (tableaux, code) */
   --text: #fff;
   --text-2: rgba(255,255,255,0.72);
   --text-3: rgba(255,255,255,0.45);
   --text-4: rgba(255,255,255,0.28);
-  --line-2: rgba(255,255,255,0.14);
+  --line-2: transparent;
   --blue: #7AA7FF;
   --blue-hi: #B5CDFF;
   --blue-deep: #4F7DFF;
@@ -72,10 +75,11 @@
 #nv-home svg { flex-shrink: 0; }
 
 /* ================= MENU LATÉRAL (comme NAVIRE Lib) ================= */
-#nv-home .nv-side { width: 244px; flex-shrink: 0; display: flex; flex-direction: column; padding: 12px 8px 10px; gap: 2px; border-right: 1px solid var(--line); z-index: 30; min-height: 0; overflow-y: auto; scrollbar-width: none; transition: margin-left .3s var(--ease), visibility 0s; }
+#nv-home .nv-side { width: 244px; flex-shrink: 0; display: flex; flex-direction: column; padding: 12px 8px 10px; gap: 2px; background: rgba(255,255,255,0.018); z-index: 30; min-height: 0; overflow-y: auto; scrollbar-width: none; transition: margin-left .3s var(--ease), visibility 0s; }
 #nv-home .nv-side::-webkit-scrollbar { display: none; }
+#nv-home .nv-side > * { flex-shrink: 0; }   /* rien ne s'écrase quand le menu défile */
 #nv-home:not(.is-compact).is-side-off .nv-side { margin-left: -244px; visibility: hidden; transition: margin-left .3s var(--ease), visibility 0s .3s; }
-#nv-home .nv-brand { display: flex; align-items: center; gap: 9px; padding: 2px 4px 10px 8px; }
+#nv-home .nv-brand { display: flex; align-items: center; justify-content: flex-end; padding: 0 0 8px; }
 #nv-home .nv-logo { width: 24px; height: 24px; background: center/contain no-repeat; flex-shrink: 0; }
 #nv-home .nv-brand-name { font-weight: 800; font-size: 13.5px; letter-spacing: .5px; }
 #nv-home .nv-brand-name span { font-weight: 500; color: var(--text-3); letter-spacing: 0; margin-left: 3px; }
@@ -85,8 +89,8 @@
 #nv-home.is-compact .nv-side-close .nv-x { display: block; }
 #nv-home.is-compact .nv-side-close .nv-chev { display: none; }
 
-#nv-home .nv-newchat { display: flex; align-items: center; gap: 9px; width: 100%; height: 36px; padding: 0 10px; margin-bottom: 6px; border-radius: 10px; border: 1px solid var(--line-2); background: transparent; cursor: pointer; font-size: 12.5px; font-weight: 600; transition: background .15s, border-color .15s; }
-#nv-home .nv-newchat:hover { background: var(--panel-2); border-color: var(--blue-line); }
+#nv-home .nv-newchat { display: flex; align-items: center; gap: 9px; width: 100%; height: 36px; padding: 0 10px; margin-bottom: 6px; border-radius: 10px; border: none; background: var(--panel-2); cursor: pointer; font-size: 12.5px; font-weight: 600; transition: background .15s, border-color .15s; }
+#nv-home .nv-newchat:hover { background: var(--panel-3); }
 #nv-home .nv-newchat svg { width: 15px; height: 15px; color: var(--blue); }
 #nv-home .nv-newchat kbd { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-4); }
 
@@ -265,12 +269,12 @@
 #nv-home .nv-md li::marker { color: var(--text-3); }
 #nv-home .nv-md blockquote { margin: 0 0 12px; padding: 4px 0 4px 14px; border-left: 2px solid var(--blue-line); color: var(--text-2); }
 #nv-home .nv-md code { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; padding: 2px 6px; border-radius: 6px; background: var(--panel-2); }
-#nv-home .nv-md pre { margin: 0 0 12px; padding: 14px 16px; border-radius: 12px; background: rgba(0,0,0,0.35); border: 1px solid var(--line); overflow-x: auto; }
+#nv-home .nv-md pre { margin: 0 0 12px; padding: 14px 16px; border-radius: 12px; background: rgba(0,0,0,0.35); border: 1px solid var(--hair); overflow-x: auto; }
 #nv-home .nv-md pre code { padding: 0; background: none; font-size: 12.5px; line-height: 1.6; }
-#nv-home .nv-md hr { border: none; height: 1px; background: var(--line); margin: 18px 0; }
-#nv-home .nv-md .nv-table-wrap { overflow-x: auto; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 12px; }
+#nv-home .nv-md hr { border: none; height: 1px; background: var(--hair); margin: 18px 0; }
+#nv-home .nv-md .nv-table-wrap { overflow-x: auto; margin: 0 0 12px; border: 1px solid var(--hair); border-radius: 12px; }
 #nv-home .nv-md table { border-collapse: collapse; width: 100%; font-size: 13px; overflow-wrap: normal; word-break: normal; }
-#nv-home .nv-md th, #nv-home .nv-md td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+#nv-home .nv-md th, #nv-home .nv-md td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--hair); vertical-align: top; }
 #nv-home .nv-md th { font-weight: 600; color: #fff; background: var(--panel); }
 #nv-home .nv-md tr:last-child td { border-bottom: none; }
 
@@ -356,13 +360,13 @@
   border-radius: 22px;
   /* Verre fumé : reste lisible quand la discussion passe derrière */
   background: rgba(14,14,22,0.88);
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid transparent;
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   backdrop-filter: blur(18px) saturate(140%);
   padding: 10px 10px 8px 16px;
   transition: border-color .2s, box-shadow .2s, border-radius .3s var(--ease), padding .3s var(--ease);
 }
-#nv-home .nv-composer.is-focus { border-color: var(--blue-line); }
+#nv-home .nv-composer.is-focus { box-shadow: 0 0 0 4px rgba(122,167,255,0.07), 0 24px 70px rgba(0,0,0,0.35); }
 #nv-home .is-dragging .nv-composer { border-color: var(--blue); border-style: dashed; }
 #nv-home .nv-attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 8px; }
 #nv-home .nv-attachments:empty { display: none; }
@@ -423,7 +427,7 @@
   display: none; align-items: center; gap: 10px;
   padding: 10px 14px; border-radius: 12px;
   background: var(--blue-soft);
-  border: 1px solid var(--blue-line);
+  border: none;
   font-size: 12.5px; color: #d6e4ff;
   text-align: left;
 }
@@ -437,7 +441,7 @@
 #nv-home .nv-page-head h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
 #nv-home .nv-page-head p { margin: 4px 0 0; font-size: 13px; color: var(--text-3); }
 
-#nv-home .nv-search:focus-within { border-color: var(--blue-line); }
+#nv-home .nv-search:focus-within { background: var(--panel-2); }
 #nv-home .nv-search {
   display: flex; align-items: center; gap: 10px;
   padding: 0 14px; height: 42px;
@@ -490,7 +494,7 @@
 
 /* Sources : cartes à interrupteur */
 #nv-home .nv-src-card { padding: 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; transition: border-color .2s, background .2s; }
-#nv-home .nv-src-card.is-on { border-color: var(--blue-line); background: var(--panel-2); }
+#nv-home .nv-src-card.is-on { background: var(--panel-2); }
 #nv-home .nv-src-head { display: flex; align-items: center; gap: 14px; }
 #nv-home .nv-src-ico { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #nv-home .nv-src-ico svg { width: 20px; height: 20px; }
@@ -507,7 +511,7 @@
 #nv-home .nv-check-row { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border-radius: 9px; cursor: pointer; font-size: 13px; transition: background .15s; }
 #nv-home .nv-check-row:hover { background: var(--panel); }
 #nv-home .nv-check-row .nv-row-body { font-size: 13px; }
-#nv-home .nv-check { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s, border-color .15s; }
+#nv-home .nv-check { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s, border-color .15s; }
 #nv-home .nv-check svg { width: 12px; height: 12px; color: #0a0a12; opacity: 0; transform: scale(.5); transition: opacity .15s, transform .2s var(--ease); }
 #nv-home .nv-check-row.is-on .nv-check { background: #fff; border-color: #fff; }
 #nv-home .nv-check-row.is-on .nv-check svg { opacity: 1; transform: none; }
@@ -525,7 +529,7 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   padding: 26px 20px;
   border-radius: 16px;
-  border: 1.5px dashed rgba(255,255,255,0.14);
+  border: 1.5px dashed rgba(255,255,255,0.08);
   background: var(--panel);
   text-align: center;
   cursor: pointer;
@@ -553,13 +557,13 @@
 #nv-home .nv-toast {
   padding: 9px 14px; border-radius: 11px;
   background: rgba(30,32,50,0.95);
-  border: 1px solid rgba(255,255,255,0.1);
+  border: none;
   font-size: 12.5px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
   animation: nv-toast 2.6s var(--ease) both;
   white-space: nowrap;
 }
-#nv-home .nv-toast.is-error { border-color: var(--blue-line); color: var(--blue-hi); }
+#nv-home .nv-toast.is-error { color: var(--blue-hi); }
 @keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
 
 /* ================= COMPACT (téléphone / embed étroit) ================= */
@@ -635,8 +639,7 @@
   <!-- ============ MENU ============ -->
   <aside class="nv-side" data-el="side">
     <div class="nv-brand">
-      <div class="nv-logo" data-logo></div>
-      <div class="nv-brand-name">NAVIRE<span>AI</span></div>
+      <!-- Pas de logo ni de nom : le header du site les affiche déjà -->
       <button class="nv-icon-btn nv-side-close" data-act="close-side" aria-label="Masquer le menu" title="Masquer le menu">
         <svg class="nv-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg>
         <svg class="nv-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -700,7 +703,6 @@
       <!-- Accueil : bonjour, barre de recherche (déplacée ici), trois accès -->
       <div class="nv-hero nv-scroll">
         <div class="nv-hero-inner" data-el="hero">
-          <div class="nv-hero-logo" data-logo></div>
           <h1 data-el="hello">Bonjour</h1>
           <p class="nv-hero-sub">Qu'est-ce qu'on travaille aujourd'hui ?</p>
           <div class="nv-hero-slot" data-el="hero-slot"></div>
@@ -914,7 +916,7 @@
     useNavire: LS.get('use_navire', true),
     useMine: LS.get('use_mine', true),
     excluded: LS.get('excluded', []),   // ids de PDF décochés
-    sideOff: LS.get('home_side_off', false),
+    sideOff: LS.get('home_side_off', true),   // replié par défaut
     busy: false,
     userName: '',
     histQuery: ''
