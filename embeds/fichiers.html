@@ -29,7 +29,8 @@
     --accent-soft: rgba(91,111,255,0.12);
     --ok: #4ade80; --warn: #FFD166; --err: #f87171;
     position: relative;
-    width: 100%; height: 100vh; min-height: 560px;
+    width: 100%; height: 640px;   /* remplacé par la hauteur de l'écran au chargement */
+    min-height: 460px;
     display: flex; flex-direction: column;
     font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px;
     color: var(--text);
@@ -223,14 +224,26 @@
   .fx-empty { color: var(--faint); font-size: 12px; padding: 4px 10px 6px 30px; }
   .fx-hide-sm { }
 
-  @media (max-width: 760px) {
-    .fx-side { position: absolute; z-index: 15; top: 0; bottom: 0; left: 0; background: #11131b; box-shadow: 8px 0 30px rgba(0,0,0,0.4); }
-    .fx-hide-sm { display: none !important; }
-    .fx-title { display: none; }
-    .fx-seg .fx-sl { display: none; }
-    .fx-overlay { padding: 0; }
-    .fx-sheet { border-radius: 0; }
-  }
+  /* ---------- téléphone : gestion simple, sans panneau ni bascule ---------- */
+  #nv-files.is-compact .fx-side,
+  #nv-files.is-compact [data-act="side"],
+  #nv-files.is-compact .fx-seg,
+  #nv-files.is-compact .fx-hide-sm { display: none !important; }
+  #nv-files.is-compact .fx-top { gap: 8px; padding: 10px; }
+  #nv-files.is-compact .fx-title { display: none; }
+  #nv-files.is-compact .fx-search { max-width: none; margin-left: 0; }
+  #nv-files.is-compact .fx-grid { grid-template-columns: 1fr; gap: 6px; padding: 8px 10px; }
+  #nv-files.is-compact .fx-card { flex-direction: row; align-items: center; min-height: 0; gap: 12px; padding: 10px 12px; }
+  #nv-files.is-compact .fx-card .fx-nm { -webkit-line-clamp: 1; flex: 1; min-width: 0; }
+  #nv-files.is-compact .fx-card .fx-m { margin-top: 0; white-space: nowrap; }
+  #nv-files.is-compact .fx-card .fx-del { position: static; opacity: 1; width: 32px; height: 32px; flex-shrink: 0; }
+  #nv-files.is-compact .fx-gsec { padding: 14px 12px 2px; }
+  #nv-files.is-compact .fx-bc { padding: 8px 10px; }
+  #nv-files.is-compact .fx-overlay { padding: 0; }
+  #nv-files.is-compact .fx-sheet { border-radius: 0; border: 0; }
+  #nv-files.is-compact .fx-vhead { padding: 8px 10px; gap: 6px; }
+  #nv-files.is-compact .fx-article { padding: 20px 16px 32px; }
+
 </style>
 
 <div id="nv-files" class="side-off">
@@ -242,7 +255,7 @@
       <button data-act="view" data-v="lecture" title="Vue lecture"><span data-ic="reader"></span><span class="fx-sl">Lecture</span></button>
       <button data-act="view" data-v="classeur" title="Vue classeur"><span data-ic="grid"></span><span class="fx-sl">Classeur</span></button>
     </div>
-    <button class="fx-btn is-primary" data-act="pick"><span data-ic="upload"></span><span class="fx-hide-sm">Ajouter</span></button>
+    <button class="fx-btn is-primary" data-act="pick"><span data-ic="upload"></span><span>Ajouter</span></button>
   </div>
   <div class="fx-body">
     <aside class="fx-side">
@@ -471,7 +484,6 @@
     if (S.tabs.indexOf(id) === -1) S.tabs.push(id);
     S.active = id;
     IDX[id].trail.forEach(function (n) { S.open[n.id] = true; });
-    if (window.innerWidth <= 760) setSide(false);
     render();
   }
   function closeTab(id, silent) {
@@ -749,11 +761,59 @@
   window.addEventListener("storage", function (e) { if (e.key === "navire_files_refresh") fetchAll(true); });
   window.addEventListener("storage", function (e) { if (e.key === CONFIG.TOKEN_KEY) fetchAll(); });
 
+  // ================= HAUTEUR (comme NAVIRE Lib) =================
+  // Dans Framer, l'embed agrandit lui-même son cadre à la hauteur de l'écran.
+  var FRAMED = window.self !== window.top;
+  var HOST = null, frameEl = null, wrappers = [];
+  if (FRAMED) {
+    var hideBar = document.createElement("style");
+    hideBar.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    document.head.appendChild(hideBar);
+    try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+    if (frameEl) for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+  }
+  function sizeApp() {
+    var win = HOST || window, h;
+    if (HOST || !FRAMED) {
+      var anchor = frameEl || root;
+      var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
+      h = Math.max(520, Math.round(win.innerHeight - top - 12));
+    } else {
+      h = Math.max(520, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+    }
+    root.style.height = h + "px";
+    if (frameEl) {
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; });
+    } else if (FRAMED) {
+      try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+    }
+  }
+  sizeApp();
+  (HOST || window).addEventListener("resize", sizeApp);
+  window.addEventListener("load", sizeApp);
+  setTimeout(sizeApp, 600);
+
+  // Téléphone (cadre étroit) : vue Classeur en liste, sans panneau ni bascule.
+  S.compact = null;
+  function updateCompact() {
+    var c = root.clientWidth < 700;
+    if (c === S.compact) return;
+    S.compact = c;
+    root.classList.toggle("is-compact", c);
+    if (c) { S.view = "classeur"; }
+    else { var pv = load("navire_files_view"); S.view = pv === "classeur" ? "classeur" : "lecture"; }
+    S.peek = null;
+    render();
+  }
+
   // ================= DÉMARRAGE =================
   hydrateIcons();
-  var v = load("navire_files_view"); if (v === "lecture" || v === "classeur") S.view = v;
   var sd = load("navire_files_side");
-  setSide(sd == null ? window.innerWidth > 760 : sd === "1");
+  setSide(sd !== "0");
+  updateCompact();
+  if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
+  else window.addEventListener("resize", updateCompact);
   fetchAll();
 })();
 </script>

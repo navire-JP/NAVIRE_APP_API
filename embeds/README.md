@@ -279,8 +279,12 @@ directement à l'onglet Abonnement.
 **Embed HTML unique.** Coller `fichiers.html` dans un Embed HTML de l'onglet
 Fichiers (servi aussi par l'API : `GET /files/embed`). Il remplace les deux
 anciens embeds (zone de dépôt + grille « Mes fichiers »). Il reprend la
-connexion du site (`navire_token`) et occupe toute la hauteur de son cadre
-(560 px minimum).
+connexion du site (`navire_token`) et agrandit lui-même son iframe à la
+hauteur de l'écran, comme NAVIRE Lib (rien à régler dans Framer).
+- **Téléphone** (cadre de moins de 700 px) : gestion simple uniquement, sans
+  panneau latéral ni bascule de vue. Une liste par section, les dossiers,
+  puis les fichiers ; un fichier s'ouvre en plein écran ; ajout et
+  suppression toujours accessibles.
 
 - **Panneau latéral** rabattable (bouton en haut à gauche, état retenu par
   navigateur) : l'arborescence de tout ce que l'élève peut lire.
