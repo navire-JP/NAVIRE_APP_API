@@ -1,6 +1,8 @@
 // FlashcardsApp.tsx : NAVIRE Flashcards
-// Charte NAVIRE (comme NAVIRE Lib) : bleu et blanc uniquement, Inter + IBM Plex
-// Mono, fond transparent, panneaux blancs translucides, bouton principal blanc.
+// Charte NAVIRE (comme NAVIRE Lib et l'accueil) : bleu et blanc uniquement, Inter
+// + IBM Plex Mono, fond transparent, panneaux blancs translucides, bouton
+// principal blanc. Épuré : aucun trait apparent, les blocs tiennent par leur
+// fond ; decks en cartes à halo lumineux, comme les cours de NAVIRE Lib.
 // Le composant remplit son cadre Framer (100 % × 100 %) ; tailles de texte et
 // de boutons lisibles, cibles tactiles de 34 px et plus.
 
@@ -63,8 +65,8 @@ const C = {
     panel: "rgba(255,255,255,0.035)",
     panel2: "rgba(255,255,255,0.06)",
     panel3: "rgba(255,255,255,0.1)",
-    line: "rgba(255,255,255,0.07)",
-    line2: "rgba(255,255,255,0.14)",
+    line: "transparent",   // aucun trait apparent
+    line2: "transparent",
     text: "#fff",
     text2: "rgba(255,255,255,0.72)",
     text3: "rgba(255,255,255,0.45)",
@@ -309,10 +311,10 @@ function GlassBtn({
         lg: { height: 44, minWidth: 44, padding: "0 22px", fontSize: 14 },
     }
     const variants: any = {
-        glass: { background: "transparent", border: `1px solid ${C.line2}`, color: C.text2 },
+        glass: { background: C.panel2, border: "none", color: C.text2 },
         primary: { background: "#fff", border: "none", color: C.ink },
         blue: { background: C.blue, border: "none", color: C.ink },
-        soft: { background: C.blueSoft, border: `1px solid ${C.blueLine}`, color: C.blue },
+        soft: { background: C.blueSoft, border: "none", color: C.blue },
         ghost: { background: "transparent", border: "1px solid transparent", color: C.text3 },
     }
     return (
@@ -366,7 +368,7 @@ function GlassInput({
         width: "100%",
         minHeight: multiline ? undefined : 42,
         padding: multiline ? "11px 14px" : "0 14px",
-        background: C.panel,
+        background: C.panel2,
         border: `1px solid ${C.line}`,
         borderRadius: 12,
         color: C.text,
@@ -388,12 +390,10 @@ function GlassInput({
             type={!multiline ? type : undefined}
             style={base}
             onFocus={(e: any) => {
-                e.target.style.borderColor = C.blueLine
-                e.target.style.background = C.panel2
+                e.target.style.background = C.panel3
             }}
             onBlur={(e: any) => {
-                e.target.style.borderColor = C.line
-                e.target.style.background = C.panel
+                e.target.style.background = C.panel2
             }}
         />
     )
@@ -403,10 +403,12 @@ function Card({
     children,
     onClick,
     style = {},
+    halo = false,
 }: {
     children: React.ReactNode
     onClick?: () => void
     style?: React.CSSProperties
+    halo?: boolean
 }) {
     return (
         <motion.div
@@ -422,10 +424,42 @@ function Card({
                 cursor: onClick ? "pointer" : "default",
                 boxSizing: "border-box" as const,
                 overflow: "hidden",
+                position: "relative",
                 ...style,
             }}
         >
-            {children}
+            {halo && (
+                // Halo lumineux en haut à droite, comme les cartes de NAVIRE Lib
+                <div
+                    style={{
+                        position: "absolute",
+                        right: -40,
+                        top: -40,
+                        width: 130,
+                        height: 130,
+                        borderRadius: "50%",
+                        background: "radial-gradient(circle, rgba(122,167,255,0.16), transparent 70%)",
+                        pointerEvents: "none",
+                    }}
+                />
+            )}
+            {halo ? (
+                <div
+                    style={{
+                        position: "relative",
+                        flex: 1,
+                        width: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: style.alignItems,
+                        justifyContent: style.justifyContent,
+                    }}
+                >
+                    {children}
+                </div>
+            ) : (
+                children
+            )}
         </motion.div>
     )
 }
@@ -503,7 +537,7 @@ function EmptyState({ icon, title, text }: { icon: string; title: string; text: 
                     alignItems: "center",
                     justifyContent: "center",
                     background: C.blueSoft,
-                    border: `1px solid ${C.blueLine}`,
+                    border: "none",
                     color: C.blue,
                 }}
             >
@@ -636,6 +670,7 @@ function DecksView({
     onStudyDeck: (d: Deck) => void
     onStats: () => void
 }) {
+    const isDesktop = useIsDesktop()
     const totalCards = decks.reduce((s, d) => s + d.cards_count, 0)
     const { correct, total } = studyStats
     const pct = total > 0 ? Math.round((correct / total) * 100) : 0
@@ -659,7 +694,7 @@ function DecksView({
             />
 
             {total > 0 && (
-                <Card style={{ padding: "14px 16px", background: C.blueSoft, border: `1px solid ${C.blueLine}` }}>
+                <Card style={{ padding: "14px 16px", background: C.blueSoft, border: "none" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                         <DonutChart correct={correct} total={total} size={52} />
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -683,6 +718,7 @@ function DecksView({
             ) : decks.length === 0 ? (
                 <EmptyState icon={I.cards} title="Aucun deck" text="Crée ton premier deck pour commencer à réviser." />
             ) : (
+                <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr" : "1fr", gap: 10 }}>
                 <AnimatePresence mode="popLayout">
                     {decks.map((deck, i) => (
                         <motion.div
@@ -691,49 +727,14 @@ function DecksView({
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.97 }}
                             transition={{ delay: i * 0.04, ...springGent }}
+                            style={{ minWidth: 0 }}
                         >
-                            <Card onClick={() => onSelectDeck(deck)}>
+                            <Card halo onClick={() => onSelectDeck(deck)} style={{ minHeight: isDesktop ? 150 : 0, height: "100%", display: "flex", flexDirection: "column" }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div
-                                            style={{
-                                                fontSize: 16,
-                                                fontWeight: 700,
-                                                color: C.text,
-                                                letterSpacing: "-0.3px",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                whiteSpace: "nowrap" as const,
-                                                marginBottom: 4,
-                                            }}
-                                        >
-                                            {deck.title}
-                                        </div>
-                                        {deck.description && (
-                                            <p
-                                                style={{
-                                                    margin: "0 0 8px",
-                                                    fontSize: 12.5,
-                                                    color: C.text3,
-                                                    lineHeight: 1.5,
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    whiteSpace: "nowrap" as const,
-                                                }}
-                                            >
-                                                {deck.description}
-                                            </p>
-                                        )}
-                                        <Pill tone="blue">
-                                            {deck.cards_count} carte{deck.cards_count !== 1 ? "s" : ""}
-                                        </Pill>
-                                    </div>
-                                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                                        {deck.cards_count > 0 && (
-                                            <GlassBtn variant="blue" size="xs" onClick={() => onStudyDeck(deck)} title="Réviser" style={{ padding: 0 }}>
-                                                <Icon d={I.play} size={13} />
-                                            </GlassBtn>
-                                        )}
+                                    <Pill tone="blue">
+                                        {deck.cards_count} carte{deck.cards_count !== 1 ? "s" : ""}
+                                    </Pill>
+                                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                                         <GlassBtn variant="ghost" size="xs" onClick={() => onEditDeck(deck)} title="Modifier" style={{ padding: 0 }}>
                                             <Icon d={I.edit} size={15} />
                                         </GlassBtn>
@@ -742,10 +743,49 @@ function DecksView({
                                         </GlassBtn>
                                     </div>
                                 </div>
+                                <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginTop: isDesktop ? "auto" : 14, paddingTop: isDesktop ? 18 : 0 }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div
+                                            style={{
+                                                fontSize: 16,
+                                                fontWeight: 700,
+                                                color: C.text,
+                                                letterSpacing: "-0.3px",
+                                                lineHeight: 1.3,
+                                                overflow: "hidden",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap" as const,
+                                            }}
+                                        >
+                                            {deck.title}
+                                        </div>
+                                        <p
+                                            style={{
+                                                margin: "3px 0 0",
+                                                fontSize: 12.5,
+                                                color: C.text3,
+                                                lineHeight: 1.5,
+                                                overflow: "hidden",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap" as const,
+                                            }}
+                                        >
+                                            {deck.description || "\u00a0"}
+                                        </p>
+                                    </div>
+                                    {deck.cards_count > 0 && (
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                            <GlassBtn variant="primary" size="xs" onClick={() => onStudyDeck(deck)} title="Réviser" style={{ padding: 0 }}>
+                                                <Icon d={I.play} size={13} />
+                                            </GlassBtn>
+                                        </div>
+                                    )}
+                                </div>
                             </Card>
                         </motion.div>
                     ))}
                 </AnimatePresence>
+                </div>
             )}
         </div>
     )
@@ -960,7 +1000,7 @@ function StudyView({
                 transition={springGent}
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 0" }}
             >
-                <Card style={{ textAlign: "center", padding: 28, maxWidth: 360, width: "100%", background: C.blueSoft, border: `1px solid ${C.blueLine}` }}>
+                <Card style={{ textAlign: "center", padding: 28, maxWidth: 360, width: "100%", background: C.blueSoft, border: "none" }}>
                     <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
@@ -1059,15 +1099,16 @@ function StudyView({
                     transition={{ duration: 0.2 }}
                 >
                     <Card
+                        halo={!flipped}
                         onClick={() => setFlipped(!flipped)}
                         style={{
-                            minHeight: 220,
+                            minHeight: 280,
                             display: "flex",
                             flexDirection: "column" as const,
                             alignItems: "center",
                             justifyContent: "center",
-                            background: flipped ? "rgba(255,255,255,0.06)" : C.blueSoft,
-                            border: `1px solid ${flipped ? C.line2 : C.blueLine}`,
+                            background: flipped ? C.panel2 : C.blueSoft,
+                            border: "none",
                             padding: 26,
                             borderRadius: 20,
                         }}
@@ -1249,7 +1290,7 @@ function GeneratePdfView({
                         style={{
                             padding: "12px 14px",
                             background: C.blueSoft,
-                            border: `1px solid ${C.blueLine}`,
+                            border: "none",
                             borderRadius: 12,
                             fontSize: 13,
                             color: "#d6e4ff",
@@ -1278,7 +1319,8 @@ function GeneratePdfView({
                                                 minHeight: 44,
                                                 padding: "0 14px",
                                                 background: on ? C.blueSoft : C.panel,
-                                                border: `1px solid ${on ? C.blue : C.line}`,
+                                                border: "none",
+                                                boxShadow: on ? `inset 3px 0 0 ${C.blue}` : "none",
                                                 borderRadius: 12,
                                                 cursor: "pointer",
                                                 display: "flex",
@@ -1589,7 +1631,7 @@ export default function FlashcardsApp({ apiBase = API_BASE }: { apiBase?: string
                                 zIndex: 1000,
                                 marginBottom: 12,
                                 background: "rgba(30,32,50,0.95)",
-                                border: `1px solid ${C.blueLine}`,
+                                border: "none",
                                 color: C.blueHi,
                                 padding: "11px 14px",
                                 borderRadius: 12,

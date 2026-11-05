@@ -2,6 +2,7 @@
 
 | Fichier | Où | Rôle |
 |---|---|---|
+| `home.html` | page d'accueil (`/home`) | Accueil épuré : barre de recherche au centre qui démarre NAVIRE AI sur place (la barre glisse en bas, la discussion s'ouvre), et trois accès dessous : Veilles, Cours (NAVIRE Lib), Fichiers. DA de NAVIRE Lib (bleu et blanc, cartes à halo, sans traits ni logo — le header du site les porte — ; barre latérale repliée par défaut, avec raccourcis Veilles / Cours / Fichiers / QCM et discussions récentes). `/home?q=…` pose directement une question. Liens des trois accès : bloc CONFIG (`LINKS`) |
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
@@ -9,6 +10,7 @@
 | `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, devoirs à corriger, rémunération prévisionnelle |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
 | `fichiers.html` | onglet Fichiers | Tous les fichiers de l'élève dans un seul embed : panneau latéral rabattable, vue Lecture (arborescence + lecteur à onglets) ou vue Classeur (dossiers en grille). Ajout / suppression de PDF uniquement |
+| `framer/Navire_AdjurisBanner.tsx` | au-dessus du header (tout le site) | Bannière fine Prép'AdJuris : prochaine séance et Espace Prépa pour les inscrits, « Rejoindre la séance » juste avant le début, paiement en échec en rouge, « S'abonner » pour les autres. Code File `Navire_AdjurisBanner`, largeur Fill, hauteur Fit content |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
@@ -20,7 +22,7 @@
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
 panneaux blancs translucides, bouton principal blanc, états vert / jaune /
 rouge `#5BE3A3` / `#FFD166` / `#FF6B6B`), y compris dans la console, sauf
-NAVIRE Lib : bleu et blanc.
+NAVIRE Lib et l'accueil (`home.html`) : bleu et blanc.
 
 ## `/rejoindre` et `/ambassadeur`
 
