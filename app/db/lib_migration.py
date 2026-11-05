@@ -16,6 +16,8 @@ _COLONNES = {
     ("lib_documents", "prepa_ressource_id"): "INTEGER REFERENCES prepa_adjuris_ressources(id) ON DELETE CASCADE",
     # Classement (leaderboard.py) : stats visibles par les autres, oui par défaut
     ("users", "stats_public"): "BOOLEAN NOT NULL DEFAULT TRUE",
+    # Veille : qui a posté l'actu
+    ("veille_items", "author_id"): "INTEGER REFERENCES users(id) ON DELETE SET NULL",
 }
 
 _INDEX = [

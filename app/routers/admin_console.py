@@ -535,6 +535,7 @@ def admin_actus_add(
         source_url=body.source_url,
         source_name=body.source_name,
         published_at=datetime.now(timezone.utc),
+        author_id=admin.id,
     )
     db.add(item)
     db.commit()

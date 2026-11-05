@@ -697,8 +697,17 @@ class VeilleItem(Base):
         index=True,
     )
 
+    # Qui a posté l'actu (admin aujourd'hui ; professeurs et étudiants ensuite).
+    # NULL : actu importée automatiquement (RSS) ou postée avant ce champ.
+    author_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Relation
     source: Mapped["VeilleSource | None"] = relationship("VeilleSource")
+    author: Mapped["User | None"] = relationship("User", foreign_keys=[author_id])
 
 
 class VeilleUserProfile(Base):
