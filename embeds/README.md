@@ -163,7 +163,7 @@ Un curseur en haut à droite passe de l'un à l'autre :
   suite, sans gagner d'Elo. Une fois le point de passage franchi, un chat
   NAVIRE AI s'ouvre dessous : il répond à partir de l'extrait lu
   (`POST /lib/chat`, même quota quotidien que NAVIRE AI).
-- **Mes fichiers** : les PDF que l'élève a déposés dans « Mes fichiers »
+- **Mes PDF** : les PDF que l'élève a déposés dans l'onglet Fichiers
   apparaissent en tête de sa bibliothèque (lui seul les voit), dans Lib comme
   dans Lib+. Le PDF est lu à la première ouverture. En Lib+, des points de
   passage s'y placent tout seuls (parties du document, sinon tous les
