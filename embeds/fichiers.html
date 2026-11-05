@@ -283,6 +283,80 @@
   .fx-banner { margin: 10px 14px 0; padding: 8px 12px; border-radius: 9px; font-size: 12px; color: var(--warn);
     border: 1px solid rgba(255,209,102,0.25); background: rgba(255,209,102,0.06); flex-shrink: 0; }
 
+  /* ================= VERRE ÉPURÉ : pas de bordures, des panneaux translucides ================= */
+  #nv-files {
+    border: 0; border-radius: 20px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
+    -webkit-backdrop-filter: blur(26px) saturate(130%); backdrop-filter: blur(26px) saturate(130%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 24px 60px rgba(0,0,0,0.25);
+  }
+  #nv-files .fx-top { border-bottom: 0; padding: 12px 14px; }
+  #nv-files .fx-side { border-right: 0; background: rgba(255,255,255,0.02); margin: 0 0 10px 10px; border-radius: 16px; }
+  #nv-files.side-off .fx-side { margin-left: -274px; }
+  #nv-files .fx-quota { border-top: 0; }
+  #nv-files .fx-kids { border-left: 0; margin-left: 6px; }
+  #nv-files .fx-row { border-radius: 9px; }
+  #nv-files .fx-row.is-sel { background: rgba(91,111,255,0.14); }
+  #nv-files .fx-ibtn, #nv-files .fx-ibtn.is-on { border: 0; }
+  #nv-files .fx-ibtn.is-on { background: rgba(255,255,255,0.07); }
+  #nv-files .fx-search { border: 0; background: rgba(255,255,255,0.05); border-radius: 10px; height: 32px; }
+  #nv-files .fx-search:focus-within { background: rgba(255,255,255,0.08); }
+  #nv-files .fx-seg { border: 0; background: rgba(255,255,255,0.05); border-radius: 10px; }
+  #nv-files .fx-seg button.is-on { background: rgba(255,255,255,0.1); box-shadow: 0 1px 8px rgba(0,0,0,0.2); }
+  #nv-files .fx-btn { border: 0; background: rgba(255,255,255,0.07); border-radius: 10px; }
+  #nv-files .fx-btn:hover { background: rgba(255,255,255,0.12); }
+  #nv-files .fx-btn.is-primary { background: #fff; color: #0d0f17; }
+  #nv-files .fx-btn.is-primary:hover { background: rgba(255,255,255,0.88); }
+  #nv-files .fx-btn.is-danger:hover { background: rgba(239,68,68,0.18); color: #fca5a5; }
+  #nv-files .fx-btn.is-red { background: rgba(239,68,68,0.9); color: #fff; }
+  #nv-files .fx-main { margin: 0 10px 10px; border-radius: 16px; background: rgba(255,255,255,0.018); overflow: hidden; }
+  #nv-files .fx-tabs { border-bottom: 0; padding: 8px 8px 0; gap: 4px; }
+  #nv-files .fx-tab { border: 0; border-radius: 9px; height: 30px; }
+  #nv-files .fx-tab.is-on { background: rgba(255,255,255,0.07); }
+  #nv-files .fx-vhead, #nv-files .fx-bc { border-bottom: 0; }
+  #nv-files .fx-frame { background: rgba(0,0,0,0.25); border-radius: 12px; margin: 0 10px 10px; width: calc(100% - 20px); }
+  #nv-files .fx-note { border: 0; background: rgba(255,255,255,0.04); border-radius: 12px; }
+  #nv-files .fx-pill { border: 0; background: rgba(255,255,255,0.06); }
+  #nv-files .fx-pill.is-ok { background: rgba(74,222,128,0.1); }
+  #nv-files .fx-pill.is-warn { background: rgba(255,209,102,0.1); }
+  #nv-files .fx-pill.is-acc { background: rgba(91,111,255,0.14); }
+  #nv-files .fx-banner { border: 0; }
+  #nv-files .fx-list { border: 0; gap: 2px; }
+  #nv-files .fx-li { border-bottom: 0; border-radius: 10px; }
+  #nv-files .fx-article .lb td, #nv-files .fx-article .lb th { border: 0; background: rgba(255,255,255,0.03); }
+  #nv-files .fx-article .lb blockquote { border-left: 0; background: rgba(91,111,255,0.07); border-radius: 10px; }
+  #nv-files .fx-article .lb .lb-goal, #nv-files .fx-article .lb .lb-pdp { border: 0; background: rgba(255,255,255,0.04); }
+  #nv-files .fx-overlay { background: rgba(6,7,12,0.45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  #nv-files .fx-sheet { border: 0; background: rgba(22,24,34,0.72); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+  #nv-files .fx-toast { border: 0; background: rgba(30,33,46,0.75); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border-radius: 11px; }
+  #nv-files .fx-ask-card { border: 0; }
+  #nv-files .fx-graph-ui, #nv-files .fx-graph-tools .fx-ibtn { border: 0; background: rgba(20,22,32,0.55); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  #nv-files .fx-dropmask { border: 0; box-shadow: inset 0 0 0 2px rgba(91,111,255,0.7), inset 0 0 80px rgba(91,111,255,0.15); border-radius: 20px; }
+
+  /* Cartes (comme NAVIRE Lib : verre, halo lumineux dans le coin) */
+  #nv-files .fx-grid { gap: 12px; }
+  #nv-files .fx-card {
+    border: 0; border-radius: 16px; overflow: hidden; isolation: isolate;
+    background: rgba(255,255,255,0.035);
+    transition: background .2s, transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s;
+    animation: fx-rise .4s cubic-bezier(.2,.8,.2,1) both;
+  }
+  #nv-files .fx-card::after {
+    content: ''; position: absolute; right: -40px; top: -40px; width: 120px; height: 120px; border-radius: 50%; z-index: -1;
+    background: radial-gradient(circle, var(--glow, rgba(122,167,255,0.16)), transparent 70%); pointer-events: none;
+    opacity: .55; transition: opacity .2s, transform .3s;
+  }
+  #nv-files .fx-card:hover { background: rgba(255,255,255,0.06); transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+  #nv-files .fx-card:hover::after { opacity: 1; transform: scale(1.15); }
+  #nv-files .fx-card.is-folder { flex-direction: column; align-items: flex-start; min-height: 128px; padding: 16px; gap: 8px; }
+  #nv-files .fx-card.is-folder::after { opacity: 1; }
+  #nv-files .fx-card.is-folder .fx-nm { font-size: 13.5px; font-weight: 500; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; flex: 0 0 auto; width: 100%; }
+  #nv-files .fx-card .fx-ic { background: rgba(255,255,255,0.06); border-radius: 10px; }
+  #nv-files .fx-card .fx-ic.is-pdf { background: rgba(91,111,255,0.14); }
+  #nv-files .fx-card.is-folder .fx-ic { width: 38px; height: 38px; border-radius: 11px; color: rgba(255,255,255,0.8); }
+  #nv-files .fx-card.is-dashed { background: rgba(255,255,255,0.02); }
+  @keyframes fx-rise { from { opacity: 0; transform: translateY(6px); } }
+
   /* ---------- téléphone : gestion simple, sans panneau ni bascule ---------- */
   #nv-files.is-compact .fx-side,
   #nv-files.is-compact [data-act="side"],
@@ -292,7 +366,10 @@
   #nv-files.is-compact .fx-title { display: none; }
   #nv-files.is-compact .fx-search { max-width: none; margin-left: 0; }
   #nv-files.is-compact .fx-grid { grid-template-columns: 1fr; gap: 6px; padding: 8px 10px; }
-  #nv-files.is-compact .fx-card { flex-direction: row; align-items: center; min-height: 0; gap: 12px; padding: 10px 12px; }
+  #nv-files.is-compact .fx-card, #nv-files.is-compact .fx-card.is-folder { flex-direction: row; align-items: center; min-height: 0; gap: 12px; padding: 12px 14px; border-radius: 14px; }
+  #nv-files.is-compact .fx-card.is-folder .fx-nm { -webkit-line-clamp: 1; flex: 1; }
+  #nv-files.is-compact .fx-main { margin: 0; border-radius: 0; background: transparent; }
+  #nv-files.is-compact .fx-frame { margin: 0; width: 100%; border-radius: 0; }
   #nv-files.is-compact .fx-card .fx-nm { -webkit-line-clamp: 1; flex: 1; min-width: 0; }
   #nv-files.is-compact .fx-card .fx-m { margin-top: 0; white-space: nowrap; }
   #nv-files.is-compact .fx-card .fx-del { position: static; opacity: 1; width: 32px; height: 32px; flex-shrink: 0; }
@@ -875,13 +952,18 @@
   }
 
   // ================= RENDU : vue Classeur =================
+  // Halo des cartes, couleur de la section (comme les cartes NAVIRE Lib)
+  var GLOW = { "mes-fichiers": "rgba(139,152,255,0.22)", prepa: "rgba(122,167,255,0.2)", devoirs: "rgba(74,222,128,0.16)",
+               prepasserelle: "rgba(122,167,255,0.2)", veille: "rgba(255,209,102,0.18)", lib: "rgba(91,227,163,0.18)" };
+  function glowOf(sec) { return (sec && GLOW[sec.id]) || "rgba(122,167,255,0.16)"; }
   function card(n) {
     if (n.type === "folder") {
-      return '<button class="fx-card is-folder" data-act="cd" data-id="' + esc(n.id) + '"><div class="fx-ic">' + (n.section ? ic(n.section.icon || "folder", 16) : nodeIcon(n, 16)) + '</div>'
-        + '<div class="fx-nm">' + esc(n.label) + '</div><span class="fx-cnt" style="color:var(--faint);font-size:11px">' + files(n.children).length + '</span></button>';
+      var nb = files(n.children).length, sec = n.section || sectionOf(n.id);
+      return '<button class="fx-card is-folder" style="--glow:' + glowOf(sec) + '" data-act="cd" data-id="' + esc(n.id) + '"><div class="fx-ic">' + ic(n.section ? (n.section.icon || "folder") : "folder", 17) + '</div>'
+        + '<div class="fx-nm">' + esc(n.label) + '</div><div class="fx-m">' + nb + (nb > 1 ? " documents" : " document") + '</div></button>';
     }
     var m = [fmtDate(n.date), n.size_bytes ? fmtSize(n.size_bytes) : ""].filter(Boolean).join(" · ");
-    return '<div class="fx-card" role="button" tabindex="0" data-act="file" data-id="' + esc(n.id) + '" title="' + esc(n.label) + '">'
+    return '<div class="fx-card" style="--glow:' + glowOf(sectionOf(n.id)).replace(/0\.\d+\)$/, "0.1)") + '" role="button" tabindex="0" data-act="file" data-id="' + esc(n.id) + '" title="' + esc(n.label) + '">'
       + '<div class="fx-ic' + (n.type === "pdf" ? " is-pdf" : "") + '">' + nodeIcon(n, 17) + '</div>'
       + '<div class="fx-nm">' + esc(n.label) + '</div><div class="fx-m">' + esc(m) + '</div>'
       + (canDelete(n) ? '<button class="fx-del" data-act="del" data-id="' + esc(n.id) + '" title="Supprimer">' + ic("trash", 13) + '</button>' : "")
@@ -901,10 +983,10 @@
         var kids = s.items || [];
         var head = '<button class="fx-gsec" data-act="cd" data-id="' + esc(node.id) + '">' + esc(s.label) + '</button>';
         if (!kids.length) {
-          return head + '<div class="fx-grid">' + (s.upload ? '<div class="fx-card" data-act="pick" style="align-items:center;justify-content:center;border-style:dashed;color:var(--muted)">' + ic("upload", 18) + '<span style="font-size:12px">Ajouter un PDF</span></div>' : '<div class="fx-m">Vide</div>') + '</div>';
+          return head + '<div class="fx-grid">' + (s.upload ? '<div class="fx-card is-dashed" data-act="pick" style="align-items:center;justify-content:center;color:var(--muted)">' + ic("upload", 18) + '<span style="font-size:12px">Ajouter un PDF</span></div>' : '<div class="fx-m">Vide</div>') + '</div>';
         }
         var show = kids.slice(0, 7).map(card).join("");
-        var more = kids.length > 7 ? '<button class="fx-card is-folder" data-act="cd" data-id="' + esc(node.id) + '"><div class="fx-ic">' + ic("folder", 16) + '</div><div class="fx-nm">Tout voir (' + kids.length + ')</div></button>' : "";
+        var more = kids.length > 7 ? '<button class="fx-card is-folder" style="--glow:' + glowOf(s) + '" data-act="cd" data-id="' + esc(node.id) + '"><div class="fx-ic">' + ic("folder", 17) + '</div><div class="fx-nm">Tout voir</div><div class="fx-m">' + kids.length + ' éléments</div></button>' : "";
         return head + '<div class="fx-grid">' + show + more + '</div>';
       }).join("");
     } else {
