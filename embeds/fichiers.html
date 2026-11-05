@@ -1,0 +1,759 @@
+<!--
+  NAVIRE · Onglet Fichiers (embed HTML unique)
+
+  Deux vues, bascule en haut à droite :
+    - Lecture  : arborescence à gauche (rabattable), lecteur à droite avec onglets
+    - Classeur : dossiers et fichiers en grille, fil d'Ariane, aperçu en surimpression
+
+  Ne montre que ce que l'utilisateur a le droit de lire (GET /files/explorer) :
+  ses PDF, les documents Prép'AdJuris de ses matières, ses copies et corrigés,
+  la veille, le catalogue NAVIRE Lib. Chaque PDF est relu par une route qui
+  revérifie l'accès côté serveur.
+
+  Seule action d'écriture : ajouter ou supprimer un PDF de « Mes fichiers ».
+-->
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+  #nv-files, #nv-files *, #nv-files *::before, #nv-files *::after { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; }
+  #nv-files {
+    --bg: #0d0f17;
+    --panel: rgba(255,255,255,0.03);
+    --panel-2: rgba(255,255,255,0.05);
+    --line: rgba(255,255,255,0.08);
+    --line-2: rgba(255,255,255,0.14);
+    --text: rgba(255,255,255,0.92);
+    --muted: rgba(255,255,255,0.48);
+    --faint: rgba(255,255,255,0.28);
+    --accent: #5B6FFF;
+    --accent-soft: rgba(91,111,255,0.12);
+    --ok: #4ade80; --warn: #FFD166; --err: #f87171;
+    position: relative;
+    width: 100%; height: 100vh; min-height: 560px;
+    display: flex; flex-direction: column;
+    font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px;
+    color: var(--text);
+    border: 1px solid var(--line); border-radius: 16px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  :where(#nv-files) button { font-family: inherit; color: inherit; }
+  :where(#nv-files) a { color: inherit; text-decoration: none; }
+  #nv-files svg { flex-shrink: 0; }
+
+  /* ---------- barre du haut ---------- */
+  .fx-top {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+  }
+  .fx-ibtn {
+    width: 30px; height: 30px; border-radius: 8px; border: 1px solid transparent;
+    background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--muted); transition: background .15s, color .15s, border-color .15s;
+  }
+  .fx-ibtn:hover { background: var(--panel-2); color: var(--text); }
+  .fx-ibtn.is-on { color: var(--text); background: var(--panel-2); border-color: var(--line); }
+  .fx-title { font-weight: 600; letter-spacing: -0.01em; font-size: 14px; white-space: nowrap; }
+  .fx-search {
+    flex: 1; min-width: 0; max-width: 360px; margin-left: auto;
+    display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.02); color: var(--muted);
+  }
+  .fx-search:focus-within { border-color: var(--line-2); }
+  .fx-search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--text); font: inherit; }
+  .fx-search input::placeholder { color: var(--faint); }
+  .fx-seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,0.02); }
+  .fx-seg button {
+    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+    border: 0; border-radius: 7px; background: transparent; cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 500;
+  }
+  .fx-seg button.is-on { background: rgba(255,255,255,0.09); color: var(--text); }
+  .fx-btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+    border-radius: 8px; border: 1px solid var(--line-2); background: transparent; cursor: pointer;
+    font-size: 12px; font-weight: 500; white-space: nowrap; transition: background .15s, border-color .15s;
+  }
+  .fx-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.26); }
+  .fx-btn.is-primary { background: #fff; color: #0d0f17; border-color: #fff; }
+  .fx-btn.is-primary:hover { background: rgba(255,255,255,0.88); }
+  .fx-btn.is-danger:hover { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); color: #fca5a5; }
+  .fx-btn[disabled] { opacity: .5; pointer-events: none; }
+
+  /* ---------- corps ---------- */
+  .fx-body { flex: 1; min-height: 0; display: flex; position: relative; }
+
+  .fx-side {
+    width: 264px; flex-shrink: 0; display: flex; flex-direction: column;
+    border-right: 1px solid var(--line); background: rgba(0,0,0,0.12);
+    transition: margin-left .22s ease;
+  }
+  #nv-files.side-off .fx-side { margin-left: -264px; }
+  .fx-tree { flex: 1; min-height: 0; overflow: auto; padding: 8px 6px 12px; }
+  .fx-tree::-webkit-scrollbar, .fx-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .fx-tree::-webkit-scrollbar-thumb, .fx-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 8px; }
+
+  .fx-sec { margin-bottom: 6px; }
+  .fx-row {
+    position: relative; display: flex; align-items: center; gap: 6px; width: 100%;
+    min-height: 28px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent;
+    cursor: pointer; text-align: left; font-size: 12.5px; color: rgba(255,255,255,0.78);
+  }
+  .fx-row:hover { background: rgba(255,255,255,0.045); color: var(--text); }
+  .fx-row.is-sel { background: var(--accent-soft); color: var(--text); }
+  .fx-row.is-sec { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .fx-row .fx-lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx-row .fx-cnt { font-size: 10.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .fx-chev { transition: transform .15s; color: var(--faint); }
+  .is-open > .fx-row .fx-chev { transform: rotate(90deg); }
+  .fx-kids { display: none; padding-left: 12px; margin-left: 9px; border-left: 1px solid rgba(255,255,255,0.05); }
+  .is-open > .fx-kids { display: block; }
+  .fx-row .fx-del {
+    opacity: 0; width: 20px; height: 20px; border: 0; border-radius: 5px; background: transparent; cursor: pointer;
+    color: var(--faint); display: inline-flex; align-items: center; justify-content: center;
+  }
+  .fx-row:hover .fx-del { opacity: 1; }
+  .fx-row .fx-del:hover { background: rgba(239,68,68,0.2); color: var(--err); }
+  .fx-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+  .fx-quota { padding: 10px 14px 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+  .fx-quota-l { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .fx-track { height: 3px; border-radius: 99px; background: rgba(255,255,255,0.07); overflow: hidden; }
+  .fx-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width .4s ease; }
+
+  .fx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+
+  /* ---------- vue Lecture ---------- */
+  .fx-tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--line); overflow-x: auto; flex-shrink: 0; }
+  .fx-tabs:empty { display: none; }
+  .fx-tab {
+    display: inline-flex; align-items: center; gap: 6px; max-width: 220px; height: 30px; padding: 0 6px 0 10px;
+    border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: transparent;
+    cursor: pointer; color: var(--muted); font-size: 12px; flex-shrink: 0;
+  }
+  .fx-tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .fx-tab.is-on { color: var(--text); background: rgba(255,255,255,0.05); border-color: var(--line); }
+  .fx-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx-tab .fx-x { width: 18px; height: 18px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: var(--faint); }
+  .fx-tab .fx-x:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+
+  .fx-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .fx-vhead { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .fx-vhead h2 { margin: 0; font-size: 13.5px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx-crumb { font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+  .fx-frame { flex: 1; min-height: 0; border: 0; width: 100%; background: #1a1c25; }
+  .fx-scroll { flex: 1; min-height: 0; overflow: auto; }
+  .fx-center { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: var(--muted); padding: 24px; text-align: center; }
+
+  .fx-article { max-width: 680px; margin: 0 auto; padding: 28px 24px 40px; line-height: 1.6; }
+  .fx-article .fx-kick { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--accent); font-weight: 600; }
+  .fx-article h1 { font-size: 21px; line-height: 1.3; letter-spacing: -0.015em; margin: 8px 0 6px; font-weight: 600; }
+  .fx-article .fx-sub { color: var(--muted); font-size: 12px; margin-bottom: 22px; }
+  .fx-article h3 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 0 6px; font-weight: 600; }
+  .fx-article p { margin: 0; font-size: 14px; color: rgba(255,255,255,0.85); white-space: pre-line; }
+  .fx-note { margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.02); }
+  .fx-note b { font-weight: 600; }
+  .fx-pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 99px; font-size: 11px; border: 1px solid var(--line); color: var(--muted); }
+  .fx-pill.is-ok { color: var(--ok); border-color: rgba(74,222,128,0.3); }
+  .fx-pill.is-warn { color: var(--warn); border-color: rgba(255,209,102,0.3); }
+  .fx-pill.is-acc { color: #aab4ff; border-color: rgba(91,111,255,0.35); }
+
+  /* accueil (aucun onglet ouvert) */
+  .fx-home { max-width: 760px; margin: 0 auto; padding: 26px 22px 36px; display: flex; flex-direction: column; gap: 22px; }
+  .fx-drop {
+    border: 1px dashed rgba(255,255,255,0.12); border-radius: 14px; padding: 26px 18px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  .fx-drop:hover { border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.02); }
+  .fx-drop-ic { width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09); display: flex; align-items: center; justify-content: center; }
+  .fx-drop b { font-weight: 500; font-size: 14px; }
+  .fx-drop small { color: var(--muted); font-size: 12px; }
+  .fx-h { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
+  .fx-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .fx-li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--line); background: transparent; cursor: pointer; text-align: left; font-size: 12.5px; }
+  .fx-li:last-child { border-bottom: 0; }
+  .fx-li:hover { background: rgba(255,255,255,0.03); }
+  .fx-li .fx-lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx-li .fx-m { color: var(--faint); font-size: 11px; white-space: nowrap; }
+
+  /* ---------- vue Classeur ---------- */
+  .fx-bc { display: flex; align-items: center; gap: 4px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
+  .fx-bc button { border: 0; background: transparent; cursor: pointer; padding: 3px 6px; border-radius: 6px; color: var(--muted); font-size: 12.5px; }
+  .fx-bc button:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .fx-bc button:last-child { color: var(--text); font-weight: 500; }
+  .fx-bc i { color: var(--faint); font-style: normal; }
+  .fx-gsec:hover { color: var(--text); }
+  .fx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; padding: 14px; }
+  .fx-card {
+    position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 112px; padding: 12px;
+    border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.02); cursor: pointer; text-align: left;
+    transition: border-color .15s, background .15s, transform .15s;
+  }
+  .fx-card:hover { border-color: var(--line-2); background: rgba(255,255,255,0.04); }
+  .fx-card.is-folder { min-height: 0; flex-direction: row; align-items: center; }
+  .fx-card .fx-ic { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); }
+  .fx-card .fx-ic.is-pdf { background: var(--accent-soft); }
+  .fx-card .fx-nm { font-size: 12.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+  .fx-card.is-folder .fx-nm { display: block; flex: 1; min-width: 0; white-space: nowrap; text-overflow: ellipsis; }
+  .fx-card .fx-m { margin-top: auto; font-size: 10.5px; color: var(--faint); }
+  .fx-card .fx-del {
+    position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent;
+    color: var(--faint); cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0;
+  }
+  .fx-card:hover .fx-del { opacity: 1; }
+  .fx-card .fx-del:hover { background: rgba(239,68,68,0.2); color: var(--err); }
+  .fx-gsec { display: block; border: 0; background: none; cursor: pointer; text-align: left; padding: 14px 14px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+
+  .fx-overlay { position: absolute; inset: 0; z-index: 20; background: rgba(8,9,14,0.72); backdrop-filter: blur(4px); display: flex; padding: 18px; }
+  .fx-sheet { flex: 1; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-2); border-radius: 14px; background: #12141d; overflow: hidden; }
+
+  /* ---------- divers ---------- */
+  .fx-dropmask {
+    position: absolute; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center;
+    background: rgba(91,111,255,0.08); border: 2px solid var(--accent); border-radius: 16px; pointer-events: none;
+    font-weight: 500; font-size: 14px;
+  }
+  #nv-files.is-drag .fx-dropmask { display: flex; }
+  .fx-spin { width: 16px; height: 16px; border: 1.5px solid rgba(255,255,255,0.1); border-top-color: rgba(255,255,255,0.6); border-radius: 50%; animation: fx-spin .7s linear infinite; }
+  @keyframes fx-spin { to { transform: rotate(360deg); } }
+  .fx-toasts { position: absolute; right: 14px; bottom: 14px; z-index: 40; display: flex; flex-direction: column; gap: 6px; }
+  .fx-toast { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border-radius: 9px; background: #1b1e2a; border: 1px solid var(--line-2); font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+  .fx-toast.is-ok { color: var(--ok); }
+  .fx-toast.is-err { color: var(--err); }
+  .fx-empty { color: var(--faint); font-size: 12px; padding: 4px 10px 6px 30px; }
+  .fx-hide-sm { }
+
+  @media (max-width: 760px) {
+    .fx-side { position: absolute; z-index: 15; top: 0; bottom: 0; left: 0; background: #11131b; box-shadow: 8px 0 30px rgba(0,0,0,0.4); }
+    .fx-hide-sm { display: none !important; }
+    .fx-title { display: none; }
+    .fx-seg .fx-sl { display: none; }
+    .fx-overlay { padding: 0; }
+    .fx-sheet { border-radius: 0; }
+  }
+</style>
+
+<div id="nv-files" class="side-off">
+  <div class="fx-top">
+    <button class="fx-ibtn" data-act="side" title="Afficher ou masquer le panneau"></button>
+    <div class="fx-title">Fichiers</div>
+    <label class="fx-search"><span data-ic="search"></span><input data-el="q" type="search" placeholder="Rechercher un fichier" autocomplete="off"></label>
+    <div class="fx-seg" role="tablist">
+      <button data-act="view" data-v="lecture" title="Vue lecture"><span data-ic="reader"></span><span class="fx-sl">Lecture</span></button>
+      <button data-act="view" data-v="classeur" title="Vue classeur"><span data-ic="grid"></span><span class="fx-sl">Classeur</span></button>
+    </div>
+    <button class="fx-btn is-primary" data-act="pick"><span data-ic="upload"></span><span class="fx-hide-sm">Ajouter</span></button>
+  </div>
+  <div class="fx-body">
+    <aside class="fx-side">
+      <div class="fx-tree" data-el="tree"></div>
+      <div class="fx-quota" data-el="quota"></div>
+    </aside>
+    <main class="fx-main" data-el="main"></main>
+  </div>
+  <div class="fx-dropmask">Dépose ton PDF pour l'ajouter à Mes fichiers</div>
+  <div class="fx-toasts" data-el="toasts"></div>
+  <input data-el="file" type="file" accept="application/pdf,.pdf" multiple hidden>
+</div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",
+    LOGIN_URL: "https://navire-ai.com/login",
+    SITE: "https://navire-ai.com"          // préfixe des liens NAVIRE Lib (/lib?doc=…)
+  };
+
+  var root = document.getElementById("nv-files");
+  var S = {
+    data: null, loading: true, error: null,
+    view: "lecture",        // lecture | classeur
+    side: true,
+    open: {},               // dossiers dépliés (arborescence)
+    tabs: [], active: null, // vue lecture : onglets ouverts
+    path: [],               // vue classeur : ids des dossiers parcourus
+    peek: null,             // vue classeur : fichier en aperçu
+    q: "",
+    uploading: 0
+  };
+  var IDX = {};             // id → { node, trail: [nœuds parents], sec }
+  var BLOBS = {};           // src → { url } | { promise }
+
+  // ================= OUTILS =================
+  function el(n) { return root.querySelector('[data-el="' + n + '"]'); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function token() { return load(CONFIG.TOKEN_KEY) || ""; }
+  function fmtSize(b) { if (b == null) return ""; if (b < 1024) return b + " o"; if (b < 1048576) return Math.round(b / 1024) + " Ko"; return (b / 1048576).toFixed(1).replace(".", ",") + " Mo"; }
+  function fmtDate(iso) {
+    if (!iso) return "";
+    var d = new Date(iso); if (isNaN(d)) return "";
+    return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  }
+  function norm(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+  function detail(j, status) {
+    var d = j && j.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) return d.map(function (x) { return x.msg; }).join(" · ");
+    return "Erreur " + status;
+  }
+  function api(method, path, body) {
+    return fetch(CONFIG.API + path, { method: method, headers: { Authorization: "Bearer " + token() }, body: body })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { var e = new Error(detail(j, r.status)); e.status = r.status; throw e; }
+          return j;
+        });
+      });
+  }
+  function toast(msg, type) {
+    var t = document.createElement("div");
+    t.className = "fx-toast" + (type ? " is-" + type : "");
+    t.innerHTML = (type === "ok" ? ic("check", 13) : type === "err" ? ic("alert", 13) : '<div class="fx-spin" style="width:12px;height:12px"></div>') + "<span>" + esc(msg) + "</span>";
+    el("toasts").appendChild(t);
+    if (type) setTimeout(function () { t.remove(); }, 2800);
+    return t;
+  }
+  function go(url) { try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
+
+  // ================= ICÔNES =================
+  var P = {
+    side: '<rect x="2.5" y="3" width="15" height="14" rx="2.5"/><path d="M7.5 3v14"/>',
+    search: '<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/>',
+    reader: '<rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M8 3.5v13M10.5 7.5h4.5M10.5 10.5h4.5M10.5 13.5h3"/>',
+    grid: '<rect x="3" y="3" width="5.5" height="5.5" rx="1.3"/><rect x="11.5" y="3" width="5.5" height="5.5" rx="1.3"/><rect x="3" y="11.5" width="5.5" height="5.5" rx="1.3"/><rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1.3"/>',
+    upload: '<path d="M10 13V4M6.5 7.5L10 4l3.5 3.5M4 13.5v1.5a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1.5"/>',
+    cloud: '<path d="M10 13V7M10 7L7.5 9.5M10 7l2.5 2.5"/><path d="M5 15a3.5 3.5 0 0 1-.7-6.93A5 5 0 0 1 15 8a3.5 3.5 0 0 1-.3 6.93"/>',
+    chev: '<path d="M7.5 5l5 5-5 5"/>',
+    folder: '<path d="M2.5 6a2 2 0 0 1 2-2h3l2 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2z"/>',
+    pdf: '<path d="M11.5 2.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 17.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5z"/><path d="M11.5 2.5v4h4"/>',
+    news: '<rect x="3" y="4" width="14" height="12" rx="2"/><path d="M6 8h8M6 11h8M6 14h5"/>',
+    book: '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H16v12H5.5A1.5 1.5 0 0 0 4 16.5zM4 16.5A1.5 1.5 0 0 0 5.5 18H16"/>',
+    user: '<circle cx="10" cy="7" r="3.2"/><path d="M4 17c.8-3 3.2-4.5 6-4.5s5.2 1.5 6 4.5"/>',
+    school: '<path d="M2.5 8L10 4.5 17.5 8 10 11.5z"/><path d="M5.5 9.5v3.5c1.2 1.3 2.8 2 4.5 2s3.3-.7 4.5-2V9.5"/>',
+    check: '<path d="M4 10.5l3.5 3.5L16 5.5"/>',
+    alert: '<circle cx="10" cy="10" r="7"/><path d="M10 6.5v4.5M10 13.5v.1"/>',
+    trash: '<path d="M4 6h12M8 6V4.5h4V6M6 6l.7 10a1.5 1.5 0 0 0 1.5 1.4h3.6a1.5 1.5 0 0 0 1.5-1.4L14 6"/>',
+    x: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>',
+    ext: '<path d="M11 3.5h5.5V9M16.5 3.5L9 11M14 12v3a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 4 15V7.5A1.5 1.5 0 0 1 5.5 6h3"/>',
+    down: '<path d="M10 3.5v9M6.5 9L10 12.5 13.5 9M4 16h12"/>',
+    home: '<path d="M3.5 9L10 3.5 16.5 9v7a1 1 0 0 1-1 1h-3.5v-5h-4v5H4.5a1 1 0 0 1-1-1z"/>'
+  };
+  function ic(name, size, color) {
+    size = size || 15;
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 20 20" fill="none" stroke="' + (color || "currentColor") + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + (P[name] || "") + "</svg>";
+  }
+  function nodeIcon(n, size) {
+    if (n.type === "folder") return ic("folder", size, "rgba(255,255,255,0.5)");
+    if (n.type === "actu") return ic("news", size, "#FFD166");
+    if (n.type === "lib") return ic("book", size, "#5BE3A3");
+    return ic("pdf", size, "#8b98ff");
+  }
+  function hydrateIcons(scope) {
+    (scope || root).querySelectorAll("[data-ic]").forEach(function (n) { n.innerHTML = ic(n.getAttribute("data-ic"), 15); n.removeAttribute("data-ic"); });
+  }
+
+  // ================= DONNÉES =================
+  function index() {
+    IDX = {};
+    function walk(nodes, trail, sec) {
+      (nodes || []).forEach(function (n) {
+        IDX[n.id] = { node: n, trail: trail, sec: sec };
+        if (n.type === "folder") walk(n.children, trail.concat([n]), sec);
+      });
+    }
+    (S.data ? S.data.sections : []).forEach(function (s) {
+      var node = { id: "s:" + s.id, type: "folder", label: s.label, children: s.items, section: s };
+      IDX[node.id] = { node: node, trail: [], sec: s };
+      walk(s.items, [node], s);
+    });
+  }
+  function files(nodes, out) {
+    out = out || [];
+    (nodes || []).forEach(function (n) { if (n.type === "folder") files(n.children, out); else out.push(n); });
+    return out;
+  }
+  function allFiles() {
+    var out = [];
+    (S.data ? S.data.sections : []).forEach(function (s) { files(s.items, out); });
+    return out;
+  }
+  function matches(n) {
+    if (!S.q) return true;
+    var m = n.meta || {};
+    var hay = norm([n.label, m.matiere, m.rubrique, m.description, m.source_name].join(" "));
+    return norm(S.q).split(/\s+/).every(function (w) { return hay.indexOf(w) !== -1; });
+  }
+  function canDelete(n) { return !!(n && n.delete); }
+  function sectionOf(id) { var x = IDX[id]; return x ? x.sec : null; }
+
+  function fetchAll(silent) {
+    if (!token()) { S.loading = false; S.data = null; S.error = "auth"; render(); return Promise.resolve(); }
+    if (!silent) { S.loading = true; render(); }
+    return api("GET", "/files/explorer").then(function (j) {
+      S.data = j; S.error = null; S.loading = false;
+      index();
+      // Ferme ce qui n'existe plus (fichier supprimé ailleurs)
+      S.tabs = S.tabs.filter(function (id) { return IDX[id]; });
+      if (S.active && !IDX[S.active]) S.active = S.tabs[S.tabs.length - 1] || null;
+      S.path = S.path.filter(function (id) { return IDX[id]; });
+      if (S.peek && !IDX[S.peek]) S.peek = null;
+      render();
+    }).catch(function (e) {
+      S.loading = false;
+      S.error = e.status === 401 ? "auth" : (e.message || "Erreur réseau.");
+      render();
+    });
+  }
+
+  function blobFor(src) {
+    var c = BLOBS[src];
+    if (c && c.url) return Promise.resolve(c.url);
+    if (c && c.promise) return c.promise;
+    var p = fetch(CONFIG.API + src, { headers: { Authorization: "Bearer " + token() } }).then(function (r) {
+      if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(detail(j, r.status)); });
+      return r.blob();
+    }).then(function (b) {
+      var url = URL.createObjectURL(new Blob([b], { type: "application/pdf" }));
+      BLOBS[src] = { url: url };
+      return url;
+    }).catch(function (e) { delete BLOBS[src]; throw e; });
+    BLOBS[src] = { promise: p };
+    return p;
+  }
+  function dropBlob(src) { var c = BLOBS[src]; if (c && c.url) URL.revokeObjectURL(c.url); delete BLOBS[src]; }
+
+  // ================= ÉCRITURE : ajout / suppression =================
+  function notify() {
+    try { store("navire_files_refresh", String(Date.now())); } catch (e) {}
+    try { window.parent.postMessage({ type: "navire-files-updated" }, "*"); } catch (e) {}
+  }
+  function isPdf(f) { return f && (f.type === "application/pdf" || /\.pdf$/i.test(f.name || "")); }
+  function upload(list) {
+    if (!token()) { toast("Connecte-toi d'abord.", "err"); return; }
+    var arr = Array.prototype.slice.call(list || []);
+    var max = S.data && S.data.max_upload_bytes;
+    arr.forEach(function (f) {
+      if (!isPdf(f)) { toast(f.name + " : PDF uniquement.", "err"); return; }
+      if (max && f.size > max) { toast(f.name + " : fichier trop volumineux.", "err"); return; }
+      var t = toast("Envoi de " + f.name + "…");
+      var fd = new FormData(); fd.append("file", f);
+      S.uploading++;
+      api("POST", "/files/upload", fd).then(function (j) {
+        t.remove(); toast("Ajouté à Mes fichiers.", "ok");
+        S.open["s:mes-fichiers"] = true;
+        notify();
+        return fetchAll(true).then(function () { if (j && j.id && S.view === "lecture") openTab("f-" + j.id); });
+      }).catch(function (e) {
+        t.remove(); toast(e.message || "Erreur réseau.", "err");
+      }).then(function () { S.uploading--; });
+    });
+  }
+  function remove(id) {
+    var x = IDX[id]; if (!x || !canDelete(x.node)) return;
+    if (!confirm("Supprimer « " + x.node.label + " » ? Cette action est définitive.")) return;
+    api("DELETE", x.node.delete).then(function () {
+      if (x.node.src) dropBlob(x.node.src);
+      closeTab(id, true);
+      if (S.peek === id) S.peek = null;
+      toast("Fichier supprimé.", "ok");
+      notify();
+      fetchAll(true);
+    }).catch(function (e) { toast(e.message || "Suppression impossible.", "err"); });
+  }
+
+  // ================= NAVIGATION =================
+  function openTab(id) {
+    if (!IDX[id]) return;
+    if (S.tabs.indexOf(id) === -1) S.tabs.push(id);
+    S.active = id;
+    IDX[id].trail.forEach(function (n) { S.open[n.id] = true; });
+    if (window.innerWidth <= 760) setSide(false);
+    render();
+  }
+  function closeTab(id, silent) {
+    var i = S.tabs.indexOf(id); if (i === -1) return;
+    S.tabs.splice(i, 1);
+    if (S.active === id) S.active = S.tabs[Math.min(i, S.tabs.length - 1)] || null;
+    if (!silent) render();
+  }
+  function openFile(id) {
+    var n = IDX[id] && IDX[id].node; if (!n) return;
+    if (S.view === "classeur") { S.peek = id; render(); }
+    else openTab(id);
+  }
+  function setSide(on) { S.side = on; store("navire_files_side", on ? "1" : "0"); root.classList.toggle("side-off", !on); paintTop(); }
+  function setView(v) { S.view = v; S.peek = null; store("navire_files_view", v); render(); }
+
+  // ================= RENDU : barre latérale =================
+  function treeRow(n, depth) {
+    var sel = n.id === (S.view === "lecture" ? S.active : S.peek);
+    if (n.type === "folder") {
+      var kids = (n.children || []).map(function (c) { return treeRow(c, depth + 1); }).join("");
+      if (S.q && !kids) return "";
+      var open = S.q ? true : !!S.open[n.id];
+      return '<div class="fx-fold' + (open ? " is-open" : "") + '">'
+        + '<button class="fx-row" data-act="fold" data-id="' + esc(n.id) + '">' + ic("chev", 12) + nodeIcon(n, 14)
+        + '<span class="fx-lbl">' + esc(n.label) + '</span><span class="fx-cnt">' + files(n.children).length + '</span></button>'
+        + '<div class="fx-kids">' + (kids || '<div class="fx-empty">Vide</div>') + '</div></div>';
+    }
+    if (!matches(n)) return "";
+    var unread = n.type === "actu" && n.meta && n.meta.lu === false;
+    return '<div class="fx-row' + (sel ? " is-sel" : "") + '" role="button" tabindex="0" data-act="file" data-id="' + esc(n.id) + '" title="' + esc(n.label) + '">'
+      + '<span style="width:12px"></span>' + nodeIcon(n, 14) + '<span class="fx-lbl">' + esc(n.label) + '</span>'
+      + (unread ? '<span class="fx-dot" title="Non lue"></span>' : "")
+      + (canDelete(n) ? '<button class="fx-del" data-act="del" data-id="' + esc(n.id) + '" title="Supprimer">' + ic("trash", 13) + '</button>' : "")
+      + '</div>';
+  }
+  function renderTree() {
+    var t = el("tree");
+    if (!S.data) { t.innerHTML = ""; el("quota").innerHTML = ""; return; }
+    t.innerHTML = S.data.sections.map(function (s) {
+      var id = "s:" + s.id;
+      var kids = (s.items || []).map(function (c) { return treeRow(c, 1); }).join("");
+      if (S.q && !kids) return "";
+      var open = S.q ? true : S.open[id] !== false;
+      return '<div class="fx-sec' + (open ? " is-open" : "") + '">'
+        + '<button class="fx-row is-sec" data-act="fold" data-id="' + esc(id) + '" data-sec="1">' + ic("chev", 11) + ic(s.icon || "folder", 13)
+        + '<span class="fx-lbl">' + esc(s.label) + '</span></button>'
+        + '<div class="fx-kids" style="border-left:0;margin-left:0;padding-left:4px">'
+        + (kids || (s.upload ? '<div class="fx-empty">Aucun PDF pour l\'instant</div>' : '<div class="fx-empty">Vide</div>')) + '</div></div>';
+    }).join("") || '<div class="fx-empty" style="padding:10px">Aucun résultat</div>';
+    var mine = S.data.sections[0], q = mine && mine.quota;
+    if (q) {
+      var lim = q.limit === -1 || q.limit == null ? "∞" : q.limit;
+      var pct = q.limit > 0 ? Math.min(100, Math.round(q.used / q.limit * 100)) : 0;
+      el("quota").innerHTML = '<div class="fx-quota-l"><span>Mes fichiers</span><span>' + q.used + " / " + lim + '</span></div>'
+        + '<div class="fx-track"><div class="fx-fill" style="width:' + pct + '%"></div></div>';
+    }
+  }
+
+  // ================= RENDU : contenu d'un fichier =================
+  function crumbOf(id) { var x = IDX[id]; return x ? x.trail.map(function (n) { return n.label; }).join(" / ") : ""; }
+  function headActions(n) {
+    var h = "";
+    if (n.type === "pdf") h += '<button class="fx-btn" data-act="dl" data-id="' + esc(n.id) + '">' + ic("down", 13) + '<span class="fx-hide-sm">Télécharger</span></button>';
+    if (n.type === "lib") h += '<button class="fx-btn" data-act="lib" data-id="' + esc(n.id) + '">' + ic("ext", 13) + '<span>Ouvrir dans NAVIRE Lib</span></button>';
+    if (n.type === "actu" && n.meta && n.meta.source_url) h += '<a class="fx-btn" href="' + esc(n.meta.source_url) + '" target="_blank" rel="noopener" style="text-decoration:none">' + ic("ext", 13) + '<span class="fx-hide-sm">Source</span></a>';
+    if (canDelete(n)) h += '<button class="fx-btn is-danger" data-act="del" data-id="' + esc(n.id) + '" title="Supprimer">' + ic("trash", 13) + '</button>';
+    return h;
+  }
+  function fileView(id, closable) {
+    var n = IDX[id].node, m = n.meta || {};
+    var head = '<div class="fx-vhead">' + nodeIcon(n, 16) + '<h2 title="' + esc(n.label) + '">' + esc(n.label) + '</h2>'
+      + '<span class="fx-crumb fx-hide-sm">' + esc(crumbOf(id)) + '</span>' + headActions(n)
+      + (closable ? '<button class="fx-ibtn" data-act="peek-close" title="Fermer">' + ic("x", 15) + '</button>' : "") + '</div>';
+    var notes = "";
+    if (m.statut) {
+      notes = '<div class="fx-note" style="margin:10px 14px 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
+        + '<span class="fx-pill ' + (m.statut === "Corrigé" ? "is-ok" : "is-warn") + '">' + esc(m.statut) + '</span>'
+        + (m.note ? '<span class="fx-pill is-acc">Note : ' + esc(m.note) + '</span>' : "")
+        + (m.corrige_par ? '<span style="color:var(--muted);font-size:12px">par ' + esc(m.corrige_par) + '</span>' : "")
+        + (m.commentaire ? '<div style="flex-basis:100%;font-size:12.5px;color:rgba(255,255,255,0.8);white-space:pre-line">' + esc(m.commentaire) + '</div>' : "")
+        + '</div>';
+    }
+    if (n.type === "pdf") {
+      var c = BLOBS[n.src];
+      var body = c && c.url
+        ? '<iframe class="fx-frame" src="' + esc(c.url) + '#view=FitH" title="' + esc(n.label) + '"></iframe>'
+        : '<div class="fx-center" data-pdf="' + esc(n.src) + '"><div class="fx-spin"></div><span>Ouverture du PDF…</span></div>';
+      if (!(c && c.url)) setTimeout(function () {
+        blobFor(n.src).then(render).catch(function (e) {
+          var box = root.querySelector('[data-pdf="' + CSS.escape(n.src) + '"]');
+          if (box) box.innerHTML = ic("alert", 22, "#f87171") + "<span>" + esc(e.message || "Impossible d'ouvrir ce PDF.") + "</span>";
+        });
+      }, 0);
+      return head + notes + body;
+    }
+    if (n.type === "actu") {
+      return head + '<div class="fx-scroll"><article class="fx-article">'
+        + '<div class="fx-kick">' + esc(m.rubrique || "Veille") + '</div><h1>' + esc(n.label) + '</h1>'
+        + '<div class="fx-sub">' + esc([m.source_name, fmtDate(n.date), m.minutes ? m.minutes + " min de lecture" : ""].filter(Boolean).join(" · ")) + '</div>'
+        + '<h3>L\'essentiel</h3><p>' + esc(m.essentiel) + '</p>'
+        + (m.impact ? '<h3>Pourquoi c\'est important</h3><p>' + esc(m.impact) + '</p>' : "")
+        + '</article></div>';
+    }
+    // lib
+    return head + '<div class="fx-scroll"><article class="fx-article">'
+      + '<div class="fx-kick">' + esc([crumbOf(id).split(" / ").pop(), m.niveau].filter(Boolean).join(" · ")) + '</div>'
+      + '<h1>' + esc(n.label) + '</h1>'
+      + '<div class="fx-sub">' + esc([m.matiere, n.date ? "Mis à jour le " + fmtDate(n.date) : ""].filter(Boolean).join(" · ")) + '</div>'
+      + (m.description ? '<p>' + esc(m.description) + '</p>' : "")
+      + '<div class="fx-note" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      + (m.plus ? '<span class="fx-pill is-acc">Lib+</span>' : '<span class="fx-pill">Lib</span>')
+      + '<span style="flex:1;min-width:180px;color:var(--muted);font-size:12.5px">Ce cours se lit dans NAVIRE Lib, avec son plan et ses points de passage.</span>'
+      + '<button class="fx-btn is-primary" data-act="lib" data-id="' + esc(n.id) + '">' + ic("ext", 13) + 'Ouvrir</button></div>'
+      + '</article></div>';
+  }
+
+  // ================= RENDU : vue Lecture =================
+  function renderLecture() {
+    var tabs = S.tabs.map(function (id) {
+      var n = IDX[id].node;
+      return '<div class="fx-tab' + (id === S.active ? " is-on" : "") + '" role="button" tabindex="0" data-act="tab" data-id="' + esc(id) + '" title="' + esc(n.label) + '">'
+        + nodeIcon(n, 13) + '<span>' + esc(n.label) + '</span><span class="fx-x" data-act="tab-close" data-id="' + esc(id) + '">' + ic("x", 12) + '</span></div>';
+    }).join("");
+    var body = S.active ? '<div class="fx-view">' + fileView(S.active) + '</div>' : '<div class="fx-scroll">' + home() + '</div>';
+    return '<div class="fx-tabs">' + tabs + '</div>' + body;
+  }
+  function home() {
+    var all = allFiles();
+    var recent = all.filter(function (n) { return n.type === "pdf" && n.date; })
+      .sort(function (a, b) { return new Date(b.date) - new Date(a.date); }).slice(0, 6);
+    var unread = all.filter(function (n) { return n.type === "actu" && n.meta && n.meta.lu === false; });
+    var seen = {}; unread = unread.filter(function (n) { var k = n.label; if (seen[k]) return false; seen[k] = 1; return true; }).slice(0, 4);
+    function li(n) {
+      return '<button class="fx-li" data-act="file" data-id="' + esc(n.id) + '">' + nodeIcon(n, 15) + '<span class="fx-lbl">' + esc(n.label) + '</span>'
+        + '<span class="fx-m fx-hide-sm">' + esc(crumbOf(n.id)) + '</span><span class="fx-m">' + esc(fmtDate(n.date)) + '</span></button>';
+    }
+    return '<div class="fx-home">'
+      + '<div class="fx-drop" data-act="pick"><div class="fx-drop-ic">' + ic("cloud", 20, "rgba(255,255,255,0.65)") + '</div>'
+      + '<b>Déposer un PDF</b><small>Glisse-le ici ou clique pour parcourir. Il rejoint Mes fichiers, visible par toi seul.</small></div>'
+      + (recent.length ? '<div><div class="fx-h">Récents</div><div class="fx-list">' + recent.map(li).join("") + '</div></div>' : "")
+      + (unread.length ? '<div><div class="fx-h">Veille non lue</div><div class="fx-list">' + unread.map(li).join("") + '</div></div>' : "")
+      + '</div>';
+  }
+
+  // ================= RENDU : vue Classeur =================
+  function card(n) {
+    if (n.type === "folder") {
+      return '<button class="fx-card is-folder" data-act="cd" data-id="' + esc(n.id) + '"><div class="fx-ic">' + (n.section ? ic(n.section.icon || "folder", 16) : nodeIcon(n, 16)) + '</div>'
+        + '<div class="fx-nm">' + esc(n.label) + '</div><span class="fx-cnt" style="color:var(--faint);font-size:11px">' + files(n.children).length + '</span></button>';
+    }
+    var m = [fmtDate(n.date), n.size_bytes ? fmtSize(n.size_bytes) : ""].filter(Boolean).join(" · ");
+    return '<div class="fx-card" role="button" tabindex="0" data-act="file" data-id="' + esc(n.id) + '" title="' + esc(n.label) + '">'
+      + '<div class="fx-ic' + (n.type === "pdf" ? " is-pdf" : "") + '">' + nodeIcon(n, 17) + '</div>'
+      + '<div class="fx-nm">' + esc(n.label) + '</div><div class="fx-m">' + esc(m) + '</div>'
+      + (canDelete(n) ? '<button class="fx-del" data-act="del" data-id="' + esc(n.id) + '" title="Supprimer">' + ic("trash", 13) + '</button>' : "")
+      + '</div>';
+  }
+  function renderClasseur() {
+    var cur = S.path.length ? IDX[S.path[S.path.length - 1]].node : null;
+    var bc = '<button data-act="cd" data-id="">' + ic("home", 13) + '</button>'
+      + S.path.map(function (id) { return '<i>/</i><button data-act="cd" data-id="' + esc(id) + '">' + esc(IDX[id].node.label) + '</button>'; }).join("");
+    var body;
+    if (S.q) {
+      var hits = (cur ? files(cur.children) : allFiles()).filter(matches);
+      body = hits.length ? '<div class="fx-grid">' + hits.map(card).join("") + '</div>' : '<div class="fx-center">Aucun fichier ne correspond.</div>';
+    } else if (!cur) {
+      body = S.data.sections.map(function (s) {
+        var node = IDX["s:" + s.id].node;
+        var kids = s.items || [];
+        var head = '<button class="fx-gsec" data-act="cd" data-id="' + esc(node.id) + '">' + esc(s.label) + '</button>';
+        if (!kids.length) {
+          return head + '<div class="fx-grid">' + (s.upload ? '<div class="fx-card" data-act="pick" style="align-items:center;justify-content:center;border-style:dashed;color:var(--muted)">' + ic("upload", 18) + '<span style="font-size:12px">Ajouter un PDF</span></div>' : '<div class="fx-m">Vide</div>') + '</div>';
+        }
+        var show = kids.slice(0, 7).map(card).join("");
+        var more = kids.length > 7 ? '<button class="fx-card is-folder" data-act="cd" data-id="' + esc(node.id) + '"><div class="fx-ic">' + ic("folder", 16) + '</div><div class="fx-nm">Tout voir (' + kids.length + ')</div></button>' : "";
+        return head + '<div class="fx-grid">' + show + more + '</div>';
+      }).join("");
+    } else {
+      var kids = cur.children || [];
+      var folders = kids.filter(function (n) { return n.type === "folder"; });
+      var leafs = kids.filter(function (n) { return n.type !== "folder"; });
+      body = (folders.length ? '<div class="fx-grid">' + folders.map(card).join("") + '</div>' : "")
+        + (leafs.length ? '<div class="fx-grid"' + (folders.length ? ' style="padding-top:0"' : "") + '>' + leafs.map(card).join("") + '</div>' : "")
+        + (!kids.length ? '<div class="fx-center">Ce dossier est vide.' + (sectionOf(cur.id) && sectionOf(cur.id).upload ? ' <button class="fx-btn" data-act="pick">' + ic("upload", 13) + 'Ajouter un PDF</button>' : "") + '</div>' : "");
+    }
+    var peek = S.peek ? '<div class="fx-overlay" data-act="peek-bg"><div class="fx-sheet">' + fileView(S.peek, true) + '</div></div>' : "";
+    return '<div class="fx-bc">' + bc + '</div><div class="fx-scroll">' + body + '</div>' + peek;
+  }
+
+  // ================= RENDU GLOBAL =================
+  function paintTop() {
+    var sideBtn = root.querySelector('[data-act="side"]');
+    sideBtn.innerHTML = ic("side", 16);
+    sideBtn.classList.toggle("is-on", S.side);
+    root.querySelectorAll('[data-act="view"]').forEach(function (b) { b.classList.toggle("is-on", b.getAttribute("data-v") === S.view); });
+  }
+  function render() {
+    paintTop();
+    var main = el("main");
+    if (S.loading && !S.data) { main.innerHTML = '<div class="fx-center"><div class="fx-spin"></div><span>Chargement de tes fichiers…</span></div>'; renderTree(); return; }
+    if (S.error === "auth") {
+      main.innerHTML = '<div class="fx-center">' + ic("user", 26, "rgba(255,255,255,0.5)") + '<b style="color:var(--text);font-weight:500">Connecte-toi pour voir tes fichiers</b>'
+        + '<span>Tes PDF, tes devoirs et la veille t\'attendent ici.</span><button class="fx-btn is-primary" data-act="login">Se connecter</button></div>';
+      renderTree(); return;
+    }
+    if (S.error && !S.data) {
+      main.innerHTML = '<div class="fx-center">' + ic("alert", 24, "#f87171") + '<span>' + esc(S.error) + '</span><button class="fx-btn" data-act="retry">Réessayer</button></div>';
+      renderTree(); return;
+    }
+    renderTree();
+    var scroll = main.querySelector(".fx-scroll"), top = scroll ? scroll.scrollTop : 0;
+    var prevFrame = main.querySelector("iframe.fx-frame");
+    var html = S.view === "lecture" ? renderLecture() : renderClasseur();
+    // Ne recharge pas le PDF affiché si rien n'a changé pour lui
+    if (prevFrame && html.indexOf(prevFrame.getAttribute("src")) !== -1 && main.getAttribute("data-key") === S.view + (S.view === "lecture" ? S.active : S.peek)) {
+      var tabs = main.querySelector(".fx-tabs");
+      if (tabs && S.view === "lecture") { var tmp = document.createElement("div"); tmp.innerHTML = html; tabs.innerHTML = tmp.querySelector(".fx-tabs").innerHTML; }
+      return;
+    }
+    main.innerHTML = html;
+    main.setAttribute("data-key", S.view + (S.view === "lecture" ? S.active : S.peek));
+    var ns = main.querySelector(".fx-scroll"); if (ns && !S.peek) ns.scrollTop = top;
+  }
+
+  // ================= ÉVÉNEMENTS =================
+  root.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-act]"); if (!t || !root.contains(t)) return;
+    var act = t.getAttribute("data-act"), id = t.getAttribute("data-id");
+    switch (act) {
+      case "side": setSide(!S.side); break;
+      case "view": setView(t.getAttribute("data-v")); break;
+      case "pick": el("file").click(); break;
+      case "fold":
+        var sec = t.hasAttribute("data-sec");
+        S.open[id] = sec ? S.open[id] === false : !S.open[id];
+        renderTree(); break;
+      case "file": e.stopPropagation(); openFile(id); break;
+      case "del": e.stopPropagation(); remove(id); break;
+      case "tab": S.active = id; render(); break;
+      case "tab-close": e.stopPropagation(); closeTab(id); break;
+      case "cd": S.path = id ? IDX[id].trail.map(function (n) { return n.id; }).concat([id]) : []; render(); break;
+      case "peek-close": S.peek = null; render(); break;
+      case "peek-bg": if (e.target === t) { S.peek = null; render(); } break;
+      case "dl":
+        var n = IDX[id].node;
+        blobFor(n.src).then(function (url) {
+          var a = document.createElement("a"); a.href = url;
+          a.download = /\.pdf$/i.test(n.label) ? n.label : n.label + ".pdf";
+          document.body.appendChild(a); a.click(); a.remove();
+        }).catch(function (er) { toast(er.message, "err"); });
+        break;
+      case "lib": go(CONFIG.SITE + IDX[id].node.link); break;
+      case "login": go(CONFIG.LOGIN_URL); break;
+      case "retry": fetchAll(); break;
+    }
+  });
+  root.addEventListener("keydown", function (e) {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches('[role="button"][data-act]')) { e.preventDefault(); e.target.click(); }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && S.peek) { S.peek = null; render(); }
+  });
+  el("q").addEventListener("input", function (e) { S.q = e.target.value.trim(); render(); });
+  el("file").addEventListener("change", function (e) { upload(e.target.files); e.target.value = ""; });
+
+  var dragDepth = 0;
+  root.addEventListener("dragenter", function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") !== -1) { dragDepth++; root.classList.add("is-drag"); } });
+  root.addEventListener("dragover", function (e) { e.preventDefault(); });
+  root.addEventListener("dragleave", function () { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) root.classList.remove("is-drag"); });
+  root.addEventListener("drop", function (e) { e.preventDefault(); dragDepth = 0; root.classList.remove("is-drag"); if (e.dataTransfer) upload(e.dataTransfer.files); });
+
+  // Synchro avec les autres embeds (NAVIRE AI, Lib…) qui ajoutent ou retirent des PDF
+  window.addEventListener("message", function (e) { if (e.data && e.data.type === "navire-files-updated") fetchAll(true); });
+  window.addEventListener("storage", function (e) { if (e.key === "navire_files_refresh") fetchAll(true); });
+  window.addEventListener("storage", function (e) { if (e.key === CONFIG.TOKEN_KEY) fetchAll(); });
+
+  // ================= DÉMARRAGE =================
+  hydrateIcons();
+  var v = load("navire_files_view"); if (v === "lecture" || v === "classeur") S.view = v;
+  var sd = load("navire_files_side");
+  setSide(sd == null ? window.innerWidth > 760 : sd === "1");
+  fetchAll();
+})();
+</script>

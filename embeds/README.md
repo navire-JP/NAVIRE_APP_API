@@ -8,6 +8,7 @@
 | `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI), et la vue Prépa des inscrits Prép'AdJuris (remplace la page Prépa) |
 | `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, devoirs à corriger, rémunération prévisionnelle |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
+| `fichiers.html` | onglet Fichiers | Tous les fichiers de l'élève dans un seul embed : panneau latéral rabattable, vue Lecture (arborescence + lecteur à onglets) ou vue Classeur (dossiers en grille). Ajout / suppression de PDF uniquement |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
@@ -271,3 +272,35 @@ retour est celle de la page (si elle est sur le domaine du site), sinon
 En cas d'impayé, une alerte rouge s'affiche sous l'en-tête du profil et mène
 directement à l'onglet Abonnement.
 
+
+
+## Onglet Fichiers
+
+**Embed HTML unique.** Coller `fichiers.html` dans un Embed HTML de l'onglet
+Fichiers (servi aussi par l'API : `GET /files/embed`). Il remplace les deux
+anciens embeds (zone de dépôt + grille « Mes fichiers »). Il reprend la
+connexion du site (`navire_token`) et occupe toute la hauteur de son cadre
+(560 px minimum).
+
+- **Panneau latéral** rabattable (bouton en haut à gauche, état retenu par
+  navigateur) : l'arborescence de tout ce que l'élève peut lire.
+- **Vue Lecture** : clic sur un fichier, il s'ouvre dans un onglet à droite
+  (PDF dans le lecteur, actu de veille mise en page, cours Lib avec un bouton
+  vers NAVIRE Lib). Plusieurs onglets restent ouverts.
+- **Vue Classeur** : dossiers et fichiers en grille, fil d'Ariane, aperçu en
+  surimpression.
+- **Écriture** : seulement ajouter (bouton, glisser-déposer n'importe où) ou
+  supprimer un PDF de « Mes fichiers ». Pas de renommage ni d'édition. Le
+  reste est en lecture seule.
+
+Ce qui est listé (`GET /files/explorer`), uniquement pour l'utilisateur
+connecté : ses PDF (+ quota), les documents Prép'AdJuris de ses matières et
+de son groupe, ses copies et corrigés (statut, note, commentaire), la veille
+(actus enregistrées + 30 dernières, par rubrique), le catalogue NAVIRE Lib
+publié. Chaque PDF est relu par sa route habituelle, qui revérifie l'accès
+côté serveur (`/files/{id}/download?inline=1`,
+`/prepa/adjuris/ressources/{id}/download`, `/lib/prepa/devoirs/{id}/…`).
+
+Le PDF ajouté prévient les autres embeds (`navire-files-updated`,
+`navire_files_refresh`), et l'onglet se recharge quand un autre embed en fait
+autant.

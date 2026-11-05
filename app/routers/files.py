@@ -6,7 +6,7 @@ from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
@@ -219,6 +219,222 @@ def list_files(
     }
 
 
+# ============================================================
+# Explorateur (onglet Fichiers) : tout ce que l'utilisateur peut lire
+# ============================================================
+
+_EMBED = Path(__file__).resolve().parents[2] / "embeds" / "fichiers.html"
+VEILLE_RECENTES = 30
+
+
+def _iso(d) -> str | None:
+    return d.isoformat() if d else None
+
+
+def _section_mes_fichiers(db: Session, user: User) -> dict:
+    rows = db.execute(
+        select(FileModel).where(FileModel.user_id == user.id).order_by(desc(FileModel.created_at))
+    ).scalars().all()
+    return {
+        "id": "mes-fichiers",
+        "label": "Mes fichiers",
+        "icon": "user",
+        "upload": True,
+        "items": [
+            {
+                "id": f"f-{r.id}",
+                "type": "pdf",
+                "label": r.filename_original,
+                "size_bytes": r.size_bytes,
+                "date": _iso(r.created_at),
+                "expires_at": _iso(r.expires_at),
+                "src": f"/files/{r.id}/download?inline=1",
+                "delete": f"/files/{r.id}",
+            }
+            for r in rows
+        ],
+        "quota": {"used": len(rows), "limit": get_user_limit(user, "files_total")},
+    }
+
+
+def _par_dossier(items: list[dict], cle: str, prefixe: str) -> list[dict]:
+    """Range des fichiers en sous-dossiers, dans l'ordre d'apparition."""
+    dossiers: dict[str, dict] = {}
+    for it in items:
+        nom = it.pop(cle, None) or "Autres"
+        d = dossiers.setdefault(nom, {"id": f"{prefixe}-{len(dossiers)}", "type": "folder", "label": nom, "children": []})
+        d["children"].append(it)
+    return list(dossiers.values())
+
+
+def _section_prepa(db: Session, user: User) -> dict | None:
+    from app.routers.lib import adjuris  # import local : évite un cycle
+
+    rows = adjuris(db, user)["items"]
+    if not rows:
+        return None
+    items = [
+        {
+            "id": f"r-{r['id']}",
+            "type": "pdf",
+            "label": r["titre"],
+            "size_bytes": r["size_bytes"],
+            "date": r["created_at"],
+            "src": r["url"],
+            "meta": {"description": r["description"], "auteur": "Ton chargé de TD" if r["professeur"] else "NAVIRE"},
+            "_dossier": r["matiere_label"],
+        }
+        for r in rows
+    ]
+    return {"id": "prepa", "label": "Prép'AdJuris", "icon": "school", "items": _par_dossier(items, "_dossier", "prepa")}
+
+
+def _section_devoirs(db: Session, user: User) -> dict | None:
+    from app.db.models import PrepaAdjurisDevoir
+    from app.services.devoirs import devoir_row
+
+    rows = db.execute(
+        select(PrepaAdjurisDevoir)
+        .where(PrepaAdjurisDevoir.user_id == user.id)
+        .order_by(PrepaAdjurisDevoir.created_at.desc(), PrepaAdjurisDevoir.id.desc())
+    ).scalars().all()
+    if not rows:
+        return None
+    items = []
+    for d in rows:
+        r = devoir_row(db, d)
+        meta = {
+            "statut": "Corrigé" if r["statut"] == "corrige" else "En attente de correction",
+            "note": r["note"] or None,
+            "commentaire": r["commentaire"] or None,
+            "corrige_par": r["corrige_par"],
+        }
+        items.append({
+            "id": f"d-{d.id}", "type": "pdf", "label": f"{r['titre']} (copie)",
+            "size_bytes": r["size_bytes"], "date": r["created_at"],
+            "src": f"/lib/prepa/devoirs/{d.id}/fichier", "meta": meta, "_dossier": r["matiere_label"],
+        })
+        if r["correction"]:
+            items.append({
+                "id": f"c-{d.id}", "type": "pdf", "label": f"{r['titre']} (corrigé)",
+                "date": r["corrige_le"], "src": f"/lib/prepa/devoirs/{d.id}/correction",
+                "meta": meta, "_dossier": r["matiere_label"],
+            })
+    return {"id": "devoirs", "label": "Mes devoirs", "icon": "check", "items": _par_dossier(items, "_dossier", "devoirs")}
+
+
+def _section_veille(db: Session, user: User) -> dict | None:
+    from app.db.models import VeilleBookmark, VeilleItem
+    from app.routers.veille import RUBRIQUES, _date_key, _hub_item, _read_ids, _saved_ids
+
+    read_ids, saved_ids = _read_ids(db, user), _saved_ids(db, user)
+
+    def actu(it: VeilleItem, prefixe: str) -> dict:
+        h = _hub_item(it, read_ids, saved_ids)
+        return {
+            "id": f"{prefixe}-{it.id}", "type": "actu", "label": h["title"], "date": h["published_at"],
+            "meta": {
+                "essentiel": h["essentiel"], "impact": h["impact"], "rubrique": h["category_label"],
+                "source_name": h["source_name"], "source_url": h["source_url"],
+                "minutes": h["reading_minutes"], "lu": h["is_read"],
+            },
+        }
+
+    enregistrees = db.execute(
+        select(VeilleItem)
+        .join(VeilleBookmark, VeilleBookmark.item_id == VeilleItem.id)
+        .where(VeilleBookmark.user_id == user.id)
+        .order_by(_date_key().desc())
+    ).scalars().all()
+    recentes = db.execute(
+        select(VeilleItem).order_by(_date_key().desc(), VeilleItem.id.desc()).limit(VEILLE_RECENTES)
+    ).scalars().all()
+    if not enregistrees and not recentes:
+        return None
+
+    dossiers = []
+    if enregistrees:
+        dossiers.append({"id": "veille-saved", "type": "folder", "label": "Enregistrées",
+                         "children": [actu(it, "vs") for it in enregistrees]})
+    par_rub: dict[str, list] = {}
+    for it in recentes:
+        par_rub.setdefault(it.category, []).append(actu(it, "v"))
+    for cat, enfants in par_rub.items():
+        dossiers.append({"id": f"veille-{cat}", "type": "folder",
+                         "label": RUBRIQUES.get(cat, cat.capitalize()), "children": enfants})
+    return {"id": "veille", "label": "Veille juridique", "icon": "news", "items": dossiers}
+
+
+def _section_lib(db: Session, user: User) -> dict | None:
+    from app.db.models import LibDocument
+    from app.routers.lib import KINDS
+
+    labels = {"cours": "Cours", "fiche": "Fiches", "fiche_arret": "Fiches d'arrêt", "commentaire": "Commentaires",
+              "dissertation": "Dissertations", "cas_pratique": "Cas pratiques"}
+    docs = db.execute(
+        select(LibDocument)
+        .where(
+            LibDocument.owner_id.is_(None),
+            LibDocument.prepa_ressource_id.is_(None),
+            LibDocument.is_published.is_(True),
+            LibDocument.kind.in_(KINDS),
+        )
+        .order_by(LibDocument.ordre, LibDocument.id)
+    ).scalars().all()
+    if not docs:
+        return None
+    dossiers: dict[str, dict] = {}
+    for d in docs:
+        dossier = dossiers.setdefault(d.kind, {"id": f"lib-{d.kind}", "type": "folder",
+                                               "label": labels.get(d.kind, d.kind), "children": []})
+        dossier["children"].append({
+            "id": f"l-{d.id}", "type": "lib", "label": d.titre, "date": _iso(d.updated_at),
+            "link": f"/lib?doc={d.id}",
+            "meta": {"matiere": d.matiere, "niveau": d.niveau, "description": d.description or d.sous_titre,
+                     "plus": d.is_plus},
+        })
+    ordre = [k for k in labels if k in dossiers]
+    return {"id": "lib", "label": "NAVIRE Lib", "icon": "book", "items": [dossiers[k] for k in ordre]}
+
+
+@router.get("/explorer")
+def explorer(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Arborescence de l'onglet Fichiers : uniquement ce que l'utilisateur a le
+    droit de lire. Ses PDF (seule section modifiable : ajout / suppression),
+    les documents Prép'AdJuris de ses matières, ses copies et corrigés, la
+    veille (enregistrées + dernières actus) et le catalogue NAVIRE Lib.
+    Chaque fichier pointe vers une route qui revérifie l'accès côté serveur.
+    """
+    purge_expired_files(db, current_user)
+    sections = [_section_mes_fichiers(db, current_user)]
+    for build in (_section_prepa, _section_devoirs, _section_veille, _section_lib):
+        try:
+            s = build(db, current_user)
+        except Exception as e:  # une source en panne ne vide pas tout l'onglet
+            db.rollback()
+            print(f"⚠️ Explorateur : section {build.__name__} indisponible : {e}")
+            continue
+        if s:
+            sections.append(s)
+    return {"sections": sections, "max_upload_bytes": MAX_UPLOAD_BYTES}
+
+
+@router.get("/embed", response_class=HTMLResponse, include_in_schema=False)
+def embed():
+    contenu = _EMBED.read_text(encoding="utf-8")
+    contenu = contenu.replace('API: "https://navire-app-api.onrender.com"', 'API: ""')
+    return HTMLResponse(
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<title>NAVIRE Fichiers</title></head>'
+        f'<body style="margin:0;background:transparent">{contenu}</body></html>'
+    )
+
+
 @router.delete("/{file_id}")
 def delete_file(
     file_id: int,
@@ -303,11 +519,16 @@ def rename_file(
 @router.get("/{file_id}/download")
 def download_file(
     file_id: int,
+    inline: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """`inline=1` : le PDF s'affiche dans le lecteur (onglet Fichiers) au lieu d'être téléchargé."""
     row = _get_owned_file(db, current_user, file_id)
     p = Path(row.path)
     if not p.is_file():
         raise HTTPException(status_code=404, detail="Fichier absent du serveur.")
-    return FileResponse(p, media_type="application/pdf", filename=row.filename_original)
+    return FileResponse(
+        p, media_type="application/pdf", filename=row.filename_original,
+        content_disposition_type="inline" if inline else "attachment",
+    )
