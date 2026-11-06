@@ -103,6 +103,8 @@
 #nv-home .nv-nav.is-active { background: var(--panel-2); color: var(--text); }
 #nv-home .nv-nav .nv-badge { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-4); }
 #nv-home [data-el="side-links"] .nv-nav svg { color: var(--blue); opacity: .85; }
+#nv-home .nv-side-art { width: 18px; height: 18px; flex-shrink: 0; background: center/contain no-repeat; }
+#nv-home.is-compact .nv-side-art { width: 22px; height: 22px; }
 
 #nv-home .nv-side-label { font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 14px 10px 4px; }
 #nv-home .nv-recent { display: flex; flex-direction: column; gap: 1px; }
@@ -1172,12 +1174,14 @@
     var side = Object.keys(LINKS).map(function (k) {
       var L = LINKS[k];
       return L.url
-        ? '<a class="nv-nav" href="' + esc(L.url) + '" target="_top">' + ICON[k] + esc(L.label) + '</a>'
-        : '<button class="nv-nav" data-view="files">' + ICON[k] + esc(L.label) + '</button>';
+        ? '<a class="nv-nav" href="' + esc(L.url) + '" target="_top">' + sideArt(k) + esc(L.label) + '</a>'
+        : '<button class="nv-nav" data-view="files">' + sideArt(k) + esc(L.label) + '</button>';
     });
     if (QCM_URL) side.push('<a class="nv-nav" href="' + esc(QCM_URL) + '" target="_top">' + ICON.qcm + 'QCM</a>');
     el('side-links').innerHTML = side.join('');
   }
+  // Même visuel que la carte, en petit, dans le menu rétractable
+  function sideArt(k) { return '<span class="nv-side-art" aria-hidden="true" style="background-image:url(&quot;' + API + '/assets/home-' + k + '.png&quot;)"></span>'; }
   function setShortcutTag(k, text) {
     var n = root.querySelector('[data-tag="' + k + '"]');
     if (n) n.textContent = text || '';

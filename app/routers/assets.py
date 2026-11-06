@@ -24,6 +24,12 @@ BRAND_FILES: dict[str, str] = {
     "home-veilles.png": "home-veilles.png",
     "home-cours.png": "home-cours.png",
     "home-fichiers.png": "home-fichiers.png",
+    # Visuels des sections de l'onglet Fichiers (embeds/fichiers.html) : Mes PDF
+    # (le dossier de l'accueil), Mes copies (cristal), Enregistrés (diamant),
+    # recadrés en 256 px depuis « NAVIRE_<Cristal|Diamant>_embed asset.png ».
+    "files-pdf.png": "home-fichiers.png",
+    "files-copies.png": "files-copies.png",
+    "files-enregistres.png": "files-enregistres.png",
 }
 
 # Une semaine : ces fichiers ne changent qu'à un changement d'identité visuelle,
