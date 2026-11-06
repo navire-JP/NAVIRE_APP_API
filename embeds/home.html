@@ -6,7 +6,11 @@
 
   Écrire dans la barre et valider démarre NAVIRE AI sur place : la barre
   glisse en bas de l'écran et la discussion s'ouvre au-dessus, comme
-  ChatGPT / Claude. « Nouvelle discussion » (ou Ctrl/⌘ K) ramène à l'accueil.
+  ChatGPT / Claude.
+
+  Hauteur : l'embed grandit avec son contenu (au moins la hauteur de l'écran
+  sous le header) ; c'est la page qui défile, jusqu'au pied de page. Pendant
+  une discussion, la barre de saisie reste au bas de l'écran. « Nouvelle discussion » (ou Ctrl/⌘ K) ramène à l'accueil.
 
   Même DA que NAVIRE Lib (bleu et blanc, cartes à halo lumineux) :
     - >= 760px de conteneur : barre latérale repliée par défaut (bouton
@@ -55,8 +59,7 @@
 
   position: relative;
   width: 100%;
-  height: 640px;          /* remplacé par la hauteur de l'écran au chargement */
-  min-height: 460px;
+  min-height: 460px;      /* remplacé par la hauteur de l'écran sous l'embed */
   display: flex;
   overflow: hidden;
   font-family: 'Inter', sans-serif;
@@ -75,7 +78,7 @@
 #nv-home svg { flex-shrink: 0; }
 
 /* ================= MENU LATÉRAL (comme NAVIRE Lib) ================= */
-#nv-home .nv-side { width: 244px; flex-shrink: 0; display: flex; flex-direction: column; padding: 12px 8px 10px; gap: 2px; background: rgba(255,255,255,0.018); z-index: 30; min-height: 0; overflow-y: auto; scrollbar-width: none; transition: margin-left .3s var(--ease), visibility 0s; }
+#nv-home .nv-side { width: 244px; flex-shrink: 0; display: flex; flex-direction: column; padding: 12px 8px 10px; gap: 2px; background: rgba(255,255,255,0.018); z-index: 30; transition: margin-left .3s var(--ease), visibility 0s; }
 #nv-home .nv-side::-webkit-scrollbar { display: none; }
 #nv-home .nv-side > * { flex-shrink: 0; }   /* rien ne s'écrase quand le menu défile */
 #nv-home:not(.is-compact).is-side-off .nv-side { margin-left: -244px; visibility: hidden; transition: margin-left .3s var(--ease), visibility 0s .3s; }
@@ -119,7 +122,7 @@
 #nv-home .nv-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 25; }
 
 /* Téléphone : tiroir par-dessus la page */
-#nv-home.is-compact .nv-side { position: absolute; top: 0; bottom: 0; left: 0; visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s; z-index: 1001; width: min(320px, 88%); transform: translateX(-102%); background: #0c0c14; box-shadow: 20px 0 60px rgba(0,0,0,0.4); }
+#nv-home.is-compact .nv-side { position: absolute; top: 0; left: 0; height: 100%; overflow-y: auto; scrollbar-width: none; visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s; z-index: 1001; width: min(320px, 88%); transform: translateX(-102%); background: #0c0c14; box-shadow: 20px 0 60px rgba(0,0,0,0.4); }
 #nv-home.is-compact.is-drawer .nv-side { transform: none; visibility: visible; transition: transform .32s var(--ease); }
 #nv-home.is-compact .nv-scrim { z-index: 1000; }
 #nv-home.is-compact.is-drawer .nv-scrim { opacity: 1; pointer-events: auto; }
@@ -166,9 +169,8 @@
 
 /* ---------- ACCUEIL ---------- */
 #nv-home .nv-hero {
-  flex: 1; min-height: 0;
+  flex: 1;
   display: none; flex-direction: column; align-items: center;
-  overflow-y: auto; overscroll-behavior: contain;
   padding: 0 20px 24px;
 }
 #nv-home.is-home .nv-hero { display: flex; }
@@ -234,9 +236,13 @@
 #nv-home .nv-shortcut:hover .nv-shortcut-arrow { transform: translateX(3px); color: var(--blue); }
 
 /* ---------- DISCUSSION ---------- */
-/* Seule zone qui défile ; overscroll contain : arrivé en haut/bas des
+/* La discussion grandit avec les messages : c'est la page qui défile.
    messages, la molette ne fait pas défiler la page derrière */
-#nv-home .nv-thread { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+#nv-home .nv-thread { flex: 1; display: flex; flex-direction: column; }
+/* Pendant une discussion, la barre de saisie reste au bas de l'écran pendant
+   que la page défile (position calculée en JS, comme un « sticky ») */
+#nv-home [data-viewpane="chat"] { position: relative; }
+#nv-home .nv-composer-wrap.is-pinned { position: absolute; left: 0; right: 0; z-index: 20; }
 #nv-home .nv-thread-inner {
   flex: 1 0 auto; width: 100%;
   max-width: 760px;
@@ -444,7 +450,7 @@
 #nv-home .nv-banner a { margin-left: auto; color: #fff; font-weight: 600; text-decoration: none; white-space: nowrap; }
 
 /* ---------- Pages (Historique / Sources / Fichiers) ---------- */
-#nv-home .nv-page { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+#nv-home .nv-page { flex: 1; }
 #nv-home .nv-page-inner { max-width: 760px; margin: 0 auto; padding: 8px 20px 30px; }
 #nv-home .nv-page-head { margin: 6px 0 18px; }
 #nv-home .nv-page-head h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
@@ -562,7 +568,7 @@
 #nv-home .nv-skel { height: 62px; border-radius: 12px; margin-bottom: 6px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nv-shimmer 1.4s linear infinite; }
 
 /* Toasts */
-#nv-home .nv-toasts { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 50; pointer-events: none; }
+#nv-home .nv-toasts { position: absolute; left: 50%; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 50; pointer-events: none; }
 #nv-home .nv-toast {
   padding: 9px 14px; border-radius: 11px;
   background: rgba(30,32,50,0.95);
@@ -714,7 +720,7 @@
     <!-- ---------- ACCUEIL + DISCUSSION ---------- -->
     <section class="nv-view is-active" data-viewpane="chat">
       <!-- Accueil : bonjour, barre de recherche (déplacée ici), trois accès -->
-      <div class="nv-hero nv-scroll">
+      <div class="nv-hero">
         <div class="nv-hero-inner" data-el="hero">
           <h1 data-el="hello">Bonjour</h1>
           <p class="nv-hero-sub">Qu'est-ce qu'on travaille aujourd'hui ?</p>
@@ -723,7 +729,7 @@
         </div>
       </div>
 
-      <div class="nv-thread nv-scroll" data-el="thread">
+      <div class="nv-thread" data-el="thread">
         <div class="nv-thread-inner" data-el="messages"></div>
       </div>
 
@@ -754,7 +760,7 @@
 
     <!-- ---------- HISTORIQUE ---------- -->
     <section class="nv-view" data-viewpane="history">
-      <div class="nv-page nv-scroll">
+      <div class="nv-page">
         <div class="nv-page-inner">
           <div class="nv-page-head">
             <button class="nv-icon-btn nv-page-close" data-act="back" aria-label="Fermer" title="Fermer (Échap)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -772,7 +778,7 @@
 
     <!-- ---------- SOURCES ---------- -->
     <section class="nv-view" data-viewpane="sources">
-      <div class="nv-page nv-scroll">
+      <div class="nv-page">
         <div class="nv-page-inner">
           <div class="nv-page-head">
             <button class="nv-icon-btn nv-page-close" data-act="back" aria-label="Fermer" title="Fermer (Échap)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -814,7 +820,7 @@
 
     <!-- ---------- PDF POUR NAVIRE AI ---------- -->
     <section class="nv-view" data-viewpane="files">
-      <div class="nv-page nv-scroll">
+      <div class="nv-page">
         <div class="nv-page-inner">
           <div class="nv-page-head">
             <button class="nv-icon-btn nv-page-close" data-act="back" aria-label="Fermer" title="Fermer (Échap)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -885,30 +891,63 @@
     document.body.style.margin = '0';
     try { if (window.frameElement && window.parent.document) HOST = window.parent; } catch (e) {}
   }
-  // Hauteur de l'embed = hauteur de l'écran moins sa position en haut de
-  // page (le header du site est au-dessus). On règle aussi l'iframe Framer
-  // et ses blocs parents qui ne contiennent que lui, pour qu'ils ne coupent rien.
+  // Hauteur : l'embed grandit avec son contenu, au minimum la hauteur de
+  // l'écran sous sa position (le header du site est au-dessus). Dans Framer
+  // (iframe), on donne à l'iframe et à ses blocs parents la hauteur du contenu :
+  // rien ne défile dans l'embed, c'est la page qui défile jusqu'au pied de page.
   var frameEl = HOST ? window.frameElement : null;
   var wrappers = [];
   if (frameEl) {
+    var noScroll = document.createElement('style');
+    noScroll.textContent = 'html,body{overflow:hidden!important;height:auto!important}';
+    document.head.appendChild(noScroll);
     for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
   }
+  var lastH = 0;
   function sizeApp() {
     var win = HOST || window;
     var anchor = frameEl || root;
     var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
-    var h = Math.max(460, Math.round(win.innerHeight - top - 12));
-    root.style.height = h + 'px';
-    if (frameEl) {
-      frameEl.style.height = h + 'px';
-      frameEl.style.minHeight = h + 'px';
-      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + 'px'; });
+    root.style.minHeight = Math.max(460, Math.round(win.innerHeight - top - 12)) + 'px';
+    if (!frameEl) return;
+    var h = Math.ceil(root.getBoundingClientRect().height);
+    if (Math.abs(h - lastH) < 1) return;
+    lastH = h;
+    frameEl.style.height = h + 'px';
+    frameEl.style.minHeight = h + 'px';
+    wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + 'px'; });
+  }
+  // Partie de l'embed visible à l'écran, en pixels depuis le haut de l'embed
+  function visible() {
+    var r = root.getBoundingClientRect(), top = r.top, vh = window.innerHeight;
+    if (frameEl) { top += frameEl.getBoundingClientRect().top; vh = HOST.innerHeight; }
+    var t = Math.max(0, -top), btm = Math.min(r.height, vh - top);
+    return { top: t, bottom: btm, height: Math.max(0, btm - t), viewTop: top };
+  }
+  function hostScrollBy(dy, smooth) {
+    try { (HOST || window).scrollBy({ top: dy, behavior: smooth ? 'smooth' : 'auto' }); } catch (e) {}
+  }
+  // Remonte la page jusqu'au haut de l'embed (changement de vue)
+  function toTop() { var v = visible(); if (v.viewTop < 0) hostScrollBy(v.viewTop); }
+  // Tiroir (téléphone) et toasts : placés dans la partie visible de l'embed
+  function placeFloating() {
+    var v = visible();
+    if (root.classList.contains('is-compact')) {
+      var side = root.querySelector('[data-el="side"]');
+      side.style.top = v.top + 'px';
+      side.style.height = Math.max(320, v.height) + 'px';
     }
+    root.querySelector('[data-el="toasts"]').style.top = Math.max(0, v.bottom - (state.home ? 70 : 150)) + 'px';
   }
   sizeApp();
-  (HOST || window).addEventListener('resize', sizeApp);
+  (HOST || window).addEventListener('resize', function () { sizeApp(); pinComposer(); });
   window.addEventListener('load', sizeApp);
   setTimeout(sizeApp, 600);   // après la mise en place de la page Framer
+  var pinRaf = 0;
+  (HOST || window).addEventListener('scroll', function () {
+    if (pinRaf) return;
+    pinRaf = requestAnimationFrame(function () { pinRaf = 0; pinComposer(); });
+  }, { passive: true });
 
   function $(sel) { return root.querySelector(sel); }
   function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
@@ -966,6 +1005,7 @@
     var t = document.createElement('div');
     t.className = 'nv-toast' + (isError ? ' is-error' : '');
     t.textContent = msg;
+    placeFloating();
     el('toasts').appendChild(t);
     setTimeout(function () { t.remove(); }, 2700);
   }
@@ -1095,8 +1135,8 @@
     root.classList.toggle('is-side-off', !!state.sideOff);
     if (!compact) root.classList.remove('is-drawer');
   }
-  if (window.ResizeObserver) new ResizeObserver(updateLayout).observe(root);
-  else window.addEventListener('resize', updateLayout);
+  if (window.ResizeObserver) new ResizeObserver(function () { updateLayout(); sizeApp(); pinComposer(); }).observe(root);
+  else window.addEventListener('resize', function () { updateLayout(); sizeApp(); });
   updateLayout();
 
   // ================= NAVIGATION =================
@@ -1107,6 +1147,8 @@
     root.querySelectorAll('.nv-view').forEach(function (s) { s.classList.toggle('is-active', s.getAttribute('data-viewpane') === v); });
     root.classList.remove('is-drawer');
     root.classList.toggle('is-page', v !== 'chat');
+    if (v !== 'chat') toTop();
+    pinComposer();
     if (v === 'chat') { updateTitle(); setTimeout(function () { input.focus({ preventScroll: true }); }, 50); }
     else el('title').textContent = TITLES[v];
     if (v === 'history') renderHistory();
@@ -1128,7 +1170,7 @@
     if (act === 'new') newChat();
     else if (act === 'back') setView('chat');
     else if (act === 'open-drawer') {
-      if (root.classList.contains('is-compact')) root.classList.add('is-drawer');
+      if (root.classList.contains('is-compact')) { placeFloating(); root.classList.add('is-drawer'); }
       else { state.sideOff = false; LS.set('home_side_off', false); updateLayout(); }
     }
     else if (act === 'close-drawer') root.classList.remove('is-drawer');
@@ -1213,6 +1255,7 @@
     el('nav-chat-label').textContent = home ? 'Accueil' : 'Discussion';
     if (composerWrap.parentNode !== target) target.appendChild(composerWrap);
     updateTitle();
+    pinComposer();
     if (!animate || !composerWrap.animate || !first.height) return;
     var last = composerWrap.getBoundingClientRect();
     var dy = first.top - last.top;
@@ -1225,14 +1268,44 @@
 
   function showHome() {
     list.innerHTML = '';
+    toTop();
     renderHello();
     placeComposer(true, !state.home);
   }
 
   // ================= DISCUSSION =================
-  function nearBottom() { return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120; }
+  // Barre de saisie « collée » au bas de l'écran pendant la discussion, sans
+  // descendre plus bas que la fin de la discussion.
+  function pinComposer() {
+    if (!composerWrap || !chatPane) return;
+    if (state.home || state.view !== 'chat') {
+      composerWrap.classList.remove('is-pinned');
+      composerWrap.style.top = '';
+      chatPane.style.paddingBottom = '';
+      return;
+    }
+    composerWrap.classList.add('is-pinned');
+    var h = composerWrap.offsetHeight;
+    if (chatPane.style.paddingBottom !== h + 'px') chatPane.style.paddingBottom = h + 'px';
+    var pr = chatPane.getBoundingClientRect(), rr = root.getBoundingClientRect();
+    var paneTop = pr.top - rr.top, v = visible();
+    var top = Math.min(pr.height - h, v.bottom - paneTop - h);
+    composerWrap.style.top = Math.max(0, Math.round(top)) + 'px';
+  }
+  // La fin de la discussion est-elle à l'écran ? (on suit alors la réponse)
+  function nearBottom() {
+    var pr = chatPane.getBoundingClientRect(), rr = root.getBoundingClientRect();
+    return (pr.bottom - rr.top) - visible().bottom < 160;
+  }
+  // Fait défiler la page jusqu'à la fin de la discussion
   function scrollBottom(smooth) {
-    requestAnimationFrame(function () { thread.scrollTo({ top: thread.scrollHeight, behavior: smooth ? 'smooth' : 'auto' }); });
+    requestAnimationFrame(function () {
+      sizeApp();
+      var pr = chatPane.getBoundingClientRect(), rr = root.getBoundingClientRect();
+      var dy = (pr.bottom - rr.top) - visible().bottom;
+      if (dy > 1) hostScrollBy(dy, smooth);
+      pinComposer();
+    });
   }
 
   function addUser(text) {
