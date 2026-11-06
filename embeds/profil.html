@@ -23,6 +23,10 @@
 
   Voir le profil d'un autre élève : ajoute ?u=<id> à l'adresse de la page.
   Sans paramètre (ou avec son propre id), c'est son profil à soi.
+  En haut de la page, « Rechercher un élève » (GET /users/search) : un clic
+  ouvre son profil sur place (l'adresse passe à ?u=<id>, le bouton retour du
+  navigateur fonctionne) ; « Mon profil » ramène au sien. Les profils
+  s'ouvrent aussi depuis le classement (fiche joueur) et la veille (auteur).
 
   Même DA que le Home : bleu et blanc, aucun trait, des fonds légers, aucun
   fond de page (le fond sombre est posé par le site). --ring, plus bas, est la
@@ -374,9 +378,43 @@
 @media (prefers-reduced-motion: reduce) {
   #nv-profil *, #nv-profil *::before, #nv-profil *::after { animation: none !important; transition: none !important; }
 }
+/* ================= Rechercher un élève ================= */
+#nv-profil .pf-find { position: relative; z-index: 30; display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+#nv-profil .pf-find.is-hidden { display: none; }
+#nv-profil .pf-back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px 0 10px; border: 0; border-radius: 99px; background: var(--panel-2); color: var(--text-2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+#nv-profil .pf-back:hover { background: var(--panel-3); color: #fff; }
+#nv-profil .pf-back svg { width: 14px; height: 14px; }
+#nv-profil .pf-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; height: 36px; padding: 0 14px; border-radius: 99px; background: var(--panel); color: var(--text-3); transition: background .15s; }
+#nv-profil .pf-search:focus-within { background: var(--panel-2); }
+#nv-profil .pf-search svg { width: 15px; height: 15px; flex-shrink: 0; }
+#nv-profil .pf-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: #fff; font: inherit; font-size: 13px; }
+#nv-profil .pf-search input::placeholder { color: var(--text-4); }
+#nv-profil .pf-results { position: absolute; left: 0; right: 0; top: 42px; display: none; flex-direction: column; gap: 2px; padding: 6px; border-radius: 16px; background: rgba(18,19,30,0.92); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 20px 50px rgba(0,0,0,0.45); max-height: 340px; overflow-y: auto; }
+#nv-profil .pf-results.is-on { display: flex; }
+#nv-profil .pf-res { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 11px; background: transparent; color: #fff; font: inherit; text-align: left; cursor: pointer; }
+#nv-profil .pf-res:hover, #nv-profil .pf-res.is-sel { background: var(--panel-2); }
+#nv-profil .pf-res-av { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; background: var(--panel-3) center/cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+#nv-profil .pf-res-txt { flex: 1; min-width: 0; }
+#nv-profil .pf-res-txt b { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-profil .pf-res-txt span { display: block; font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-profil .pf-res-elo { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--blue); white-space: nowrap; }
+#nv-profil .pf-res-empty { padding: 12px 10px; font-size: 12.5px; color: var(--text-3); }
+#nv-profil.is-narrow .pf-back span { display: none; }
+#nv-profil.is-narrow .pf-back { padding: 0 11px; }
+#nv-profil.is-narrow .pf-search input { font-size: 16px; }
 </style>
 
 <div id="nv-profil">
+  <div class="pf-find is-hidden" data-el="find">
+    <button class="pf-back is-hidden" data-el="back" data-act="mon-profil" title="Revenir à mon profil">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg><span>Mon profil</span>
+    </button>
+    <label class="pf-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input data-el="find-q" type="search" placeholder="Rechercher un élève…" autocomplete="off" aria-label="Rechercher un élève">
+    </label>
+    <div class="pf-results" data-el="find-res" role="listbox"></div>
+  </div>
   <div class="pf-state" data-el="state">Chargement…</div>
 
   <div class="is-hidden" data-el="page">
@@ -664,7 +702,7 @@
 
   // ================= CHARGEMENT =================
   function load() {
-    var wanted = pageParam('u');
+    var wanted = S.voir != null ? S.voir : pageParam('u');
     var p;
     if (wanted && /^\d+$/.test(wanted)) {
       p = api('GET', '/users/' + wanted + '/profile').then(function (d) {
@@ -723,6 +761,8 @@
     var u = S.user;
     show($('state'), false);
     show($('page'), true);
+    show($('find'), !!token);
+    show($('back'), !!token && !S.mine);
 
     setBg($('banner'), u.banner_url);
     setAvatar($('avatar'), u.avatar_url, u.username);
@@ -1555,6 +1595,74 @@
   });
 
   // ================= INIT =================
+
+  // ================= AUTRES PROFILS : recherche, ouverture sur place =================
+  S.voir = null;   // id ouvert sur place ('' = mon profil), sinon ?u= de l'adresse
+  function setUrlU(id, push) {
+    try {
+      var w = window.top, u = new URL(w.location.href);
+      if (id) u.searchParams.set('u', id); else u.searchParams.delete('u');
+      w.history[push ? 'pushState' : 'replaceState']({ navireProfil: id || '' }, '', u.toString());
+    } catch (e) {}
+  }
+  function openUser(id, push) {
+    closeFind();
+    $('find-q').value = '';
+    S.voir = id ? String(id) : '';
+    setUrlU(S.voir, push !== false);
+    dcStop && dcStop();
+    $('state').textContent = 'Chargement…';
+    show($('state'), true); show($('page'), false);
+    try { root.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+    return load();
+  }
+  try {
+    window.top.addEventListener('popstate', function () {
+      var id = null; try { id = new URL(window.top.location.href).searchParams.get('u'); } catch (e) {}
+      S.voir = id || ''; load();
+    });
+  } catch (e) {}
+
+  var findTimer = null, findSeq = 0, findItems = [], findSel = -1;
+  function closeFind() { $('find-res').classList.remove('is-on'); findSel = -1; }
+  function renderFind(items, q) {
+    findItems = items; findSel = items.length ? 0 : -1;
+    var box = $('find-res');
+    box.innerHTML = items.length ? items.map(function (u, i) {
+      var av = u.avatar_url ? '<span class="pf-res-av" style="background-image:url(&quot;' + esc(u.avatar_url) + '&quot;)"></span>'
+                            : '<span class="pf-res-av">' + esc(initial(u.username)) + '</span>';
+      return '<button class="pf-res' + (i === 0 ? ' is-sel' : '') + '" data-user="' + u.id + '" role="option">' + av +
+        '<span class="pf-res-txt"><b>' + esc(u.username) + (u.is_me ? ' · toi' : '') + '</b><span>' + esc(u.university || 'Étudiant NAVIRE') + '</span></span>' +
+        '<span class="pf-res-elo">' + fmtInt(u.elo) + ' elo</span></button>';
+    }).join('') : '<div class="pf-res-empty">Aucun élève pour « ' + esc(q) + ' ».</div>';
+    box.classList.add('is-on');
+  }
+  function searchUsers() {
+    var q = $('find-q').value.trim(), seq = ++findSeq;
+    if (q.length < 2) { closeFind(); return; }
+    api('GET', '/users/search?q=' + encodeURIComponent(q)).then(function (d) {
+      if (seq === findSeq) renderFind((d && d.items) || [], q);
+    }).catch(function () { if (seq === findSeq) closeFind(); });
+  }
+  $('find-q').addEventListener('input', function () { clearTimeout(findTimer); findTimer = setTimeout(searchUsers, 220); });
+  $('find-q').addEventListener('focus', function () { if (findItems.length && $('find-q').value.trim().length >= 2) $('find-res').classList.add('is-on'); });
+  $('find-q').addEventListener('keydown', function (e) {
+    var rows = $('find-res').querySelectorAll('.pf-res');
+    if (e.key === 'Escape') { closeFind(); return; }
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && rows.length) {
+      e.preventDefault();
+      findSel = (findSel + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length;
+      rows.forEach(function (r, i) { r.classList.toggle('is-sel', i === findSel); });
+    }
+    if (e.key === 'Enter' && findSel >= 0 && findItems[findSel]) { e.preventDefault(); var u = findItems[findSel]; openUser(u.is_me ? '' : u.id); }
+  });
+  $('find').addEventListener('click', function (e) {
+    var r = e.target.closest('[data-user]');
+    if (r) { var u = findItems.filter(function (x) { return String(x.id) === r.getAttribute('data-user'); })[0]; openUser(u && u.is_me ? '' : r.getAttribute('data-user')); return; }
+    if (e.target.closest('[data-act="mon-profil"]')) openUser('');
+  });
+  document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('[data-el="find"]')) closeFind(); });
+
   load().then(retourStripe);
 })();
 </script>

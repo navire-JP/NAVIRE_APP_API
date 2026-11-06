@@ -643,6 +643,42 @@ def get_profile_summary(
 
 
 # ============================================================
+# Recherche d'élèves (profil : « Rechercher un élève »)
+# ============================================================
+
+@router.get("/search")
+def search_users(
+    q: str = Query("", max_length=80),
+    limit: int = Query(8, ge=1, le=20),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Élèves dont le pseudo (ou la fac) contient q, les mieux classés d'abord.
+    Sert à ouvrir le profil d'un autre élève depuis la page profil."""
+    q = " ".join(q.split())
+    if len(q) < 2:
+        return {"items": []}
+    like = "%" + q.replace("%", "").replace("_", "") + "%"
+    rows = db.execute(
+        select(User)
+        .where(User.username.is_not(None), (User.username.ilike(like)) | (User.university.ilike(like)))
+        .order_by(desc(User.elo), asc(User.id))
+        .limit(limit)
+    ).scalars().all()
+    return {"items": [
+        {
+            "id": u.id,
+            "username": u.username,
+            "avatar_url": resolve_avatar_url(u.avatar_url),
+            "university": u.university,
+            "elo": int(u.elo or 0),
+            "is_me": u.id == current_user.id,
+        }
+        for u in rows
+    ]}
+
+
+# ============================================================
 # Profil public (inchangé)
 # ============================================================
 

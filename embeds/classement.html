@@ -267,6 +267,9 @@
 @media (prefers-reduced-motion: reduce) {
   #nv-rank *, #nv-rank *::before, #nv-rank *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+#nv-rank .nr-profil { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; height: 36px; padding: 0 16px; border-radius: 99px; background: #fff; color: #0a0a12; font-size: 13px; font-weight: 600; text-decoration: none; transition: transform .15s; }
+#nv-rank .nr-profil:hover { transform: translateY(-1px); }
+#nv-rank .nr-profil svg { width: 14px; height: 14px; }
 </style>
 
 <div id="nv-rank">
@@ -313,6 +316,7 @@
     TOKEN_KEY: "navire_token",                     // même clé que les autres embeds
     SIGNUP_URL: "https://navire-ai.com/register",  // bouton des visiteurs non connectés
     QCM_URL: "https://navire-ai.com/qcm",           // « Gagner de l'Elo »
+    PROFIL_URL: "https://navire-ai.com/profile",    // « Voir le profil » de la fiche joueur (?u=ID)
     LIMIT: 100
   };
   var SOURCES = { qcm: "QCM", lib: "NAVIRE Lib", flashcards: "Flashcards", flash: "Flashcards", discord: "Discord", deepwork: "Deep work" };
@@ -599,7 +603,8 @@
     var html = '<div class="nr-hero">' + avatar(p) + '<h2>' + esc(p.username) + '</h2>' +
       '<p>' + esc([p.university, p.study_level].filter(Boolean).join(" · ") || "Étudiant NAVIRE") + '</p>' +
       '<div class="nr-tags"><span class="nr-tag solid">' + esc(cap(p.tier)) + '</span>' + (p.is_current_user ? '<span class="nr-tag white">Toi</span>' : "") +
-        (p.membre_depuis ? '<span class="nr-tag">Depuis ' + new Date(p.membre_depuis).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) + '</span>' : "") + '</div></div>' +
+        (p.membre_depuis ? '<span class="nr-tag">Depuis ' + new Date(p.membre_depuis).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) + '</span>' : "") + '</div>' +
+      '<a class="nr-profil" data-go href="' + esc(CONFIG.PROFIL_URL + (CONFIG.PROFIL_URL.indexOf("?") < 0 ? "?" : "&") + "u=" + encodeURIComponent(p.id || S.openId)) + '">' + (p.is_current_user ? "Voir mon profil" : "Voir le profil") + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>' +
       '<div class="nr-rankbox"><div class="nr-tile is-blue"><small>Elo</small><b>' + fmt(p.elo) + '</b></div><div class="nr-tile"><small>Place</small><b>' + place + '</b></div></div>' +
       '<div class="nr-card" style="animation-delay:.05s"><h4>Palier<em>' + (p.next_tier ? fmt(p.next_tier_min - p.elo) + " Elo avant " + esc(cap(p.next_tier)) : "Palier maximal") + '</em></h4>' +
         '<div class="nr-tierbar"><i data-w="' + tierPct + '"></i></div><div class="nr-tierlab"><b>' + esc(p.tier) + '</b><span>' + (p.next_tier ? esc(cap(p.next_tier)) : "") + '</span></div></div>';
