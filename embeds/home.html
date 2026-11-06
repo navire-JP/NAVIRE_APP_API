@@ -8,6 +8,9 @@
   glisse en bas de l'écran et la discussion s'ouvre au-dessus, comme
   ChatGPT / Claude. « Nouvelle discussion » (ou Ctrl/⌘ K) ramène à l'accueil.
 
+  Les trois accès portent chacun leur visuel (assets/home-veilles.png,
+  home-cours.png, home-fichiers.png, servis par GET /assets/{nom}).
+
   Même DA que NAVIRE Lib (bleu et blanc, cartes à halo lumineux) :
     - >= 760px de conteneur : barre latérale repliée par défaut (bouton
       menu pour l'ouvrir, « « » pour la replier, retenu d'une visite à
@@ -223,8 +226,9 @@
 #nv-home .nv-shortcut:hover::after { transform: scale(1.25); }
 #nv-home .nv-shortcut:active { transform: scale(.98); }
 #nv-home .nv-shortcut-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-#nv-home .nv-shortcut-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--blue-soft); color: var(--blue); }
-#nv-home .nv-shortcut-ico svg { width: 17px; height: 17px; }
+/* Visuel de chaque accès (assets NAVIRE_*_embed asset), sans carré autour */
+#nv-home .nv-shortcut-art { width: 38px; height: 38px; margin: 0; flex-shrink: 0; background: center/contain no-repeat; filter: drop-shadow(0 5px 12px rgba(79,125,255,0.22)); transition: transform .35s var(--ease); }
+#nv-home .nv-shortcut:hover .nv-shortcut-art { transform: translateY(-2px) scale(1.06) rotate(-3deg); }
 #nv-home .nv-shortcut .nv-tag { position: relative; z-index: 1; }
 #nv-home .nv-shortcut .nv-tag:empty { display: none; }
 #nv-home .nv-shortcut-text { margin-top: auto; min-width: 0; }
@@ -599,8 +603,7 @@
 #nv-home.is-compact .nv-shortcut-text small,
 #nv-home.is-compact .nv-shortcut-arrow { display: none; }
 #nv-home.is-compact .nv-shortcut-text b { justify-content: center; font-size: 14.5px; }
-#nv-home.is-compact .nv-shortcut-ico { width: 42px; height: 42px; border-radius: 12px; }
-#nv-home.is-compact .nv-shortcut-ico svg { width: 20px; height: 20px; }
+#nv-home.is-compact .nv-shortcut-art { width: 36px; height: 36px; margin: 0; }
 
 #nv-home.is-compact .nv-msg { gap: 10px; }
 #nv-home.is-compact .nv-md { font-size: 14px; }
@@ -1159,7 +1162,7 @@
     el('shortcuts').innerHTML = Object.keys(LINKS).map(function (k) {
       var L = LINKS[k];
       var inner =
-        '<span class="nv-shortcut-top"><span class="nv-shortcut-ico">' + ICON[k] + '</span><span class="nv-tag blue" data-tag="' + k + '"></span></span>' +
+        '<span class="nv-shortcut-top"><span class="nv-shortcut-art" style="background-image:url(&quot;' + API + '/assets/home-' + k + '.png&quot;)" aria-hidden="true"></span><span class="nv-tag blue" data-tag="' + k + '"></span></span>' +
         '<span class="nv-shortcut-text"><b>' + esc(L.label) + ICON.arrow + '</b><small>' + esc(L.sub) + '</small></span>';
       return L.url
         ? '<a class="nv-shortcut" data-go="' + k + '" href="' + esc(L.url) + '" target="_top">' + inner + '</a>'

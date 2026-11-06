@@ -19,6 +19,11 @@ ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
 BRAND_FILES: dict[str, str] = {
     "logo-navire.png": "LOGO SEUL (3).png",   # logo NAVIRE, blanc sur transparent
     "logo-navire-app.png": "logoNAVIRE.png",   # icône d'app (carré arrondi blanc), interface NAVIRE AI
+    # Visuels des trois accès de l'accueil (embeds/home.html), recadrés en
+    # 256 px depuis « NAVIRE_<Cours|Fichiers|Veille>_embed asset.png ».
+    "home-veilles.png": "home-veilles.png",
+    "home-cours.png": "home-cours.png",
+    "home-fichiers.png": "home-fichiers.png",
 }
 
 # Une semaine : ces fichiers ne changent qu'à un changement d'identité visuelle,
