@@ -231,22 +231,27 @@
 /* Verre dépoli : le profil reste visible, flouté, derrière le panneau. Le
    panneau prend au plus la hauteur de l'écran ; l'onglet Profil est composé
    pour y tenir sans défiler (le corps défile seulement sur très petit écran). */
-#nv-profil .pf-overlay { position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(4,4,12,0.32); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: pf-fade .2s ease both; }
-#nv-profil .pf-overlay.is-open { display: flex; }
+#nv-profil .pf-overlay { position: fixed; inset: 0; z-index: 1000; display: none; background: rgba(4,4,12,0.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: pf-fade .2s ease both; }
+#nv-profil .pf-overlay.is-open { display: block; }
+/* Zone de l'écran réellement visible (calculée en JS) : dans une iframe plus
+   haute que l'écran, c'est elle qui centre le panneau, pas l'iframe entière. */
+#nv-profil .pf-stage { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 16px; }
 #nv-profil .pf-panel {
   width: 100%; max-width: 620px;
-  max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px);
+  max-height: 100%;
   display: flex; flex-direction: column;
   border-radius: 22px;
-  background: linear-gradient(160deg, rgba(255,255,255,0.10), rgba(255,255,255,0.035) 45%, rgba(122,167,255,0.06));
-  -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%);
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.07), rgba(255,255,255,0.015) 45%, rgba(122,167,255,0.05)),
+    rgba(16,16,28,0.86);
+  -webkit-backdrop-filter: blur(30px) saturate(150%); backdrop-filter: blur(30px) saturate(150%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 0 0 1px rgba(255,255,255,0.06), 0 30px 90px rgba(0,0,0,0.45);
   overflow: hidden;
   animation: pf-rise .3s var(--ease) both;
 }
 /* Navigateur sans flou : un fond plus opaque pour rester lisible */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  #nv-profil .pf-panel { background: rgba(18,18,30,0.96); }
+  #nv-profil .pf-panel { background: rgba(16,16,28,0.97); }
 }
 #nv-profil .pf-panel-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px 4px; flex-shrink: 0; }
 #nv-profil .pf-panel-title { flex: 1; font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
@@ -361,7 +366,7 @@
 #nv-profil.is-narrow .pf-stats { grid-template-columns: repeat(2, 1fr); }
 #nv-profil.is-narrow .pf-post { padding: 13px; gap: 10px; }
 #nv-profil.is-narrow .pf-post-av { width: 32px; height: 32px; }
-#nv-profil.is-narrow .pf-overlay { padding: 0; align-items: stretch; }
+#nv-profil.is-narrow .pf-stage { padding: 0; align-items: stretch; }
 #nv-profil.is-narrow .pf-panel { max-width: none; max-height: none; height: 100%; border-radius: 0; }
 #nv-profil.is-narrow .pf-grid2 { grid-template-columns: 1fr; }
 #nv-profil.is-narrow .pf-alert { flex-wrap: wrap; }
@@ -413,6 +418,7 @@
 
   <!-- ===== ÉDITER LE PROFIL ===== -->
   <div class="pf-overlay" data-el="overlay" role="dialog" aria-modal="true" aria-label="Éditer le profil">
+   <div class="pf-stage" data-el="stage">
     <div class="pf-panel">
       <div class="pf-panel-head">
         <button class="pf-close" data-act="close" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -513,6 +519,7 @@
         </div>
       </div>
     </div>
+   </div>
   </div>
 </div>
 
@@ -526,7 +533,8 @@
     PLANS: { membre: 'Membre', 'membre+': 'Membre+', prepa: 'Prépa' }
   };
   var API = CONFIG.API;
-  var NARROW = 560;   // largeur du composant sous laquelle on passe en mise en page téléphone
+  var NARROW = 560;
+  var POSTS_FIRST = 3, POSTS_STEP = 5;   // largeur du composant sous laquelle on passe en mise en page téléphone
 
   var root = document.getElementById('nv-profil');
   function $(name) { return root.querySelector('[data-el="' + name + '"]'); }
@@ -650,6 +658,7 @@
     user: {},
     stats: null,      // null = masquées (profil privé vu par un autre)
     posts: [], postsTotal: 0, postsHasMore: false, loadingMore: false,
+    shown: 0,         // posts affichés : POSTS_FIRST au départ, + POSTS_STEP par « Voir plus »
     dc: { mode: null, code: '', ticker: null, tick: null }
   };
 
@@ -706,6 +715,7 @@
     S.posts = p.items || [];
     S.postsTotal = p.total || 0;
     S.postsHasMore = !!p.has_more;
+    S.shown = Math.min(POSTS_FIRST, S.posts.length);
   }
 
   // ================= RENDU =================
@@ -875,25 +885,35 @@
         ? '<div class="pf-empty"><b>Aucun post pour l\'instant</b>Les actus de veille que tu publies apparaîtront ici.</div>'
         : '<div class="pf-empty"><b>Aucun post pour l\'instant</b>' + esc(S.user.username || 'Cet élève') + ' n\'a pas encore publié de veille.</div>';
     } else {
-      $('posts').innerHTML = S.posts.map(postHtml).join('');
+      $('posts').innerHTML = S.posts.slice(0, S.shown).map(postHtml).join('');
     }
-    show($('more'), S.postsHasMore);
+    syncMore();
+  }
+
+  function syncMore() { show($('more'), S.shown < S.posts.length || S.postsHasMore); }
+
+  // Ajoute à la liste les posts déjà chargés jusqu'à `upto`
+  function revealPosts(upto) {
+    var from = S.shown;
+    S.shown = Math.min(upto, S.posts.length);
+    $('posts').insertAdjacentHTML('beforeend', S.posts.slice(from, S.shown).map(function (it, i) { return postHtml(it, i); }).join(''));
+    syncMore();
   }
 
   function loadMorePosts(btn) {
     if (S.loadingMore || !S.user.id) return;
+    var target = S.shown + POSTS_STEP;
+    // Assez de posts déjà chargés (la première page en contient 10) : rien à demander
+    if (target <= S.posts.length || !S.postsHasMore) { revealPosts(target); return; }
     S.loadingMore = true;
     btn.disabled = true;
     btn.textContent = 'Chargement…';
     api('GET', '/users/' + S.user.id + '/posts?offset=' + S.posts.length + '&limit=10')
       .then(function (d) {
-        var start = S.posts.length;
         S.posts = S.posts.concat(d.items || []);
         S.postsTotal = d.total || S.postsTotal;
         S.postsHasMore = !!d.has_more;
-        $('posts').insertAdjacentHTML('beforeend', (d.items || []).map(function (it, i) { return postHtml(it, i); }).join(''));
-        show($('more'), S.postsHasMore);
-        if (!start) renderPosts();
+        revealPosts(target);
       })
       .catch(function (err) { console.error('[posts]', err); })
       .then(function () {
@@ -1021,6 +1041,42 @@
   var activeTab = 'profil';
   var draft = { banner: null, avatar: null, dropBanner: false };   // fichiers choisis, pas encore envoyés
 
+  // Partie de l'écran où l'embed est réellement visible, en coordonnées de
+  // l'iframe. Dans une iframe aussi haute que son contenu, position: fixed se
+  // cale sur l'iframe entière (souvent plusieurs écrans de haut) : le panneau
+  // s'ouvrait alors au milieu de l'embed, hors de vue. IntersectionObserver
+  // donne, même depuis une iframe d'un autre domaine, le morceau de l'iframe
+  // qui se trouve dans la fenêtre du navigateur.
+  var framed = false;
+  try { framed = window.self !== window.top; } catch (e) { framed = true; }
+
+  function fullView() { return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight }; }
+
+  function visibleArea(cb) {
+    if (!framed || !window.IntersectionObserver) { cb(fullView()); return; }
+    var done = false;
+    var io = new IntersectionObserver(function (entries) {
+      if (done) return;
+      done = true;
+      io.disconnect();
+      var r = entries[0] && entries[0].intersectionRect;
+      cb(r && r.height >= 160 ? { top: r.top, left: r.left, width: r.width, height: r.height } : fullView());
+    });
+    io.observe(document.documentElement);
+    setTimeout(function () { if (!done) { done = true; io.disconnect(); cb(fullView()); } }, 300);
+  }
+
+  function placeStage() {
+    visibleArea(function (v) {
+      var st = $('stage');
+      st.style.top = v.top + 'px';
+      st.style.left = v.left + 'px';
+      st.style.width = v.width + 'px';
+      st.style.height = v.height + 'px';
+    });
+  }
+  window.addEventListener('resize', function () { if (overlay.classList.contains('is-open')) placeStage(); });
+
   function openEdit(tab) {
     if (!S.mine) return;
     var u = S.user;
@@ -1038,6 +1094,7 @@
     resetPwd();
     showNotice(null);
     syncTabDots();
+    placeStage();
     overlay.classList.add('is-open');
     try { document.documentElement.style.overflow = 'hidden'; } catch (e) {}
     setTab(tab || 'profil');
@@ -1437,7 +1494,7 @@
   // ================= ÉVÉNEMENTS =================
   root.addEventListener('click', function (e) {
     var t = e.target;
-    if (t === overlay) { closeEdit(); return; }
+    if (t === overlay || t === $('stage')) { closeEdit(); return; }
     var tab = t.closest ? t.closest('.pf-tab') : null;
     if (tab) { showNotice(null); setTab(tab.getAttribute('data-tab')); return; }
     var eye = t.closest ? t.closest('[data-eye]') : null;
