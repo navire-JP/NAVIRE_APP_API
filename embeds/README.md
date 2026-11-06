@@ -334,3 +334,9 @@ côté serveur (`/files/{id}/download?inline=1`,
 Le PDF ajouté prévient les autres embeds (`navire-files-updated`,
 `navire_files_refresh`), et l'onglet se recharge quand un autre embed en fait
 autant.
+
+## `demo/` : aperçus sans API
+
+`demo/demo-prepa.html` et `demo/demo-professeurs.html` : les embeds Prépa et
+professeurs avec une API simulée dans le navigateur (aucun appel réseau),
+pour les ouvrir et cliquer sans compte. À ne pas coller dans Framer.
