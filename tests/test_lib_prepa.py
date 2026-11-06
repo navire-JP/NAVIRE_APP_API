@@ -47,6 +47,9 @@ def _nettoyer():
         PrepaAdjurisProfesseur, PrepaAdjurisRemuneration, PrepaAdjurisRessource, PrepaAdjurisSeance,
     )
     db = SessionLocal()
+    from app.db.models import PrepaAdjurisAnnotation, PrepaSuivi
+    db.query(PrepaAdjurisAnnotation).delete()
+    db.query(PrepaSuivi).delete()
     for m in (PrepaAdjurisDevoir, PrepaAdjurisRemuneration, PrepaAdjurisAffectation, PrepaAdjurisProfesseur,
               PrepaAdjurisRessource, PrepaAdjurisSeance):
         db.query(m).delete()
@@ -203,15 +206,19 @@ def test_devoir_depose_puis_corrige(monde, base_propre):
     assert c.post("/lib/prepa/devoirs", headers=alice, data={"matiere_key": MATIERE},
                   files={"file": ("c.txt", b"x", "text/plain")}).status_code == 400
 
+    # PDF sans texte lisible (scan) : refusé
+    assert c.post("/lib/prepa/devoirs", headers=alice, data={"matiere_key": MATIERE},
+                  files={"file": ("scan.pdf", PDF, "application/pdf")}).status_code == 422
+    COPIE = _pdf_texte()
     r = c.post("/lib/prepa/devoirs", headers=alice, data={"matiere_key": MATIERE, "titre": "Dissertation 1",
                                                           "message": "Merci !"},
-               files={"file": ("copie.pdf", PDF, "application/pdf")})
+               files={"file": ("copie.pdf", COPIE, "application/pdf")})
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["statut"] == "depose" and d["classe_id"] == monde["g1"]
     assert mails and mails[0][0] == "prof" and mails[0][1][0] == [monde["prof"].email]
 
-    assert c.get(f"/lib/prepa/devoirs/{d['id']}/fichier", headers=alice).content == PDF
+    assert c.get(f"/lib/prepa/devoirs/{d['id']}/fichier", headers=alice).content == COPIE
     assert c.get(f"/lib/prepa/devoirs/{d['id']}/fichier", headers=_headers(monde["zoe"])).status_code == 404
     assert [x["id"] for x in c.get("/lib/prepa", headers=alice).json()["devoirs"]] == [d["id"]]
 
@@ -221,7 +228,7 @@ def test_devoir_depose_puis_corrige(monde, base_propre):
     liste = c.get("/professeurs/me/devoirs", headers=P).json()
     assert liste["a_corriger"] == 1
     assert liste["items"][0]["etudiant"]["username"] == "alice" and liste["items"][0]["classe_nom"] == "Intro G1"
-    assert c.get(f"/professeurs/devoirs/{d['id']}/download", headers=P).content == PDF
+    assert c.get(f"/professeurs/devoirs/{d['id']}/download", headers=P).content == COPIE
     assert c.get("/professeurs/me/devoirs", headers=alice).status_code == 403
 
     r = c.patch(f"/professeurs/devoirs/{d['id']}", headers=P, json={"commentaire": "Bon plan.", "note": "14/20"})
@@ -256,7 +263,7 @@ def test_devoir_hors_groupe_et_retrait(monde):
     assert c.patch(f"/professeurs/admin/inscriptions/{eid}", headers=A, json={"classe_id": monde["g2"]}).status_code == 200
 
     d = c.post("/lib/prepa/devoirs", headers=alice, data={"matiere_key": MATIERE},
-               files={"file": ("copie.pdf", PDF, "application/pdf")}).json()
+               files={"file": ("copie.pdf", _pdf_texte(), "application/pdf")}).json()
     assert d["classe_id"] == monde["g2"] and d["titre"] == "copie"
     assert c.get("/professeurs/me/devoirs", headers=P).json()["items"] == []
     assert c.patch(f"/professeurs/devoirs/{d['id']}", headers=P, json={"note": "1"}).status_code == 404
@@ -334,8 +341,9 @@ def test_onglet_fichiers_cloisonne(monde, tmp_path):
     alice, zoe = _headers(monde["alice"]), _headers(monde["zoe"])
     c.post(f"/professeurs/classes/{monde['g1']}/documents", headers=P,
            files={"file": ("td.pdf", PDF, "application/pdf")}, data={"titre": "TD 1"})
+    COPIE = _pdf_texte()
     dv = c.post("/lib/prepa/devoirs", headers=alice, data={"matiere_key": MATIERE, "titre": "Dissert"},
-                files={"file": ("copie.pdf", PDF, "application/pdf")}).json()["id"]
+                files={"file": ("copie.pdf", COPIE, "application/pdf")}).json()["id"]
 
     chemin = tmp_path / "perso.pdf"
     chemin.write_bytes(PDF)
@@ -368,7 +376,7 @@ def test_onglet_fichiers_cloisonne(monde, tmp_path):
     # Les liens servent bien le PDF à Alice, en ligne
     r = c.get(secs["mes-fichiers"]["items"][0]["src"], headers=alice)
     assert r.content == PDF and r.headers["content-disposition"].startswith("inline")
-    assert c.get(f"/lib/prepa/devoirs/{dv}/fichier", headers=alice).content == PDF
+    assert c.get(f"/lib/prepa/devoirs/{dv}/fichier", headers=alice).content == COPIE
 
     # Zoé : rien d'Alice, ni Prépa ni devoirs, et les liens lui sont refusés
     z = c.get("/files/explorer", headers=zoe).json()

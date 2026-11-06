@@ -166,6 +166,12 @@ _STATEMENTS: list[str] = [
     # prepa_adjuris_cours_eleves créées par create_all ; colonne ajoutée à
     # une table existante.
     "ALTER TABLE prepa_adjuris_affectations ADD COLUMN IF NOT EXISTS remu_extra_etudiant_cents INTEGER NOT NULL DEFAULT 0",
+
+    # ── Espace Prépa (novembre 2026) : séances déplacées, copies mises en
+    # forme. Tables prepa_adjuris_annotations et prepa_suivis créées par
+    # create_all.
+    "ALTER TABLE prepa_adjuris_seances ADD COLUMN IF NOT EXISTS date_initiale TIMESTAMPTZ",
+    "ALTER TABLE prepa_adjuris_devoirs ADD COLUMN IF NOT EXISTS contenu JSON",
 ]
 
 

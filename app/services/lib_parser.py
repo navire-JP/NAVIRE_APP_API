@@ -318,7 +318,7 @@ def _docx_runs(p) -> list[tuple[str, bool, bool, bool]]:
     return runs
 
 
-def parse_docx(data: bytes) -> dict:
+def parse_docx(data: bytes, builder=None) -> dict:
     import docx  # python-docx
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.table import Table
@@ -327,7 +327,7 @@ def parse_docx(data: bytes) -> dict:
     d = docx.Document(io.BytesIO(data))
     sizes = [r.font.size.pt for p in d.paragraphs for r in p.runs if r.font.size and r.text.strip()]
     body = median(sizes) if sizes else 12.0
-    b = _Builder()
+    b = builder if builder is not None else _Builder()
     for child in d.element.body.iterchildren():
         tag = child.tag.rsplit("}", 1)[-1]
         if tag == "p":
@@ -352,7 +352,7 @@ def parse_docx(data: bytes) -> dict:
 # PDF
 # ============================================================
 
-def parse_pdf(data: bytes) -> dict:
+def parse_pdf(data: bytes, builder=None) -> dict:
     import fitz  # PyMuPDF
 
     doc = fitz.open(stream=data, filetype="pdf")
@@ -383,7 +383,7 @@ def parse_pdf(data: bytes) -> dict:
     margin = median(lefts) if lefts else 0
 
     # Lignes → paragraphes : même page, interligne normal, même style de titre.
-    b = _Builder()
+    b = builder if builder is not None else _Builder()
     cur: list = []
 
     def flush():

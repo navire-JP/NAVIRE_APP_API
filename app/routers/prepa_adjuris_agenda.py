@@ -365,7 +365,7 @@ def modifier_seance(
     if payload.titre is not None:
         s.titre = payload.titre.strip()
     if payload.date_debut is not None:
-        s.date_debut = _utc(payload.date_debut)
+        s.deplacer(_utc(payload.date_debut))
     if payload.duree_minutes is not None:
         s.duree_minutes = payload.duree_minutes
     if payload.lien is not None:
@@ -460,9 +460,9 @@ def agir_sur_recurrence(
         decalage = (cible.date() - _local(ref.date_debut).date()).days
         for s in serie:
             jour = _local(s.date_debut).date() + timedelta(days=decalage)
-            s.date_debut = datetime(
+            s.deplacer(datetime(
                 jour.year, jour.month, jour.day, cible.hour, cible.minute, tzinfo=TZ
-            ).astimezone(timezone.utc)
+            ).astimezone(timezone.utc))
             if payload.duree_minutes:
                 s.duree_minutes = payload.duree_minutes
     elif payload.action in ("annuler", "retablir"):

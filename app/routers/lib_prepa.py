@@ -13,6 +13,21 @@ Prép'AdJuris : elle n'apparaît que pour les étudiants inscrits à Prép'AdJur
   GET    /lib/prepa/devoirs/{id}/fichier     → sa copie
   GET    /lib/prepa/devoirs/{id}/correction  → la copie corrigée par le professeur
   DELETE /lib/prepa/devoirs/{id}             → retrait (tant qu'elle n'est pas corrigée)
+  GET    /lib/prepa/devoirs/{id}/copie       → la copie mise en forme par NAVIRE, avec
+                                               les révisions et commentaires du
+                                               correcteur une fois la correction rendue
+  GET    /lib/prepa/devoirs/{id}/export?format=docx|pdf
+                                             → la copie à télécharger : .docx avec les
+                                               révisions et commentaires Word, ou .pdf
+  POST   /lib/prepa/suivis/{document_id}     → suivre un cours Lib dans l'espace Prépa
+  DELETE /lib/prepa/suivis/{document_id}     → ne plus le suivre
+
+Ces routes servent l'onglet Prépa (embeds/prepa.html, page /prepa), sorti de
+NAVIRE Lib : Lib ne garde que les documents à pastille « Prépa » dans sa
+bibliothèque et le bouton « Suivre dans Prépa ».
+
+Copies : .docx ou .pdf texte. NAVIRE les met en forme au dépôt
+(app/services/copies.py) ; un fichier illisible (PDF scanné) est refusé.
 
 Documents Prépa : chaque PDF de l'espace (matières, méthodo, dépôts des
 chargés de TD) est un document NAVIRE Lib (kind "prepa"), lu comme un cours
@@ -37,7 +52,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File as FastAPIFile, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -53,14 +68,17 @@ from app.core.prepa_storage import PREPA_SUBMISSIONS_DIR, delete_prepa_file, sav
 from app.db.database import get_db
 from app.db.models import (
     LibDocument,
+    PrepaAdjurisCours,
     PrepaAdjurisClasse,
     PrepaAdjurisDevoir,
     PrepaAdjurisEnrollment,
     PrepaAdjurisRessource,
     PrepaAdjurisSeance,
+    PrepaSuivi,
     User,
 )
 from app.routers.auth import get_current_user
+from app.services import copies as csvc
 from app.services import devoirs as dsvc
 
 router = APIRouter(prefix="/lib/prepa", tags=["lib-prepa"])
@@ -242,17 +260,66 @@ def supprimer_doc_prepa(db: Session, ressource_id: int) -> None:
         _delete_doc(db, d)
 
 
-def _seance(s: PrepaAdjurisSeance) -> dict:
+def _seance(s: PrepaAdjurisSeance, en_cours: set[int] | None = None) -> dict:
     return {
         "id": s.id,
         "matiere_key": s.matiere_key,
         "matiere": PREPA_MATIERE_NAMES.get(s.matiere_key, s.matiere_key) if s.matiere_key else "Séance commune",
         "titre": s.titre,
         "date_debut": _iso(s.date_debut),
+        # Déplacée par la console : la date prévue à l'origine.
+        "date_initiale": _iso(s.date_initiale),
         "duree_minutes": s.duree_minutes,
         "lien": s.lien if (s.lien or "").startswith(("https://", "http://")) else "",
         "statut": s.statut,
+        # Le professeur a lancé le cours sur Discord.
+        "en_cours": bool(en_cours and s.id in en_cours),
     }
+
+
+def _facturation(db: Session, user: User) -> list[dict]:
+    """Par matière : statut de l'inscription et prochain prélèvement (fin de
+    mois) lu dans l'échéancier."""
+    rows = db.execute(
+        select(PrepaAdjurisEnrollment).where(
+            PrepaAdjurisEnrollment.user_id == user.id,
+            PrepaAdjurisEnrollment.status.in_(("active", "payment_failed", "suspendu")),
+        )
+    ).scalars().all()
+    from app.core.prepa_adjuris_config import PREPA_PRIX_SEANCE_CENTS
+
+    mois_courant = datetime.now(timezone.utc).strftime("%Y-%m")
+    out = []
+    for e in rows:
+        mois = (e.echeancier or {}).get("mois") or {}
+        prochain = next(
+            ({"mois": k, "seances": n, "montant_cents": n * PREPA_PRIX_SEANCE_CENTS}
+             for k, n in sorted(mois.items()) if k >= mois_courant and n),
+            None,
+        )
+        out.append({
+            "matiere_key": e.matiere_key,
+            "matiere": PREPA_MATIERE_NAMES.get(e.matiere_key, e.matiere_key),
+            "statut": e.status,
+            "impaye": e.status == "payment_failed" or bool(e.impaye_depuis),
+            "prochain": prochain,
+        })
+    return out
+
+
+def _suivis(db: Session, user: User) -> list[dict]:
+    """Cours Lib suivis depuis Lib (« Suivre dans Prépa »), avec la progression."""
+    from app.routers.lib import _elo, _progress_map, _summary
+
+    docs = db.execute(
+        select(LibDocument)
+        .join(PrepaSuivi, PrepaSuivi.document_id == LibDocument.id)
+        .where(PrepaSuivi.user_id == user.id, LibDocument.is_published.is_(True))
+        .order_by(PrepaSuivi.created_at.desc(), PrepaSuivi.id.desc())
+    ).scalars().all()
+    prog = _progress_map(db, user, [d.id for d in docs])
+    elo = _elo(user)
+    return [_summary(d, prog, elo) for d in docs]
 
 
 def _cours_lib(db: Session, user: User, niveau: str, matieres: list[str]) -> list[dict]:
@@ -365,6 +432,11 @@ def vue_prepa(
         (s for s in seances if s.statut == "prevue" and dsvc.aware(s.date_debut) >= maintenant - timedelta(hours=1)),
         None,
     )
+    en_cours = set(db.execute(
+        select(PrepaAdjurisCours.seance_id).where(
+            PrepaAdjurisCours.statut == "en_cours", PrepaAdjurisCours.seance_id.is_not(None),
+        )
+    ).scalars().all())
 
     devoirs = [] if apercu else db.execute(
         select(PrepaAdjurisDevoir)
@@ -377,11 +449,14 @@ def vue_prepa(
         "apercu": apercu,
         "niveau": niveau,
         "matieres": matieres,
-        "seances": [_seance(s) for s in seances],
-        "prochaine_seance": _seance(prochaine) if prochaine else None,
+        "seances": [_seance(s, en_cours) for s in seances],
+        "prochaine_seance": _seance(prochaine, en_cours) if prochaine else None,
         "cours_lib": cours,
+        "suivis": [] if apercu else _suivis(db, user),
         "devoirs": [dsvc.devoir_row(db, d) for d in devoirs],
         "devoir_max_bytes": MAX_UPLOAD_BYTES,
+        "devoir_formats": [".docx", ".pdf"],
+        "facturation": [] if apercu else _facturation(db, user),
         "discord_url": _discord_url(),
     }
 
@@ -409,7 +484,13 @@ async def deposer_devoir(
 ):
     if matiere_key not in matieres_actives(db, user):
         raise HTTPException(403, detail="Tu n'es pas inscrit à cette matière.")
-    meta = await save_prepa_pdf(file, DEVOIRS_DIR / str(user.id), max_bytes=MAX_UPLOAD_BYTES)
+    meta = await save_prepa_pdf(file, DEVOIRS_DIR / str(user.id), max_bytes=MAX_UPLOAD_BYTES, allow_docx=True)
+    try:
+        contenu = csvc.mettre_en_forme(Path(meta["path"]).read_bytes(), meta["filename_original"])
+    except Exception as e:  # noqa: BLE001 — fichier illisible : refusé, rien n'est gardé
+        delete_prepa_file(meta["path"])
+        raise HTTPException(422, detail=str(e) if isinstance(e, ValueError) else
+                            "Ce fichier n'a pas pu être lu : dépose un .docx ou un PDF texte.")
     d = PrepaAdjurisDevoir(
         user_id=user.id,
         matiere_key=matiere_key,
@@ -420,6 +501,7 @@ async def deposer_devoir(
         filename_stored=meta["filename_stored"],
         path=meta["path"],
         size_bytes=meta["size_bytes"],
+        contenu=contenu,
     )
     db.add(d)
     db.commit()
@@ -433,13 +515,52 @@ async def deposer_devoir(
     return dsvc.devoir_row(db, d)
 
 
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+def media_type(path: str) -> str:
+    return DOCX_MIME if (path or "").lower().endswith(".docx") else "application/pdf"
+
+
 @router.get("/devoirs/{devoir_id}/fichier")
 def ma_copie(devoir_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     d = _mon_devoir(db, user, devoir_id)
     if not Path(d.path).exists():
         raise HTTPException(404, detail="Fichier introuvable sur le disque.")
-    return FileResponse(d.path, media_type="application/pdf", filename=d.filename_original,
+    return FileResponse(d.path, media_type=media_type(d.path), filename=d.filename_original,
                         content_disposition_type="inline")
+
+
+@router.get("/devoirs/{devoir_id}/copie")
+def ma_copie_en_ligne(devoir_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """La copie mise en forme ; révisions et commentaires une fois corrigée."""
+    return csvc.copie_row(db, _mon_devoir(db, user, devoir_id), pour_prof=False)
+
+
+def exporter(db: Session, d: PrepaAdjurisDevoir, format: str, *, pour_prof: bool) -> Response:
+    anns = csvc.annotations_visibles(d, pour_prof=pour_prof)
+    if format == "docx":
+        data, mime = csvc.export_docx(db, d, anns), DOCX_MIME
+    elif format == "pdf":
+        data, mime = csvc.export_pdf(db, d, anns), "application/pdf"
+    else:
+        raise HTTPException(400, detail="Format : docx ou pdf.")
+    from urllib.parse import quote
+
+    nom = csvc.nom_export(d, format, bool(anns) or d.statut == "corrige")
+    return Response(data, media_type=mime, headers={
+        "Content-Disposition": f"attachment; filename=\"copie.{format}\"; filename*=UTF-8''{quote(nom)}",
+    })
+
+
+@router.get("/devoirs/{devoir_id}/export")
+def exporter_ma_copie(
+    devoir_id: int,
+    format: str = Query("docx", description="docx | pdf"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return exporter(db, _mon_devoir(db, user, devoir_id), format, pour_prof=False)
 
 
 @router.get("/devoirs/{devoir_id}/correction")
@@ -460,3 +581,41 @@ def retirer_devoir(devoir_id: int, db: Session = Depends(get_db), user: User = D
     db.delete(d)
     db.commit()
     return {"ok": True, "id": devoir_id}
+
+
+# ============================================================
+# Cours Lib suivis dans l'espace Prépa
+# ============================================================
+
+@router.post("/suivis/{document_id}")
+def suivre(document_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not niveau_prepa(db, user):
+        raise HTTPException(403, detail="Réservé aux inscrits Prép'AdJuris.")
+    d = db.get(LibDocument, document_id)
+    if d is None or not d.is_published or d.owner_id is not None:
+        raise HTTPException(404, detail="Cours introuvable.")
+    deja = db.execute(
+        select(PrepaSuivi).where(PrepaSuivi.user_id == user.id, PrepaSuivi.document_id == document_id)
+    ).scalar_one_or_none()
+    if deja is None:
+        db.add(PrepaSuivi(user_id=user.id, document_id=document_id))
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+    return {"ok": True, "document_id": document_id, "suivi": True}
+
+
+@router.delete("/suivis/{document_id}")
+def ne_plus_suivre(document_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.query(PrepaSuivi).filter(
+        PrepaSuivi.user_id == user.id, PrepaSuivi.document_id == document_id
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True, "document_id": document_id, "suivi": False}
+
+
+def suivis_ids(db: Session, user: User | None) -> set[int]:
+    if not user:
+        return set()
+    return set(db.execute(select(PrepaSuivi.document_id).where(PrepaSuivi.user_id == user.id)).scalars().all())

@@ -156,9 +156,9 @@ def mail_copie_corrigee(to: str, prenom: str, matiere: str, titre: str) -> None:
     html = layout(f"""
     <p style="margin-top:0;">Bonjour {escape(prenom)},</p>
     <p>Ton professeur a corrigé ta copie en <strong>{escape(matiere)}</strong> : « {escape(titre)} ».</p>
-    <p>Retrouve son commentaire dans l'onglet Devoirs de la vue Prépa, sur NAVIRE Lib.</p>
-    {_bouton(f"{FRONTEND_URL}/lib?prepa=devoirs", "Voir la correction")}
-""", preheader="Le commentaire de ton professeur t'attend sur NAVIRE Lib.")
+    <p>Retrouve sa correction (révisions, commentaires et note) dans l'onglet Prépa, rubrique Copies.</p>
+    {_bouton(f"{FRONTEND_URL}/prepa?onglet=copies", "Voir la correction")}
+""", preheader="La correction de ton professeur t'attend dans ton espace Prépa.")
     try:
         send_mail(to, subject, html)
     except Exception:  # pragma: no cover

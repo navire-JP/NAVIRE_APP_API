@@ -185,6 +185,10 @@ def _serialize_seance(s: PrepaAdjurisSeance) -> dict:
             (s.date_debut if s.date_debut.tzinfo else s.date_debut.replace(tzinfo=timezone.utc)).isoformat()
             if s.date_debut else None
         ),
+        "date_initiale": (
+            (s.date_initiale if s.date_initiale.tzinfo else s.date_initiale.replace(tzinfo=timezone.utc)).isoformat()
+            if s.date_initiale else None
+        ),
         "duree_minutes": s.duree_minutes,
         "lien": s.lien,
         "statut": s.statut,
@@ -578,7 +582,7 @@ def admin_update_seance(
     if payload.titre is not None:
         s.titre = payload.titre.strip()
     if payload.date_debut is not None:
-        s.date_debut = payload.date_debut
+        s.deplacer(payload.date_debut)
     if payload.duree_minutes is not None:
         s.duree_minutes = payload.duree_minutes
     if payload.lien is not None:

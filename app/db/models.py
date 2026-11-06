@@ -1486,6 +1486,24 @@ class PrepaAdjurisSeance(Base):
     statut: Mapped[str] = mapped_column(String(20), default="prevue", nullable=False)
     # prevue | annulee
 
+    date_initiale: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Date prévue avant le premier déplacement (NULL = jamais déplacée) :
+    # l'emploi du temps de l'espace Prépa affiche « déplacée du … ».
+
+    def deplacer(self, nouvelle: datetime) -> None:
+        """Change la date en gardant la date d'origine (premier déplacement).
+        Revenir à la date d'origine efface la trace du déplacement."""
+        def utc(dt: datetime) -> datetime:
+            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+        if self.date_debut is not None and utc(nouvelle) == utc(self.date_debut):
+            return
+        if self.date_initiale is None and self.date_debut is not None:
+            self.date_initiale = self.date_debut
+        elif self.date_initiale is not None and utc(nouvelle) == utc(self.date_initiale):
+            self.date_initiale = None
+        self.date_debut = nouvelle
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -2286,6 +2304,78 @@ class PrepaAdjurisDevoir(Base):
     )
     corrige_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    contenu: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # La copie mise en forme par NAVIRE (app/services/copies.py) :
+    # {"blocs": [{"id", "t", "runs": [[texte, gras, italique]], "text"}]}.
+    # NULL = pas encore lue (copie déposée avant la mise en forme).
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    annotations: Mapped[list["PrepaAdjurisAnnotation"]] = relationship(
+        "PrepaAdjurisAnnotation",
+        back_populates="devoir",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PrepaAdjurisAnnotation.id",
+    )
+
+
+class PrepaAdjurisAnnotation(Base):
+    """
+    Révision ou commentaire du correcteur sur un passage de la copie
+    (bloc + positions dans le texte du bloc).
+
+    type :
+      commentaire  passage commenté (texte = le commentaire)
+      surligne     passage surligné (texte = commentaire facultatif)
+      correction   passage barré, remplacé par `texte` s'il n'est pas vide ;
+                   debut == fin : `texte` inséré à cet endroit
+    L'étudiant les voit une fois la correction rendue (devoir « corrige »),
+    dans sa copie en ligne et dans les exports .docx (révisions et
+    commentaires Word) et .pdf.
+    """
+    __tablename__ = "prepa_adjuris_annotations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    devoir_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_devoirs.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    auteur_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    type: Mapped[str] = mapped_column(String(16), nullable=False)
+    bloc: Mapped[str] = mapped_column(String(16), nullable=False)
+    debut: Mapped[int] = mapped_column(Integer, nullable=False)
+    fin: Mapped[int] = mapped_column(Integer, nullable=False)
+    citation: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    texte: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    devoir: Mapped["PrepaAdjurisDevoir"] = relationship("PrepaAdjurisDevoir", back_populates="annotations")
+
+
+class PrepaSuivi(Base):
+    """Cours NAVIRE Lib qu'un étudiant suit dans son espace Prépa
+    (« Suivre dans Prépa » depuis Lib)."""
+    __tablename__ = "prepa_suivis"
+    __table_args__ = (UniqueConstraint("user_id", "document_id", name="uq_prepa_suivi"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("lib_documents.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

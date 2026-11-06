@@ -128,6 +128,7 @@ async def save_prepa_pdf(
     *,
     max_bytes: int = MAX_UPLOAD_BYTES,
     enforce_budget: bool = True,
+    allow_docx: bool = False,
 ) -> dict:
     """
     Écrit un PDF sur le disque persistant et renvoie ses métadonnées.
@@ -158,12 +159,17 @@ async def save_prepa_pdf(
     if not upload or not upload.filename:
         raise HTTPException(status_code=400, detail="Fichier manquant.")
 
-    if not _is_pdf(upload):
-        raise HTTPException(status_code=400, detail="Seuls les fichiers PDF sont acceptés.")
+    # allow_docx : copies d'étudiants (.docx ou .pdf), mises en forme par NAVIRE.
+    is_docx = allow_docx and (upload.filename or "").lower().endswith(".docx")
+    if not is_docx and not _is_pdf(upload):
+        raise HTTPException(
+            status_code=400,
+            detail="Dépose un fichier .docx ou .pdf." if allow_docx else "Seuls les fichiers PDF sont acceptés.",
+        )
 
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    stored_name = f"{uuid4().hex}.pdf"
+    stored_name = f"{uuid4().hex}.{'docx' if is_docx else 'pdf'}"
     stored_path = dest_dir / stored_name
 
     # Usage disque prepa avant écriture (pour le contrôle de budget incrémental).
