@@ -20,21 +20,21 @@
   Question      → GET /lib/checkpoints/{id}/question, POST …/submit, POST …/passer
   Chat          → POST /lib/chat
 
-  Prépa (inscrits Prép'AdJuris, dans Lib comme dans Lib+) : un encart sous
-  les raccourcis (emploi du temps, cours de la classe) et une vue Prépa à
-  onglets : emploi du temps, cours et documents, devoirs à rendre. Les
-  documents de l'espace Prépa sont des documents Lib (pastille « Prépa ») :
-  ils se lisent comme un cours, dans la bibliothèque comme dans la vue Prépa.
-                → GET /lib/prepa, POST /lib/prepa/devoirs
+  Prépa (inscrits Prép'AdJuris) : l'espace Prépa a son propre onglet
+  (/prepa, embeds/prepa.html). Lib garde les documents de l'espace Prépa
+  (pastille « Prépa », lus comme un cours), un bandeau et une entrée de menu
+  qui mènent à l'onglet Prépa, et le bouton « Suivre dans Prépa » sous le
+  titre d'un cours (POST/DELETE /lib/prepa/suivis/{id}).
+                → GET /lib/prepa (prochaine séance du bandeau)
   Pass admin : « Voir comme » L1, L2, L3, M1 (bas du menu, comptes admin
-  seulement) : la bibliothèque et la vue Prépa d'un étudiant de ce niveau.
+  seulement) : la bibliothèque d'un étudiant de ce niveau.
 
   Visiteur (sans compte) : la bibliothèque Lib se parcourt ; chaque document
   s'ouvre en aperçu (le début du document), la suite floutée sous une carte
   « Crée ton compte ». Lib+, la vue Prépa et Mes fichiers demandent un compte.
 
   Un lien vers un cours précis : /lib?doc=12 (et &mode=lib pour forcer Lib)
-  La vue Prépa : /lib?prepa=edt|cours|devoirs
+  Anciens liens /lib?prepa=edt|cours|devoirs : redirigés vers /prepa.
   Réglages : bloc CONFIG du script (liens QCM, NAVIRE AI, actus, offres).
 -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
@@ -610,7 +610,8 @@
     QCM_URL: "https://navire-ai.com/qcm",            // page QCM NAVIRE (gagner de l'Elo)
     AI_URL: "https://navire-ai.com/navire",       // page NAVIRE AI
     ACTUS_URL: "https://navire-ai.com/actus",        // page actus / veille
-    OFFRES_URL: "https://navire-ai.com/subscribe"       // abonnements (accès Lib+)
+    OFFRES_URL: "https://navire-ai.com/subscribe",      // abonnements (accès Lib+)
+    PREPA_URL: "https://navire-ai.com/prepa"           // onglet Prépa (inscrits Prép'AdJuris)
   };
   var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
   // perso : les PDF de « Mes fichiers » de l'élève (visibles par lui seul).
@@ -628,9 +629,7 @@
     chat: {},      // chat NAVIRE AI, par point de passage : { open, conv, msgs, busy, draft }
     view: "library", // library | doc | prepa | upsell
     prepa: null,   // GET /lib/prepa (inscrits Prép'AdJuris, ou aperçu admin)
-    ptab: "edt",   // onglet de la vue Prépa : edt | cours | docs | devoirs
-    voir: null,    // aperçu admin : "L1" | "L2" | "L3" | "M1"
-    dv: { matiere: "", titre: "", message: "", file: null, busy: false }  // dépôt de devoir
+    voir: null     // aperçu admin : "L1" | "L2" | "L3" | "M1"
   };
 
   // ================= OUTILS =================
@@ -886,7 +885,7 @@
       nav.map(function (n) {
         return '<button class="nv-nav' + (lib && S.filter === n[0] ? " is-active" : "") + '" data-filter="' + n[0] + '">' + n[2] + esc(n[1]) + '<span class="nv-badge">' + (counts[n[0]] || 0) + '</span></button>';
       }).join("") +
-      (hasPrepa() ? '<div class="nv-group-label">Prép\'AdJuris</div><button class="nv-nav' + (S.view === "prepa" ? " is-active" : "") + '" data-act="prepa">' + ICON.cap + 'Espace Prépa<span class="nv-badge">' + esc(S.user.prepa) + '</span></button>' : "") +
+      (hasPrepa() ? '<div class="nv-group-label">Prép\'AdJuris</div><button class="nv-nav' + (S.view === "prepa" ? " is-active" : "") + '" data-act="prepa">' + ICON.cap + 'Onglet Prépa<span class="nv-badge">' + esc(S.user.prepa) + '</span></button>' : "") +
       '<div class="nv-group-label">Raccourcis</div>' + actions();
   }
   function actions() {
@@ -1053,6 +1052,7 @@
         '<div class="nl-cover-meta">' + (doc.maj ? '<span class="nv-tag">' + esc(doc.maj) + '</span>' : "") +
           (doc.minutes ? '<span class="nv-tag">' + doc.minutes + ' min</span>' : "") +
           (p && doc.nb_points_passage ? '<span class="nv-tag blue">' + doc.nb_points_passage + ' points de passage</span>' : "") + '</div>' +
+        (d.suivi_prepa != null && !S.voir ? '<div class="nl-cover-meta">' + suiviBtn() + '</div>' : "") +
       '</header>' +
       '<div class="nl-legend"><span><i style="background:rgba(122,167,255,0.4)"></i>Articles</span><span><i style="background:rgba(255,255,255,0.25)"></i>Jurisprudence</span><span><i style="background:rgba(79,125,255,0.45)"></i>Lois, règlements</span></div>';
 
@@ -1347,23 +1347,8 @@
   function refreshPrepaSide() { var n = el("prepa-side"); if (n) n.innerHTML = prepaSide(); }
 
   // Encart sous les raccourcis : emploi du temps et cours de la classe.
-  function prepaSide() {
-    if (!hasPrepa()) return "";
-    var p = S.prepa;
-    var html = '<div class="nl-ps"><div class="nl-ps-head">' + ico("cap", 15) + '<b>Prépa</b><span class="nv-tag solid">' + esc(S.user.prepa) + (S.voir ? " · aperçu" : "") + '</span></div>';
-    if (!p) return html + '<div class="nv-skel" style="height:54px;margin:0"></div></div>';
-    var reading = S.view === "doc";   // en lecture : encart réduit, le plan garde sa place
-    var next = aVenir().slice(0, reading ? 2 : 3);
-    html += '<small class="nl-ps-label">Emploi du temps</small>' + (next.length ? next.map(function (x) {
-      var d = dateOf(x.date_debut);
-      return '<button class="nl-ps-item' + (x.statut === "annulee" ? " is-off" : "") + '" data-ptab="edt"><i>' + esc(jour(d).replace(/\.$/, "")) + '</i><span>' + hhmm(d) + " · " + esc(x.titre || x.matiere) + '</span></button>';
-    }).join("") : '<div class="nl-ps-empty">Aucune séance programmée.</div>');
-    var cours = reading ? [] : (p.cours_lib || []).slice(0, 4);
-    if (cours.length) html += '<small class="nl-ps-label">Cours et documents</small>' + cours.map(function (d) {
-      return '<button class="nl-ps-item" data-open="' + d.id + '"><i>' + esc(KINDS[d.kind] || "Cours") + '</i><span>' + esc(d.titre) + '</span></button>';
-    }).join("");
-    return html + '<button class="nv-btn is-blue" data-act="prepa">Ouvrir l\'espace Prépa</button></div>';
-  }
+  function prepaSide() { return ""; }
+
 
   // Encart en tête de la bibliothèque.
   function prepaBanner() {
@@ -1372,147 +1357,26 @@
     return '<button class="nl-banner" data-el="prepa-banner" data-act="prepa" style="margin:0 0 14px"><span class="nl-qico">' + ICON.cap + '</span><div><b>Prép\'AdJuris · ' + esc(S.user.prepa) + '</b><span>' + esc(sub) + '</span></div><span class="nv-tag solid">PRÉPA</span></button>';
   }
 
+  // L'espace Prépa a son propre onglet (/prepa, embeds/prepa.html) : les
+  // anciens liens /lib?prepa=edt|cours|devoirs y mènent.
   function viewPrepa(tab) {
-    if (!hasPrepa()) return viewLibrary();
-    if (tab) S.ptab = tab === "docs" ? "cours" : tab;   // ancien onglet Documents
-    if (!PTABS.some(function (t) { return t[0] === S.ptab; })) S.ptab = "edt";
-    S.doc = null; S.docId = null; setPageParam("doc", null); setPageParam("prepa", S.ptab);
-    S.view = "prepa";
-    root.classList.remove("is-solo"); root.classList.remove("is-drawer");
-    setTitle("Prépa · " + S.user.prepa);
-    el("hl-btn").style.display = "none";
-    el("readbar").style.width = "0";
-    sideLibrary();
-    var p = S.prepa;
-    if (!p) { setPage('<div class="nv-skel" style="height:90px;margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div>'); return; }
-    var s = p.prochaine_seance, d = s && dateOf(s.date_debut), lien = s && (lienSur(s.lien) || lienSur(p.discord_url));
-    var html = '<div class="nv-page-head"><h2>Prép\'AdJuris · ' + esc(p.niveau) + '</h2><p>' +
-      (p.apercu ? "Aperçu admin : toutes les matières du niveau, tous les documents (y compris ceux d'un seul groupe)." : "Tes séances, les cours et documents de tes matières, à lire comme sur NAVIRE Lib, et tes devoirs.") + '</p></div>' +
-      '<div class="nl-phero"><span class="nl-qico">' + ICON.cal + '</span><div><small>Prochaine séance</small>' +
-        (d ? '<b>' + esc(jour(d, true)) + ' · ' + hhmm(d) + '</b><span>' + esc(s.titre ? s.titre + " · " + s.matiere : s.matiere) + '</span>' : '<b>Aucune séance programmée</b><span>Les dates arrivent sur Discord.</span>') + '</div>' +
-        '<div class="nl-phero-btns">' + (lien ? '<a class="nv-btn is-blue" href="' + esc(lien) + '" target="_blank" rel="noopener">Rejoindre</a>' : "") +
-        (lienSur(p.discord_url) && lien !== lienSur(p.discord_url) ? '<a class="nv-chip" href="' + esc(lienSur(p.discord_url)) + '" target="_blank" rel="noopener">Discord</a>' : "") + '</div></div>' +
-      '<div class="nl-tabs">' + PTABS.map(function (t) {
-        var badge = t[0] === "devoirs" && corriges() ? ' <b>' + corriges() + '</b>' : "";
-        return '<button class="nv-chip' + (S.ptab === t[0] ? " is-active" : "") + '" data-ptab="' + t[0] + '">' + esc(t[1]) + badge + '</button>';
-      }).join("") + '</div>';
-    html += S.ptab === "cours" ? prepaCours() : S.ptab === "devoirs" ? prepaDevoirs() : prepaEdt();
-    setPage(html);
-    bindDrop();
+    var onglet = { cours: "cours", docs: "cours", devoirs: "copies" }[tab] || "";
+    go(CONFIG.PREPA_URL + (onglet ? "?onglet=" + onglet : ""));
   }
 
-  function prepaEdt() {
-    var list = S.prepa.seances || [];
-    if (!list.length) return '<div class="nv-empty"><b>Emploi du temps vide</b>Aucune séance n\'est encore programmée pour tes matières.</div>';
-    var now = new Date(), html = "", last = null;
-    list.forEach(function (x) {
-      var d = dateOf(x.date_debut); if (!d) return;
-      var key = d.toDateString();
-      if (key !== last) { html += '<div class="nl-day' + (memeJour(d, now) ? " is-today" : "") + '">' + (memeJour(d, now) ? "Aujourd'hui · " : "") + esc(jour(d, true)) + '</div>'; last = key; }
-      var fin = d.getTime() + (x.duree_minutes || 60) * 60000, passe = fin < now.getTime(), off = x.statut === "annulee";
-      var lien = lienSur(x.lien) || lienSur(S.prepa.discord_url);
-      html += '<div class="nl-slot' + (passe ? " is-past" : "") + (off ? " is-off" : "") + '"><span class="nl-slot-time">' + hhmm(d) + '</span>' +
-        '<div class="nl-slot-txt"><b>' + esc(x.titre || x.matiere) + '</b><span>' + esc(x.titre ? x.matiere : "") + (x.titre ? " · " : "") + (x.duree_minutes || 60) + ' min' + (off ? " · annulée" : "") + '</span></div>' +
-        (!passe && !off && lien ? '<a class="nv-chip" href="' + esc(lien) + '" target="_blank" rel="noopener">Rejoindre</a>' : "") + '</div>';
-    });
-    return html;
-  }
-
-  function groupeBtns(g) {
-    if (!g) return "";
-    var out = lienSur(g.discord_url) ? '<a class="nv-chip" href="' + esc(g.discord_url) + '" target="_blank" rel="noopener">Discord du groupe</a>' : "";
-    (g.liens || []).forEach(function (l) { if (lienSur(l.url)) out += '<a class="nv-chip" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + ICON.link + esc(l.label) + '</a>'; });
-    return out ? '<span class="nl-sec-btns">' + out + '</span>' : "";
-  }
-
-  // Documents Prépa (pastille Prépa) et cours Lib, matière par matière, lus comme sur NAVIRE Lib.
-  function prepaCours() {
-    var p = S.prepa, byId = {}, html = "", n = 0;
-    (p.cours_lib || []).forEach(function (d) { byId[d.id] = d; });
-    function grille(docs) { n += docs.length; return '<div class="nl-grid">' + docs.map(bookCard).join("") + '</div>'; }
-    p.matieres.filter(function (m) { return m.debloquee; }).forEach(function (m) {
-      var docs = m.cours_lib.map(function (id) { return byId[id]; }).filter(Boolean);
-      html += '<div class="nl-sec">' + esc(m.label) + (m.groupe ? ' <small>' + esc(m.groupe.nom) + '</small>' : "") + groupeBtns(m.groupe) + '</div>' +
-        (docs.length ? grille(docs) : '<div class="nl-ps-empty" style="padding:4px 2px 8px">Les cours et documents arrivent au fil des séances.</div>');
-    });
-    var methodo = (p.cours_lib || []).filter(function (d) { return d.methodo; });
-    if (methodo.length) html += '<div class="nl-sec">Méthodologie</div>' + grille(methodo);
-    var autres = (p.cours_lib || []).filter(function (d) { return !d.matiere_key && !d.methodo; });
-    if (autres.length) html += '<div class="nl-sec">Pour ton niveau <small>' + esc(p.niveau) + '</small></div>' + grille(autres);
-    var off = p.matieres.filter(function (m) { return !m.debloquee; });
-    if (off.length) html += '<div class="nl-sec">Autres matières du niveau</div>' + off.map(function (m) {
-      return '<div class="nl-row is-off"><span class="nl-row-ico">' + ICON.lock + '</span><div class="nl-row-txt"><b>' + esc(m.label) + '</b><span>Non souscrite</span></div></div>';
-    }).join("");
-    if (!n) html = '<div class="nv-empty"><b>Les cours arrivent</b>Les cours et documents de ta classe s\'afficheront ici dès leur publication.</div>' + html;
-    return html;
-  }
-
-  function prepaDevoirs() {
-    var p = S.prepa, f = S.dv;
-    var mats = p.matieres.filter(function (m) { return m.debloquee; });
-    if (!f.matiere || !mats.some(function (m) { return m.matiere_key === f.matiere; })) f.matiere = mats.length ? mats[0].matiere_key : "";
-    var html = '<div class="nv-card nl-form"><div style="font-weight:700;font-size:14px">Rendre un devoir</div>' +
-      '<div style="font-size:12px;color:var(--text-3);margin-top:3px">Ta copie part au chargé de TD de ton groupe, qui la corrige et la commente ici.</div>';
-    if (p.apercu) {
-      html += '<div class="nl-qfb">Aperçu admin : le dépôt est désactivé. Les copies des étudiants arrivent dans l\'onglet Devoirs de l\'espace professeur.</div></div>';
-    } else {
-      html += '<label class="nv-field"><span>Matière</span><select data-dv="matiere">' + mats.map(function (m) { return '<option value="' + esc(m.matiere_key) + '"' + (m.matiere_key === f.matiere ? " selected" : "") + '>' + esc(m.label) + '</option>'; }).join("") + '</select></label>' +
-        '<label class="nv-field"><span>Titre</span><input class="nv-input" data-dv="titre" maxlength="200" placeholder="Ex. Dissertation n° 2, la coutume" value="' + esc(f.titre) + '"></label>' +
-        '<label class="nv-field"><span>Un mot pour ton professeur (facultatif)</span><textarea data-dv="message" maxlength="4000" placeholder="Une question, un point à regarder…">' + esc(f.message) + '</textarea></label>' +
-        '<label class="nl-drop nv-field" data-el="drop"><input type="file" accept="application/pdf,.pdf" data-dv="file"><span class="nl-row-ico" style="width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:var(--blue-soft);color:var(--blue)">' + ico("up", 17) + '</span><div><b>' + (f.file ? esc(f.file.name) : "Choisir ma copie (PDF)") + '</b><span>' + (f.file ? taille(f.file.size) : "Glisse le fichier ici, " + taille(p.devoir_max_bytes) + " max") + '</span></div></label>' +
-        '<div class="nv-err" data-el="dv-err"></div>' +
-        '<button class="nv-btn is-blue is-block" data-act="dv-submit"' + (f.busy || !f.file || !f.matiere ? " disabled" : "") + '>' + (f.busy ? "Envoi…" : ico("up", 15) + "Envoyer ma copie") + '</button></div>';
-    }
-    var list = p.devoirs || [];
-    html += '<div class="nl-sec">Mes copies <small>' + list.length + '</small></div>';
-    if (!list.length) return html + '<div class="nl-ps-empty" style="padding:4px 2px">Aucune copie rendue pour le moment.</div>';
-    return html + list.map(function (d) {
-      var done = d.statut === "corrige", at = dateOf(d.created_at);
-      return '<div class="nl-devoir' + (done ? " is-done" : "") + '"><div class="nl-devoir-top"><div><b>' + esc(d.titre) + '</b><small>' + esc(d.matiere) + (at ? " · rendu le " + esc(jour(at)) : "") + '</small></div>' +
-        (d.note ? '<span class="nl-note">' + esc(d.note) + '</span>' : '<span class="nv-tag ' + (done ? "solid" : "") + '">' + (done ? "Corrigé" : "En attente") + '</span>') + '</div>' +
-        (d.message ? '<div class="nl-devoir-msg">« ' + esc(d.message) + ' »</div>' : "") +
-        (d.commentaire ? '<div class="nl-com"><small>' + esc(d.corrige_par ? "Commentaire de " + d.corrige_par : "Commentaire du professeur") + '</small>' + esc(d.commentaire) + '</div>' : "") +
-        '<div class="nl-devoir-btns"><button class="nv-chip" data-dv-file="' + d.id + '" data-title="' + esc(d.titre) + '">' + ICON.file + 'Ma copie</button>' +
-          (d.correction ? '<button class="nv-chip" data-dv-corr="' + d.id + '" data-title="' + esc("Correction : " + d.titre) + '">' + ICON.tick + 'Copie corrigée</button>' : "") +
-          (!done ? '<button class="nv-chip" data-dv-del="' + d.id + '">Retirer</button>' : "") + '</div></div>';
-    }).join("");
-  }
-
-  function bindDrop() {
-    var drop = el("drop"); if (!drop) return;
-    ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("is-over"); }); });
-    ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("is-over"); }); });
-    drop.addEventListener("drop", function (e) { var f = e.dataTransfer && e.dataTransfer.files[0]; if (f) pickFile(f); });
-  }
-  function pickFile(f) {
-    if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") return toast("Seuls les PDF sont acceptés.", true);
-    if (S.prepa && f.size > S.prepa.devoir_max_bytes) return toast("Fichier trop lourd (" + taille(S.prepa.devoir_max_bytes) + " max).", true);
-    S.dv.file = f;
-    if (!S.dv.titre) S.dv.titre = f.name.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ").slice(0, 200);
-    viewPrepa("devoirs");
-  }
-  function submitDevoir() {
-    var f = S.dv;
-    if (f.busy || !f.file || !f.matiere) return;
-    f.busy = true; viewPrepa("devoirs");
-    var fd = new FormData();
-    fd.append("file", f.file); fd.append("matiere_key", f.matiere); fd.append("titre", f.titre || ""); fd.append("message", f.message || "");
-    fetch(CONFIG.API + "/lib/prepa/devoirs", { method: "POST", headers: { Authorization: "Bearer " + S.token }, body: fd })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(detail(j.detail)); return j; }); })
-      .then(function (d) {
-        S.dv = { matiere: f.matiere, titre: "", message: "", file: null, busy: false };
-        S.prepa.devoirs = [d].concat(S.prepa.devoirs || []);
-        toast("Copie envoyée à ton professeur.");
-        viewPrepa("devoirs");
-      })
-      .catch(function (x) { f.busy = false; viewPrepa("devoirs"); var e = el("dv-err"); if (e) e.textContent = x.message; });
-  }
-  function deleteDevoir(id) {
-    if (!window.confirm("Retirer cette copie ?")) return;
-    api("DELETE", "/lib/prepa/devoirs/" + id).then(function () {
-      S.prepa.devoirs = (S.prepa.devoirs || []).filter(function (d) { return d.id !== id; });
-      toast("Copie retirée."); viewPrepa("devoirs");
+  // « Suivre dans Prépa » : le cours apparaît dans l'onglet Prépa (rubrique Cours).
+  function toggleSuivi() {
+    var d = S.doc; if (!d || d.suivi_prepa == null) return;
+    var on = !d.suivi_prepa;
+    api(on ? "POST" : "DELETE", "/lib/prepa/suivis/" + d.document.id).then(function () {
+      d.suivi_prepa = on;
+      var b = el("suivi"); if (b) b.outerHTML = suiviBtn();
+      toast(on ? "Ajouté à ta Prépa, rubrique Cours." : "Retiré de ta Prépa.");
     }).catch(function (x) { toast(x.message, true); });
+  }
+  function suiviBtn() {
+    var d = S.doc; if (!d || d.suivi_prepa == null || S.voir) return "";
+    return '<button class="nv-chip' + (d.suivi_prepa ? " is-active" : "") + '" data-el="suivi" data-act="suivi">' + (d.suivi_prepa ? ICON.tick + "Suivi dans Prépa" : ICON.cap + "Suivre dans Prépa") + '</button>';
   }
 
   // ----- Lecteur PDF : seulement pour les copies de l'élève et les copies corrigées
@@ -1582,14 +1446,14 @@
     renderAdmin();
     return refreshCatalogue().then(function () {
       loadPrepa();
-      if (S.voir && hasPrepa()) viewPrepa("cours"); else viewLibrary();
+      viewLibrary();
       toast(S.voir ? "Aperçu " + S.voir : "Retour au pass admin");
     }).catch(function (x) { toast(x.message, true); });
   }
 
   // ================= ÉVÉNEMENTS =================
   root.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg],[data-ptab],[data-voir],[data-dv-file],[data-dv-corr],[data-dv-del]");
+    var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg],[data-ptab],[data-voir]");
     if (!t || !root.contains(t)) return;
     var a = function (n) { return +t.getAttribute(n); };
     if (t.hasAttribute("data-go")) {
@@ -1612,9 +1476,6 @@
     }
     if (t.hasAttribute("data-ptab")) return viewPrepa(t.getAttribute("data-ptab"));
     if (t.hasAttribute("data-voir")) return setVoir(t.getAttribute("data-voir"));
-    if (t.hasAttribute("data-dv-file")) return openPdf("/lib/prepa/devoirs/" + a("data-dv-file") + "/fichier", t.getAttribute("data-title"));
-    if (t.hasAttribute("data-dv-corr")) return openPdf("/lib/prepa/devoirs/" + a("data-dv-corr") + "/correction", t.getAttribute("data-title"));
-    if (t.hasAttribute("data-dv-del")) return deleteDevoir(a("data-dv-del"));
     if (t.hasAttribute("data-filter")) { S.filter = t.getAttribute("data-filter"); root.classList.remove("is-drawer"); return viewLibrary(); }
     if (t.hasAttribute("data-goto")) {
       if (t.hasAttribute("data-locked")) {
@@ -1659,7 +1520,7 @@
     else if (act === "toggle-hl") { S.plain = !S.plain; root.classList.toggle("is-plain", S.plain); t.classList.toggle("is-on", !S.plain); store("navire_lib_plain", S.plain ? "1" : null); toast(S.plain ? "Surlignage masqué" : "Surlignage affiché"); }
     else if (act === "prepa") viewPrepa();
     else if (act === "pdf-close") closePdf();
-    else if (act === "dv-submit") submitDevoir();
+    else if (act === "suivi") toggleSuivi();
     else if (act === "logout") { S.token = null; S.user = null; S.prepa = null; S.voir = null; store(CONFIG.TOKEN_KEY, null); store("navire_lib_voir", null); renderAdmin(); boot(); }
     else if (act === "login-view") { root.classList.remove("is-drawer"); viewLogin(); }
     else if (act === "login") login(t);
@@ -1683,14 +1544,7 @@
       var b = root.querySelector('[data-cp-submit="' + id + '"]'); if (b) b.disabled = !t.value.trim();
     } else if (t.hasAttribute("data-chat-input")) {
       var ch = S.chat[+t.getAttribute("data-chat-input")]; if (ch) ch.draft = t.value;
-    } else if (t.getAttribute("data-dv") === "titre" || t.getAttribute("data-dv") === "message") {
-      S.dv[t.getAttribute("data-dv")] = t.value;
     }
-  });
-  root.addEventListener("change", function (e) {
-    var t = e.target, k = t.getAttribute && t.getAttribute("data-dv");
-    if (k === "matiere") S.dv.matiere = t.value;
-    else if (k === "file" && t.files && t.files[0]) pickFile(t.files[0]);
   });
   root.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && (e.target.id === "l-email" || e.target.id === "l-pass")) login($('[data-act="login"]'));

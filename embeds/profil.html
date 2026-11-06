@@ -1346,6 +1346,10 @@
 
   // Retour de Stripe : ?billing=card_updated | card_cancelled | portal
   function retourStripe() {
+    // Lien direct vers un onglet des paramètres : ?onglet=abonnement|factures
+    // (ex. depuis l'onglet Prépa, rubrique Facturation).
+    var o = pageParam('onglet');
+    if (/^(abonnement|factures)$/.test(o || '') && S.mine && !pageParam('billing')) { openEdit(o); return; }
     var r = pageParam('billing');
     if (!/^(card_updated|card_cancelled|portal)$/.test(r || '') || !S.mine) return;
     var cle = 'pf_billing_retour', emp = r + '|' + (pageUrl() || ''), deja = null;

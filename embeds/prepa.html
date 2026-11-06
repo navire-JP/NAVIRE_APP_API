@@ -1,0 +1,1002 @@
+<!--
+  NAVIRE, embed de l'onglet Prépa (page /prepa), réservé aux inscrits
+  Prép'AdJuris. Sorti de NAVIRE Lib : Lib garde ses documents à pastille
+  « Prépa » et le bouton « Suivre dans Prépa ».
+  ======================================================================
+  Même DA que l'accueil, le profil et NAVIRE Lib : bleu et blanc, sans
+  traits, barre latérale masquable (retenue d'une visite à l'autre), menu
+  tiroir sous 760 px ; prend la hauteur de l'écran sous sa position.
+
+  Rubriques (lien direct /prepa?onglet=…) :
+    semaine   calendrier des cours (semaine / mois) tel que prévu ou déplacé
+              dans la console : séance annulée barrée, séance déplacée avec
+              sa date d'origine, « En cours » quand le professeur a lancé le
+              cours sur Discord, Rejoindre ;
+    copies    les copies rendues : mises en forme par NAVIRE, avec les
+              révisions (barré, ajouté, surligné) et les commentaires du
+              correcteur dans la marge une fois la correction rendue ;
+              téléchargement .docx (révisions Word) ou .pdf ;
+              lien direct vers une copie : /prepa?copie=12 ;
+    rendre    déposer une copie (.docx ou .pdf texte) ;
+    cours     les cours suivis depuis NAVIRE Lib (« Suivre dans Prépa ») et
+              ceux de la classe, qui s'ouvrent dans Lib ;
+    factu     prochain prélèvement par matière, lien vers les factures.
+  En bas du menu : Discord, NAVIRE Lib, et pour les admins « Voir comme ».
+
+  Données : GET /lib/prepa, POST /lib/prepa/devoirs,
+            GET /lib/prepa/devoirs/{id}/copie, …/export?format=docx|pdf,
+            DELETE /lib/prepa/suivis/{id}.
+  Réglages : bloc CONFIG du script.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+#nv-prepa {
+  --panel: rgba(255,255,255,0.035);
+  --panel-2: rgba(255,255,255,0.06);
+  --panel-3: rgba(255,255,255,0.1);
+  --line: rgba(255,255,255,0.07);
+  --line-2: rgba(255,255,255,0.14);
+  --text: #fff;
+  --text-2: rgba(255,255,255,0.72);
+  --text-3: rgba(255,255,255,0.45);
+  --text-4: rgba(255,255,255,0.28);
+  --blue: #7AA7FF;
+  --blue-hi: #B5CDFF;
+  --blue-deep: #4F7DFF;
+  --blue-soft: rgba(122,167,255,0.1);
+  --blue-line: rgba(122,167,255,0.35);
+  --del: #FF8A8A;
+  --ins: #7FE3B0;
+  --hl: rgba(255,214,102,0.28);
+  --radius: 14px;
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --serif: 'Source Serif 4', Georgia, serif;
+  --mono: 'IBM Plex Mono', monospace;
+
+  position: relative;
+  width: 100%;
+  height: 640px;
+  min-height: 460px;
+  display: flex;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+  background: transparent;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+#nv-prepa *, #nv-prepa *::before, #nv-prepa *::after { box-sizing: border-box; }
+#nv-prepa button { font-family: inherit; color: inherit; }
+#nv-prepa ::selection { background: rgba(122,167,255,0.3); }
+#nv-prepa svg { flex-shrink: 0; }
+#nv-prepa .nv-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+#nv-prepa .nv-scroll::-webkit-scrollbar { width: 6px; }
+#nv-prepa .nv-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9px; }
+
+/* Barre latérale */
+#nv-prepa .nv-side { width: 236px; flex-shrink: 0; display: flex; flex-direction: column; padding: 12px 8px 10px; gap: 2px; z-index: 30; min-height: 0; transition: margin-left .3s var(--ease), visibility 0s; }
+#nv-prepa:not(.is-compact).is-side-off .nv-side { margin-left: -236px; visibility: hidden; transition: margin-left .3s var(--ease), visibility 0s .3s; }
+#nv-prepa .nv-brand { display: flex; align-items: center; gap: 9px; padding: 2px 4px 12px 8px; }
+#nv-prepa .nv-logo { width: 24px; height: 24px; background: center/contain no-repeat; flex-shrink: 0; }
+#nv-prepa .nv-brand-name { font-weight: 800; font-size: 13.5px; letter-spacing: .5px; }
+#nv-prepa .nv-brand-name span { font-weight: 500; color: var(--text-3); letter-spacing: 0; margin-left: 3px; }
+#nv-prepa .nv-side-close { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; color: var(--text-4); }
+#nv-prepa .nv-side-close svg { width: 15px; height: 15px; }
+#nv-prepa .nv-side-body { flex: 1 0 auto; display: flex; flex-direction: column; gap: 2px; }
+#nv-prepa .nv-nav { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 12.5px; font-weight: 500; color: var(--text-3); transition: background .15s, color .15s; text-align: left; text-decoration: none; }
+#nv-prepa .nv-nav svg { width: 15px; height: 15px; opacity: .75; }
+#nv-prepa .nv-nav:hover { background: var(--panel); color: var(--text); }
+#nv-prepa .nv-nav.is-active { background: var(--panel-2); color: var(--text); }
+#nv-prepa .nv-nav .nv-badge { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-4); }
+#nv-prepa .nv-nav .nv-badge.is-blue { color: #0a0a12; background: var(--blue); padding: 1px 6px; border-radius: 99px; font-weight: 600; }
+#nv-prepa .nv-group-label { font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 16px 10px 4px; }
+#nv-prepa .nv-nav .nv-ext { margin-left: auto; opacity: .45; width: 12px; height: 12px; }
+#nv-prepa .nv-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 25; }
+#nv-prepa .np-admin { margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--panel); }
+#nv-prepa .np-admin small { display: block; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-4); margin-bottom: 6px; }
+#nv-prepa .np-seg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 3px; border-radius: 10px; background: var(--panel-2); }
+#nv-prepa .np-seg button { height: 26px; border: 0; border-radius: 7px; background: transparent; font-size: 11px; font-weight: 700; color: var(--text-3); cursor: pointer; padding: 0; }
+#nv-prepa .np-seg button.is-on { background: #fff; color: #0a0a12; }
+
+/* Zone principale */
+#nv-prepa .nv-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+#nv-prepa .nv-topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; min-height: 52px; flex-shrink: 0; }
+#nv-prepa .nv-topbar-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+#nv-prepa .nv-icon-btn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: none; background: transparent; color: var(--text-3); cursor: pointer; transition: background .15s, color .15s; padding: 0; }
+#nv-prepa .nv-icon-btn:hover { background: var(--panel-2); color: var(--text); }
+#nv-prepa .nv-icon-btn svg { width: 18px; height: 18px; }
+#nv-prepa:not(.is-compact):not(.is-side-off) .nv-menu-btn { display: none; }
+#nv-prepa .np-apercu { display: none; align-items: center; gap: 10px; padding: 8px 14px; background: var(--blue); color: #0a0a12; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+#nv-prepa .np-apercu.is-on { display: flex; }
+#nv-prepa .np-apercu span { flex: 1; }
+#nv-prepa .np-apercu button { border: 0; background: #0a0a12; color: #fff; border-radius: 99px; height: 26px; padding: 0 12px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+#nv-prepa .nv-page { flex: 1; min-height: 0; position: relative; }
+#nv-prepa .nv-page-inner { max-width: 860px; margin: 0 auto; padding: 8px 22px 60px; animation: nv-fade .28s var(--ease); }
+#nv-prepa .nv-page-inner.is-wide { max-width: 1120px; }
+@keyframes nv-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes nv-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes nv-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@keyframes np-pulse { 0% { box-shadow: 0 0 0 0 rgba(127,227,176,0.55); } 70% { box-shadow: 0 0 0 7px rgba(127,227,176,0); } 100% { box-shadow: 0 0 0 0 rgba(127,227,176,0); } }
+#nv-prepa .nv-page-head { margin: 6px 0 18px; }
+#nv-prepa .nv-page-head h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+#nv-prepa .nv-page-head p { margin: 4px 0 0; font-size: 13px; color: var(--text-3); line-height: 1.55; }
+
+/* Éléments communs */
+#nv-prepa .nv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 18px; border-radius: 99px; border: none; background: #fff; color: #0a0a12; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .15s, background .2s; }
+#nv-prepa .nv-btn:hover:not(:disabled) { transform: translateY(-1px); }
+#nv-prepa .nv-btn:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; transform: none; }
+#nv-prepa .nv-btn svg { width: 15px; height: 15px; }
+#nv-prepa .nv-btn.is-blue { background: var(--blue); }
+#nv-prepa .nv-btn.is-live { background: var(--ins); }
+#nv-prepa .nv-btn.is-block { width: 100%; height: 42px; }
+#nv-prepa .nv-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 13px; border-radius: 99px; border: 1px solid var(--line-2); background: transparent; font-size: 12.5px; color: var(--text-2); cursor: pointer; text-decoration: none; white-space: nowrap; transition: background .15s, color .15s; }
+#nv-prepa .nv-chip:hover { background: var(--panel-2); color: #fff; }
+#nv-prepa .nv-chip.is-active { background: var(--panel-3); color: #fff; border-color: transparent; }
+#nv-prepa .nv-chip svg { width: 14px; height: 14px; }
+#nv-prepa .nv-tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); white-space: nowrap; }
+#nv-prepa .nv-tag.blue { color: var(--blue); background: var(--blue-soft); }
+#nv-prepa .nv-tag.solid { color: #0a0a12; background: var(--blue); }
+#nv-prepa .nv-tag.live { color: #0a0a12; background: var(--ins); }
+#nv-prepa .nv-tag.red { color: #0a0a12; background: var(--del); }
+#nv-prepa .nv-empty { text-align: center; padding: 34px 20px; font-size: 13px; color: var(--text-3); line-height: 1.6; }
+#nv-prepa .nv-empty b { display: block; color: var(--text-2); font-size: 14px; margin-bottom: 4px; }
+#nv-prepa .nv-skel { height: 62px; border-radius: 12px; margin-bottom: 8px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nv-shimmer 1.4s linear infinite; }
+#nv-prepa .nv-card { padding: 16px; border-radius: 16px; background: var(--panel); margin-bottom: 12px; animation: nv-rise .4s var(--ease) both; }
+#nv-prepa .np-sec { margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+#nv-prepa .np-sec small { font-weight: 500; color: var(--text-3); font-size: 11.5px; }
+#nv-prepa .np-sec .np-sec-btns { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+#nv-prepa .np-sec .nv-chip { height: 28px; font-size: 11.5px; padding: 0 10px; }
+
+/* Prochaine séance */
+#nv-prepa .np-hero { display: flex; align-items: center; gap: 16px; padding: 18px; border-radius: 18px; background: linear-gradient(135deg, rgba(79,125,255,0.18), rgba(122,167,255,0.03)); margin-bottom: 18px; flex-wrap: wrap; position: relative; overflow: hidden; }
+#nv-prepa .np-hero::after { content: ''; position: absolute; right: -60px; top: -60px; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(122,167,255,0.18), transparent 70%); pointer-events: none; }
+#nv-prepa .np-hero > div { flex: 1; min-width: 200px; }
+#nv-prepa .np-hero small { font-family: var(--mono); font-size: 10px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--blue); }
+#nv-prepa .np-hero b { display: block; font-size: 17px; margin-top: 4px; letter-spacing: -.2px; }
+#nv-prepa .np-hero span { font-size: 12.5px; color: var(--text-2); }
+#nv-prepa .np-hero .np-hero-btns { display: flex; gap: 6px; flex: 0 0 auto; min-width: 0; flex-wrap: wrap; position: relative; z-index: 1; }
+#nv-prepa .np-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ins); animation: np-pulse 1.8s infinite; margin-right: 6px; vertical-align: 1px; }
+
+/* Calendrier */
+#nv-prepa .np-calbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+#nv-prepa .np-calbar h3 { margin: 0 auto 0 4px; font-size: 15px; font-weight: 700; text-transform: capitalize; }
+#nv-prepa .np-seg2 { display: inline-grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 99px; background: var(--panel-2); }
+#nv-prepa .np-seg2 button { border: 0; background: transparent; height: 26px; padding: 0 12px; border-radius: 99px; font-size: 12px; font-weight: 600; color: var(--text-3); cursor: pointer; }
+#nv-prepa .np-seg2 button.is-on { background: #fff; color: #0a0a12; }
+#nv-prepa .np-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+#nv-prepa .np-wday { min-height: 220px; border-radius: 14px; background: var(--panel); padding: 8px 6px; display: flex; flex-direction: column; gap: 5px; }
+#nv-prepa .np-wday.is-today { background: var(--blue-soft); }
+#nv-prepa .np-wday.is-past { opacity: .6; }
+#nv-prepa .np-wday-head { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-3); padding: 0 4px 4px; display: flex; justify-content: space-between; }
+#nv-prepa .np-wday.is-today .np-wday-head { color: var(--blue); }
+#nv-prepa .np-wday-head b { font-family: 'Inter', sans-serif; font-size: 15px; color: var(--text); letter-spacing: 0; }
+#nv-prepa .np-ev { display: block; width: 100%; text-align: left; border: 0; border-radius: 10px; padding: 7px 8px; background: rgba(122,167,255,0.14); cursor: pointer; transition: background .15s, transform .15s; }
+#nv-prepa .np-ev:hover { background: rgba(122,167,255,0.24); transform: translateY(-1px); }
+#nv-prepa .np-ev i { display: block; font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--blue-hi); }
+#nv-prepa .np-ev b { display: block; font-size: 11.5px; font-weight: 600; line-height: 1.3; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+#nv-prepa .np-ev em { display: block; font-style: normal; font-size: 10px; color: var(--text-3); margin-top: 3px; }
+#nv-prepa .np-ev.is-off { background: var(--panel-2); }
+#nv-prepa .np-ev.is-off b { text-decoration: line-through; color: var(--text-3); }
+#nv-prepa .np-ev.is-moved { box-shadow: inset 2px 0 0 var(--blue); }
+#nv-prepa .np-ev.is-live { background: rgba(127,227,176,0.18); }
+#nv-prepa .np-ev.is-live i { color: var(--ins); }
+#nv-prepa .np-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+#nv-prepa .np-mhead { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-4); text-align: center; padding: 4px 0; }
+#nv-prepa .np-mday { min-height: 84px; border-radius: 11px; background: var(--panel); padding: 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+#nv-prepa .np-mday.is-other { opacity: .35; }
+#nv-prepa .np-mday.is-today { background: var(--blue-soft); }
+#nv-prepa .np-mday > span { font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+#nv-prepa .np-mday.is-today > span { color: var(--blue); }
+#nv-prepa .np-mev { display: block; width: 100%; border: 0; text-align: left; border-radius: 6px; padding: 2px 5px; font-size: 10.5px; background: rgba(122,167,255,0.16); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prepa .np-mev.is-off { text-decoration: line-through; color: var(--text-3); background: var(--panel-2); }
+#nv-prepa .np-mev.is-live { background: rgba(127,227,176,0.2); }
+#nv-prepa .np-agenda .np-day { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); margin: 16px 0 6px; }
+#nv-prepa .np-agenda .np-day.is-today { color: var(--blue); }
+#nv-prepa .np-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: var(--text-3); margin-top: 12px; }
+#nv-prepa .np-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+/* Lignes (séances, copies, factures) */
+#nv-prepa .np-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 13px; background: var(--panel); border: 0; margin-bottom: 6px; text-align: left; cursor: pointer; transition: background .15s, transform .15s; animation: nv-rise .35s var(--ease) both; }
+#nv-prepa .np-row:hover { background: var(--panel-2); }
+#nv-prepa .np-row.is-static { cursor: default; }
+#nv-prepa .np-row.is-static:hover { background: var(--panel); }
+#nv-prepa .np-row-ico { width: 36px; height: 36px; border-radius: 11px; display: flex; align-items: center; justify-content: center; background: var(--blue-soft); color: var(--blue); flex-shrink: 0; }
+#nv-prepa .np-row-ico svg { width: 16px; height: 16px; }
+#nv-prepa .np-row-time { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--blue); width: 48px; flex-shrink: 0; }
+#nv-prepa .np-row-txt { flex: 1; min-width: 0; }
+#nv-prepa .np-row-txt b { display: block; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prepa .np-row-txt span { display: block; font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prepa .np-row.is-off .np-row-txt b { text-decoration: line-through; color: var(--text-3); }
+#nv-prepa .np-note { font-family: var(--mono); font-size: 14px; font-weight: 700; color: #0a0a12; background: var(--blue); padding: 3px 10px; border-radius: 9px; white-space: nowrap; }
+
+/* Popover d'une séance */
+#nv-prepa .np-pop { position: absolute; inset: 0; z-index: 1500; display: none; align-items: center; justify-content: center; background: rgba(5,6,12,0.55); padding: 16px; }
+#nv-prepa .np-pop.is-on { display: flex; }
+#nv-prepa .np-pop-card { width: min(380px, 100%); padding: 20px; border-radius: 18px; background: #12131f; box-shadow: 0 30px 80px rgba(0,0,0,0.5); animation: nv-rise .25s var(--ease) both; }
+#nv-prepa .np-pop-card small { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--blue); }
+#nv-prepa .np-pop-card h4 { margin: 6px 0 4px; font-size: 17px; }
+#nv-prepa .np-pop-card p { margin: 0 0 4px; font-size: 13px; color: var(--text-2); line-height: 1.5; }
+#nv-prepa .np-pop-btns { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+/* Formulaire de dépôt */
+#nv-prepa .nv-field { display: block; margin-top: 12px; }
+#nv-prepa .nv-field > span { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin-bottom: 6px; }
+#nv-prepa .nv-input, #nv-prepa .np-form textarea, #nv-prepa .np-form select { width: 100%; padding: 0 14px; height: 42px; border-radius: 12px; background: var(--panel-2); border: 1px solid transparent; color: #fff; font: inherit; font-size: 13.5px; outline: none; transition: border-color .15s; }
+#nv-prepa .np-form textarea { min-height: 80px; padding: 11px 14px; resize: vertical; line-height: 1.5; }
+#nv-prepa .np-form select option { background: #12121c; }
+#nv-prepa .nv-input:focus, #nv-prepa .np-form textarea:focus, #nv-prepa .np-form select:focus { border-color: var(--blue-line); }
+#nv-prepa .np-drop { display: flex; align-items: center; gap: 14px; padding: 22px 18px; border-radius: 16px; border: 1.5px dashed var(--line-2); cursor: pointer; transition: border-color .15s, background .15s; margin-top: 14px; }
+#nv-prepa .np-drop:hover, #nv-prepa .np-drop.is-over { border-color: var(--blue); background: var(--blue-soft); }
+#nv-prepa .np-drop input { display: none; }
+#nv-prepa .np-drop b { display: block; font-size: 13.5px; }
+#nv-prepa .np-drop span { font-size: 11.5px; color: var(--text-3); }
+#nv-prepa .nv-err { color: var(--del); font-size: 12.5px; margin-top: 10px; min-height: 1em; }
+
+/* Cours */
+#nv-prepa .np-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+#nv-prepa .np-book { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: var(--panel); cursor: pointer; text-align: left; border: 0; transition: background .2s, transform .2s var(--ease); min-height: 136px; overflow: hidden; animation: nv-rise .4s var(--ease) both; }
+#nv-prepa .np-book:hover { background: var(--panel-2); transform: translateY(-2px); }
+#nv-prepa .np-book::after { content: ''; position: absolute; right: -40px; top: -40px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(122,167,255,0.16), transparent 70%); pointer-events: none; }
+#nv-prepa .np-book h4 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.3; letter-spacing: -.2px; }
+#nv-prepa .np-book-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+#nv-prepa .np-book-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-3); }
+#nv-prepa .np-bar { flex: 1; height: 4px; border-radius: 9px; background: var(--panel-2); overflow: hidden; }
+#nv-prepa .np-bar i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, var(--blue-deep), var(--blue-hi)); }
+#nv-prepa .np-unfollow { position: absolute; right: 10px; top: 10px; z-index: 1; width: 26px; height: 26px; border-radius: 8px; border: 0; background: transparent; color: var(--text-4); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+#nv-prepa .np-unfollow:hover { background: var(--panel-2); color: #fff; }
+#nv-prepa .np-unfollow svg { width: 13px; height: 13px; }
+
+/* ===== Copie mise en forme, révisions et commentaires ===== */
+#nv-prepa .cx-head { margin: 4px 0 18px; }
+#nv-prepa .cx-head small { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--blue); }
+#nv-prepa .cx-head h2 { margin: 6px 0 6px; font-size: 24px; font-weight: 700; letter-spacing: -.5px; line-height: 1.25; }
+#nv-prepa .cx-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+#nv-prepa .cx-verdict { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border-radius: 16px; background: var(--blue-soft); margin-bottom: 18px; }
+#nv-prepa .cx-verdict .np-note { font-size: 18px; padding: 6px 12px; }
+#nv-prepa .cx-verdict div { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.6; color: #d6e4ff; white-space: pre-wrap; overflow-wrap: anywhere; }
+#nv-prepa .cx-verdict div small { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--blue); margin-bottom: 4px; white-space: normal; }
+#nv-prepa .cx-wait { padding: 12px 14px; border-radius: 13px; background: var(--panel); font-size: 12.5px; color: var(--text-2); margin-bottom: 18px; }
+#nv-prepa .cx-layout { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; }
+#nv-prepa .cx-layout.is-nomargin { grid-template-columns: minmax(0, 1fr); }
+#nv-prepa .cx-paper { font-family: var(--serif); font-size: 16.5px; line-height: 1.75; color: rgba(255,255,255,0.88); min-width: 0; }
+#nv-prepa .cx-paper [data-bloc] { margin: 0 0 14px; text-align: justify; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: anywhere; }
+#nv-prepa .cx-paper .cx-titre { font-family: 'Inter', sans-serif; font-size: 21px; font-weight: 800; letter-spacing: -.4px; line-height: 1.3; text-align: center; margin: 4px 0 22px; color: #fff; }
+#nv-prepa .cx-paper .cx-h { font-family: 'Inter', sans-serif; font-size: 15.5px; font-weight: 700; margin: 26px 0 8px; color: #fff; text-align: left; }
+#nv-prepa .cx-paper .cx-quote { margin-left: 22px; padding-left: 14px; box-shadow: inset 3px 0 0 var(--blue); font-style: italic; }
+#nv-prepa .cx-paper table { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 13px; margin: 0 0 16px; }
+#nv-prepa .cx-paper td { padding: 7px 10px; background: var(--panel); border: 2px solid transparent; }
+#nv-prepa .cx-del { color: var(--del); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+#nv-prepa .cx-ins { color: var(--ins); text-decoration: underline; text-decoration-color: rgba(127,227,176,0.5); text-underline-offset: 3px; font-family: 'Inter', sans-serif; font-size: .9em; }
+#nv-prepa .cx-del + .cx-ins { margin-left: 3px; }
+#nv-prepa .cx-hl { background: var(--hl); border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+#nv-prepa .cx-com { background: rgba(122,167,255,0.16); box-shadow: inset 0 -1.5px 0 var(--blue); cursor: pointer; transition: background .15s; }
+#nv-prepa .cx-com.is-focus { background: rgba(122,167,255,0.34); }
+#nv-prepa .cx-num { font-family: var(--mono); font-size: 9.5px; font-weight: 600; color: var(--blue); vertical-align: super; margin-left: 1px; cursor: pointer; }
+#nv-prepa .cx-margin { position: relative; min-height: 10px; }
+#nv-prepa .cx-note { position: absolute; left: 0; right: 0; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); font-size: 12.5px; line-height: 1.5; color: var(--text-2); cursor: pointer; transition: background .15s, transform .2s var(--ease), top .25s var(--ease); white-space: pre-wrap; overflow-wrap: anywhere; }
+#nv-prepa .cx-note:hover, #nv-prepa .cx-note.is-focus { background: var(--blue-soft); color: #fff; }
+#nv-prepa .cx-note.is-focus { transform: translateX(-4px); }
+#nv-prepa .cx-note small { display: flex; gap: 6px; align-items: center; font-family: var(--mono); font-size: 9.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--blue); margin-bottom: 4px; white-space: normal; }
+#nv-prepa .cx-inline-notes { display: none; }
+#nv-prepa .cx-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: var(--text-3); margin: 0 0 16px; }
+#nv-prepa .cx-legend span { display: inline-flex; gap: 6px; align-items: center; }
+
+/* Toasts */
+#nv-prepa .nv-toasts { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 3000; pointer-events: none; }
+#nv-prepa .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,32,50,0.95); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
+#nv-prepa .nv-toast.is-error { color: var(--del); }
+@keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* Compact */
+#nv-prepa.is-compact .nv-side { position: absolute; top: 0; bottom: 0; left: 0; overflow-y: auto; visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s; z-index: 1001; width: min(320px, 88%); transform: translateX(-102%); background: #0c0c14; box-shadow: 20px 0 60px rgba(0,0,0,0.4); }
+#nv-prepa.is-compact.is-drawer .nv-side { transform: none; visibility: visible; transition: transform .32s var(--ease); }
+#nv-prepa.is-compact .nv-scrim { z-index: 1000; }
+#nv-prepa.is-compact.is-drawer .nv-scrim { opacity: 1; pointer-events: auto; }
+#nv-prepa.is-compact .nv-topbar { padding: 8px; min-height: 58px; }
+#nv-prepa.is-compact .nv-icon-btn { width: 42px; height: 42px; }
+#nv-prepa.is-compact .nv-page-inner { padding-left: 16px; padding-right: 16px; }
+#nv-prepa.is-compact .np-grid { grid-template-columns: 1fr; }
+#nv-prepa.is-compact .nv-nav { padding: 12px; font-size: 15px; gap: 12px; }
+#nv-prepa.is-compact .nv-input, #nv-prepa.is-compact .np-form textarea, #nv-prepa.is-compact .np-form select { font-size: 16px; }
+#nv-prepa.is-compact .cx-layout { grid-template-columns: minmax(0, 1fr); }
+#nv-prepa.is-compact .cx-margin { display: none; }
+#nv-prepa.is-compact .cx-inline-notes { display: block; margin: -6px 0 16px; }
+#nv-prepa.is-compact .cx-inline-notes .cx-note { position: static; margin-bottom: 6px; }
+#nv-prepa.is-compact .cx-paper { font-size: 15.5px; }
+#nv-prepa.is-compact .cx-paper [data-bloc] { text-align: left; }
+#nv-prepa.is-narrow .cx-layout { grid-template-columns: minmax(0, 1fr); }
+#nv-prepa.is-narrow .cx-margin { display: none; }
+#nv-prepa.is-narrow .cx-inline-notes { display: block; margin: -6px 0 16px; }
+#nv-prepa.is-narrow .cx-inline-notes .cx-note { position: static; margin-bottom: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  #nv-prepa *, #nv-prepa *::before, #nv-prepa *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+
+<div id="nv-prepa">
+  <aside class="nv-side nv-scroll">
+    <div class="nv-brand">
+      <div class="nv-logo" data-logo></div>
+      <div class="nv-brand-name">NAVIRE<span>Prépa</span></div>
+      <button class="nv-icon-btn nv-side-close" data-act="side-close" aria-label="Masquer le menu" title="Masquer le menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg>
+      </button>
+    </div>
+    <div class="nv-side-body" data-el="side"></div>
+    <div data-el="admin"></div>
+  </aside>
+  <div class="nv-scrim" data-act="close-drawer"></div>
+
+  <main class="nv-main">
+    <div class="nv-topbar">
+      <button class="nv-icon-btn nv-menu-btn" data-act="side-open" aria-label="Afficher le menu" title="Afficher le menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      </button>
+      <div class="nv-topbar-title" data-el="title">Prépa</div>
+    </div>
+    <div class="np-apercu" data-el="apercu"></div>
+    <div class="nv-page nv-scroll" data-el="page"></div>
+    <div class="nv-toasts" data-el="toasts"></div>
+  </main>
+
+  <div class="np-pop" data-el="pop" data-act="pop-close"><div class="np-pop-card" data-el="pop-card"></div></div>
+</div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",                       // même clé que les autres embeds
+    LOGIN_URL: "https://navire-ai.com/login",
+    LIB_URL: "https://navire-ai.com/lib",              // NAVIRE Lib (?doc=ID ouvre un cours)
+    FACTURES_URL: "https://navire-ai.com/profil?onglet=factures",
+    ADJURIS_URL: "https://navire-ai.com/adjuris"      // présentation et inscription Prép'AdJuris
+  };
+  var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
+
+  var root = document.getElementById("nv-prepa");
+  var S = {
+    token: null, me: null, p: null, view: "semaine", voir: null,
+    cal: { mode: "semaine", ref: new Date() },
+    copie: null,       // copie ouverte : { id, data }
+    dv: { matiere: "", titre: "", message: "", file: null, busy: false }
+  };
+  var VIEWS = ["semaine", "copies", "rendre", "cours", "factu"];
+
+  // ================= OUTILS =================
+  function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return String(x.msg || ""); }).join(" · "); return "Une erreur est survenue."; }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" };
+    if (S.token) h.Authorization = "Bearer " + S.token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(detail(j.detail)); e.status = r.status; throw e; } return j; }); });
+  }
+  function go(url, blank) { if (blank) { window.open(url, "_blank", "noopener"); return; } try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
+  function toast(msg, isError) {
+    var t = document.createElement("div");
+    t.className = "nv-toast" + (isError ? " is-error" : "");
+    t.textContent = msg;
+    el("toasts").appendChild(t);
+    setTimeout(function () { t.remove(); }, 2700);
+  }
+  function pageParam(name) {
+    var q = "";
+    try { q = window.top.location.search; } catch (e) { q = window.location.search; }
+    try { return new URLSearchParams(q || window.location.search).get(name); } catch (e) { return null; }
+  }
+  function setPageParam(name, value) {
+    try {
+      var w = window.top, u = new URL(w.location.href);
+      if (value == null) u.searchParams.delete(name); else u.searchParams.set(name, value);
+      w.history.replaceState(w.history.state, "", u.toString());
+    } catch (e) {}
+  }
+  function voirQ() { return S.voir ? "?voir_comme=" + S.voir : ""; }
+  function dateOf(iso) { var d = new Date(iso); return isNaN(d.getTime()) ? null : d; }
+  function hhmm(d) { return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); }
+  function jour(d, long) {
+    var t = d.toLocaleDateString("fr-FR", long ? { weekday: "long", day: "numeric", month: "long" } : { weekday: "short", day: "numeric", month: "short" });
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+  function memeJour(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  function lundi(d) { var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); var k = (x.getDay() + 6) % 7; x.setDate(x.getDate() - k); return x; }
+  function plusJours(d, n) { var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
+  function taille(o) { return !o ? "" : o < 1048576 ? Math.max(1, Math.round(o / 1024)) + " Ko" : (o / 1048576).toFixed(1) + " Mo"; }
+  function euros(c) { return (c / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" }); }
+  function lienSur(u) { u = String(u || "").trim(); return /^https?:\/\//i.test(u) ? u : ""; }
+  function ico(name, size) { return ICON[name].replace("<svg", '<svg style="width:' + (size || 15) + 'px;height:' + (size || 15) + 'px"'); }
+
+  var ICON = {
+    cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+    pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></svg>',
+    down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>',
+    card: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>',
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+    next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+  };
+
+  // ================= HAUTEUR (comme les autres embeds) =================
+  var FRAMED = window.self !== window.top, HOST = null, frameEl = null, wrappers = [];
+  if (FRAMED) {
+    var hideBar = document.createElement("style");
+    hideBar.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    document.head.appendChild(hideBar);
+    try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+    if (frameEl) for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+  }
+  function sizeApp() {
+    var win = HOST || window, h;
+    if (HOST || !FRAMED) {
+      var anchor = frameEl || root;
+      var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
+      h = Math.max(560, Math.round(win.innerHeight - top - 12));
+    } else {
+      h = Math.max(560, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+    }
+    root.style.height = h + "px";
+    if (frameEl) {
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; });
+    } else if (FRAMED) {
+      try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+    }
+  }
+  sizeApp();
+  (HOST || window).addEventListener("resize", sizeApp);
+  window.addEventListener("load", sizeApp);
+  setTimeout(sizeApp, 600);
+
+  function updateCompact() {
+    var w = root.clientWidth;
+    root.classList.toggle("is-compact", w < 760);
+    var page = el("page");
+    root.classList.toggle("is-narrow", !!page && page.clientWidth < 900);
+    if (w >= 760) root.classList.remove("is-drawer");
+    placeNotes();
+  }
+  if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
+  else window.addEventListener("resize", updateCompact);
+  root.querySelectorAll("[data-logo]").forEach(function (n) { n.style.backgroundImage = 'url("' + LOGO + '")'; });
+  function setSide(on) { root.classList.toggle("is-side-off", !on); store("navire_prepa_side", on ? null : "off"); setTimeout(updateCompact, 320); }
+  root.classList.toggle("is-side-off", load("navire_prepa_side") === "off");
+  updateCompact();
+
+  function setPage(html, wide) {
+    var p = el("page");
+    p.innerHTML = '<div class="nv-page-inner' + (wide ? " is-wide" : "") + '">' + html + '</div>';
+    p.scrollTop = 0;
+  }
+  function setTitle(t) { el("title").textContent = t; }
+
+  // ================= DONNÉES =================
+  function seances() { return (S.p && S.p.seances) || []; }
+  function corrigees() { return ((S.p && S.p.devoirs) || []).filter(function (d) { return d.statut === "corrige"; }); }
+  function nonLues() {
+    var vues = {}; try { vues = JSON.parse(load("navire_prepa_vues") || "{}"); } catch (e) {}
+    return corrigees().filter(function (d) { return !vues[d.id]; }).length;
+  }
+  function marquerVue(id) {
+    var vues = {}; try { vues = JSON.parse(load("navire_prepa_vues") || "{}"); } catch (e) {}
+    vues[id] = 1; store("navire_prepa_vues", JSON.stringify(vues));
+  }
+  function seanceLien(s) { return lienSur(s.lien) || lienSur(S.p && S.p.discord_url); }
+  function etat(s) {
+    var d = dateOf(s.date_debut), now = Date.now();
+    if (!d) return "";
+    var fin = d.getTime() + (s.duree_minutes || 60) * 60000;
+    if (s.statut === "annulee") return "annulee";
+    if (s.en_cours) return "live";
+    if (fin < now) return "passee";
+    if (d.getTime() - now < 15 * 60000) return "bientot";
+    return "avenir";
+  }
+
+  // ================= BARRE LATÉRALE =================
+  function renderSide() {
+    var p = S.p, html = "";
+    if (p && p.prepa) {
+      var n = nonLues();
+      var items = [
+        ["semaine", "Calendrier", "cal", ""],
+        ["copies", "Mes copies", "file", n ? '<span class="nv-badge is-blue">' + n + '</span>' : '<span class="nv-badge">' + ((p.devoirs || []).length || "") + '</span>'],
+        ["rendre", "Rendre une copie", "up", ""],
+        ["cours", "Cours", "book", '<span class="nv-badge">' + (((p.suivis || []).length + (p.cours_lib || []).length) || "") + '</span>'],
+        ["factu", "Facturation", "card", (p.facturation || []).some(function (f) { return f.impaye; }) ? '<span class="nv-badge is-blue">!</span>' : ""]
+      ];
+      html += items.map(function (it) {
+        var on = S.view === it[0] || (it[0] === "copies" && S.view === "copie");
+        return '<button class="nv-nav' + (on ? " is-active" : "") + '" data-view="' + it[0] + '">' + ico(it[2]) + esc(it[1]) + it[3] + '</button>';
+      }).join("");
+      html += '<div class="nv-group-label">Liens</div>';
+      if (lienSur(p.discord_url)) html += '<a class="nv-nav" href="' + esc(p.discord_url) + '" target="_blank" rel="noopener">' + ico("chat") + 'Discord' + ICON.ext.replace("<svg", '<svg class="nv-ext"') + '</a>';
+      (p.matieres || []).forEach(function (m) {
+        if (m.groupe && lienSur(m.groupe.discord_url)) html += '<a class="nv-nav" href="' + esc(m.groupe.discord_url) + '" target="_blank" rel="noopener">' + ico("chat") + esc(m.groupe.nom) + ICON.ext.replace("<svg", '<svg class="nv-ext"') + '</a>';
+      });
+      html += '<a class="nv-nav" href="' + esc(CONFIG.LIB_URL) + '" target="_top">' + ico("book") + 'NAVIRE Lib' + ICON.ext.replace("<svg", '<svg class="nv-ext"') + '</a>';
+    }
+    el("side").innerHTML = html;
+    var adm = "";
+    if (S.me && S.me.is_admin) {
+      adm = '<div class="np-admin"><small>Voir comme</small><div class="np-seg">' + ["L1", "L2", "L3", "M1"].map(function (n) {
+        return '<button data-voir="' + n + '"' + (S.voir === n ? ' class="is-on"' : "") + '>' + n + '</button>';
+      }).join("") + '<button data-voir=""' + (!S.voir ? ' class="is-on"' : "") + '>Moi</button></div></div>';
+    }
+    el("admin").innerHTML = adm;
+    var a = el("apercu");
+    a.classList.toggle("is-on", !!S.voir);
+    a.innerHTML = S.voir ? '<span>Aperçu admin : l\'espace Prépa d\'un étudiant de ' + esc(S.voir) + '.</span><button data-voir="">Quitter</button>' : "";
+  }
+
+  // ================= VUES =================
+  function show(view, opts) {
+    if (!S.p || !S.p.prepa) return renderNoPrepa();
+    if (VIEWS.indexOf(view) < 0 && view !== "copie") view = "semaine";
+    S.view = view;
+    root.classList.remove("is-drawer");
+    if (view !== "copie") { setPageParam("copie", null); setPageParam("onglet", view === "semaine" ? null : view); }
+    renderSide();
+    if (view === "semaine") return viewSemaine();
+    if (view === "copies") return viewCopies();
+    if (view === "rendre") return viewRendre();
+    if (view === "cours") return viewCours();
+    if (view === "factu") return viewFactu();
+    if (view === "copie") return openCopie(opts);
+  }
+
+  function renderLogin() {
+    setTitle("Prépa");
+    el("side").innerHTML = ""; el("admin").innerHTML = "";
+    setPage('<div class="nv-empty" style="padding-top:80px"><b>Ton espace Prépa</b>Connecte-toi pour retrouver ton calendrier, tes copies et tes cours.<div style="margin-top:16px"><button class="nv-btn is-blue" data-act="login">Se connecter</button></div></div>');
+  }
+  function renderNoPrepa() {
+    setTitle("Prépa");
+    renderSide();
+    setPage('<div class="nv-empty" style="padding-top:70px"><b>L\'espace Prép\'AdJuris</b>Ton calendrier de cours, le dépôt et la correction de tes copies, tes cours suivis : tout est ici une fois inscrit.' +
+      '<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><a class="nv-btn is-blue" href="' + esc(CONFIG.ADJURIS_URL) + '" target="_top">Découvrir Prép\'AdJuris</a>' +
+      (S.me && S.me.is_admin ? '<span class="nv-chip">Admin : choisis un niveau en bas du menu</span>' : "") + '</div></div>');
+  }
+
+  // ---------- Calendrier ----------
+  function hero() {
+    var p = S.p, s = p.prochaine_seance, live = seances().filter(function (x) { return x.en_cours; })[0];
+    if (live) s = live;
+    var d = s && dateOf(s.date_debut), lien = s && seanceLien(s), st = s ? etat(s) : "";
+    var quand = !d ? "" : memeJour(d, new Date()) ? "Aujourd'hui à " + hhmm(d) : jour(d, true) + " à " + hhmm(d);
+    return '<div class="np-hero"><div><small>' + (st === "live" ? '<span class="np-dot"></span>En cours' : "Prochaine séance") + '</small>' +
+      (d ? '<b>' + esc(s.titre || s.matiere) + '</b><span>' + esc(quand) + (s.titre ? " · " + esc(s.matiere) : "") + (s.date_initiale ? " · déplacée" : "") + '</span>'
+         : '<b>Aucune séance programmée</b><span>Les prochaines dates s\'afficheront ici.</span>') + '</div>' +
+      '<div class="np-hero-btns">' + (lien && (st === "live" || st === "bientot" || st === "avenir") ? '<a class="nv-btn ' + (st === "live" ? "is-live" : "is-blue") + '" href="' + esc(lien) + '" target="_blank" rel="noopener">' + (st === "live" ? "Rejoindre le cours" : "Rejoindre") + '</a>' : "") + '</div></div>';
+  }
+
+  function evHtml(s, mini) {
+    var d = dateOf(s.date_debut), st = etat(s);
+    var cls = (st === "annulee" ? " is-off" : "") + (st === "live" ? " is-live" : "") + (s.date_initiale ? " is-moved" : "");
+    if (mini) return '<button class="np-mev' + cls + '" data-seance="' + s.id + '">' + hhmm(d) + " " + esc(s.titre || s.matiere) + '</button>';
+    var sous = st === "annulee" ? "Annulée" : st === "live" ? "En cours" : s.date_initiale ? "Déplacée" : (s.duree_minutes || 60) + " min";
+    return '<button class="np-ev' + cls + '" data-seance="' + s.id + '"><i>' + (st === "live" ? "● " : "") + hhmm(d) + '</i><b>' + esc(s.titre || s.matiere) + '</b><em>' + esc(s.titre ? s.matiere + " · " : "") + esc(sous) + '</em></button>';
+  }
+
+  function viewSemaine() {
+    setTitle("Calendrier");
+    var c = S.cal, now = new Date(), html = hero();
+    var compact = root.classList.contains("is-compact");
+    var mode = compact && c.mode === "semaine" ? "liste" : c.mode;
+    var titre;
+    if (c.mode === "semaine") {
+      var l = lundi(c.ref), dim = plusJours(l, 6);
+      titre = l.getMonth() === dim.getMonth()
+        ? l.getDate() + " – " + dim.getDate() + " " + dim.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+        : l.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) + " – " + dim.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+    } else {
+      titre = c.ref.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+    }
+    html += '<div class="np-calbar"><h3>' + esc(titre) + '</h3>' +
+      '<button class="nv-icon-btn" data-cal="prev" aria-label="Précédent">' + ICON.back + '</button>' +
+      '<button class="nv-chip" data-cal="today">Aujourd\'hui</button>' +
+      '<button class="nv-icon-btn" data-cal="next" aria-label="Suivant">' + ICON.next + '</button>' +
+      '<div class="np-seg2"><button data-calmode="semaine"' + (c.mode === "semaine" ? ' class="is-on"' : "") + '>Semaine</button><button data-calmode="mois"' + (c.mode === "mois" ? ' class="is-on"' : "") + '>Mois</button></div></div>';
+
+    var parJour = {};
+    seances().forEach(function (s) { var d = dateOf(s.date_debut); if (!d) return; var k = d.toDateString(); (parJour[k] = parJour[k] || []).push(s); });
+
+    if (mode === "semaine") {
+      var l2 = lundi(c.ref);
+      html += '<div class="np-week">';
+      for (var i = 0; i < 7; i++) {
+        var dj = plusJours(l2, i), list = parJour[dj.toDateString()] || [];
+        var past = dj < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        html += '<div class="np-wday' + (memeJour(dj, now) ? " is-today" : "") + (past ? " is-past" : "") + '"><div class="np-wday-head">' +
+          esc(dj.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "")) + '<b>' + dj.getDate() + '</b></div>' + list.map(function (s) { return evHtml(s); }).join("") + '</div>';
+      }
+      html += '</div>';
+    } else if (mode === "liste") {
+      var l3 = lundi(c.ref), any = false;
+      html += '<div class="np-agenda">';
+      for (var j = 0; j < 7; j++) {
+        var dd = plusJours(l3, j), ls = parJour[dd.toDateString()] || [];
+        if (!ls.length) continue;
+        any = true;
+        html += '<div class="np-day' + (memeJour(dd, now) ? " is-today" : "") + '">' + (memeJour(dd, now) ? "Aujourd'hui · " : "") + esc(jour(dd, true)) + '</div>' + ls.map(rowSeance).join("");
+      }
+      if (!any) html += '<div class="nv-empty"><b>Semaine libre</b>Aucun cours cette semaine.</div>';
+      html += '</div>';
+    } else {
+      var premier = new Date(c.ref.getFullYear(), c.ref.getMonth(), 1), start = lundi(premier);
+      html += '<div class="np-month">' + ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"].map(function (x) { return '<div class="np-mhead">' + x + '</div>'; }).join("");
+      var finMois = new Date(c.ref.getFullYear(), c.ref.getMonth() + 1, 0);
+      var cases = Math.ceil((Math.round((finMois - start) / 86400000) + 1) / 7) * 7;
+      for (var k = 0; k < cases; k++) {
+        var dm = plusJours(start, k);
+        var lm = parJour[dm.toDateString()] || [];
+        html += '<div class="np-mday' + (dm.getMonth() !== c.ref.getMonth() ? " is-other" : "") + (memeJour(dm, now) ? " is-today" : "") + '"><span>' + dm.getDate() + '</span>' + lm.map(function (s) { return evHtml(s, true); }).join("") + '</div>';
+      }
+      html += '</div>';
+    }
+    html += '<div class="np-legend"><span><i style="background:rgba(122,167,255,0.5)"></i>Cours prévu</span><span><i style="background:var(--ins)"></i>En cours</span><span><i style="background:var(--panel-3)"></i>Annulé (barré)</span><span><i style="box-shadow:inset 2px 0 0 var(--blue);background:rgba(122,167,255,0.14)"></i>Déplacé</span></div>';
+    if (!seances().length) html += '<div class="nv-empty"><b>Calendrier vide</b>Aucune séance n\'est encore programmée pour tes matières.</div>';
+    setPage(html, true);
+  }
+
+  function rowSeance(s) {
+    var d = dateOf(s.date_debut), st = etat(s);
+    return '<button class="np-row' + (st === "annulee" ? " is-off" : "") + '" data-seance="' + s.id + '"><span class="np-row-time">' + hhmm(d) + '</span><div class="np-row-txt"><b>' + esc(s.titre || s.matiere) + '</b><span>' +
+      esc((s.titre ? s.matiere + " · " : "") + (st === "annulee" ? "annulée" : st === "live" ? "en cours" : (s.duree_minutes || 60) + " min") + (s.date_initiale ? " · déplacée" : "")) + '</span></div>' +
+      (st === "live" ? '<span class="nv-tag live">EN COURS</span>' : st === "annulee" ? '<span class="nv-tag">ANNULÉE</span>' : "") + '</button>';
+  }
+
+  function popSeance(id) {
+    var s = seances().filter(function (x) { return String(x.id) === String(id); })[0];
+    if (!s) return;
+    var d = dateOf(s.date_debut), st = etat(s), ini = dateOf(s.date_initiale), lien = seanceLien(s);
+    var fin = new Date(d.getTime() + (s.duree_minutes || 60) * 60000);
+    el("pop-card").innerHTML = '<small>' + esc(s.matiere) + '</small><h4>' + esc(s.titre || s.matiere) + '</h4>' +
+      '<p>' + esc(jour(d, true)) + ', ' + hhmm(d) + ' – ' + hhmm(fin) + '</p>' +
+      (st === "annulee" ? '<p style="color:var(--del)">Séance annulée.</p>' : "") +
+      (ini ? '<p>Déplacée : prévue à l\'origine ' + esc(jour(ini, true)) + ' à ' + hhmm(ini) + '.</p>' : "") +
+      (st === "live" ? '<p style="color:var(--ins)"><span class="np-dot"></span>Le cours a commencé.</p>' : "") +
+      '<div class="np-pop-btns">' + (lien && st !== "annulee" && st !== "passee" ? '<a class="nv-btn ' + (st === "live" ? "is-live" : "is-blue") + '" href="' + esc(lien) + '" target="_blank" rel="noopener">Rejoindre</a>' : "") +
+      '<button class="nv-chip" data-act="pop-close">Fermer</button></div>';
+    el("pop").classList.add("is-on");
+  }
+
+  // ---------- Copies ----------
+  function viewCopies() {
+    setTitle("Mes copies");
+    var list = (S.p.devoirs || []), vues = {}; try { vues = JSON.parse(load("navire_prepa_vues") || "{}"); } catch (e) {}
+    var html = '<div class="nv-page-head"><h2>Mes copies</h2><p>Mises en forme par NAVIRE. Une fois corrigées, tu y retrouves les révisions et les commentaires de ton correcteur, et tu peux les télécharger.</p></div>';
+    if (S.p.apercu) html += '<div class="cx-wait">Aperçu admin : les copies des étudiants se corrigent depuis l\'espace professeur.</div>';
+    if (!list.length) return setPage(html + '<div class="nv-empty"><b>Aucune copie pour le moment</b><button class="nv-btn is-blue" data-view="rendre" style="margin-top:12px">' + ico("up") + 'Rendre une copie</button></div>');
+    html += list.map(function (d, k) {
+      var done = d.statut === "corrige", at = dateOf(d.created_at), neuf = done && !vues[d.id];
+      return '<button class="np-row" data-copie="' + d.id + '" style="animation-delay:' + (k * 0.03) + 's"><span class="np-row-ico">' + (done ? ico("tick", 15) : ico("file", 16)) + '</span>' +
+        '<div class="np-row-txt"><b>' + esc(d.titre) + '</b><span>' + esc(d.matiere) + (at ? " · rendue le " + esc(jour(at)) : "") + (done && d.corrige_par ? " · corrigée par " + esc(d.corrige_par) : "") + '</span></div>' +
+        (d.note ? '<span class="np-note">' + esc(d.note) + '</span>' : '<span class="nv-tag' + (done ? " solid" : "") + '">' + (done ? "CORRIGÉE" : "EN CORRECTION") + '</span>') +
+        (neuf ? '<span class="nv-tag live">NOUVEAU</span>' : "") + '</button>';
+    }).join("");
+    setPage(html);
+  }
+
+  // Découpe d'un bloc en morceaux avec ses annotations (même règle que l'API, services/copies.py).
+  function morceaux(b, anns) {
+    var text = b.text || "", n = text.length, B = {}, styles = [], pos = 0;
+    B[0] = 1; B[n] = 1;
+    (b.runs && b.runs.length ? b.runs : [[text, false, false]]).forEach(function (r) { styles.push([pos, pos + r[0].length, r[1], r[2]]); pos += r[0].length; B[pos] = 1; });
+    anns.forEach(function (a) { B[Math.max(0, Math.min(n, a.debut))] = 1; B[Math.max(0, Math.min(n, a.fin))] = 1; });
+    var bs = Object.keys(B).map(Number).sort(function (x, y) { return x - y; }), out = [];
+    for (var k = 0; k < bs.length; k++) {
+      var p = bs[k];
+      anns.forEach(function (a) { if (a.type === "correction" && a.fin === p && a.texte) out.push({ k: "ins", t: a.texte, a: a.id, at: p }); });
+      if (k + 1 >= bs.length) break;
+      var q = bs[k + 1];
+      if (q <= p) continue;
+      var st = styles.filter(function (s) { return s[0] <= p && p < s[1]; })[0] || [0, 0, false, false];
+      var barre = anns.filter(function (a) { return a.type === "correction" && a.debut <= p && p < a.fin; })[0];
+      out.push({
+        k: "txt", t: text.slice(p, q), o: p, g: st[2], i: st[3], barre: barre ? barre.id : null,
+        hl: anns.some(function (a) { return a.type === "surligne" && a.debut <= p && p < a.fin; }),
+        coms: anns.filter(function (a) { return commente(a) && a.debut <= p && p < a.fin; }).map(function (a) { return a.id; })
+      });
+    }
+    return out;
+  }
+  function commente(a) { return a.type === "commentaire" || (a.type === "surligne" && !!a.texte); }
+  function copieHtml(data, numeros) {
+    var parBloc = {};
+    (data.annotations || []).forEach(function (a) { (parBloc[a.bloc] = parBloc[a.bloc] || []).push(a); });
+    var vus = {};
+    return (data.blocs || []).map(function (b) {
+      if (b.t === "table") return '<table data-bloc="' + esc(b.id) + '">' + (b.rows || []).map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("") + '</table>';
+      var anns = parBloc[b.id] || [];
+      var inner = morceaux(b, anns).map(function (m) {
+        if (m.k === "ins") return '<span class="cx-ins" data-ins="1" data-a="' + m.a + '">' + esc(m.t) + '</span>';
+        var t = esc(m.t);
+        if (m.g) t = "<b>" + t + "</b>";
+        if (m.i) t = "<i>" + t + "</i>";
+        var cls = ["cx-t"];
+        if (m.barre) cls.push("cx-del");
+        if (m.hl) cls.push("cx-hl");
+        if (m.coms.length) cls.push("cx-com");
+        var num = "";
+        m.coms.forEach(function (id) {
+          var a = anns.filter(function (x) { return x.id === id; })[0];
+          if (a && m.o + m.t.length === Math.min(a.fin, b.text.length) && !vus[id]) { vus[id] = 1; num += '<sup class="cx-num" data-note="' + id + '">' + numeros[id] + '</sup>'; }
+        });
+        return '<span class="' + cls.join(" ") + '" data-o="' + m.o + '"' + (m.barre ? ' data-a="' + m.barre + '"' : "") + (m.coms.length ? ' data-c="' + m.coms.join(" ") + '"' : "") + '>' + t + '</span>' + num;
+      }).join("");
+      var tag = b.t === "titre" ? "h2" : b.t === "h" ? "h3" : "p";
+      var cls2 = b.t === "titre" ? "cx-titre" : b.t === "h" ? "cx-h" : b.t === "quote" ? "cx-quote" : "";
+      var notes = anns.filter(commente).map(function (a) { return noteHtml(a, numeros); }).join("");
+      return '<' + tag + ' class="' + cls2 + '" data-bloc="' + esc(b.id) + '">' + inner + '</' + tag + '>' + (notes ? '<div class="cx-inline-notes">' + notes + '</div>' : "");
+    }).join("");
+  }
+  function noteHtml(a, numeros) {
+    return '<div class="cx-note" data-note="' + a.id + '"><small>' + numeros[a.id] + ' · ' + esc(a.auteur || "Correcteur") + (a.type === "surligne" ? " · surligné" : "") + '</small>' + esc(a.texte) + '</div>';
+  }
+  function numeroter(data) {
+    var ordre = {}, idx = {};
+    (data.blocs || []).forEach(function (b, i) { idx[b.id] = i; });
+    var coms = (data.annotations || []).filter(commente).sort(function (x, y) { return (idx[x.bloc] - idx[y.bloc]) || (x.debut - y.debut) || (x.id - y.id); });
+    coms.forEach(function (a, i) { ordre[a.id] = i + 1; });
+    return { map: ordre, list: coms };
+  }
+
+  function openCopie(id) {
+    S.view = "copie";
+    renderSide();
+    setPageParam("copie", id); setPageParam("onglet", null);
+    var d = (S.p.devoirs || []).filter(function (x) { return String(x.id) === String(id); })[0];
+    setTitle(d ? d.titre : "Copie");
+    setPage('<div class="nv-skel" style="height:90px;margin-top:10px"></div><div class="nv-skel"></div><div class="nv-skel"></div>', true);
+    api("GET", "/lib/prepa/devoirs/" + id + "/copie").then(function (data) {
+      S.copie = { id: id, data: data };
+      if (data.devoir.statut === "corrige") { marquerVue(id); renderSide(); }
+      renderCopie();
+    }).catch(function (x) { setPage('<div class="nv-empty"><b>Copie indisponible</b>' + esc(x.message) + '<div style="margin-top:12px"><button class="nv-chip" data-view="copies">' + ICON.back + 'Mes copies</button></div></div>'); });
+  }
+
+  function renderCopie() {
+    var data = S.copie.data, d = data.devoir, num = numeroter(data), done = d.statut === "corrige";
+    var anns = data.annotations || [], nbCor = anns.filter(function (a) { return a.type === "correction"; }).length;
+    var html = '<button class="nv-chip" data-view="copies" style="margin-bottom:14px">' + ICON.back + 'Mes copies</button>' +
+      '<div class="cx-head"><small>' + esc(d.matiere) + '</small><h2>' + esc(d.titre) + '</h2>' +
+      '<div style="font-size:12.5px;color:var(--text-3)">' + (data.mots ? data.mots + " mots · " : "") + (done ? "Corrigée" + (d.corrige_par ? " par " + esc(d.corrige_par) : "") : "En attente de correction") + '</div>' +
+      '<div class="cx-tools"><a class="nv-chip" data-export="docx">' + ico("down", 14) + 'Word (.docx)' + (done ? " avec révisions" : "") + '</a><a class="nv-chip" data-export="pdf">' + ico("down", 14) + 'PDF</a>' +
+      (d.correction ? '<a class="nv-chip" data-dl="correction">' + ico("file", 14) + 'Copie corrigée jointe</a>' : "") + '</div></div>';
+    if (done && (d.note || d.commentaire)) {
+      html += '<div class="cx-verdict">' + (d.note ? '<span class="np-note">' + esc(d.note) + '</span>' : "") + '<div><small>Appréciation' + (d.corrige_par ? " de " + esc(d.corrige_par) : "") + '</small>' + esc(d.commentaire || "") + '</div></div>';
+    } else if (!done) {
+      html += '<div class="cx-wait">Ta copie est entre les mains de ton correcteur. Ses révisions et ses commentaires apparaîtront ici dès qu\'il aura rendu la correction.</div>';
+    }
+    if (anns.length) html += '<div class="cx-legend"><span><span class="cx-del">barré</span> à retirer</span><span><span class="cx-ins">souligné vert</span> ajouté</span><span><span class="cx-hl">&nbsp;surligné&nbsp;</span> à revoir</span>' + (num.list.length ? '<span><span class="cx-com">&nbsp;souligné bleu&nbsp;</span> commentaire (' + num.list.length + ')</span>' : "") + (nbCor ? '<span>' + nbCor + ' correction' + (nbCor > 1 ? "s" : "") + '</span>' : "") + '</div>';
+    html += '<div class="cx-layout' + (num.list.length ? "" : " is-nomargin") + '"><article class="cx-paper" data-el="paper">' + copieHtml(data, num.map) + '</article>' +
+      (num.list.length ? '<aside class="cx-margin" data-el="margin">' + num.list.map(function (a) { return noteHtml(a, num.map); }).join("") + '</aside>' : "") + '</div>';
+    setPage(html, true);
+    placeNotes();
+    try { document.fonts.ready.then(placeNotes); } catch (e) {}
+  }
+
+  // Commentaires dans la marge, alignés sur leur passage, sans se chevaucher.
+  function placeNotes() {
+    var m = el("margin"), paper = el("paper");
+    if (!m || !paper || !m.offsetParent) return;
+    var base = paper.getBoundingClientRect().top, bas = 0;
+    m.querySelectorAll(".cx-note").forEach(function (n) {
+      var id = n.getAttribute("data-note");
+      var anc = paper.querySelector('[data-c~="' + id + '"]');
+      var top = anc ? anc.getBoundingClientRect().top - base : bas;
+      top = Math.max(top, bas);
+      n.style.top = top + "px";
+      bas = top + n.offsetHeight + 8;
+    });
+    m.style.minHeight = bas + "px";
+  }
+  function focusNote(id) {
+    root.querySelectorAll(".is-focus").forEach(function (x) { x.classList.remove("is-focus"); });
+    root.querySelectorAll('[data-c~="' + id + '"], .cx-note[data-note="' + id + '"]').forEach(function (x) { x.classList.add("is-focus"); });
+  }
+
+  function exporter(fmt) {
+    var id = S.copie && S.copie.id; if (!id) return;
+    toast("Préparation du fichier…");
+    fetch(CONFIG.API + "/lib/prepa/devoirs/" + id + "/export?format=" + fmt, { headers: { Authorization: "Bearer " + S.token } })
+      .then(function (r) { if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(detail(j.detail)); }); return r.blob().then(function (b) { return { b: b, h: r.headers.get("content-disposition") || "" }; }); })
+      .then(function (x) {
+        var m = /filename\*=UTF-8''([^;]+)/i.exec(x.h), nom = m ? decodeURIComponent(m[1]) : "copie." + fmt;
+        var url = URL.createObjectURL(x.b), a = document.createElement("a");
+        a.href = url; a.download = nom; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      }).catch(function (x) { toast(x.message, true); });
+  }
+  function ouvrirFichier(path) {
+    fetch(CONFIG.API + path, { headers: { Authorization: "Bearer " + S.token } })
+      .then(function (r) { if (!r.ok) throw new Error("Fichier indisponible."); return r.blob(); })
+      .then(function (b) { window.open(URL.createObjectURL(b), "_blank", "noopener"); })
+      .catch(function (x) { toast(x.message, true); });
+  }
+
+  // ---------- Rendre ----------
+  function viewRendre() {
+    setTitle("Rendre une copie");
+    var p = S.p, f = S.dv, mats = (p.matieres || []).filter(function (m) { return m.debloquee; });
+    if (!f.matiere || !mats.some(function (m) { return m.matiere_key === f.matiere; })) f.matiere = mats.length ? mats[0].matiere_key : "";
+    var html = '<div class="nv-page-head"><h2>Rendre une copie</h2><p>Un fichier Word (.docx) ou un PDF texte. NAVIRE la met en forme, elle part au chargé de TD de ton groupe, qui la corrige directement dessus.</p></div>';
+    if (p.apercu) return setPage(html + '<div class="cx-wait">Aperçu admin : le dépôt est désactivé.</div>');
+    html += '<div class="nv-card np-form">' +
+      '<label class="nv-field" style="margin-top:0"><span>Matière</span><select data-dv="matiere">' + mats.map(function (m) { return '<option value="' + esc(m.matiere_key) + '"' + (m.matiere_key === f.matiere ? " selected" : "") + '>' + esc(m.label) + '</option>'; }).join("") + '</select></label>' +
+      '<label class="nv-field"><span>Titre</span><input class="nv-input" data-dv="titre" maxlength="200" placeholder="Ex. Dissertation n° 2, la coutume" value="' + esc(f.titre) + '"></label>' +
+      '<label class="nv-field"><span>Un mot pour ton correcteur (facultatif)</span><textarea data-dv="message" maxlength="4000" placeholder="Une question, un point à regarder…">' + esc(f.message) + '</textarea></label>' +
+      '<label class="np-drop" data-el="drop"><input type="file" accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" data-dv="file"><span class="np-row-ico" style="width:42px;height:42px">' + ico("up", 18) + '</span><div><b>' + (f.file ? esc(f.file.name) : "Choisir ma copie") + '</b><span>' + (f.file ? taille(f.file.size) : ".docx ou .pdf, glisse le fichier ici · " + taille(p.devoir_max_bytes) + " max") + '</span></div></label>' +
+      '<div class="nv-err" data-el="dv-err"></div>' +
+      '<button class="nv-btn is-blue is-block" data-act="dv-submit"' + (f.busy || !f.file || !f.matiere ? " disabled" : "") + '>' + (f.busy ? "Mise en forme…" : ico("up", 15) + "Envoyer ma copie") + '</button></div>';
+    setPage(html);
+    bindDrop();
+  }
+  function bindDrop() {
+    var drop = el("drop"); if (!drop) return;
+    ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("is-over"); }); });
+    ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("is-over"); }); });
+    drop.addEventListener("drop", function (e) { var f = e.dataTransfer && e.dataTransfer.files[0]; if (f) pickFile(f); });
+  }
+  function pickFile(f) {
+    if (!/\.(pdf|docx)$/i.test(f.name)) return toast("Dépose un fichier .docx ou .pdf.", true);
+    if (S.p && f.size > S.p.devoir_max_bytes) return toast("Fichier trop lourd (" + taille(S.p.devoir_max_bytes) + " max).", true);
+    S.dv.file = f;
+    if (!S.dv.titre) S.dv.titre = f.name.replace(/\.(pdf|docx)$/i, "").replace(/[_-]+/g, " ").slice(0, 200);
+    viewRendre();
+  }
+  function submitDevoir() {
+    var f = S.dv;
+    if (f.busy || !f.file || !f.matiere) return;
+    f.busy = true; viewRendre();
+    var fd = new FormData();
+    fd.append("file", f.file); fd.append("matiere_key", f.matiere); fd.append("titre", f.titre || ""); fd.append("message", f.message || "");
+    fetch(CONFIG.API + "/lib/prepa/devoirs", { method: "POST", headers: { Authorization: "Bearer " + S.token }, body: fd })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(detail(j.detail)); return j; }); })
+      .then(function (d) {
+        S.dv = { matiere: f.matiere, titre: "", message: "", file: null, busy: false };
+        S.p.devoirs = [d].concat(S.p.devoirs || []);
+        toast("Copie envoyée à ton correcteur.");
+        show("copie", d.id);
+      })
+      .catch(function (x) { f.busy = false; viewRendre(); var e = el("dv-err"); if (e) e.textContent = x.message; });
+  }
+
+  // ---------- Cours ----------
+  function book(d, suivi) {
+    var pct = Math.round((d.progress || 0) * 100);
+    return '<div class="np-book" data-doc="' + d.id + '" role="link" tabindex="0">' +
+      (suivi ? '<button class="np-unfollow" data-unfollow="' + d.id + '" title="Ne plus suivre">' + ICON.x + '</button>' : "") +
+      '<div class="np-book-top">' + (d.prepa ? '<span class="nv-tag solid">PRÉPA</span>' : '<span class="nv-tag blue">LIB</span>') + (d.matiere ? '<span class="nv-tag">' + esc(d.matiere) + '</span>' : "") + (d.groupe ? '<span class="nv-tag">' + esc(d.groupe) + '</span>' : "") + '</div>' +
+      '<h4>' + esc(d.titre) + '</h4>' +
+      '<div class="np-book-foot"><div class="np-bar"><i style="width:' + pct + '%"></i></div><span>' + (pct ? pct + " %" : "Ouvrir dans Lib") + '</span>' + ico("ext", 12) + '</div></div>';
+  }
+  function viewCours() {
+    setTitle("Cours");
+    var p = S.p, html = '<div class="nv-page-head"><h2>Cours</h2><p>Les cours que tu suis depuis NAVIRE Lib (bouton « Suivre dans Prépa ») et ceux de ta classe. Ils s\'ouvrent dans Lib.</p></div>';
+    var suivis = p.suivis || [];
+    html += '<div class="np-sec">Cours suivis <small>' + suivis.length + '</small><span class="np-sec-btns"><a class="nv-chip" href="' + esc(CONFIG.LIB_URL) + '" target="_top">Parcourir NAVIRE Lib</a></span></div>';
+    html += suivis.length ? '<div class="np-grid">' + suivis.map(function (d) { return book(d, true); }).join("") + '</div>' : '<div class="cx-wait">Ouvre un cours dans NAVIRE Lib et clique sur « Suivre dans Prépa » : il apparaîtra ici.</div>';
+    var byId = {}; (p.cours_lib || []).forEach(function (d) { byId[d.id] = d; });
+    (p.matieres || []).filter(function (m) { return m.debloquee; }).forEach(function (m) {
+      var docs = m.cours_lib.map(function (id) { return byId[id]; }).filter(Boolean);
+      if (!docs.length) return;
+      html += '<div class="np-sec">' + esc(m.label) + (m.groupe ? ' <small>' + esc(m.groupe.nom) + '</small>' : "") + '</div><div class="np-grid">' + docs.map(function (d) { return book(d); }).join("") + '</div>';
+    });
+    var methodo = (p.cours_lib || []).filter(function (d) { return d.methodo; });
+    if (methodo.length) html += '<div class="np-sec">Méthodologie</div><div class="np-grid">' + methodo.map(function (d) { return book(d); }).join("") + '</div>';
+    setPage(html);
+  }
+  function unfollow(id) {
+    api("DELETE", "/lib/prepa/suivis/" + id).then(function () {
+      S.p.suivis = (S.p.suivis || []).filter(function (d) { return String(d.id) !== String(id); });
+      toast("Cours retiré de ta Prépa."); renderSide(); viewCours();
+    }).catch(function (x) { toast(x.message, true); });
+  }
+
+  // ---------- Facturation ----------
+  function viewFactu() {
+    setTitle("Facturation");
+    var list = S.p.facturation || [];
+    var html = '<div class="nv-page-head"><h2>Facturation</h2><p>Tes matières et le prochain prélèvement, en fin de mois, selon les séances du calendrier. Factures, carte et résiliation : dans ton profil.</p></div>';
+    if (S.p.apercu) html += '<div class="cx-wait">Aperçu admin : pas de facturation.</div>';
+    html += list.map(function (f) {
+      var pr = f.prochain, mois = pr ? new Date(pr.mois + "-01T12:00:00").toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) : "";
+      return '<div class="np-row is-static"><span class="np-row-ico">' + ico("card", 16) + '</span><div class="np-row-txt"><b>' + esc(f.matiere) + '</b><span>' +
+        (f.impaye ? "Paiement en échec : mets ta carte à jour" : pr ? "Fin " + esc(mois) + " · " + pr.seances + " séance" + (pr.seances > 1 ? "s" : "") : "Aucun prélèvement à venir") + '</span></div>' +
+        (f.impaye ? '<span class="nv-tag red">IMPAYÉ</span>' : pr ? '<span class="nv-tag blue">' + esc(euros(pr.montant_cents)) + '</span>' : '<span class="nv-tag">À JOUR</span>') + '</div>';
+    }).join("");
+    html += '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap"><a class="nv-btn is-blue" href="' + esc(CONFIG.FACTURES_URL) + '" target="_top">' + ico("card", 15) + 'Factures et carte</a>' +
+      (lienSur(S.p.discord_url) ? '<a class="nv-chip" href="' + esc(S.p.discord_url) + '" target="_blank" rel="noopener">Une question ? Discord</a>' : "") + '</div>';
+    setPage(html);
+  }
+
+  // ================= ÉVÉNEMENTS =================
+  root.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-act],[data-view],[data-voir],[data-cal],[data-calmode],[data-seance],[data-copie],[data-export],[data-dl],[data-doc],[data-unfollow],[data-note],[data-c]");
+    if (!t || !root.contains(t)) return;
+    if (t.hasAttribute("data-unfollow")) { e.stopPropagation(); return unfollow(t.getAttribute("data-unfollow")); }
+    if (t.hasAttribute("data-view")) return show(t.getAttribute("data-view"));
+    if (t.hasAttribute("data-voir")) { S.voir = t.getAttribute("data-voir") || null; store("navire_prepa_voir", S.voir); return charger(); }
+    if (t.hasAttribute("data-cal")) {
+      var c = S.cal, a = t.getAttribute("data-cal");
+      if (a === "today") c.ref = new Date();
+      else if (c.mode === "semaine") c.ref = plusJours(c.ref, a === "next" ? 7 : -7);
+      else c.ref = new Date(c.ref.getFullYear(), c.ref.getMonth() + (a === "next" ? 1 : -1), 1);
+      return viewSemaine();
+    }
+    if (t.hasAttribute("data-calmode")) { S.cal.mode = t.getAttribute("data-calmode"); store("navire_prepa_cal", S.cal.mode); return viewSemaine(); }
+    if (t.hasAttribute("data-seance")) return popSeance(t.getAttribute("data-seance"));
+    if (t.hasAttribute("data-copie")) return show("copie", t.getAttribute("data-copie"));
+    if (t.hasAttribute("data-export")) return exporter(t.getAttribute("data-export"));
+    if (t.hasAttribute("data-dl")) return ouvrirFichier("/lib/prepa/devoirs/" + S.copie.id + "/correction");
+    if (t.hasAttribute("data-doc")) return go(CONFIG.LIB_URL + "?doc=" + t.getAttribute("data-doc"));
+    if (t.hasAttribute("data-note")) return focusNote(t.getAttribute("data-note"));
+    if (t.hasAttribute("data-c")) return focusNote(t.getAttribute("data-c").split(" ")[0]);
+    switch (t.getAttribute("data-act")) {
+      case "side-close": return root.classList.contains("is-compact") ? root.classList.remove("is-drawer") : setSide(false);
+      case "side-open": return root.classList.contains("is-compact") ? root.classList.add("is-drawer") : setSide(true);
+      case "close-drawer": return root.classList.remove("is-drawer");
+      case "pop-close": if (e.target === t || t.tagName === "BUTTON") el("pop").classList.remove("is-on"); return;
+      case "login": return go(CONFIG.LOGIN_URL);
+      case "dv-submit": return submitDevoir();
+    }
+  });
+  root.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") el("pop").classList.remove("is-on");
+    var t = e.target.closest && e.target.closest("[data-doc]");
+    if (t && e.key === "Enter") go(CONFIG.LIB_URL + "?doc=" + t.getAttribute("data-doc"));
+  });
+  root.addEventListener("change", function (e) {
+    var k = e.target.getAttribute && e.target.getAttribute("data-dv");
+    if (!k) return;
+    if (k === "file") { if (e.target.files[0]) pickFile(e.target.files[0]); return; }
+    S.dv[k] = e.target.value;
+  });
+  root.addEventListener("input", function (e) {
+    var k = e.target.getAttribute && e.target.getAttribute("data-dv");
+    if (k && k !== "file") S.dv[k] = e.target.value;
+  });
+
+  // ================= DÉMARRAGE =================
+  function charger() {
+    renderSide();
+    setTitle("Prépa");
+    setPage('<div class="nv-skel" style="height:96px;margin-top:10px"></div><div class="nv-skel" style="height:260px"></div>', true);
+    return api("GET", "/lib/prepa" + voirQ()).then(function (p) {
+      S.p = p;
+      var copie = pageParam("copie"), onglet = pageParam("onglet");
+      if (copie && p.prepa && !p.apercu) return show("copie", copie);
+      show(VIEWS.indexOf(onglet) >= 0 ? onglet : (S.view === "copie" ? "copies" : S.view));
+    }).catch(function (x) {
+      if (x.status === 401) { S.token = null; return renderLogin(); }
+      setPage('<div class="nv-empty"><b>Prépa indisponible</b>' + esc(x.message) + '</div>');
+    });
+  }
+  S.token = load(CONFIG.TOKEN_KEY);
+  S.cal.mode = load("navire_prepa_cal") === "mois" ? "mois" : "semaine";
+  if (!S.token) return renderLogin();
+  api("GET", "/auth/me").then(function (u) { S.me = u; }).catch(function () {}).then(function () {
+    if (S.me && S.me.is_admin) S.voir = load("navire_prepa_voir") || null;
+    return charger();
+  });
+  // Les séances passent « en cours » : on relit l'emploi du temps toutes les deux minutes.
+  setInterval(function () {
+    if (!S.token || !S.p || !S.p.prepa || S.view !== "semaine") return;
+    api("GET", "/lib/prepa" + voirQ()).then(function (p) { S.p = p; if (S.view === "semaine") { renderSide(); var sc = el("page").scrollTop; viewSemaine(); el("page").scrollTop = sc; } }).catch(function () {});
+  }, 120000);
+})();
+</script>
