@@ -1,15 +1,24 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile
+import re
+from urllib.parse import urlsplit
+
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File as FastAPIFile
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select, asc, desc
 
 from app.db.database import get_db
-from app.db.models import User, QcmSessionHistory, File as FileModel
+from app.db.models import User, QcmSessionHistory, VeilleItem, File as FileModel
 from app.schemas.auth import PasswordChangeIn, ProfileUpdateIn, UserOut, validate_password
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, get_current_user_optional
 from app.core.security import hash_password, verify_password, create_access_token
-from app.core.cloudinary_client import upload_avatar, is_allowed_image, MAX_AVATAR_BYTES, resolve_avatar_url
+from app.core.cloudinary_client import (
+    MAX_AVATAR_BYTES,
+    is_allowed_image,
+    resolve_avatar_url,
+    upload_avatar,
+    upload_banner,
+)
 from app.core.config import DISCORD_INVITE_URL
 from app.core.limits import get_user_limit
 from app.services import deepwork as deepwork_service
@@ -47,7 +56,51 @@ def _user_dict(u: User) -> dict:
         # qui n'en a aucun tant qu'il n'en crée pas un ici).
         "has_password": bool(u.password_hash),
         "oauth_provider": u.oauth_provider,
+        **_profile_fields(u),
     }
+
+
+def _profile_fields(u: User) -> dict:
+    """Champs de la page profil façon X, communs à toutes les sérialisations."""
+    return {
+        "banner_url": u.banner_url,
+        "bio": u.bio,
+        "linkedin_url": u.linkedin_url,
+        "stats_public": bool(u.stats_public),
+        "created_at": u.created_at,
+    }
+
+
+# Adresse d'un profil LinkedIn personnel : linkedin.com/in/<identifiant>, avec
+# ou sans www., sous-domaine de langue (fr.linkedin.com) accepté.
+_LINKEDIN_HOST = re.compile(r"^([a-z]{2,3}\.|www\.)?linkedin\.com$")
+_LINKEDIN_SLUG = re.compile(r"^/in/([A-Za-z0-9\-_%À-ÿ]{3,100})/?$")
+
+
+def _linkedin_url(raw: str) -> str | None:
+    """
+    Vérifie et normalise un lien de profil LinkedIn. Renvoie None pour une
+    chaîne vide (déliaison). L'URL stockée est toujours de la forme
+    https://www.linkedin.com/in/<identifiant>, pour qu'aucun lien arbitraire
+    ne s'affiche sur un profil.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    if "://" not in raw:
+        raw = "https://" + raw
+    try:
+        parts = urlsplit(raw)
+    except ValueError:
+        parts = None
+    host = (parts.hostname or "").lower() if parts else ""
+    m = _LINKEDIN_SLUG.match(parts.path) if parts and _LINKEDIN_HOST.match(host) else None
+    if not m:
+        raise HTTPException(
+            status_code=400,
+            detail="Lien LinkedIn invalide : colle l'adresse de ton profil (linkedin.com/in/…).",
+        )
+    return f"https://www.linkedin.com/in/{m.group(1)}"
 
 
 # ============================================================
@@ -99,6 +152,15 @@ def update_me(
 
     if payload.study_level is not None:
         current_user.study_level = payload.study_level
+
+    if payload.bio is not None:
+        current_user.bio = " ".join(payload.bio.split()) or None
+
+    if payload.linkedin_url is not None:
+        current_user.linkedin_url = _linkedin_url(payload.linkedin_url)
+
+    if payload.stats_public is not None:
+        current_user.stats_public = payload.stats_public
 
     db.commit()
     db.refresh(current_user)
@@ -255,6 +317,55 @@ def update_avatar_url(
 
 
 # ============================================================
+# Bannière — upload Cloudinary (page profil façon X)
+# ============================================================
+
+@router.post("/me/banner")
+async def update_banner(
+    file: UploadFile = FastAPIFile(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="Fichier manquant.")
+
+    if not is_allowed_image(file.content_type):
+        raise HTTPException(
+            status_code=400,
+            detail="Format non supporté. Utilise JPG, PNG ou WEBP.",
+        )
+
+    content = await file.read()
+    if len(content) > MAX_AVATAR_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image trop volumineuse (max {MAX_AVATAR_BYTES // (1024*1024)} Mo).",
+        )
+
+    try:
+        secure_url = upload_banner(content, user_id=current_user.id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Échec upload Cloudinary : {e}")
+
+    current_user.banner_url = secure_url
+    db.commit()
+    db.refresh(current_user)
+    return _user_dict(current_user)
+
+
+@router.delete("/me/banner")
+def delete_banner(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retire la bannière : la page profil revient au dégradé par défaut."""
+    current_user.banner_url = None
+    db.commit()
+    db.refresh(current_user)
+    return _user_dict(current_user)
+
+
+# ============================================================
 # Profil — bouton « Connecter mes comptes » (liaison Discord)
 # ============================================================
 
@@ -362,6 +473,7 @@ def get_my_deepwork(
 def get_profile_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    ranking: bool = Query(default=True),
 ):
     """
     Agrège tout ce dont la page profil a besoin :
@@ -374,6 +486,12 @@ def get_profile_summary(
       - l'état de l'abonnement, lu en base seulement (aucun appel Stripe) :
         le détail (carte, factures, prochain prélèvement) est servi par
         GET /subscriptions/billing, à l'ouverture des paramètres
+      - la première page de ses posts de veille (`posts`, voir GET
+        /users/{id}/posts pour la suite)
+
+    `ranking=false` saute le classement complet (ranking_above/below vides) :
+    la page profil façon X ne l'affiche plus, et c'est la requête la plus
+    lourde de la route.
     """
     u = current_user
 
@@ -416,7 +534,7 @@ def get_profile_summary(
         select(User.id, User.username, User.elo, User.avatar_url)
         .where(User.elo > u.elo)
         .order_by(asc(User.elo))
-    ).all()
+    ).all() if ranking else []
 
     # rows_above est trié du plus proche (juste au-dessus) au plus loin ;
     # on l'inverse pour un affichage classement classique (meilleur en haut)
@@ -440,7 +558,7 @@ def get_profile_summary(
         select(User.id, User.username, User.elo, User.avatar_url)
         .where(User.elo < u.elo)
         .order_by(desc(User.elo))
-    ).all()
+    ).all() if ranking else []
 
     below_list = [
         {
@@ -498,7 +616,9 @@ def get_profile_summary(
             "discord_linked": bool(u.discord_id),
             "has_password": bool(u.password_hash),
             "oauth_provider": u.oauth_provider,
+            **_profile_fields(u),
         },
+        "posts": _posts_page(db, u.id, viewer=u, offset=0, limit=POSTS_PAGE),
         "deepwork": deepwork_stats,
         "subscription": subscription,
         "elo": {
@@ -555,3 +675,125 @@ def get_user_public(username: str, db: Session = Depends(get_db)):
         "total_sessions": total_sessions,
         "success_rate": success_rate,
     }
+
+
+# ============================================================
+# Page profil façon X : profil d'un autre élève, et posts de veille
+# ============================================================
+
+POSTS_PAGE = 10
+POSTS_PAGE_MAX = 30
+
+
+def _posts_page(db: Session, author_id: int, viewer: User | None, offset: int, limit: int) -> dict:
+    """
+    Actus de veille postées par `author_id`, de la plus récente à la plus
+    ancienne, au même format que le hub Actualités (GET /veille/actus) pour
+    que les deux pages rendent une actu de la même façon.
+    """
+    # Import local : veille.py importe déjà beaucoup, et rien ici ne doit
+    # charger le routeur veille avant que l'app ne l'ait monté.
+    from app.routers.veille import _date_key, _hub_item, _read_ids, _saved_ids
+
+    total = db.execute(
+        select(func.count(VeilleItem.id)).where(VeilleItem.author_id == author_id)
+    ).scalar_one()
+    items = db.execute(
+        select(VeilleItem)
+        .where(VeilleItem.author_id == author_id)
+        .order_by(_date_key().desc(), VeilleItem.id.desc())
+        .offset(offset)
+        .limit(limit)
+    ).scalars().all()
+    read_ids, saved_ids = _read_ids(db, viewer), _saved_ids(db, viewer)
+    return {
+        "total": int(total or 0),
+        "offset": offset,
+        "has_more": offset + len(items) < (total or 0),
+        "items": [_hub_item(it, read_ids, saved_ids) for it in items],
+    }
+
+
+@router.get("/{user_id}/posts")
+def get_user_posts(
+    user_id: int,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=POSTS_PAGE, ge=1, le=POSTS_PAGE_MAX),
+    db: Session = Depends(get_db),
+    viewer: User | None = Depends(get_current_user_optional),
+):
+    """Posts de veille d'un élève, page par page (« Voir plus » du profil)."""
+    if not db.get(User, user_id):
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    return _posts_page(db, user_id, viewer=viewer, offset=offset, limit=limit)
+
+
+@router.get("/{user_id}/profile")
+def get_user_profile(
+    user_id: int,
+    db: Session = Depends(get_db),
+    viewer: User | None = Depends(get_current_user_optional),
+):
+    """
+    Profil vu par un autre élève (page profil ouverte avec ?u=<id>).
+
+    Toujours visibles : nom, photo, bannière, bio, LinkedIn, date d'arrivée,
+    Elo et posts de veille. Le reste (rang, QCM, documents, deep work) n'est
+    servi que si le profil est public (`stats_public`) ou que c'est le sien :
+    sinon `stats` vaut None et la page affiche « profil privé ».
+    Jamais d'email, d'abonnement ni de code Discord ici.
+    """
+    u = db.get(User, user_id)
+    if not u:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    is_me = viewer is not None and viewer.id == u.id
+    stats = None
+    if u.stats_public or is_me:
+        rank = db.execute(
+            select(func.count()).select_from(User).where(User.elo > u.elo)
+        ).scalar_one()
+        total_ranked = db.execute(
+            select(func.count()).select_from(User).where(User.elo > 0)
+        ).scalar_one()
+        qcm = (
+            db.query(
+                func.count(QcmSessionHistory.id).label("total_sessions"),
+                func.sum(QcmSessionHistory.correct_answers).label("total_correct"),
+                func.sum(QcmSessionHistory.total_questions).label("total_questions"),
+            )
+            .filter(QcmSessionHistory.user_id == u.id)
+            .one()
+        )
+        total_q = qcm.total_questions or 0
+        total_c = qcm.total_correct or 0
+        files_count = db.execute(
+            select(func.count()).select_from(FileModel).where(FileModel.user_id == u.id)
+        ).scalar_one()
+        stats = {
+            "rank": int(rank or 0) + 1,
+            "total_ranked_users": int(total_ranked or 0),
+            "qcm_stats": {
+                "total_sessions": qcm.total_sessions or 0,
+                "success_rate": round((total_c / total_q * 100) if total_q > 0 else 0.0, 1),
+            },
+            "files": {"count": int(files_count or 0)},
+            "deepwork": deepwork_service.compute_stats(db, u.id),
+        }
+
+    return {
+        "is_me": is_me,
+        "user": {
+            "id": u.id,
+            "username": u.username,
+            "university": u.university,
+            "avatar_url": resolve_avatar_url(u.avatar_url),
+            "plan": u.plan,
+            "discord_linked": bool(u.discord_id),
+            **_profile_fields(u),
+        },
+        "elo": {"value": int(u.elo or 0)},
+        "stats": stats,
+        "posts": _posts_page(db, u.id, viewer=viewer, offset=0, limit=POSTS_PAGE),
+    }
+

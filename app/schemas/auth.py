@@ -96,6 +96,12 @@ class ProfileUpdateIn(BaseModel):
     username: str | None = Field(default=None, min_length=1, max_length=64)
     university: str | None = Field(default=None, min_length=1, max_length=120)
     study_level: str | None = Field(default=None, min_length=1, max_length=120)
+    # Chaîne vide = effacer (bio, LinkedIn). Le lien LinkedIn est vérifié et
+    # normalisé par la route (app/routers/users.py, _linkedin_url).
+    bio: str | None = Field(default=None, max_length=160)
+    linkedin_url: str | None = Field(default=None, max_length=300)
+    # Mode privé de la page profil : False masque les stats aux autres.
+    stats_public: bool | None = None
 
 
 # =========================
