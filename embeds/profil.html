@@ -228,24 +228,41 @@
 #nv-profil .pf-more { display: flex; justify-content: center; margin-top: 14px; }
 
 /* ================= PANNEAU « ÉDITER LE PROFIL » ================= */
-#nv-profil .pf-overlay { position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(4,4,10,0.62); animation: pf-fade .2s ease both; }
+/* Verre dépoli : le profil reste visible, flouté, derrière le panneau. Le
+   panneau prend au plus la hauteur de l'écran ; l'onglet Profil est composé
+   pour y tenir sans défiler (le corps défile seulement sur très petit écran). */
+#nv-profil .pf-overlay { position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(4,4,12,0.32); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: pf-fade .2s ease both; }
 #nv-profil .pf-overlay.is-open { display: flex; }
-#nv-profil .pf-panel { width: 100%; max-width: 600px; max-height: min(760px, 100%); display: flex; flex-direction: column; border-radius: 20px; background: #0e0e17; box-shadow: 0 30px 90px rgba(0,0,0,0.55); overflow: hidden; animation: pf-rise .3s var(--ease) both; }
-#nv-profil .pf-panel-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+#nv-profil .pf-panel {
+  width: 100%; max-width: 620px;
+  max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px);
+  display: flex; flex-direction: column;
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.10), rgba(255,255,255,0.035) 45%, rgba(122,167,255,0.06));
+  -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 0 0 1px rgba(255,255,255,0.06), 0 30px 90px rgba(0,0,0,0.45);
+  overflow: hidden;
+  animation: pf-rise .3s var(--ease) both;
+}
+/* Navigateur sans flou : un fond plus opaque pour rester lisible */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #nv-profil .pf-panel { background: rgba(18,18,30,0.96); }
+}
+#nv-profil .pf-panel-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px 4px; flex-shrink: 0; }
 #nv-profil .pf-panel-title { flex: 1; font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
 #nv-profil .pf-panel-head .pf-btn { height: 32px; }
-#nv-profil .pf-tabs { display: flex; gap: 2px; padding: 4px 12px 0; overflow-x: auto; scrollbar-width: none; }
+#nv-profil .pf-tabs { display: flex; gap: 2px; padding: 2px 12px 0; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; }
 #nv-profil .pf-tabs::-webkit-scrollbar { display: none; }
 #nv-profil .pf-tab { position: relative; flex-shrink: 0; padding: 9px 12px 11px; border: none; background: none; font-size: 13px; font-weight: 600; color: var(--text-3); cursor: pointer; border-radius: 10px 10px 0 0; transition: color .15s; }
 #nv-profil .pf-tab:hover { color: var(--text); }
 #nv-profil .pf-tab.is-active { color: #fff; }
 #nv-profil .pf-tab.is-active::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 0; height: 3px; border-radius: 3px; background: var(--blue); }
 #nv-profil .pf-tab .pf-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); margin-left: 6px; vertical-align: 1px; }
-#nv-profil .pf-panel-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 20px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+#nv-profil .pf-panel-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 16px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
 #nv-profil .pf-loading { padding: 34px 0; text-align: center; font-size: 12px; color: var(--text-3); }
 
 /* Onglet Profil */
-#nv-profil .pf-edit-banner { position: relative; aspect-ratio: 3 / 1; border-radius: 14px; overflow: hidden; background:
+#nv-profil .pf-edit-banner { position: relative; aspect-ratio: 3 / 1; max-height: 130px; width: 100%; border-radius: 14px; overflow: hidden; background:
     radial-gradient(120% 140% at 85% 0%, rgba(122,167,255,0.32), transparent 55%),
     radial-gradient(90% 120% at 10% 100%, rgba(79,125,255,0.22), transparent 60%),
     var(--panel); background-size: cover; background-position: center; }
@@ -253,24 +270,28 @@
 #nv-profil .pf-round { width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(10,10,18,0.72); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: background .15s, transform .15s var(--ease); }
 #nv-profil .pf-round:hover { background: rgba(10,10,18,0.92); transform: scale(1.05); }
 #nv-profil .pf-round svg { width: 17px; height: 17px; }
-#nv-profil .pf-edit-av-wrap { position: relative; width: 92px; height: 92px; margin: -40px 0 0 14px; }
-#nv-profil .pf-edit-av { width: 92px; height: 92px; border-radius: 50%; background: var(--panel-3) center/cover no-repeat; box-shadow: 0 0 0 4px #0e0e17; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 700; }
+#nv-profil .pf-edit-av-row { display: flex; align-items: flex-end; gap: 12px; margin: -34px 0 0 14px; position: relative; }
+#nv-profil .pf-edit-av-wrap { position: relative; width: 76px; height: 76px; flex-shrink: 0; }
+#nv-profil .pf-edit-av { width: 76px; height: 76px; border-radius: 50%; background: rgba(40,44,70,0.9) center/cover no-repeat; box-shadow: 0 0 0 3px rgba(255,255,255,0.14), 0 8px 24px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; }
+#nv-profil .pf-edit-av-wrap .pf-round { width: 34px; height: 34px; }
 #nv-profil .pf-edit-av-wrap .pf-round { position: absolute; inset: 0; margin: auto; }
-#nv-profil .pf-file-hint { margin: 8px 0 0; font-size: 12px; color: var(--text-3); min-height: 16px; }
+#nv-profil .pf-file-hint { margin: 0 0 4px; font-size: 12px; color: var(--text-3); min-width: 0; }
 #nv-profil .pf-file-hint.is-error { color: var(--danger); }
-#nv-profil .pf-field { margin-top: 16px; }
+#nv-profil .pf-field { margin-top: 12px; }
+#nv-profil .pf-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+#nv-profil .pf-grid2 .pf-field { min-width: 0; }
 #nv-profil .pf-field-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
 #nv-profil .pf-field-label { font-size: 12px; font-weight: 600; color: var(--text-2); }
 #nv-profil .pf-count { font-family: var(--mono); font-size: 10.5px; color: var(--text-4); }
-#nv-profil .pf-input { width: 100%; border: 1px solid transparent; outline: none; border-radius: 12px; background: var(--panel-2); color: #fff; font: inherit; font-size: 14px; padding: 11px 13px; transition: border-color .15s, background .15s; }
-#nv-profil textarea.pf-input { resize: none; min-height: 78px; line-height: 1.5; }
+#nv-profil .pf-input { width: 100%; border: 1px solid transparent; outline: none; border-radius: 12px; background: rgba(255,255,255,0.07); color: #fff; font: inherit; font-size: 14px; padding: 10px 13px; transition: border-color .15s, background .15s; }
+#nv-profil textarea.pf-input { resize: none; height: 64px; line-height: 1.45; }
 #nv-profil .pf-input:focus { border-color: var(--blue-line); background: var(--panel-3); }
 #nv-profil .pf-input::placeholder { color: var(--text-4); }
 #nv-profil .pf-help { margin-top: 6px; font-size: 11.5px; color: var(--text-3); line-height: 1.45; }
 #nv-profil .pf-inline { display: flex; gap: 8px; }
 #nv-profil .pf-inline .pf-input { flex: 1; min-width: 0; }
 #nv-profil .pf-inline .pf-btn { height: auto; }
-#nv-profil .pf-switch-row { display: flex; align-items: center; gap: 14px; margin-top: 18px; padding: 14px; border-radius: 14px; background: var(--panel); }
+#nv-profil .pf-switch-row { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 11px 14px; border-radius: 14px; background: rgba(255,255,255,0.05); }
 #nv-profil .pf-switch-row div { flex: 1; min-width: 0; }
 #nv-profil .pf-switch-row b { display: block; font-size: 13.5px; }
 #nv-profil .pf-switch-row span { display: block; margin-top: 2px; font-size: 12px; color: var(--text-3); line-height: 1.45; }
@@ -287,7 +308,7 @@
 #nv-profil .pf-notice a { color: var(--blue); font-weight: 600; }
 #nv-profil .pf-notice.is-error { background: rgba(255,107,107,0.09); }
 #nv-profil .pf-notice.is-ok { background: var(--blue-soft); }
-#nv-profil .pf-card { padding: 14px 15px; border-radius: 16px; background: var(--panel); margin-bottom: 10px; }
+#nv-profil .pf-card { padding: 14px 15px; border-radius: 16px; background: rgba(255,255,255,0.05); margin-bottom: 10px; }
 #nv-profil .pf-card .pf-notice { margin: 12px 0 0; }
 #nv-profil .pf-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 #nv-profil .pf-card-name { font-size: 14.5px; font-weight: 700; letter-spacing: -.2px; }
@@ -305,7 +326,7 @@
 #nv-profil .pf-btn.is-ghost { background: none; color: var(--text-3); padding: 0 6px; }
 #nv-profil .pf-btn.is-ghost:hover { color: #fff; background: none; }
 #nv-profil .pf-foot { font-size: 11.5px; color: var(--text-4); line-height: 1.5; margin-top: 6px; }
-#nv-profil .pf-inv { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--panel); margin-bottom: 8px; }
+#nv-profil .pf-inv { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.05); margin-bottom: 8px; }
 #nv-profil .pf-inv-main { flex: 1; min-width: 0; }
 #nv-profil .pf-inv-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #nv-profil .pf-inv-sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
@@ -341,7 +362,8 @@
 #nv-profil.is-narrow .pf-post { padding: 13px; gap: 10px; }
 #nv-profil.is-narrow .pf-post-av { width: 32px; height: 32px; }
 #nv-profil.is-narrow .pf-overlay { padding: 0; align-items: stretch; }
-#nv-profil.is-narrow .pf-panel { max-height: none; border-radius: 0; }
+#nv-profil.is-narrow .pf-panel { max-width: none; max-height: none; height: 100%; border-radius: 0; }
+#nv-profil.is-narrow .pf-grid2 { grid-template-columns: 1fr; }
 #nv-profil.is-narrow .pf-alert { flex-wrap: wrap; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -418,33 +440,36 @@
               </button>
             </div>
           </div>
+          <div class="pf-edit-av-row">
           <div class="pf-edit-av-wrap">
             <div class="pf-edit-av" data-el="edit-avatar"></div>
             <button class="pf-round" data-act="pick-avatar" title="Changer la photo" aria-label="Changer la photo">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
             </button>
           </div>
+            <p class="pf-file-hint" data-el="file-hint"></p>
+          </div>
           <input type="file" data-el="file-banner" accept="image/jpeg,image/png,image/webp" hidden>
           <input type="file" data-el="file-avatar" accept="image/jpeg,image/png,image/webp" hidden>
-          <p class="pf-file-hint" data-el="file-hint"></p>
 
-          <div class="pf-field">
-            <div class="pf-field-top"><label class="pf-field-label" for="pf-in-name">Nom</label><span class="pf-count" data-el="count-name"></span></div>
-            <input class="pf-input" id="pf-in-name" data-el="in-name" maxlength="64" placeholder="Ton nom">
+          <div class="pf-grid2">
+            <div class="pf-field">
+              <div class="pf-field-top"><label class="pf-field-label" for="pf-in-name">Nom</label><span class="pf-count" data-el="count-name"></span></div>
+              <input class="pf-input" id="pf-in-name" data-el="in-name" maxlength="64" placeholder="Ton nom">
+            </div>
+            <div class="pf-field">
+              <div class="pf-field-top"><label class="pf-field-label" for="pf-in-linkedin">LinkedIn</label><span class="pf-count">vide = retirer</span></div>
+              <input class="pf-input" id="pf-in-linkedin" data-el="in-linkedin" maxlength="300" placeholder="linkedin.com/in/ton-profil" autocomplete="url">
+            </div>
           </div>
           <div class="pf-field">
             <div class="pf-field-top"><label class="pf-field-label" for="pf-in-bio">Bio</label><span class="pf-count" data-el="count-bio"></span></div>
             <textarea class="pf-input" id="pf-in-bio" data-el="in-bio" maxlength="160" placeholder="L2 droit à Assas, passionné de pénal…"></textarea>
           </div>
-          <div class="pf-field">
-            <div class="pf-field-top"><label class="pf-field-label" for="pf-in-linkedin">LinkedIn</label></div>
-            <input class="pf-input" id="pf-in-linkedin" data-el="in-linkedin" maxlength="300" placeholder="linkedin.com/in/ton-profil" autocomplete="url">
-            <div class="pf-help">Colle l'adresse de ton profil LinkedIn : le lien s'affichera sous ton nom. Laisse vide pour le retirer.</div>
-          </div>
           <div class="pf-switch-row">
             <div>
               <b>Profil privé</b>
-              <span>Tes statistiques (rang, QCM, documents, deep work) ne sont visibles que par toi. Ton nom, ton Elo et tes posts restent visibles.</span>
+              <span>Rang, QCM, documents et deep work visibles par toi seul. Nom, Elo et posts restent publics.</span>
             </div>
             <button class="pf-switch" role="switch" aria-checked="false" data-el="in-private" aria-label="Profil privé"></button>
           </div>
@@ -569,6 +594,9 @@
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (r.status === 401) throw new Error('Session expirée, reconnecte-toi.');
+        // « Not Found » brut de FastAPI = la route n'existe pas sur l'API en
+        // ligne (version pas encore déployée), pas une ressource absente.
+        if (r.status === 404 && j.detail === 'Not Found') throw new Error('Cette fonction n\'est pas encore disponible : l\'API en ligne doit être mise à jour.');
         if (r.status === 429) { var e = new Error('RATE'); e.rate = true; throw e; }
         if (!r.ok) throw new Error(detailMessage(j.detail, r.status));
         return j;
