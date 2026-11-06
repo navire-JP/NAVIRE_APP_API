@@ -179,11 +179,21 @@ def _nom(db: Session, user_id: int | None) -> str:
     return (u.username if u else None) or "Correcteur"
 
 
+def _avatar(db: Session, user_id: int | None) -> str | None:
+    u = db.get(User, user_id) if user_id else None
+    return (getattr(u, "avatar_url", None) or None) if u else None
+
+
 def annotation_row(db: Session, a: PrepaAdjurisAnnotation, noms: dict | None = None) -> dict:
     noms = noms if noms is not None else {}
     if a.auteur_id not in noms:
         noms[a.auteur_id] = _nom(db, a.auteur_id)
+    cle = ("avatar", a.auteur_id)
+    if cle not in noms:
+        noms[cle] = _avatar(db, a.auteur_id)
     return {
+        # Photo de profil du correcteur, affichée sur ses commentaires.
+        "auteur_avatar": noms[cle],
         "id": a.id,
         "type": a.type,
         "bloc": a.bloc,

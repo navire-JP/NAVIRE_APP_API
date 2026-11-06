@@ -55,6 +55,7 @@ def test_copie_mise_en_forme_et_corrigee(monde, copie):
     post = lambda **k: c.post(f"/professeurs/devoirs/{copie}/annotations", headers=P, json=k)  # noqa: E731
     r = post(type="correction", bloc=p["id"], debut=i, fin=i + len("supprimée"), texte="abandonnée")
     assert r.status_code == 200 and r.json()["citation"] == "supprimée" and r.json()["auteur"] == "prof"
+    assert "auteur_avatar" in r.json()        # photo de profil du correcteur, sur ses commentaires
     # Une seconde correction sur le même passage est refusée
     assert post(type="correction", bloc=p["id"], debut=i + 2, fin=i + 4, texte="x").status_code == 409
     j = t.index("Elle subsiste")
