@@ -49,6 +49,7 @@ from app.routers.navire import router as navire_router
 from app.routers.ambassadors import router as ambassadors_router
 from app.routers.lib import router as lib_router
 from app.routers.lib_prepa import router as lib_prepa_router
+from app.routers.prepa_epreuves import eleve_router as epreuves_eleve_router, prof_router as epreuves_prof_router
 from app.routers.professeurs import router as professeurs_router
 from app.routers.mailing import router as mailing_router
 # ============================================================
@@ -385,6 +386,8 @@ app.include_router(prepa_adjuris_espace_router)
 app.include_router(prepa_adjuris_agenda_router)
 app.include_router(navire_router)
 app.include_router(ambassadors_router)
+app.include_router(epreuves_eleve_router)
+app.include_router(epreuves_prof_router)
 app.include_router(lib_prepa_router)
 app.include_router(lib_router)
 app.include_router(professeurs_router)

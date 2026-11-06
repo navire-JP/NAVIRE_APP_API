@@ -2365,6 +2365,65 @@ class PrepaAdjurisAnnotation(Base):
     devoir: Mapped["PrepaAdjurisDevoir"] = relationship("PrepaAdjurisDevoir", back_populates="annotations")
 
 
+class PrepaEpreuve(Base):
+    """
+    Contrôle / épreuve planifié par un professeur pour un groupe : type
+    (dissertation, commentaire d'arrêt, cas pratique, fiche d'arrêt), sujet
+    (texte et/ou PDF), durée, date d'ouverture et durée de disponibilité
+    (« persistance ») : les étudiants peuvent la commencer entre ouvre_le et
+    ferme_le ; une fois commencée, le chrono court sa durée entière.
+    Règles : app/services/epreuves.py.
+    """
+    __tablename__ = "prepa_epreuves"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    classe_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_classes.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    cree_par_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    type: Mapped[str] = mapped_column(String(20), nullable=False)
+    titre: Mapped[str] = mapped_column(String(200), nullable=False)
+    sujet: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    sujet_filename: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    sujet_path: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    duree_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    ouvre_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    ferme_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class PrepaEpreuveSession(Base):
+    """
+    Une épreuve chronométrée lancée par un étudiant : épreuve planifiée
+    (epreuve_id) ou entraînement libre (epreuve_id NULL). Le chrono part de
+    started_at, côté serveur. La copie rendue est un devoir (devoir_id).
+    """
+    __tablename__ = "prepa_epreuve_sessions"
+    __table_args__ = (UniqueConstraint("epreuve_id", "user_id", name="uq_prepa_epreuve_session"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    epreuve_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_epreuves.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    type: Mapped[str] = mapped_column(String(20), nullable=False)
+    titre: Mapped[str] = mapped_column(String(200), nullable=False)
+    matiere_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    sujet: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    duree_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    rendu_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    devoir_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_devoirs.id", ondelete="SET NULL"), nullable=True
+    )
+    abandonnee: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
 class PrepaSuivi(Base):
     """Cours NAVIRE Lib qu'un étudiant suit dans son espace Prépa
     (« Suivre dans Prépa » depuis Lib)."""
