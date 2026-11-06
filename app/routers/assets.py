@@ -25,9 +25,9 @@ BRAND_FILES: dict[str, str] = {
     "home-cours.png": "home-cours.png",
     "home-fichiers.png": "home-fichiers.png",
     # Visuels des éléments de l'onglet Fichiers (embeds/fichiers.html) :
-    # PDF (cristal), copie corrigée (diamant), recadrés en 256 px depuis
-    # « NAVIRE_<Cristal|Diamant>_embed asset.png ». Actus, dossiers et cours
-    # Lib reprennent home-veilles / home-fichiers / home-cours.
+    # PDF et copies (cristal), actus enregistrées (diamant), recadrés en 256 px
+    # depuis « NAVIRE_<Cristal|Diamant>_embed asset.png ». Dossiers et cours
+    # Lib reprennent home-fichiers / home-cours.
     "files-cristal.png": "files-cristal.png",
     "files-diamant.png": "files-diamant.png",
 }
