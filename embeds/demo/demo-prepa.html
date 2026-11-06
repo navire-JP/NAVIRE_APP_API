@@ -2,6 +2,9 @@
 (function(){
   try { localStorage.setItem("navire_token", "demo"); } catch(e) {}
   var PREPA = {"prepa":true,"apercu":null,"niveau":"L2","matieres":[{"matiere_key":"L2_obligations","label":"Droit des obligations","debloquee":true,"cours_lib":[11],"groupe":{"nom":"Obligations G1","discord_url":"https://discord.com"}}],"seances":[{"id":1,"matiere":"Droit des obligations","titre":"La formation du contrat","date_debut":"2026-11-06T18:00:00.000Z","duree_minutes":60,"statut":"prevue","en_cours":true,"lien":"https://discord.com","date_initiale":null},{"id":2,"matiere":"Droit administratif","titre":"","date_debut":"2026-11-07T19:00:00.000Z","duree_minutes":90,"statut":"prevue","en_cours":false,"lien":"","date_initiale":"2026-11-06T19:00:00.000Z"},{"id":3,"matiere":"Droit des obligations","titre":"Les vices du consentement","date_debut":"2026-11-08T18:00:00.000Z","duree_minutes":60,"statut":"annulee","en_cours":false,"lien":"","date_initiale":null},{"id":4,"matiere":"Séance commune","titre":"Méthodo dissertation","date_debut":"2026-11-09T17:30:00.000Z","duree_minutes":60,"statut":"prevue","en_cours":false,"lien":"","date_initiale":null},{"id":5,"matiere":"Droit des obligations","titre":"La cause","date_debut":"2026-11-14T18:00:00.000Z","duree_minutes":60,"statut":"prevue","en_cours":false,"lien":"","date_initiale":null}],"prochaine_seance":null,"cours_lib":[{"id":11,"titre":"TD 3 · Le consentement","prepa":true,"matiere":"Droit des obligations","groupe":"Obligations G1","progress":0.4,"matiere_key":"L2_obligations"}],"suivis":[{"id":21,"titre":"Introduction au droit des contrats","matiere":"Obligations","progress":0.7}],"devoirs":[{"id":7,"titre":"Dissertation : la cause","matiere":"Droit des obligations","matiere_label":"Droit des obligations (L2)","classe_nom":"Obligations G1","statut":"corrige","note":"14/20","commentaire":"Bon plan, mais la deuxième partie manque d'arrêts.\nRelis Chronopost.","corrige_par":"Camille Martin","corrige_par_avatar":null,"created_at":"2026-10-31T10:00:00.000Z","corrige_le":"2026-11-05T10:00:00.000Z","size_bytes":34000,"etudiant":{"username":"alice"}},{"id":8,"titre":"Commentaire d'arrêt n° 2","matiere":"Droit des obligations","matiere_label":"Droit des obligations (L2)","classe_nom":"Obligations G1","statut":"depose","note":"","commentaire":"","created_at":"2026-11-05T10:00:00.000Z","size_bytes":28000,"message":"J'ai hésité sur le plan.","etudiant":{"username":"alice"}}],"devoir_max_bytes":20971520,"facturation":[{"matiere":"Droit des obligations","statut":"active","impaye":false,"prochain":{"mois":"2026-11","seances":4,"montant_cents":6000}}],"discord_url":"https://discord.com"}, DASH = {"professeur":{"prenom":"Camille","grade":"ChargéTD"},"totaux":{"classes":1,"etudiants":3,"documents":1,"realise_cents":12000,"a_venir_cents":18000,"verse_cents":0,"total_cents":30000,"mois_en_cours":null},"classes":[{"id":1,"nom":"Obligations G1","matiere_label":"Droit des obligations","etudiants":[{"username":"alice","email":"alice@x.fr"}],"documents":[],"liens":[],"discord_url":"https://discord.com","previsionnel":{"mois":[]}}]}, BLOCS = [{"id":"c0","t":"titre","runs":[["Dissertation : la cause en droit des contrats",false,false]],"text":"Dissertation : la cause en droit des contrats"},{"id":"c1","t":"h","runs":[["Introduction",true,false]],"text":"Introduction"},{"id":"c2","t":"p","runs":[["La cause a été supprimée par l'ordonnance du 10 février 2016. E",false,false],["lle subsiste ",false,true],["pourtant dans le Code civil, sous les traits du contenu du contrat et de la contrepartie, ce qui permet au juge de continuer à contrôler l'équilibre de l'engagement.",false,false]],"text":"La cause a été supprimée par l'ordonnance du 10 février 2016. Elle subsiste pourtant dans le Code civil, sous les traits du contenu du contrat et de la contrepartie, ce qui permet au juge de continuer à contrôler l'équilibre de l'engagement."},{"id":"c3","t":"h","runs":[["I. Une disparition formelle",true,false]],"text":"I. Une disparition formelle"},{"id":"c4","t":"p","runs":[["Cette disparition est d'abord formelle. Le législateur a voulu simplifier le droit des contrats et le rendre lisible pour les investisseurs étrangers.",false,false]],"text":"Cette disparition est d'abord formelle. Le législateur a voulu simplifier le droit des contrats et le rendre lisible pour les investisseurs étrangers."}], ANNS = [{"auteur":"Camille Martin","auteur_avatar":null,"id":1,"type":"correction","bloc":"c2","debut":15,"fin":24,"texte":"abandonnée","citation":"supprimée"},{"auteur":"Camille Martin","auteur_avatar":null,"id":2,"type":"commentaire","bloc":"c2","debut":62,"fin":75,"texte":"Oui : à travers l'objet et le but. Cite l'article 1162.","citation":"Elle subsiste"},{"auteur":"Camille Martin","auteur_avatar":null,"id":3,"type":"surligne","bloc":"c2","debut":203,"fin":233,"texte":"","citation":""},{"auteur":"Camille Martin","auteur_avatar":null,"id":4,"type":"correction","bloc":"c2","debut":60,"fin":60,"texte":" (n° 2016-131)","citation":""},{"auteur":"Camille Martin","auteur_avatar":null,"id":5,"type":"surligne","bloc":"c4","debut":0,"fin":39,"texte":"Annonce trop vague : formelle par rapport à quoi ?","citation":"Cette disparition est d'abord formelle."}];
+  var EP = { planifiees: [{ id: 1, type: "dissertation", type_label: "Dissertation", titre: "Galop n° 1 : la coutume", duree_minutes: 180, matiere: "Droit des obligations", ouvre_le: new Date(Date.now() - 3600000).toISOString(), ferme_le: new Date(Date.now() + 2 * 86400000).toISOString(), etat: "ouverte", session: null },
+    { id: 2, type: "fiche_arret", type_label: "Fiche d'arrêt", titre: "Fiche d'arrêt : Chronopost", duree_minutes: 75, matiere: "Droit des obligations", ouvre_le: new Date(Date.now() + 3 * 86400000).toISOString(), ferme_le: new Date(Date.now() + 4 * 86400000).toISOString(), etat: "a_venir", session: null }],
+    sessions: [], matieres: [{ matiere_key: "L2_obligations", label: "Droit des obligations" }], server_now: new Date().toISOString() }, SESS = {};
   var DV = { 7: {"id":7,"titre":"Dissertation : la cause","matiere":"Droit des obligations","matiere_label":"Droit des obligations (L2)","classe_nom":"Obligations G1","statut":"corrige","note":"14/20","commentaire":"Bon plan, mais la deuxième partie manque d'arrêts.\nRelis Chronopost.","corrige_par":"Camille Martin","corrige_par_avatar":null,"created_at":"2026-10-31T10:00:00.000Z","corrige_le":"2026-11-05T10:00:00.000Z","size_bytes":34000,"etudiant":{"username":"alice"}}, 8: {"id":8,"titre":"Commentaire d'arrêt n° 2","matiere":"Droit des obligations","matiere_label":"Droit des obligations (L2)","classe_nom":"Obligations G1","statut":"depose","note":"","commentaire":"","created_at":"2026-11-05T10:00:00.000Z","size_bytes":28000,"message":"J'ai hésité sur le plan.","etudiant":{"username":"alice"}} }, MINE = { 7: ANNS.slice(), 8: [] }, nid = 100;
   function rep(j, s) { return Promise.resolve(new Response(JSON.stringify(j), { status: s || 200, headers: { "Content-Type": "application/json" } })); }
   var real = window.fetch;
@@ -11,12 +14,17 @@
     if (/\/auth\/me/.test(url)) return rep({ id: 1, is_admin: true });
     if (/\/professeurs\/me$/.test(url)) return rep({ status: "active", admin: false });
     if (/\/me\/dashboard/.test(url)) return rep(DASH);
+    if (/\/professeurs\/epreuves$/.test(url) && m === "GET") return rep({ items: [{ id: 1, titre: "Galop n° 1 : la coutume", type: "dissertation", type_label: "Dissertation", duree_minutes: 180, classe_nom: "Obligations G1", ouvre_le: new Date(Date.now() - 3600000).toISOString(), ferme_le: new Date(Date.now() + 2 * 86400000).toISOString(), etat: "ouverte", sujet_pdf: false, commencees: 2, rendues: 1, sessions: [{ etudiant: "alice", statut: "rendue", retard_minutes: 0 }, { etudiant: "zoé", statut: "en_cours" }] }], types: [] });
+    if (/\/professeurs\/epreuves$/.test(url) && m === "POST") return rep({ id: 2, titre: "Nouvelle épreuve", type: "dissertation", type_label: "Dissertation", duree_minutes: 180, classe_nom: "Obligations G1", ouvre_le: new Date(Date.now() + 86400000).toISOString(), ferme_le: new Date(Date.now() + 2 * 86400000).toISOString(), etat: "a_venir", sujet_pdf: false, commencees: 0, rendues: 0, sessions: [] });
     if (/\/me\/devoirs/.test(url)) return rep({ items: [DV[8], DV[7]], a_corriger: 1 });
     if ((q = /devoirs\/(\d+)\/copie/.exec(url))) return rep({ devoir: DV[q[1]], mots: 412, blocs: BLOCS, annotations: MINE[q[1]] });
     if ((q = /devoirs\/(\d+)\/annotations/.exec(url)) && m === "POST") { var b = JSON.parse(o.body); var tx = BLOCS.filter(function (x) { return x.id === b.bloc; })[0].text; var a = Object.assign({ id: nid++, auteur: "Camille Martin", auteur_avatar: null, citation: tx.slice(b.debut, b.fin) }, b); MINE[q[1]].push(a); return rep(a); }
     if ((q = /annotations\/(\d+)/.exec(url))) { var id = +q[1]; for (var k in MINE) MINE[k] = MINE[k].filter(function (x) { return x.id !== id; }); if (m === "PATCH") { var p = JSON.parse(o.body); var a2 = ANNS.filter(function (x) { return x.id === id; })[0] || { id: id }; a2.texte = p.texte; return rep(a2); } return rep({ ok: true }); }
     if ((q = /professeurs\/devoirs\/(\d+)$/.exec(url)) && m === "PATCH") { var p2 = JSON.parse(o.body); Object.assign(DV[q[1]], p2, { corrige_par: "Camille Martin", corrige_le: new Date().toISOString() }); return rep(DV[q[1]]); }
     if (/\/export/.test(url)) return rep({ detail: "Démo : l'export Word/PDF fonctionne avec la vraie API." }, 400);
+    if (/\/lib\/prepa\/epreuves$/.test(url)) return rep(EP);
+    if (/\/lib\/prepa\/epreuves\/sessions$/.test(url) && m === "POST") { var bb = JSON.parse(o.body); var src = bb.epreuve_id ? EP.planifiees[0] : { type: bb.type, titre: { dissertation: "Dissertation", commentaire: "Commentaire d'arrêt", cas_pratique: "Cas pratique", fiche_arret: "Fiche d'arrêt" }[bb.type], duree_minutes: bb.type === "fiche_arret" ? 75 : 180 }; var ss = { id: 900, epreuve_id: bb.epreuve_id || null, libre: !bb.epreuve_id, type: src.type, titre: src.titre, matiere: "Droit des obligations", duree_minutes: src.duree_minutes, sujet: bb.sujet || "La coutume est-elle encore une source du droit ?", started_at: new Date(Date.now() - 23 * 60000).toISOString(), server_now: new Date().toISOString(), statut: "en_cours" }; SESS[900] = ss; return rep(ss); }
+    if ((q = /epreuves\/sessions\/(\d+)$/.exec(url))) return rep(Object.assign({}, SESS[q[1]], { server_now: new Date().toISOString() }));
     if ((q = /\/lib\/prepa\?voir_comme=(\w+)/.exec(url))) return rep(Object.assign({}, PREPA, { apercu: q[1], niveau: q[1], devoirs: [], suivis: [], facturation: [] }));
     if (/\/lib\/prepa/.test(url) && m === "GET") return rep(PREPA);
     return rep({ detail: "Démo : action non simulée." }, 400);
@@ -44,7 +52,14 @@
     rendre    déposer une copie (.docx ou .pdf texte) ;
     cours     les cours suivis depuis NAVIRE Lib (« Suivre dans Prépa ») et
               ceux de la classe, qui s'ouvrent dans Lib ;
-    factu     prochain prélèvement par matière, lien vers les factures.
+    factu     prochain prélèvement par matière, lien vers les factures ;
+    epreuves  épreuves planifiées par le professeur (ouverture, disponibilité,
+              durée) et entraînement libre (dissertation, commentaire d'arrêt,
+              cas pratique, fiche d'arrêt). L'écran d'épreuve est épuré : un
+              chrono lumineux, l'étape en cours en une phrase, la suivante en
+              plus petit ; le sujet en panneau ; « Rendre ma copie » envoie la
+              copie au correcteur. Le chrono est tenu par le serveur (reprise
+              après rechargement).
   En bas du menu : Discord, NAVIRE Lib, et pour les admins une case
   « Vue étudiant » (à cocher / décocher) qui montre l'onglet tel qu'un
   étudiant du niveau choisi (L1, L2, L3, M1) le voit, en lecture seule.
@@ -349,6 +364,74 @@
 @media (prefers-reduced-motion: reduce) {
   #nv-prepa *, #nv-prepa *::before, #nv-prepa *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ================= DÉFILEMENT : la page du site défile ================= */
+#nv-prepa.is-flow { height: auto; overflow: visible; overflow-x: clip; align-items: flex-start; }
+#nv-prepa.is-flow .nv-page { overflow: visible; flex: none; }
+#nv-prepa.is-flow .nv-main { min-height: 100%; align-self: stretch; }
+/* Barre latérale à la hauteur de l'écran, qui suit le défilement. */
+#nv-prepa.is-flow:not(.is-compact) .nv-side { position: relative; top: var(--vis-top, 0px); height: var(--vis-h, 100%); overflow-y: auto; align-self: flex-start; }
+/* Barre du haut (et bande d'aperçu) qui restent en haut de l'écran. */
+#nv-prepa.is-flow .nv-topbar { position: relative; top: var(--vis-top, 0px); z-index: 40; background: rgba(8,9,16,0.72); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+#nv-prepa.is-flow.is-compact .nv-side, #nv-prepa.is-flow .nv-scrim, #nv-prepa .np-pop { top: var(--vis-top, 0px) !important; bottom: auto !important; height: var(--vis-h, 100%) !important; }
+#nv-prepa.is-flow .nv-toasts { top: calc(var(--vis-top, 0px) + var(--vis-h, 100%) - 70px); bottom: auto; }
+
+/* Aperçu admin : bande de verre, transparente et discrète. */
+#nv-prepa .np-apercu { background: rgba(255,255,255,0.04) !important; color: rgba(255,255,255,0.62) !important; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); font-weight: 500 !important; box-shadow: inset 0 -1px 0 rgba(255,255,255,0.05); }
+#nv-prepa .np-apercu button, #nv-prepa .np-apercu select { background: rgba(255,255,255,0.08) !important; color: #fff !important; }
+#nv-prepa.is-flow .np-apercu { position: relative; top: var(--vis-top, 0px); z-index: 39; }
+
+/* ===== Épreuves ===== */
+#nv-prepa .np-types { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+#nv-prepa .np-type { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 16px; background: var(--panel); border: 0; text-align: left; cursor: pointer; transition: background .2s, transform .2s var(--ease); min-height: 112px; position: relative; overflow: hidden; }
+#nv-prepa .np-type:hover, #nv-prepa .np-type.is-on { background: var(--panel-2); transform: translateY(-2px); }
+#nv-prepa .np-type.is-on { box-shadow: inset 0 0 0 1.5px var(--blue); }
+#nv-prepa .np-type b { font-size: 14px; letter-spacing: -.2px; }
+#nv-prepa .np-type span { font-family: var(--mono); font-size: 11px; color: var(--blue); margin-top: auto; }
+#nv-prepa .np-type::after { content: ''; position: absolute; right: -40px; bottom: -50px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(122,167,255,0.14), transparent 70%); }
+#nv-prepa.is-compact .np-types { grid-template-columns: 1fr 1fr; }
+
+/* Écran d'épreuve : épuré, chrono lumineux */
+#nv-prepa .np-exam { position: absolute; left: 0; right: 0; top: var(--vis-top, 0px); height: var(--vis-h, 100%); z-index: 3500; display: none; flex-direction: column; background: #05060b; overflow: hidden; }
+#nv-prepa.is-boxed .np-exam { top: 0; height: 100%; }
+#nv-prepa .np-exam.is-on { display: flex; animation: nv-fade .4s var(--ease); }
+#nv-prepa .np-exam:fullscreen { top: 0; height: 100%; }
+#nv-prepa .np-exam-top { display: flex; align-items: center; gap: 8px; padding: 14px 18px; position: relative; z-index: 2; }
+#nv-prepa .np-exam-top > div { flex: 1; min-width: 0; font-size: 12px; color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prepa .np-exam-top > div b { color: rgba(255,255,255,0.75); font-weight: 600; }
+#nv-prepa .np-ghost { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 13px; border-radius: 99px; border: 0; background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.65); font-size: 12px; font-weight: 500; cursor: pointer; transition: background .2s, color .2s; white-space: nowrap; }
+#nv-prepa .np-ghost:hover { background: rgba(255,255,255,0.1); color: #fff; }
+#nv-prepa .np-ghost svg { width: 14px; height: 14px; }
+#nv-prepa .np-ghost.is-main { background: #fff; color: #0a0a12; font-weight: 600; }
+#nv-prepa .np-exam-mid { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 10px 24px 30px; position: relative; }
+#nv-prepa .np-clock { position: relative; font-family: 'Inter', sans-serif; font-weight: 200; font-size: clamp(64px, 13vw, 168px); letter-spacing: -4px; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
+#nv-prepa .np-clock::before { content: ''; position: absolute; left: 50%; top: 50%; width: 130%; height: 170%; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(ellipse at center, rgba(122,167,255,0.32) 0%, rgba(79,125,255,0.12) 38%, transparent 70%); filter: blur(28px); z-index: -1; animation: np-glow 5s ease-in-out infinite; }
+#nv-prepa .np-clock { text-shadow: 0 0 40px rgba(122,167,255,0.35); }
+#nv-prepa .np-clock small { font-size: .38em; color: rgba(255,255,255,0.45); letter-spacing: -1px; margin-left: 4px; }
+#nv-prepa .np-exam.is-late .np-clock::before { background: radial-gradient(ellipse at center, rgba(255,138,138,0.3) 0%, rgba(255,138,138,0.08) 40%, transparent 70%); }
+#nv-prepa .np-exam.is-done .np-clock { color: rgba(255,255,255,0.5); text-shadow: none; }
+@keyframes np-glow { 0%, 100% { opacity: .75; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); } }
+#nv-prepa .np-step { margin-top: 34px; max-width: 640px; }
+#nv-prepa .np-step b { display: block; font-size: clamp(18px, 2.4vw, 24px); font-weight: 600; letter-spacing: -.4px; color: #fff; }
+#nv-prepa .np-step p { margin: 8px auto 0; font-size: 14px; line-height: 1.6; color: rgba(255,255,255,0.55); max-width: 560px; }
+#nv-prepa .np-next { margin-top: 22px; font-size: 12.5px; color: rgba(255,255,255,0.28); }
+#nv-prepa .np-steps { display: flex; gap: 4px; width: min(640px, 100%); margin-top: 34px; }
+#nv-prepa .np-steps i { flex: 1; height: 3px; border-radius: 9px; background: rgba(255,255,255,0.08); overflow: hidden; position: relative; }
+#nv-prepa .np-steps i em { position: absolute; inset: 0; width: 0; background: linear-gradient(90deg, var(--blue-deep), var(--blue-hi)); }
+#nv-prepa .np-details { margin-top: 14px; }
+#nv-prepa .np-details ul { margin: 12px auto 0; padding: 0; list-style: none; max-width: 560px; text-align: left; }
+#nv-prepa .np-details li { font-size: 13px; line-height: 1.55; color: rgba(255,255,255,0.5); padding: 4px 0 4px 16px; position: relative; }
+#nv-prepa .np-details li::before { content: ''; position: absolute; left: 2px; top: 12px; width: 5px; height: 5px; border-radius: 50%; background: rgba(122,167,255,0.6); }
+#nv-prepa .np-sujet { position: absolute; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: #0c0d16; z-index: 4; transform: translateX(102%); transition: transform .35s var(--ease); display: flex; flex-direction: column; box-shadow: -20px 0 60px rgba(0,0,0,0.5); }
+#nv-prepa .np-sujet.is-on { transform: none; }
+#nv-prepa .np-sujet-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; }
+#nv-prepa .np-sujet-head b { flex: 1; font-size: 13px; }
+#nv-prepa .np-sujet-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 22px 30px; font-family: var(--serif); font-size: 16px; line-height: 1.75; color: rgba(255,255,255,0.86); white-space: pre-wrap; }
+#nv-prepa .np-rendre { position: absolute; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; background: rgba(5,6,11,0.8); padding: 16px; }
+#nv-prepa .np-rendre.is-on { display: flex; }
+#nv-prepa .np-rendre > div { width: min(440px, 100%); padding: 22px; border-radius: 20px; background: #12131f; }
+#nv-prepa .np-rendre h4 { margin: 0 0 4px; font-size: 17px; }
+#nv-prepa .np-rendre p { margin: 0; font-size: 12.5px; color: var(--text-3); line-height: 1.5; }
 </style>
 
 <div id="nv-prepa">
@@ -378,6 +461,38 @@
   </main>
 
   <div class="np-pop" data-el="pop" data-act="pop-close"><div class="np-pop-card" data-el="pop-card"></div></div>
+
+  <!-- Écran d'épreuve : chrono, étape en cours, étape suivante -->
+  <div class="np-exam" data-el="exam">
+    <div class="np-exam-top">
+      <div data-el="exam-titre"></div>
+      <button class="np-ghost" data-act="exam-sujet">Sujet</button>
+      <button class="np-ghost" data-act="exam-plein" title="Plein écran"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+      <button class="np-ghost is-main" data-act="exam-rendre">Rendre ma copie</button>
+      <button class="np-ghost" data-act="exam-quitter" title="Quitter l'écran (le chrono continue)">Quitter</button>
+    </div>
+    <div class="np-exam-mid">
+      <div class="np-clock" data-el="exam-clock">0:00:00</div>
+      <div class="np-step"><b data-el="exam-step"></b><p data-el="exam-hint"></p></div>
+      <div class="np-next" data-el="exam-next"></div>
+      <div class="np-steps" data-el="exam-steps"></div>
+      <div class="np-details"><button class="np-ghost" data-act="exam-details" data-el="exam-dbtn">Détails de l'étape</button><ul data-el="exam-details" hidden></ul></div>
+    </div>
+    <div class="np-sujet" data-el="exam-sujet">
+      <div class="np-sujet-head"><b>Sujet</b><span data-el="exam-sujet-pdf"></span><button class="np-ghost" data-act="exam-sujet">Fermer</button></div>
+      <div class="np-sujet-body" data-el="exam-sujet-body"></div>
+    </div>
+    <div class="np-rendre" data-el="exam-rendre">
+      <div class="np-form">
+        <h4>Rendre ma copie</h4>
+        <p>Ta copie (.docx ou .pdf) part au correcteur de ton groupe, avec le temps passé.</p>
+        <label class="np-drop" data-el="exam-drop"><input type="file" accept=".docx,.pdf" data-el="exam-file"><span class="np-row-ico" style="width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></svg></span><div><b data-el="exam-fname">Choisir ma copie</b><span>.docx ou .pdf</span></div></label>
+        <label class="nv-field"><span>Un mot pour ton correcteur (facultatif)</span><textarea data-el="exam-msg" maxlength="3000"></textarea></label>
+        <div class="nv-err" data-el="exam-err"></div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button class="nv-chip" data-act="exam-rendre-annuler">Annuler</button><button class="nv-btn is-blue" style="flex:1" data-act="exam-rendre-ok" data-el="exam-ok" disabled>Envoyer</button></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -398,9 +513,13 @@
     token: null, me: null, p: null, view: "semaine", voir: null,
     cal: { mode: "semaine", ref: new Date() },
     copie: null,       // copie ouverte : { id, data }
+    ep: null,          // GET /lib/prepa/epreuves
+    exam: null,        // épreuve en cours : session (chrono serveur)
+    skew: 0,           // décalage horloge serveur − navigateur (ms)
+    libre: { type: null, matiere: "", titre: "", sujet: "" },
     dv: { matiere: "", titre: "", message: "", file: null, busy: false }
   };
-  var VIEWS = ["semaine", "copies", "rendre", "cours", "factu"];
+  var VIEWS = ["semaine", "epreuves", "copies", "rendre", "cours", "factu"];
 
   // ================= OUTILS =================
   function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
@@ -463,39 +582,102 @@
     next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>',
     lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
   };
 
-  // ================= HAUTEUR (comme les autres embeds) =================
+  // ================= DÉFILEMENT : la page du site défile, pas l'embed =================
+  // L'embed prend la hauteur de son contenu ; la page du site défile. La barre
+  // latérale, la barre du haut et les fenêtres suivent la partie visible de
+  // l'embed, calée sur la hauteur de l'écran (variables --vis-top, --vis-h).
+  // Repli « is-boxed » (iframe d'une autre origine, la page du site est
+  // inaccessible) : hauteur de l'écran, le contenu défile dans l'embed.
   var FRAMED = window.self !== window.top, HOST = null, frameEl = null, wrappers = [];
   if (FRAMED) {
     var hideBar = document.createElement("style");
-    hideBar.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    hideBar.textContent = "html,body{margin:0;scrollbar-width:none;overflow:hidden}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
     document.head.appendChild(hideBar);
     try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
     if (frameEl) for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
   }
-  function sizeApp() {
-    var win = HOST || window, h;
-    if (HOST || !FRAMED) {
-      var anchor = frameEl || root;
-      var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
-      h = Math.max(560, Math.round(win.innerHeight - top - 12));
-    } else {
-      h = Math.max(560, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+  var BOXED = FRAMED && !HOST;
+  root.classList.add(BOXED ? "is-boxed" : "is-flow");
+  var FLOW = (function () {
+    var subs = [], ticking = false;
+    function win() { return HOST || window; }
+    function vh() { return win().innerHeight || 800; }
+    function page() { return el("page"); }
+    // Haut de l'embed dans la fenêtre du site.
+    function rootTop() { return (frameEl ? frameEl.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; }
+    function barH() { var b = root.querySelector(".nv-topbar"); return b && b.offsetParent ? b.offsetHeight : 0; }
+    var F = {
+      boxed: BOXED,
+      // Défilement lu depuis le haut de l'embed.
+      y: function () { return BOXED ? page().scrollTop : Math.max(0, -rootTop()); },
+      to: function (y, smooth) {
+        y = Math.max(0, y || 0);
+        if (BOXED) { page().scrollTo({ top: y, behavior: smooth ? "smooth" : "auto" }); return; }
+        var w = win();
+        w.scrollTo({ top: Math.max(0, (w.scrollY || w.pageYOffset || 0) + rootTop() + y), behavior: smooth ? "smooth" : "auto" });
+      },
+      // Position d'un élément, dans le même repère que y().
+      elY: function (node) {
+        if (BOXED) return node.getBoundingClientRect().top - page().getBoundingClientRect().top + page().scrollTop;
+        return node.getBoundingClientRect().top - root.getBoundingClientRect().top;
+      },
+      toEl: function (node, off, smooth) { if (node) F.to(F.elY(node) - (off == null ? 16 : off) - (BOXED ? 0 : barH()), smooth); },
+      // Changement de vue : on remonte en haut de l'embed s'il est dépassé.
+      top: function () { if (BOXED) page().scrollTop = 0; else if (rootTop() < 0) F.to(0); },
+      // Part lue (0 à 1) de la vue.
+      progress: function () {
+        if (BOXED) { var p = page(), m = p.scrollHeight - p.clientHeight; return m > 0 ? p.scrollTop / m : 0; }
+        var max = root.offsetHeight - vh() + Math.max(0, rootTop() + F.y());
+        return max > 0 ? Math.min(1, F.y() / max) : 0;
+      },
+      onScroll: function (fn) { subs.push(fn); },
+      layout: function () {
+        if (BOXED) { root.style.setProperty("--vis-top", "0px"); root.style.setProperty("--vis-h", root.offsetHeight + "px"); return; }
+        var rt = rootTop(), rh = root.offsetHeight, h = vh();
+        var visH = Math.max(200, Math.min(h, rt + rh) - Math.max(0, rt));
+        var visTop = Math.max(0, Math.min(-rt, rh - visH));
+        root.style.setProperty("--vis-top", Math.round(visTop) + "px");
+        root.style.setProperty("--vis-h", Math.round(visH) + "px");
+      },
+      size: function () {
+        var w = win();
+        if (BOXED) {
+          var hb = Math.max(560, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+          root.style.height = hb + "px";
+          try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: hb }, "*"); } catch (e) {}
+          F.layout();
+          return;
+        }
+        var top = rootTop() + (w.scrollY || w.pageYOffset || 0);
+        root.style.height = "auto";
+        root.style.minHeight = Math.max(560, Math.round(vh() - top - 12)) + "px";
+        var h = root.offsetHeight;
+        if (frameEl) {
+          frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+          wrappers.forEach(function (x) { if (x.childElementCount === 1) x.style.minHeight = h + "px"; });
+        }
+        F.layout();
+      }
+    };
+    function tick() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () { ticking = false; F.layout(); subs.forEach(function (fn) { try { fn(); } catch (e) {} }); });
     }
-    root.style.height = h + "px";
-    if (frameEl) {
-      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
-      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; });
-    } else if (FRAMED) {
-      try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
-    }
-  }
+    if (BOXED) setTimeout(function () { page().addEventListener("scroll", tick, { passive: true }); }, 0);
+    else win().addEventListener("scroll", tick, { passive: true });
+    win().addEventListener("resize", function () { F.size(); tick(); });
+    if (window.ResizeObserver) new ResizeObserver(function () { F.size(); }).observe(root);
+    window.addEventListener("load", F.size);
+    setTimeout(F.size, 600);
+    return F;
+  })();
+  function sizeApp() { FLOW.size(); }
   sizeApp();
-  (HOST || window).addEventListener("resize", sizeApp);
-  window.addEventListener("load", sizeApp);
-  setTimeout(sizeApp, 600);
 
   function updateCompact() {
     var w = root.clientWidth;
@@ -515,7 +697,8 @@
   function setPage(html, wide) {
     var p = el("page");
     p.innerHTML = '<div class="nv-page-inner' + (wide ? " is-wide" : "") + '">' + html + '</div>';
-    p.scrollTop = 0;
+    FLOW.top();
+    sizeApp();
   }
   function setTitle(t) { el("title").textContent = t; }
 
@@ -549,6 +732,7 @@
       var n = nonLues();
       var items = [
         ["semaine", "Calendrier", "cal", ""],
+        ["epreuves", "Épreuves", "timer", epBadge()],
         ["copies", "Mes copies", "file", n ? '<span class="nv-badge is-blue">' + n + '</span>' : '<span class="nv-badge">' + ((p.devoirs || []).length || "") + '</span>'],
         ["rendre", "Rendre une copie", "up", ""],
         ["cours", "Cours", "book", '<span class="nv-badge">' + (((p.suivis || []).length + (p.cours_lib || []).length) || "") + '</span>'],
@@ -595,6 +779,7 @@
     if (view === "rendre") return viewRendre();
     if (view === "cours") return viewCours();
     if (view === "factu") return viewFactu();
+    if (view === "epreuves") return viewEpreuves();
     if (view === "copie") return openCopie(opts);
   }
 
@@ -971,8 +1156,243 @@
     setPage(html);
   }
 
+
+  // ================= ÉPREUVES =================
+  // Étapes de chaque épreuve, pour la durée de référence ; elles s'étirent
+  // ou se resserrent si le professeur a choisi une autre durée.
+  var EPREUVES = {
+    dissertation: { label: "Dissertation", ref: 180, etapes: [
+      [0, 20, "Analyse du sujet et définition des termes", "Décortique chaque mot, délimite le sujet, note tes connaissances au brouillon.",
+        ["Décortiquer chaque mot du sujet (conjonctions, adjectifs, termes techniques).", "Délimiter le sujet : cadre temporel, matériel, spatial.", "Mobiliser les connaissances brutes au brouillon : articles, arrêts, auteurs, notions."]],
+      [20, 40, "Problématisation", "Trouve le fil rouge : quel débat juridique se cache derrière le sujet ?",
+        ["Trouver le fil rouge : quel est le débat juridique sous-jacent ? Pourquoi ce sujet pose-t-il question aujourd'hui ?", "Formuler clairement la problématique, en une phrase interrogative ou affirmative percutante."]],
+      [40, 60, "Construction du plan", "Deux parties, deux sous-parties, équilibrées et juridiques.",
+        ["Élaborer un plan en deux parties et deux sous-parties équilibrées (I. A / B et II. A / B).", "Rédiger les intitulés au brouillon : analytiques, juridiques, neutres. Pas de « oui / non » ni de plan bateau."]],
+      [60, 90, "Rédaction de l'introduction", "Accroche, définitions, intérêt, problématique, annonce du plan.",
+        ["Accroche : citation, actualité, historique large.", "Définition des termes du sujet.", "Intérêt du sujet : pourquoi il est important en droit.", "Problématique.", "Annonce du plan, formulée élégamment."]],
+      [90, 165, "Rédaction au propre", "Soigne les chapeaux et les transitions, illustre chaque argument.",
+        ["Rédiger directement sur la copie en soignant les chapeaux et les transitions logiques.", "Illustrer chaque argument par des références précises : articles, jurisprudence constante."]],
+      [165, 180, "Relecture finale", "Orthographe, syntaxe, introduction, conclusion : aucun hors-sujet.",
+        ["Vérifier l'orthographe et la syntaxe.", "Vérifier la présence de l'introduction et de la conclusion (si demandée).", "S'assurer qu'aucun hors-sujet ne s'est glissé dans les sous-parties."]]] },
+    commentaire: { label: "Commentaire d'arrêt", ref: 180, etapes: [
+      [0, 30, "Lecture active et qualification", "Lis l'arrêt plusieurs fois, qualifie les faits, repère la procédure.",
+        ["Lire l'arrêt plusieurs fois et surligner les termes juridiques clés.", "Qualifier les faits au brouillon : « un acheteur », « un vendeur », « un employeur ».", "Identifier la procédure (qui attaque ? cour d'appel ? Cour de cassation ?) et le problème de droit."]],
+      [30, 60, "Analyse de la solution et des motifs", "Rejet ou cassation, sur quel fondement, quelle portée ?",
+        ["Décortiquer la solution : rejet ou cassation ? Sur quel fondement ?", "Comprendre la portée : arrêt de principe, revirement, simple application d'un texte clair ?"]],
+      [60, 80, "Plan et introduction", "Deux parties équilibrées, puis l'introduction complète au brouillon.",
+        ["Trouver un plan en deux parties équilibrées (I. la solution, le principe posé / II. la portée, la critique).", "Rédiger l'introduction : faits, procédure, prétentions, problème de droit, solution, annonce du plan."]],
+      [80, 165, "Rédaction au propre", "I. Le sens de la décision. II. Sa valeur et sa portée.",
+        ["Partie I : analyse de la décision (sens, visa, interprétation de la règle par le juge).", "Partie II : appréciation (valeur, portée pratique, critique doctrinale, limites)."]],
+      [165, 180, "Relecture", "Tu commentes bien l'arrêt, pas le thème général ?",
+        ["Vérifier qu'on commente bien l'arrêt et qu'on ne fait pas une dissertation sur le thème général."]]] },
+    cas_pratique: { label: "Cas pratique", ref: 180, etapes: [
+      [0, 30, "Analyse chronologique et qualification", "Schéma des faits, qualification de chaque personnage, isole chaque problème.",
+        ["Faire un schéma chronologique si l'histoire est complexe.", "Qualifier chaque personnage et chaque fait en termes juridiques.", "Isoler distinctement chaque problème juridique soulevé par l'énoncé."]],
+      [30, 45, "Règles de droit applicables", "Un article ou une jurisprudence précise pour chaque problème.",
+        ["Associer à chaque problème l'article de loi précis ou la jurisprudence constante.", "Ne rien inventer : en cas de doute sur un délai ou une condition, l'énoncé ou les codes guident."]],
+      [45, 60, "Structuration de la copie", "Ordre chronologique des faits ou ordre thématique.",
+        ["Organiser les parties selon l'ordre chronologique des faits ou par thème juridique (souvent une partie par personnage ou par question)."]],
+      [60, 165, "Rédaction en syllogismes", "Majeure, mineure, solution, pour chaque problème.",
+        ["La majeure : la règle de droit générale et abstraite (article et jurisprudence).", "La mineure : l'application stricte de la règle aux faits de l'espèce, sans généralités.", "La solution : la conséquence juridique (qui gagne ? quel droit, quelle indemnisation ?)."]],
+      [165, 180, "Relecture", "Chaque question a une réponse claire et fondée ?",
+        ["S'assurer que toutes les questions de l'énoncé ont une réponse claire, motivée et juridiquement fondée."]]] },
+    fiche_arret: { label: "Fiche d'arrêt", ref: 75, etapes: [
+      [0, 20, "Lecture et repérage des balises", "Faits, procédure, prétentions, problème de droit, solution.",
+        ["Les faits : résumé ultra-synthétique et juridiquement qualifié.", "La procédure : première instance, appel, pourvoi.", "Les prétentions des parties : qui demande quoi, et pourquoi.", "Le problème de droit : la question précise, formulée sans noms propres.", "La solution : rejet ou cassation, et le motif de principe."]],
+      [20, 60, "Rédaction structurée", "Un paragraphe par balise, sans détail narratif inutile.",
+        ["Rédiger en paragraphes distincts, titrés : Faits, Procédure, Prétentions, Problème de droit, Solution.", "Éliminer les détails narratifs : seuls comptent les faits porteurs d'effets juridiques."]],
+      [60, 75, "Relecture", "Concision et rigueur du vocabulaire juridique.",
+        ["Vérifier la concision et la rigueur du vocabulaire juridique."]]] }
+  };
+  function srvNow() { return Date.now() + S.skew; }
+  function setSkew(iso) { var d = Date.parse(iso || ""); if (!isNaN(d)) S.skew = d - Date.now(); }
+  function etapes(type, duree) {
+    var E = EPREUVES[type] || EPREUVES.dissertation, k = (duree || E.ref) / E.ref;
+    return E.etapes.map(function (x) { return { debut: x[0] * k, fin: x[1] * k, titre: x[2], phrase: x[3], details: x[4] }; });
+  }
+  function hms(sec) {
+    sec = Math.max(0, Math.round(sec));
+    var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s2 = sec % 60;
+    return (h ? h + ":" + (m < 10 ? "0" : "") : "") + m + ":" + (s2 < 10 ? "0" : "") + s2;
+  }
+  function duree(min) { return min >= 60 ? Math.floor(min / 60) + " h" + (min % 60 ? " " + (min % 60 < 10 ? "0" : "") + (min % 60) : "") : min + " min"; }
+  function epBadge() {
+    var ep = S.ep; if (!ep) return "";
+    var n = (ep.planifiees || []).filter(function (x) { return x.etat === "ouverte" && !x.session; }).length;
+    var live = (ep.sessions || []).some(function (x) { return x.statut === "en_cours"; });
+    return live ? '<span class="nv-badge is-blue">●</span>' : n ? '<span class="nv-badge is-blue">' + n + '</span>' : "";
+  }
+  function chargerEpreuves() {
+    if (!S.p || !S.p.prepa) return Promise.resolve();
+    if (S.p.apercu) { S.ep = { planifiees: [], sessions: [], matieres: (S.p.matieres || []).map(function (m) { return { matiere_key: m.matiere_key, label: m.label }; }) }; return Promise.resolve(); }
+    return api("GET", "/lib/prepa/epreuves").then(function (r) {
+      S.ep = r; setSkew(r.server_now); renderSide();
+      // Reprise automatique d'une épreuve en cours (rechargement de la page).
+      var vive = (r.sessions || []).filter(function (x) { return x.statut === "en_cours"; })[0];
+      if (vive && load("navire_prepa_exam") === String(vive.id) && !S.exam) ouvrirExam(vive.id);
+    }).catch(function () {});
+  }
+
+  function viewEpreuves() {
+    setTitle("Épreuves");
+    var ep = S.ep;
+    if (!ep) { setPage('<div class="nv-skel" style="height:80px;margin-top:10px"></div><div class="nv-skel"></div>'); chargerEpreuves().then(function () { if (S.view === "epreuves") viewEpreuves(); }); return; }
+    var html = '<div class="nv-page-head"><h2>Épreuves</h2><p>En conditions réelles : un chrono, l\'étape où tu en es, la suivante. À la fin, tu rends ta copie à ton correcteur.</p></div>';
+    if (S.p.apercu) html += '<div class="cx-wait">Vue étudiant : le chrono d\'essai n\'enregistre rien.</div>';
+    var plan = ep.planifiees || [];
+    html += '<div class="np-sec">Planifiées par ton professeur <small>' + plan.length + '</small></div>';
+    if (!plan.length) html += '<div class="cx-wait">Aucune épreuve planifiée pour le moment.</div>';
+    html += plan.map(function (x) {
+      var o = dateOf(x.ouvre_le), f = dateOf(x.ferme_le), s = x.session, btn = "", sous;
+      if (x.etat === "a_venir") sous = "Ouvre " + jour(o, true).toLowerCase() + " à " + hhmm(o);
+      else if (x.etat === "ouverte") sous = "Ouverte jusqu'au " + jour(f, true).toLowerCase() + " à " + hhmm(f);
+      else sous = "Fermée";
+      if (s && s.statut === "en_cours") btn = '<button class="nv-btn is-blue" data-ep-reprendre="' + s.id + '">Reprendre</button>';
+      else if (s && s.statut === "terminee") btn = '<button class="nv-btn" data-ep-reprendre="' + s.id + '">Rendre ma copie</button>';
+      else if (s && s.statut === "rendue") btn = '<span class="nv-tag solid">RENDUE</span>';
+      else if (s) btn = '<span class="nv-tag">' + esc(s.statut === "abandonnee" ? "ABANDONNÉE" : s.statut) + '</span>';
+      else if (x.etat === "ouverte") btn = '<button class="nv-btn is-blue" data-ep-start="' + x.id + '">Commencer</button>';
+      else btn = '<span class="nv-tag">' + (x.etat === "a_venir" ? "À VENIR" : "FERMÉE") + '</span>';
+      return '<div class="np-row is-static"><span class="np-row-ico">' + ico("timer", 16) + '</span><div class="np-row-txt"><b>' + esc(x.titre) + '</b><span>' +
+        esc(x.type_label + " · " + duree(x.duree_minutes) + " · " + (x.matiere || "") + " · " + sous) + '</span></div>' + btn + '</div>';
+    }).join("");
+
+    var L = S.libre, mats = ep.matieres || [];
+    if (!L.matiere && mats.length) L.matiere = mats[0].matiere_key;
+    html += '<div class="np-sec">S\'entraîner librement</div><div class="np-types">' + Object.keys(EPREUVES).map(function (k) {
+      var E = EPREUVES[k];
+      return '<button class="np-type' + (L.type === k ? " is-on" : "") + '" data-ep-type="' + k + '"><b>' + esc(E.label) + '</b><span>' + duree(E.ref) + ' · ' + E.etapes.length + ' étapes</span></button>';
+    }).join("") + '</div>';
+    if (L.type) {
+      html += '<div class="nv-card np-form" style="margin-top:12px">' +
+        (mats.length > 1 ? '<label class="nv-field" style="margin-top:0"><span>Matière (ta copie partira à son correcteur)</span><select data-libre="matiere">' + mats.map(function (m) { return '<option value="' + esc(m.matiere_key) + '"' + (m.matiere_key === L.matiere ? " selected" : "") + '>' + esc(m.label) + '</option>'; }).join("") + '</select></label>' : "") +
+        '<label class="nv-field"' + (mats.length > 1 ? "" : ' style="margin-top:0"') + '><span>Sujet (facultatif)</span><textarea data-libre="sujet" placeholder="Colle ton sujet ou l\'arrêt à commenter : tu pourras le relire pendant l\'épreuve.">' + esc(L.sujet) + '</textarea></label>' +
+        '<button class="nv-btn is-blue is-block" style="margin-top:12px" data-act="ep-libre-go">' + ico("timer", 15) + 'Lancer le chrono · ' + duree(EPREUVES[L.type].ref) + '</button></div>';
+    }
+    var libres = (ep.sessions || []).filter(function (x) { return x.libre; });
+    if (libres.length) {
+      html += '<div class="np-sec">Mes entraînements <small>' + libres.length + '</small></div>' + libres.map(function (x) {
+        var d = dateOf(x.started_at);
+        var btn = x.statut === "en_cours" ? '<button class="nv-btn is-blue" data-ep-reprendre="' + x.id + '">Reprendre</button>' : x.statut === "terminee" ? '<button class="nv-chip" data-ep-reprendre="' + x.id + '">Rendre</button>' : '<span class="nv-tag' + (x.statut === "rendue" ? " solid" : "") + '">' + (x.statut === "rendue" ? "RENDUE" : "TERMINÉE") + '</span>';
+        return '<div class="np-row is-static"><span class="np-row-ico">' + ico("timer", 16) + '</span><div class="np-row-txt"><b>' + esc(x.titre) + '</b><span>' + esc(x.matiere + " · " + (d ? jour(d) : "")) + '</span></div>' + btn + '</div>';
+      }).join("");
+    }
+    setPage(html);
+  }
+
+  function lancerPlanifiee(id) {
+    var x = ((S.ep && S.ep.planifiees) || []).filter(function (y) { return y.id === id; })[0];
+    if (!x || !window.confirm("Commencer « " + x.titre + " » ? Le chrono de " + duree(x.duree_minutes) + " démarre tout de suite et ne s'arrête plus.")) return;
+    api("POST", "/lib/prepa/epreuves/sessions", { epreuve_id: id }).then(demarrer).catch(function (e) { toast(e.message, true); });
+  }
+  function lancerLibre() {
+    var L = S.libre; if (!L.type) return;
+    if (S.p.apercu) {   // vue étudiant (admin) : chrono d'essai, rien n'est enregistré
+      var now = new Date(srvNow()).toISOString();
+      return demarrer({ id: 0, essai: true, type: L.type, type_label: EPREUVES[L.type].label, titre: EPREUVES[L.type].label, matiere: "Essai", sujet: L.sujet, duree_minutes: EPREUVES[L.type].ref, started_at: now, server_now: now, statut: "en_cours" });
+    }
+    if (!window.confirm("Lancer le chrono ? " + EPREUVES[L.type].label + ", " + duree(EPREUVES[L.type].ref) + ".")) return;
+    api("POST", "/lib/prepa/epreuves/sessions", { type: L.type, matiere_key: L.matiere, sujet: L.sujet }).then(demarrer).catch(function (e) { toast(e.message, true); });
+  }
+  function demarrer(sess) {
+    S.libre = { type: null, matiere: S.libre.matiere, titre: "", sujet: "" };
+    S.ep = null; chargerEpreuves();
+    montrerExam(sess);
+  }
+  function ouvrirExam(id) {
+    api("GET", "/lib/prepa/epreuves/sessions/" + id).then(montrerExam).catch(function (e) { store("navire_prepa_exam", null); toast(e.message, true); });
+  }
+  var examTimer = null;
+  function montrerExam(sess) {
+    setSkew(sess.server_now);
+    S.exam = sess;
+    if (sess.id) store("navire_prepa_exam", String(sess.id));
+    var E = EPREUVES[sess.type] || EPREUVES.dissertation;
+    el("exam-titre").innerHTML = '<b>' + esc(E.label) + '</b> · ' + esc(sess.titre) + (sess.matiere ? " · " + esc(sess.matiere) : "") + (sess.essai ? " · essai" : "");
+    el("exam-sujet-body").textContent = sess.sujet || "Pas de sujet en texte.";
+    el("exam-sujet-pdf").innerHTML = sess.sujet_pdf ? '<button class="np-ghost" data-act="exam-sujet-pdf-open">PDF du sujet</button>' : "";
+    el("exam-sujet").classList.toggle("is-on", false);
+    el("exam-rendre").classList.remove("is-on");
+    el("exam-details").hidden = true; el("exam-dbtn").textContent = "Détails de l'étape";
+    el("exam-file").value = ""; S.examFile = null; el("exam-fname").textContent = "Choisir ma copie"; el("exam-ok").disabled = true; el("exam-err").textContent = "";
+    el("exam-steps").innerHTML = etapes(sess.type, sess.duree_minutes).map(function () { return "<i><em></em></i>"; }).join("");
+    el("exam").classList.add("is-on");
+    root.classList.remove("is-drawer");
+    S.examEtape = -1;
+    clearInterval(examTimer);
+    tickExam();
+    examTimer = setInterval(tickExam, 250);
+    if (sess.statut === "terminee") el("exam-rendre").classList.add("is-on");
+  }
+  function tickExam() {
+    var x = S.exam; if (!x) return;
+    var debut = Date.parse(x.started_at), total = x.duree_minutes * 60;
+    var ecoule = (srvNow() - debut) / 1000, reste = total - ecoule, ex = el("exam");
+    ex.classList.toggle("is-done", reste <= 0);
+    ex.classList.toggle("is-late", reste > 0 && reste < 300);
+    el("exam-clock").innerHTML = reste > 0 ? hms(reste) : '0:00<small>temps écoulé</small>';
+    var et = etapes(x.type, x.duree_minutes), m = ecoule / 60, k = 0;
+    for (var i = 0; i < et.length; i++) if (m >= et[i].debut) k = i;
+    el("exam-steps").querySelectorAll("em").forEach(function (b, i) {
+      var p = i < k ? 1 : i > k ? 0 : (m - et[i].debut) / (et[i].fin - et[i].debut);
+      b.style.width = Math.max(0, Math.min(1, reste <= 0 ? 1 : p)) * 100 + "%";
+    });
+    if (k === S.examEtape && reste > 0) return;
+    S.examEtape = k;
+    if (reste <= 0) {
+      el("exam-step").textContent = "Pose ton stylo.";
+      el("exam-hint").textContent = "Le temps est écoulé. Rends ta copie à ton correcteur.";
+      el("exam-next").textContent = "";
+      el("exam-details").innerHTML = "";
+      return;
+    }
+    var cur = et[k], nxt = et[k + 1];
+    el("exam-step").textContent = cur.titre;
+    el("exam-hint").textContent = cur.phrase;
+    var debNext = nxt ? new Date(debut + nxt.debut * 60000) : null;
+    el("exam-next").textContent = nxt ? "Ensuite, à " + hms(nxt.debut * 60).replace(/:\d\d$/, "").replace(/^(\d+)$/, "0:$1") + " · " + nxt.titre : "Dernière étape";
+    if (debNext) el("exam-next").title = "Vers " + hhmm(debNext);
+    el("exam-details").innerHTML = cur.details.map(function (d) { return "<li>" + esc(d) + "</li>"; }).join("");
+  }
+  function fermerExam() {
+    clearInterval(examTimer);
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (x) {}
+    el("exam").classList.remove("is-on");
+    S.exam = null;
+    if (S.view === "epreuves") viewEpreuves();
+  }
+  function choisirCopieExam(f) {
+    if (!/\.(pdf|docx)$/i.test(f.name)) return toast("Dépose un fichier .docx ou .pdf.", true);
+    S.examFile = f;
+    el("exam-fname").textContent = f.name;
+    el("exam-ok").disabled = false;
+  }
+  function rendreExam() {
+    var x = S.exam, f = S.examFile; if (!x || !f) return;
+    if (x.essai) { toast("Vue étudiant : rien n'est envoyé."); return fermerExam(); }
+    var b = el("exam-ok"); b.disabled = true; b.textContent = "Envoi…";
+    var fd = new FormData(); fd.append("file", f); fd.append("message", el("exam-msg").value || "");
+    fetch(CONFIG.API + "/lib/prepa/epreuves/sessions/" + x.id + "/rendre", { method: "POST", headers: { Authorization: "Bearer " + S.token }, body: fd })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(detail(j.detail)); return j; }); })
+      .then(function (r) {
+        store("navire_prepa_exam", null);
+        S.p.devoirs = [r.devoir].concat(S.p.devoirs || []);
+        fermerExam();
+        S.ep = null; chargerEpreuves();
+        toast("Copie rendue à ton correcteur.");
+        show("copie", r.devoir.id);
+      })
+      .catch(function (e) { b.disabled = false; b.textContent = "Envoyer"; el("exam-err").textContent = e.message; });
+  }
+
   // ================= ÉVÉNEMENTS =================
   root.addEventListener("click", function (e) {
+    var t0 = e.target.closest("[data-ep-start],[data-ep-type],[data-ep-reprendre]");
+    if (t0 && root.contains(t0)) {
+      if (t0.hasAttribute("data-ep-type")) { S.libre.type = S.libre.type === t0.getAttribute("data-ep-type") ? null : t0.getAttribute("data-ep-type"); return viewEpreuves(); }
+      if (t0.hasAttribute("data-ep-start")) return lancerPlanifiee(+t0.getAttribute("data-ep-start"));
+      return ouvrirExam(+t0.getAttribute("data-ep-reprendre"));
+    }
     var t = e.target.closest("[data-act],[data-view],[data-voir],[data-cal],[data-calmode],[data-seance],[data-copie],[data-export],[data-dl],[data-doc],[data-unfollow],[data-note],[data-c]");
     if (!t || !root.contains(t)) return;
     if (t.hasAttribute("data-unfollow")) { e.stopPropagation(); return unfollow(t.getAttribute("data-unfollow")); }
@@ -1004,6 +1424,15 @@
         store("navire_prepa_voir", S.voir);
         return charger();
       case "dv-submit": return submitDevoir();
+      case "exam-sujet": el("exam-sujet").classList.toggle("is-on"); return;
+      case "exam-sujet-pdf-open": return ouvrirFichier("/lib/prepa/epreuves/sessions/" + S.exam.id + "/sujet");
+      case "exam-plein": try { if (document.fullscreenElement) document.exitFullscreen(); else el("exam").requestFullscreen(); } catch (x) {} return;
+      case "exam-details": var ul = el("exam-details"); ul.hidden = !ul.hidden; el("exam-dbtn").textContent = ul.hidden ? "Détails de l'étape" : "Masquer les détails"; return;
+      case "exam-quitter": return fermerExam();
+      case "exam-rendre": el("exam-rendre").classList.add("is-on"); return;
+      case "exam-rendre-annuler": el("exam-rendre").classList.remove("is-on"); return;
+      case "exam-rendre-ok": return rendreExam();
+      case "ep-libre-go": return lancerLibre();
     }
   });
   root.addEventListener("keydown", function (e) {
@@ -1012,12 +1441,17 @@
     if (t && e.key === "Enter") go(CONFIG.LIB_URL + "?doc=" + t.getAttribute("data-doc"));
   });
   root.addEventListener("change", function (e) {
+    if (e.target.getAttribute && e.target.getAttribute("data-el") === "exam-file") { var f0 = e.target.files[0]; if (f0) choisirCopieExam(f0); return; }
+    var lk = e.target.getAttribute && e.target.getAttribute("data-libre");
+    if (lk) { S.libre[lk] = e.target.value; return; }
     var k = e.target.getAttribute && e.target.getAttribute("data-dv");
     if (!k) return;
     if (k === "file") { if (e.target.files[0]) pickFile(e.target.files[0]); return; }
     S.dv[k] = e.target.value;
   });
   root.addEventListener("input", function (e) {
+    var lk = e.target.getAttribute && e.target.getAttribute("data-libre");
+    if (lk) { S.libre[lk] = e.target.value; return; }
     var k = e.target.getAttribute && e.target.getAttribute("data-dv");
     if (k && k !== "file") S.dv[k] = e.target.value;
   });
@@ -1029,6 +1463,7 @@
     setPage('<div class="nv-skel" style="height:96px;margin-top:10px"></div><div class="nv-skel" style="height:260px"></div>', true);
     return api("GET", "/lib/prepa" + voirQ()).then(function (p) {
       S.p = p;
+      S.ep = null; chargerEpreuves();
       var copie = pageParam("copie"), onglet = pageParam("onglet");
       if (copie && p.prepa && !p.apercu) return show("copie", copie);
       show(VIEWS.indexOf(onglet) >= 0 ? onglet : (S.view === "copie" ? "copies" : S.view));
@@ -1047,7 +1482,7 @@
   // Les séances passent « en cours » : on relit l'emploi du temps toutes les deux minutes.
   setInterval(function () {
     if (!S.token || !S.p || !S.p.prepa || S.view !== "semaine") return;
-    api("GET", "/lib/prepa" + voirQ()).then(function (p) { S.p = p; if (S.view === "semaine") { renderSide(); var sc = el("page").scrollTop; viewSemaine(); el("page").scrollTop = sc; } }).catch(function () {});
+    api("GET", "/lib/prepa" + voirQ()).then(function (p) { S.p = p; if (S.view === "semaine") { renderSide(); var sc = FLOW.y(); viewSemaine(); FLOW.to(sc); } }).catch(function () {});
   }, 120000);
 })();
 </script>

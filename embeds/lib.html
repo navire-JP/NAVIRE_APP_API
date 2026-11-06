@@ -550,6 +550,22 @@
 @media (prefers-reduced-motion: reduce) {
   #nv-lib *, #nv-lib *::before, #nv-lib *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ================= DÉFILEMENT : la page du site défile ================= */
+#nv-lib.is-flow { height: auto; overflow: visible; overflow-x: clip; align-items: flex-start; }
+#nv-lib.is-flow .nv-page { overflow: visible; flex: none; }
+#nv-lib.is-flow .nv-main { min-height: 100%; align-self: stretch; }
+/* Barre latérale à la hauteur de l'écran, qui suit le défilement. */
+#nv-lib.is-flow:not(.is-compact) .nv-side { position: relative; top: var(--vis-top, 0px); height: var(--vis-h, 100%); overflow-y: auto; align-self: flex-start; }
+/* Barre du haut (et bande d'aperçu) qui restent en haut de l'écran. */
+#nv-lib.is-flow .nv-topbar { position: relative; top: var(--vis-top, 0px); z-index: 40; background: rgba(8,9,16,0.72); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+#nv-lib.is-flow.is-compact .nv-side, #nv-lib.is-flow .nv-scrim, #nv-lib .nl-pdf { top: var(--vis-top, 0px) !important; bottom: auto !important; height: var(--vis-h, 100%) !important; }
+#nv-lib.is-flow .nv-toasts { top: calc(var(--vis-top, 0px) + var(--vis-h, 100%) - 70px); bottom: auto; }
+
+/* Aperçu admin : bande de verre, transparente et discrète. */
+#nv-lib .nl-apercu { background: rgba(255,255,255,0.04) !important; color: rgba(255,255,255,0.62) !important; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); font-weight: 500 !important; box-shadow: inset 0 -1px 0 rgba(255,255,255,0.05); }
+#nv-lib .nl-apercu button, #nv-lib .nl-apercu select { background: rgba(255,255,255,0.08) !important; color: #fff !important; }
+#nv-lib.is-flow .nl-apercu { position: relative; top: var(--vis-top, 0px); z-index: 39; }
 </style>
 
 <div id="nv-lib" class="is-solo">
@@ -729,37 +745,98 @@
   function pp(size) { return '<span class="nl-pp" style="width:' + size + 'px;height:' + size + 'px;background-image:url(&quot;' + LOGO + '&quot;)"></span>'; }
   function ico(name, size) { return ICON[name].replace("<svg", '<svg style="width:' + size + 'px;height:' + size + 'px"'); }
 
-  // ================= HAUTEUR (comme NAVIRE AI) =================
-  var FRAMED = window.self !== window.top;
-  var HOST = null, frameEl = null, wrappers = [];
+  // ================= DÉFILEMENT : la page du site défile, pas l'embed =================
+  // L'embed prend la hauteur de son contenu ; la page du site défile. La barre
+  // latérale, la barre du haut et les fenêtres suivent la partie visible de
+  // l'embed, calée sur la hauteur de l'écran (variables --vis-top, --vis-h).
+  // Repli « is-boxed » (iframe d'une autre origine, la page du site est
+  // inaccessible) : hauteur de l'écran, le contenu défile dans l'embed.
+  var FRAMED = window.self !== window.top, HOST = null, frameEl = null, wrappers = [];
   if (FRAMED) {
     var hideBar = document.createElement("style");
-    hideBar.textContent = "html,body{margin:0;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    hideBar.textContent = "html,body{margin:0;scrollbar-width:none;overflow:hidden}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
     document.head.appendChild(hideBar);
     try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
     if (frameEl) for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
   }
-  function sizeApp() {
-    var win = HOST || window, h;
-    if (HOST || !FRAMED) {
-      var anchor = frameEl || root;
-      var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
-      h = Math.max(560, Math.round(win.innerHeight - top - 12));
-    } else {
-      h = Math.max(560, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+  var BOXED = FRAMED && !HOST;
+  root.classList.add(BOXED ? "is-boxed" : "is-flow");
+  var FLOW = (function () {
+    var subs = [], ticking = false;
+    function win() { return HOST || window; }
+    function vh() { return win().innerHeight || 800; }
+    function page() { return el("page"); }
+    // Haut de l'embed dans la fenêtre du site.
+    function rootTop() { return (frameEl ? frameEl.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; }
+    function barH() { var b = root.querySelector(".nv-topbar"); return b && b.offsetParent ? b.offsetHeight : 0; }
+    var F = {
+      boxed: BOXED,
+      // Défilement lu depuis le haut de l'embed.
+      y: function () { return BOXED ? page().scrollTop : Math.max(0, -rootTop()); },
+      to: function (y, smooth) {
+        y = Math.max(0, y || 0);
+        if (BOXED) { page().scrollTo({ top: y, behavior: smooth ? "smooth" : "auto" }); return; }
+        var w = win();
+        w.scrollTo({ top: Math.max(0, (w.scrollY || w.pageYOffset || 0) + rootTop() + y), behavior: smooth ? "smooth" : "auto" });
+      },
+      // Position d'un élément, dans le même repère que y().
+      elY: function (node) {
+        if (BOXED) return node.getBoundingClientRect().top - page().getBoundingClientRect().top + page().scrollTop;
+        return node.getBoundingClientRect().top - root.getBoundingClientRect().top;
+      },
+      toEl: function (node, off, smooth) { if (node) F.to(F.elY(node) - (off == null ? 16 : off) - (BOXED ? 0 : barH()), smooth); },
+      // Changement de vue : on remonte en haut de l'embed s'il est dépassé.
+      top: function () { if (BOXED) page().scrollTop = 0; else if (rootTop() < 0) F.to(0); },
+      // Part lue (0 à 1) de la vue.
+      progress: function () {
+        if (BOXED) { var p = page(), m = p.scrollHeight - p.clientHeight; return m > 0 ? p.scrollTop / m : 0; }
+        var max = root.offsetHeight - vh() + Math.max(0, rootTop() + F.y());
+        return max > 0 ? Math.min(1, F.y() / max) : 0;
+      },
+      onScroll: function (fn) { subs.push(fn); },
+      layout: function () {
+        if (BOXED) { root.style.setProperty("--vis-top", "0px"); root.style.setProperty("--vis-h", root.offsetHeight + "px"); return; }
+        var rt = rootTop(), rh = root.offsetHeight, h = vh();
+        var visH = Math.max(200, Math.min(h, rt + rh) - Math.max(0, rt));
+        var visTop = Math.max(0, Math.min(-rt, rh - visH));
+        root.style.setProperty("--vis-top", Math.round(visTop) + "px");
+        root.style.setProperty("--vis-h", Math.round(visH) + "px");
+      },
+      size: function () {
+        var w = win();
+        if (BOXED) {
+          var hb = Math.max(560, Math.round((window.screen && window.screen.availHeight || 900) - 180));
+          root.style.height = hb + "px";
+          try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: hb }, "*"); } catch (e) {}
+          F.layout();
+          return;
+        }
+        var top = rootTop() + (w.scrollY || w.pageYOffset || 0);
+        root.style.height = "auto";
+        root.style.minHeight = Math.max(560, Math.round(vh() - top - 12)) + "px";
+        var h = root.offsetHeight;
+        if (frameEl) {
+          frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+          wrappers.forEach(function (x) { if (x.childElementCount === 1) x.style.minHeight = h + "px"; });
+        }
+        F.layout();
+      }
+    };
+    function tick() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () { ticking = false; F.layout(); subs.forEach(function (fn) { try { fn(); } catch (e) {} }); });
     }
-    root.style.height = h + "px";
-    if (frameEl) {
-      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
-      wrappers.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; });
-    } else if (FRAMED) {
-      try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
-    }
-  }
+    if (BOXED) setTimeout(function () { page().addEventListener("scroll", tick, { passive: true }); }, 0);
+    else win().addEventListener("scroll", tick, { passive: true });
+    win().addEventListener("resize", function () { F.size(); tick(); });
+    if (window.ResizeObserver) new ResizeObserver(function () { F.size(); }).observe(root);
+    window.addEventListener("load", F.size);
+    setTimeout(F.size, 600);
+    return F;
+  })();
+  function sizeApp() { FLOW.size(); }
   sizeApp();
-  (HOST || window).addEventListener("resize", sizeApp);
-  window.addEventListener("load", sizeApp);
-  setTimeout(sizeApp, 600);
 
   function updateCompact() {
     var compact = root.clientWidth < 760;
@@ -783,7 +860,8 @@
     root.classList.toggle("is-solo", !!solo);
     var p = el("page");
     p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
-    p.scrollTop = 0;
+    FLOW.top();
+    sizeApp();
     applyLogos(p);
   }
   function bar(pct) { return '<div class="nl-bar"><i style="width:' + Math.max(0, Math.min(100, pct || 0)) + '%"></i></div>'; }
@@ -973,14 +1051,14 @@
     root.classList.remove("is-drawer");
     el("hl-btn").style.display = "";
     el("hl-btn").classList.toggle("is-on", !S.plain);
-    var page = el("page"), keepTop = opts.keep ? page.scrollTop : null;
+    var page = el("page"), keepTop = opts.keep ? FLOW.y() : null;
     if (!opts.keep) page.innerHTML = '<div class="nv-page-inner"><div class="nv-skel" style="height:160px;margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div><div class="nv-skel"></div></div>';
     return api("GET", "/lib/documents/" + id + "?mode=" + S.mode).then(function (d) {
       // La carte de /lib/documents ne porte pas la Prépa : on la garde du catalogue.
       if (d.user && S.user) { d.user.prepa = S.user.prepa; d.user.apercu = S.user.apercu; }
       S.doc = d; S.user = d.user || S.user; renderElo();
       renderReader(opts);
-      if (keepTop != null && !opts.scrollTo) page.scrollTop = keepTop;
+      if (keepTop != null && !opts.scrollTo) { sizeApp(); FLOW.to(keepTop); }
     }).catch(function (x) {
       if (x.status === 404) { toast("Ce document n'est plus disponible.", true); return refreshCatalogue().then(viewLibrary); }
       if (x.status === 403 && !plus()) { toast("Ce document est dans Lib+."); return setMode("plus"); }
@@ -1276,22 +1354,24 @@
     var target = opts.scrollTo || (opts.keep ? null : load("navire_lib_pos_" + S.docId));
     if (target) {
       var t = document.getElementById("nl-" + target);
-      if (t) { page.scrollTop = Math.max(0, t.offsetTop - 20); if (opts.flash) flashFrom(target); }
+      if (t) { FLOW.toEl(t, 20); if (opts.flash) flashFrom(target); }
     }
     if (spy) spy.disconnect();
     var heads = page.querySelectorAll(".nl-h1, .nl-h2, .nl-h3");
     if (window.IntersectionObserver) {
       spy = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) { if (e.isIntersecting) setCurrent(e.target.getAttribute("data-block")); });
-      }, { root: page, rootMargin: "0px 0px -75% 0px" });
+      }, { root: FLOW.boxed ? page : null, rootMargin: "0px 0px -75% 0px" });
       heads.forEach(function (h) { spy.observe(h); });
     }
-    page.onscroll = function () {
-      var max = page.scrollHeight - page.clientHeight;
-      el("readbar").style.width = (max > 0 ? Math.round(100 * page.scrollTop / max) : 0) + "%";
-    };
-    page.onscroll();
+    readbar();
   }
+  // Barre de lecture : part du cours déjà lue.
+  function readbar() {
+    if (S.view !== "doc") return;
+    el("readbar").style.width = Math.round(100 * FLOW.progress()) + "%";
+  }
+  FLOW.onScroll(readbar);
   function setCurrent(id) {
     if (!id || S.current === id) return;
     S.current = id;
@@ -1313,7 +1393,7 @@
     while (n && k < 3) { n.classList.add("nl-flash"); n = n.nextElementSibling; k++; }
   }
   function scrollToEl(t) {
-    if (t) el("page").scrollTo({ top: t.offsetTop - 16, behavior: "smooth" });
+    if (t) FLOW.toEl(t, 16, true);
     root.classList.remove("is-drawer");
   }
 
