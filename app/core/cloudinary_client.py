@@ -83,3 +83,26 @@ def upload_avatar(file_bytes: bytes, user_id: int) -> str:
         ],
     )
     return result["secure_url"]
+
+BANNER_FOLDER = "navire/banners"
+
+
+def upload_banner(file_bytes: bytes, user_id: int) -> str:
+    """
+    Bannière de la page profil : recadrée en 1500x500 (format 3:1 de X),
+    centrée. public_id fixe par user, comme l'avatar : un nouvel upload
+    remplace l'ancienne bannière.
+    """
+    result = cloudinary.uploader.upload(
+        file_bytes,
+        folder=BANNER_FOLDER,
+        public_id=f"banner_user_{user_id}",
+        overwrite=True,
+        invalidate=True,
+        resource_type="image",
+        transformation=[
+            {"width": 1500, "height": 500, "crop": "fill", "gravity": "auto"},
+            {"quality": "auto", "fetch_format": "auto"},
+        ],
+    )
+    return result["secure_url"]

@@ -168,6 +168,12 @@ class User(Base):
     # ex: initiale du username).
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # Page profil (façon X) : bannière Cloudinary, courte bio et lien vers le
+    # profil LinkedIn. NULL tant que l'élève ne les a pas renseignés.
+    banner_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    bio: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    linkedin_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
     score: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     grade: Mapped[str] = mapped_column(String(64), default="Primo", nullable=False)
 
@@ -186,8 +192,9 @@ class User(Base):
 
     elo: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
 
-    # Classement : les autres joueurs peuvent ouvrir mes stats détaillées
-    # (QCM, séries, Elo). Le nom, l'Elo et le rang restent toujours visibles.
+    # Classement et page profil : les autres peuvent voir mes stats détaillées
+    # (QCM, documents, deep work, rang). Le nom, l'Elo et les posts de veille
+    # restent toujours visibles. Mode « privé » de la page profil = False.
     stats_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # ── Discord ──────────────────────────────────────────────────────────────

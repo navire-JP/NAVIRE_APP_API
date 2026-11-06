@@ -18,6 +18,10 @@ _COLONNES = {
     ("lib_documents", "prepa_ressource_id"): "INTEGER REFERENCES prepa_adjuris_ressources(id) ON DELETE CASCADE",
     # Classement (leaderboard.py) : stats visibles par les autres, oui par défaut
     ("users", "stats_public"): "BOOLEAN NOT NULL DEFAULT TRUE",
+    # Page profil : bannière, bio, LinkedIn
+    ("users", "banner_url"): "VARCHAR(500)",
+    ("users", "bio"): "VARCHAR(160)",
+    ("users", "linkedin_url"): "VARCHAR(300)",
     # Veille : qui a posté l'actu
     ("veille_items", "author_id"): "INTEGER REFERENCES users(id) ON DELETE SET NULL",
 }
