@@ -10,7 +10,8 @@
   (sous le header du site) ; seul le contenu défile.
 
   Chaque actu affiche qui l'a postée (photo, pseudo, rôle : Équipe NAVIRE,
-  Professeur, Étudiant — champ `author` de l'API). Les actus importées
+  Professeur, Étudiant — champ `author` de l'API) ; un clic sur l'auteur
+  ouvre son profil (PROFIL_URL?u=ID). Les actus importées
   automatiquement n'ont pas d'auteur : on affiche alors leur source.
 
   Lien direct vers une actu : ajoute ?actu=ID à l'adresse de la page.
@@ -346,6 +347,9 @@
 @media (prefers-reduced-motion: reduce) {
   #nv-news *, #nv-news *::before, #nv-news *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+#nv-news a.nv-author { text-decoration: none; cursor: pointer; border-radius: 99px; transition: color .15s; }
+#nv-news a.nv-author:hover b, #nv-news a.nv-byline-who:hover { color: var(--blue, #7AA7FF); }
+#nv-news a.nv-byline-who { color: inherit; text-decoration: none; }
 </style>
 
 <div id="nv-news" class="is-side-off">
@@ -426,6 +430,7 @@
   var LOGIN_URL = '/login';       // page de connexion du site
   var AI_URL = '/navire';         // page de l'embed NAVIRE AI
   var LIB_URL = '/lib';           // page NAVIRE Lib (un cours s'ouvre avec ?doc=ID)
+  var PROFIL_URL = '/profile';    // page profil : ?u=ID ouvre le profil de l'auteur
   var PAGE_SIZE = 20;
 
   var RUBRIQUES = [
@@ -606,6 +611,7 @@
   if (/Mac|iPhone|iPad/.test(navigator.platform || '')) el('kbd').textContent = '⌘ K';
 
   // ================= AUTEUR (qui a posté l'actu) =================
+  function profilUrl(a) { return PROFIL_URL + (PROFIL_URL.indexOf('?') < 0 ? '?' : '&') + 'u=' + encodeURIComponent(a.id); }
   function avatarHtml(a) {
     if (a.avatar_url && /^https?:\/\//.test(a.avatar_url)) return '<span class="nv-av" style="background-image:' + esc(cssUrl(a.avatar_url)) + '"></span>';
     return '<span class="nv-av">' + esc((a.name || '?').charAt(0)) + '</span>';
@@ -617,7 +623,7 @@
   // Petite version pour les cartes : photo + pseudo + rôle ; sans auteur : la source
   function authorInline(it) {
     var a = it.author;
-    if (a) return '<span class="nv-author">' + avatarHtml(a) + '<b>' + esc(a.name) + '</b>' + roleHtml(a) + '</span>';
+    if (a) return '<a class="nv-author" href="' + esc(profilUrl(a)) + '" target="_top" data-profil title="Voir le profil de ' + esc(a.name) + '">' + avatarHtml(a) + '<b>' + esc(a.name) + '</b>' + roleHtml(a) + '</a>';
     return it.source_name ? '<span>' + esc(it.source_name) + '</span>' : '';
   }
 
@@ -984,7 +990,7 @@
     details.push(it.reading_minutes + ' min de lecture');
     if (it.is_read) details.push('<span class="nv-readmark">' + ICON.check + 'Lue</span>');
     var who = a
-      ? avatarHtml(a) + '<div class="nv-byline-txt"><b>Posté par ' + esc(a.name) + roleHtml(a) + '</b><small>' + details.join(' · ') + '</small></div>'
+      ? '<a href="' + esc(profilUrl(a)) + '" target="_top" data-profil class="nv-byline-who" title="Voir le profil">' + avatarHtml(a) + '</a><div class="nv-byline-txt"><b>Posté par <a href="' + esc(profilUrl(a)) + '" target="_top" data-profil class="nv-byline-who">' + esc(a.name) + '</a>' + roleHtml(a) + '</b><small>' + details.join(' · ') + '</small></div>'
       : '<span class="nv-av">' + esc((it.source_name || 'N').charAt(0)) + '</span><div class="nv-byline-txt"><b>' + (src || 'NAVIRE') + '</b><small>' + details.join(' · ') + '</small></div>';
     return '<div class="nv-byline">' + who + '</div>';
   }
@@ -1085,6 +1091,9 @@
   // ================= ÉVÉNEMENTS =================
   root.addEventListener('click', function (e) {
     var t = e.target;
+    // Auteur d'une actu : son profil (sans ouvrir la carte de l'actu)
+    var prof = t.closest('[data-profil]');
+    if (prof && root.contains(prof)) { e.preventDefault(); e.stopPropagation(); try { window.top.location.href = prof.href; } catch (x) { window.open(prof.href, '_blank'); } return; }
     var save = t.closest('[data-save]');
     if (save && root.contains(save)) { e.preventDefault(); e.stopPropagation(); return toggleSave(+save.getAttribute('data-save'), save); }
     var copy = t.closest('[data-copy]');
