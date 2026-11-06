@@ -10,9 +10,10 @@
   la veille, le catalogue NAVIRE Lib. Chaque PDF est relu par une route qui
   revérifie l'accès côté serveur.
 
-  Chaque section a son visuel (cartes du Classeur, titres, panneau rabattable) :
-  Mes PDF → assets/home-fichiers.png, Mes copies → files-copies.png,
-  Enregistrés → files-enregistres.png, servis par GET /assets/{nom}.
+  Chaque élément porte un visuel NAVIRE à la place de son icône (cartes,
+  panneau rabattable, onglets, listes) : PDF → cristal, copie corrigée →
+  diamant, actu → enveloppe, dossier → dossier, cours Lib → étoile
+  (assets/files-*.png et home-*.png, servis par GET /assets/{nom}).
 
   Seule action d'écriture : ajouter ou supprimer un PDF de « Mes fichiers ».
 -->
@@ -321,12 +322,10 @@
   #nv-files .fx-card.is-dashed { background: rgba(255,255,255,0.02); }
   @keyframes fx-rise { from { opacity: 0; transform: translateY(6px); } }
 
-  /* Visuels des sections (assets NAVIRE), sans carré autour : cartes, titres, panneau */
+  /* Visuels NAVIRE à la place des icônes des éléments ; dans les cartes, sans carré autour */
   #nv-files .fx-art { display: inline-block; flex-shrink: 0; background: center/contain no-repeat; }
-  #nv-files .fx-card .fx-art { width: 38px; height: 38px; filter: drop-shadow(0 5px 12px rgba(79,125,255,0.22)); transition: transform .35s cubic-bezier(.2,.8,.2,1); }
+  #nv-files .fx-card .fx-art { filter: drop-shadow(0 5px 12px rgba(79,125,255,0.22)); transition: transform .35s cubic-bezier(.2,.8,.2,1); }
   #nv-files .fx-card:hover .fx-art { transform: translateY(-2px) scale(1.06) rotate(-3deg); }
-  #nv-files .fx-row .fx-art { width: 16px; height: 16px; }
-  #nv-files .fx-gsec .fx-art { width: 16px; height: 16px; vertical-align: -3px; margin-right: 7px; }
 
   /* ---------- téléphone : gestion simple, sans panneau ni bascule ---------- */
   #nv-files.is-compact .fx-side,
@@ -344,7 +343,6 @@
   #nv-files.is-compact .fx-card .fx-nm { -webkit-line-clamp: 1; flex: 1; min-width: 0; }
   #nv-files.is-compact .fx-card .fx-m { margin-top: 0; white-space: nowrap; }
   #nv-files.is-compact .fx-card .fx-del { position: static; opacity: 1; width: 32px; height: 32px; flex-shrink: 0; }
-  #nv-files.is-compact .fx-card .fx-art { width: 32px; height: 32px; }
   #nv-files.is-compact .fx-gsec { padding: 14px 12px 2px; }
   #nv-files.is-compact .fx-bc { padding: 8px 10px; }
   #nv-files.is-compact .fx-overlay { padding: 0; }
@@ -387,8 +385,8 @@
     SITE: "https://navire-ai.com",         // préfixe des liens NAVIRE Lib (/lib?doc=…, /lib?prepa=devoirs)
     ACTUS_URL: "https://navire-ai.com/actus"  // page Actus (une actu enregistrée s'y ouvre : ?actu=ID)
   };
-  // Visuel de chaque section (servi par GET /assets/{nom}, app/routers/assets.py)
-  var ART = { "mes-pdf": "files-pdf.png", copies: "files-copies.png", enregistres: "files-enregistres.png" };
+  // Visuel de chaque type d'élément (servi par GET /assets/{nom}, app/routers/assets.py)
+  var ART = { pdf: "files-cristal.png", copie: "files-diamant.png", actu: "home-veilles.png", folder: "home-fichiers.png", lib: "home-cours.png" };
 
   var root = document.getElementById("nv-files");
   var S = {
@@ -472,16 +470,11 @@
     size = size || 15;
     return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 20 20" fill="none" stroke="' + (color || "currentColor") + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + (P[name] || "") + "</svg>";
   }
-  // Visuel d'une section (vide si la section n'en a pas : on garde alors l'icône)
-  function art(sec) {
-    var f = sec && ART[sec.id];
-    return f ? '<span class="fx-art" aria-hidden="true" style="background-image:url(&quot;' + CONFIG.API + '/assets/' + f + '&quot;)"></span>' : "";
-  }
+  // Icône d'un élément : son visuel NAVIRE (une copie corrigée a le sien).
   function nodeIcon(n, size) {
-    if (n.type === "folder") return ic("folder", size, "rgba(255,255,255,0.5)");
-    if (n.type === "actu") return ic("news", size, "#FFD166");
-    if (n.type === "lib") return ic("book", size, "#5BE3A3");
-    return ic("pdf", size, "#8b98ff");
+    size = size || 15;
+    var k = n.type === "folder" || n.type === "actu" || n.type === "lib" ? n.type : (n.meta && n.meta.statut === "Corrigé" ? "copie" : "pdf");
+    return '<span class="fx-art" aria-hidden="true" style="width:' + size + 'px;height:' + size + 'px;background-image:url(&quot;' + CONFIG.API + '/assets/' + ART[k] + '&quot;)"></span>';
   }
   function hydrateIcons(scope) {
     (scope || root).querySelectorAll("[data-ic]").forEach(function (n) { n.innerHTML = ic(n.getAttribute("data-ic"), 15); n.removeAttribute("data-ic"); });
@@ -716,7 +709,7 @@
       if (S.q && !kids) return "";
       var open = S.q ? true : S.open[id] !== false;
       return '<div class="fx-sec' + (open ? " is-open" : "") + '">'
-        + '<button class="fx-row is-sec" data-act="fold" data-id="' + esc(id) + '" data-sec="1">' + ic("chev", 11) + (art(s) || ic(s.icon || "folder", 13))
+        + '<button class="fx-row is-sec" data-act="fold" data-id="' + esc(id) + '" data-sec="1">' + ic("chev", 11) + ic(s.icon || "folder", 13)
         + '<span class="fx-lbl">' + esc(s.label) + '</span></button>'
         + '<div class="fx-kids" style="border-left:0;margin-left:0;padding-left:4px">'
         + (kids || '<div class="fx-empty">' + esc(emptyText(s)) + '</div>')
@@ -824,12 +817,12 @@
     if (n.type === "folder") {
       var nb = files(n.children).length, sec = n.section || sectionOf(n.id);
       return '<button class="fx-card is-folder" style="--glow:' + glowOf(sec) + '" data-act="cd" data-id="' + esc(n.id) + '">'
-        + (art(sec) || '<div class="fx-ic">' + ic(n.section ? (n.section.icon || "folder") : "folder", 17) + '</div>')
+        + (n.section ? '<div class="fx-ic">' + ic(n.section.icon || "folder", 17) + '</div>' : nodeIcon(n, 38))
         + '<div class="fx-nm">' + esc(n.label) + '</div><div class="fx-m">' + nb + (nb > 1 ? " documents" : " document") + '</div></button>';
     }
     var m = [fmtDate(n.date), n.size_bytes ? fmtSize(n.size_bytes) : ""].filter(Boolean).join(" · ");
     return '<div class="fx-card" style="--glow:' + glowOf(sectionOf(n.id)).replace(/0\.\d+\)$/, "0.1)") + '" role="button" tabindex="0" data-act="file" data-id="' + esc(n.id) + '" title="' + esc(n.label) + '">'
-      + '<div class="fx-ic' + (n.type === "pdf" ? " is-pdf" : "") + '">' + nodeIcon(n, 17) + '</div>'
+      + nodeIcon(n, 34)
       + '<div class="fx-nm">' + esc(n.label) + '</div><div class="fx-m">' + esc(m) + '</div>'
       + (canDelete(n) ? '<button class="fx-del" data-act="del" data-id="' + esc(n.id) + '" title="Supprimer">' + ic("trash", 13) + '</button>' : "")
       + '</div>';
@@ -846,13 +839,13 @@
       body = S.data.sections.map(function (s) {
         var node = IDX["s:" + s.id].node;
         var kids = s.items || [];
-        var head = '<button class="fx-gsec" data-act="cd" data-id="' + esc(node.id) + '">' + art(s) + esc(s.label) + '</button>';
+        var head = '<button class="fx-gsec" data-act="cd" data-id="' + esc(node.id) + '">' + esc(s.label) + '</button>';
         if (!kids.length) {
           return head + '<div class="fx-grid">' + (s.upload ? '<div class="fx-card is-dashed" data-act="pick" style="align-items:center;justify-content:center;color:var(--muted)">' + ic("upload", 18) + '<span style="font-size:12px">Ajouter un PDF</span></div>'
             : actionCard(s) || '<div class="fx-card is-dashed" style="align-items:center;justify-content:center;color:var(--faint);cursor:default;font-size:12px;text-align:center">' + esc(emptyText(s)) + '</div>') + '</div>';
         }
         var show = kids.slice(0, 7).map(card).join("");
-        var more = kids.length > 7 ? '<button class="fx-card is-folder" style="--glow:' + glowOf(s) + '" data-act="cd" data-id="' + esc(node.id) + '">' + (art(s) || '<div class="fx-ic">' + ic("folder", 17) + '</div>') + '<div class="fx-nm">Tout voir</div><div class="fx-m">' + kids.length + ' éléments</div></button>' : "";
+        var more = kids.length > 7 ? '<button class="fx-card is-folder" style="--glow:' + glowOf(s) + '" data-act="cd" data-id="' + esc(node.id) + '">' + nodeIcon({ type: "folder" }, 38) + '<div class="fx-nm">Tout voir</div><div class="fx-m">' + kids.length + ' éléments</div></button>' : "";
         return head + '<div class="fx-grid">' + show + more + actionCard(s) + '</div>';
       }).join("");
     } else {
