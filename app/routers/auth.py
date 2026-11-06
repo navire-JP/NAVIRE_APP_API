@@ -327,8 +327,19 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 
 
 @router.get("/me")
-def me(current_user: User = Depends(get_current_user)):
+def me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.db.models import Ambassador, PrepaAdjurisProfesseur
+
     limits = get_user_limits(current_user)
+    # Rôles affichés en pastilles (badge profil du header, cumulables)
+    is_ambassador = db.execute(
+        select(Ambassador.id).where(Ambassador.user_id == current_user.id, Ambassador.status == "approved")
+    ).first() is not None
+    is_charge_td = db.execute(
+        select(PrepaAdjurisProfesseur.id).where(
+            PrepaAdjurisProfesseur.user_id == current_user.id, PrepaAdjurisProfesseur.status == "active",
+        )
+    ).first() is not None
 
     return {
         "id": current_user.id,
@@ -348,6 +359,8 @@ def me(current_user: User = Depends(get_current_user)):
 
         "plan": current_user.plan,
         "is_admin": current_user.is_admin,
+        "is_ambassador": is_ambassador,
+        "is_charge_td": is_charge_td,
 
         # Limites du plan courant (source : limits.py)
         "files_limit": limits["files_total"],

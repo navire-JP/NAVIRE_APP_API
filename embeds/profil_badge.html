@@ -1,0 +1,160 @@
+<!--
+  NAVIRE · Badge profil du header (avec photo)
+  ============================================
+  Photo, pseudo, pastilles (Elo, offre, rôles), rang, et un petit « v »
+  « Aller au profil ». Tout le badge est un lien vers le profil.
+
+  Le texte tient dans la hauteur du rond de la photo : le haut des lettres du
+  pseudo et le bas des pastilles ne dépassent jamais le cercle.
+  Téléphone (écran tactile) : tout est agrandi pour rester lisible.
+  Cadre étroit : une pastille de rôle qui ne tient pas en entier est masquée
+  (jamais coupée), puis le rang s'efface ; le « v » reste toujours visible.
+
+  Routes : GET /auth/me (pseudo, photo, offre, rôles), GET /elo/me (Elo, rang).
+  Réglage : PROFIL_URL ci-dessous.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@600&display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; background: transparent; }
+.hp-link {
+  --pp: 32px;            /* diamètre de la photo : le texte tient dans cette hauteur */
+  --name: 11.5px;
+  --pill: 8.5px;
+  position: relative; z-index: 2147483647;
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; height: 100%;
+  padding: 0 6px 0 2px;
+  box-sizing: border-box;
+  border-radius: 99px;
+  text-decoration: none; color: #fff; cursor: pointer;
+  font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased;
+  container-type: inline-size;
+  transition: background .15s;
+}
+.hp-link:hover { background: rgba(255,255,255,0.05); }
+.hp-link *, .hp-link *::before, .hp-link *::after { box-sizing: border-box; }
+
+.hp-avatar {
+  width: var(--pp); height: var(--pp); border-radius: 50%; flex-shrink: 0;
+  overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.08);
+  font-size: calc(var(--pp) * 0.42); font-weight: 700; color: #fff;
+}
+.hp-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Pseudo en haut, pastilles en bas : le bloc a exactement la hauteur de la photo */
+.hp-info {
+  flex: 1; min-width: 0; height: var(--pp);
+  display: flex; flex-direction: column; justify-content: center; gap: 4px;
+}
+.hp-name {
+  font-size: var(--name); font-weight: 700; letter-spacing: -.2px; line-height: 1.05;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hp-tags { display: flex; gap: 3px; align-items: center; overflow: hidden; white-space: nowrap; }
+.hp-tag, .hp-role {
+  font-family: 'IBM Plex Mono', monospace; font-size: var(--pill); font-weight: 600;
+  padding: 2px 6px; border-radius: 99px; line-height: 1;
+  white-space: nowrap; flex-shrink: 0;
+}
+.hp-tag { background: #fff; color: #0a1628; }
+.hp-tag.plan-membre-plus { background: #FFD166; }
+.hp-role { display: none; }
+.hp-role.on { display: inline-block; }
+.hp-role-admin { background: #EF476F; color: #fff; }
+.hp-role-td    { background: #06D6A0; color: #0a1628; }
+.hp-role-amb   { background: #8E7DFF; color: #fff; }
+
+.hp-rank { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hp-rank-val { font-size: 13px; font-weight: 800; letter-spacing: -.6px; line-height: 1; }
+.hp-rank-label { font-size: 6.5px; font-weight: 500; color: rgba(255,255,255,0.32); text-transform: uppercase; letter-spacing: .8px; line-height: 1; }
+
+/* Petit « v » : aller au profil */
+.hp-go {
+  flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.7);
+  transition: background .15s, color .15s, transform .2s;
+}
+.hp-go svg { width: 11px; height: 11px; }
+.hp-link:hover .hp-go { background: rgba(255,255,255,0.14); color: #fff; transform: translateY(1px); }
+
+/* Téléphone : plus grand, toujours dans la hauteur de la photo */
+@media (pointer: coarse) {
+  .hp-link { --pp: 40px; --name: 14px; --pill: 10px; gap: 10px; }
+  .hp-info { gap: 5px; }
+  .hp-tag, .hp-role { padding: 3px 7px; }
+  .hp-rank-val { font-size: 16px; }
+  .hp-rank-label { font-size: 8px; }
+  .hp-go { width: 26px; height: 26px; }
+  .hp-go svg { width: 14px; height: 14px; }
+}
+/* Cadre étroit : on garde l'essentiel */
+@container (max-width: 230px) { .hp-rank { display: none; } }
+@container (max-width: 130px) { .hp-info { display: none; } }
+</style>
+
+<a class="hp-link" id="hp-link" href="/profile" target="_top" title="Aller au profil" aria-label="Aller au profil">
+  <div class="hp-avatar" id="hp-av">·</div>
+  <div class="hp-info">
+    <div class="hp-name" id="hp-name">…</div>
+    <div class="hp-tags">
+      <span class="hp-tag" id="hp-elo">— elo</span>
+      <span class="hp-tag" id="hp-plan">—</span>
+      <span class="hp-role hp-role-admin" id="hp-role-admin">Admin</span>
+      <span class="hp-role hp-role-td" id="hp-role-td">Chargé TD</span>
+      <span class="hp-role hp-role-amb" id="hp-role-amb">Ambassadeur</span>
+    </div>
+  </div>
+  <div class="hp-rank">
+    <div class="hp-rank-val" id="hp-rank">—</div>
+    <div class="hp-rank-label">rang</div>
+  </div>
+  <span class="hp-go" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+  </span>
+</a>
+
+<script>
+(function () {
+  var API = 'https://navire-app-api.onrender.com';
+  var PROFIL_URL = '/profile';
+  document.getElementById('hp-link').href = PROFIL_URL;
+  var token = ''; try { token = localStorage.getItem('navire_token') || ''; } catch (e) {}
+  if (!token) return;
+  var h = { 'Authorization': 'Bearer ' + token };
+  var planLabels = { 'free': 'Free', 'membre': 'Membre', 'membre_plus': 'Membre+', 'membre+': 'Membre+', 'beta': 'Bêta', 'prepa': 'Prépa', 'admin': 'Admin' };
+  function get(p) { return fetch(API + p, { headers: h }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+  Promise.all([get('/auth/me'), get('/elo/me')]).then(function (d) {
+    var me = d[0], elo = d[1];
+    if (!me) return;
+    var av = document.getElementById('hp-av');
+    if (me.avatar_url) {
+      var img = document.createElement('img'); img.src = me.avatar_url; img.alt = '';
+      av.textContent = ''; av.appendChild(img);
+    } else av.textContent = (me.username || '?').charAt(0).toUpperCase();
+    document.getElementById('hp-name').textContent = me.username || '—';
+    document.getElementById('hp-elo').textContent = (elo ? elo.elo : (me.score || 0)) + ' elo';
+    var planKey = (me.plan || 'free').toLowerCase(), planEl = document.getElementById('hp-plan');
+    planEl.textContent = planLabels[planKey] || planKey;
+    if (planKey === 'membre+' || planKey === 'membre_plus') planEl.classList.add('plan-membre-plus');
+    document.getElementById('hp-rank').textContent = elo ? '#' + elo.rank : '—';
+    // Pastilles de rôle (cumulables), sur la même ligne que l'Elo et l'offre
+    [['hp-role-admin', !!me.is_admin],
+     ['hp-role-td', !!me.is_charge_td || me.grade === 'ChargéTD'],
+     ['hp-role-amb', !!me.is_ambassador]].forEach(function (r) {
+      if (r[1]) document.getElementById(r[0]).classList.add('on');
+    });
+    fit();
+  });
+  // Une pastille de rôle qui ne tient pas en entier est masquée (jamais coupée).
+  function fit() {
+    var tags = document.querySelector('.hp-tags');
+    var roles = [].slice.call(tags.querySelectorAll('.hp-role.on'));
+    roles.forEach(function (r) { r.style.display = ''; });
+    for (var i = roles.length - 1; i >= 0 && tags.scrollWidth > tags.clientWidth + 1; i--) roles[i].style.display = 'none';
+  }
+  window.addEventListener('resize', fit);
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(document.getElementById('hp-link'));
+})();
+</script>

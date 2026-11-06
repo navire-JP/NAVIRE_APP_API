@@ -1,0 +1,134 @@
+<!--
+  NAVIRE · Badge profil compact (sans photo)
+  ==========================================
+  Pastilles (Elo, offre), rôles, rang et un petit « v » « Aller au profil ».
+  Tout le badge est un lien vers le profil.
+
+  Téléphone (écran tactile) : tout est agrandi pour rester lisible.
+  Cadre étroit : les rôles s'effacent (jamais coupés), puis le libellé du
+  rang ; le « v » reste toujours visible.
+
+  Routes : GET /auth/me (offre, rôles), GET /elo/me (Elo, rang).
+  Réglage : PROFIL_URL ci-dessous.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Mono:wght@600&display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; background: transparent; }
+.hp-right {
+  --pill: 8.5px;
+  position: relative; z-index: 2147483647;
+  width: 100%; height: 100%;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 4px;
+  font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased;
+  box-sizing: border-box; overflow: hidden;
+  text-decoration: none; color: #fff; cursor: pointer;
+  border-radius: 12px; transition: background .15s;
+  container-type: inline-size;
+}
+.hp-right:hover { background: rgba(255,255,255,0.05); }
+.hp-right *, .hp-right *::before, .hp-right *::after { box-sizing: border-box; }
+.hp-pills { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; }
+.hp-pill, .hp-role {
+  font-family: 'IBM Plex Mono', monospace; font-size: var(--pill); font-weight: 600;
+  padding: 2px 6px; border-radius: 99px; line-height: 1;
+  white-space: nowrap; width: fit-content;
+}
+.hp-pill { background: #fff; color: #0a1628; display: inline-block; }
+.hp-pill.gold { background: #FFD166; }
+
+/* Rôles : 2e colonne, seulement s'il y en a ; pastilles absentes sans trou */
+.hp-roles { display: none; flex-direction: column; justify-content: center; gap: 3px; flex: 0 0 auto; }
+.hp-roles.has-roles { display: flex; }
+.hp-role { display: none; }
+.hp-role.on { display: inline-block; }
+.hp-role-admin { background: #EF476F; color: #fff; }
+.hp-role-td    { background: #06D6A0; color: #0a1628; }
+.hp-role-amb   { background: #8E7DFF; color: #fff; }
+
+.hp-spacer { flex: 1; min-width: 0; }
+.hp-rank { flex-shrink: 0; text-align: center; }
+.hp-rank-val { font-size: 13px; font-weight: 800; letter-spacing: -.6px; line-height: 1; }
+.hp-rank-label { font-size: 6.5px; color: rgba(255,255,255,0.32); text-transform: uppercase; letter-spacing: .8px; margin-top: 2px; line-height: 1; }
+
+/* Petit « v » : aller au profil */
+.hp-go {
+  flex-shrink: 0; margin-left: 2px; width: 20px; height: 20px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.7);
+  transition: background .15s, color .15s, transform .2s;
+}
+.hp-go svg { width: 11px; height: 11px; }
+.hp-right:hover .hp-go { background: rgba(255,255,255,0.14); color: #fff; transform: translateY(1px); }
+
+/* Téléphone : plus grand */
+@media (pointer: coarse) {
+  .hp-right { --pill: 10.5px; gap: 8px; }
+  .hp-pills, .hp-roles { gap: 4px; }
+  .hp-pill, .hp-role { padding: 3px 8px; }
+  .hp-rank-val { font-size: 17px; }
+  .hp-rank-label { font-size: 8px; }
+  .hp-go { width: 26px; height: 26px; }
+  .hp-go svg { width: 14px; height: 14px; }
+}
+@container (max-width: 110px) { .hp-rank-label { display: none; } .hp-right { gap: 4px; } }
+</style>
+
+<a class="hp-right" id="hp-link" href="/profile" target="_top" title="Aller au profil" aria-label="Aller au profil">
+  <div class="hp-pills">
+    <span class="hp-pill" id="elo">— elo</span>
+    <span class="hp-pill" id="plan">—</span>
+  </div>
+  <div class="hp-roles" id="roles">
+    <span class="hp-role hp-role-admin" id="role-admin">Admin</span>
+    <span class="hp-role hp-role-td" id="role-td">Chargé TD</span>
+    <span class="hp-role hp-role-amb" id="role-amb">Ambassadeur</span>
+  </div>
+  <div class="hp-spacer"></div>
+  <div class="hp-rank">
+    <div class="hp-rank-val" id="rank">—</div>
+    <div class="hp-rank-label">rang</div>
+  </div>
+  <span class="hp-go" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+  </span>
+</a>
+
+<script>
+(function () {
+  var API = 'https://navire-app-api.onrender.com';
+  var PROFIL_URL = '/profile';
+  document.getElementById('hp-link').href = PROFIL_URL;
+  var token = ''; try { token = localStorage.getItem('navire_token') || ''; } catch (e) {}
+  if (!token) return;
+  var h = { 'Authorization': 'Bearer ' + token };
+  var planLabels = { 'free': 'Free', 'membre': 'Membre', 'membre_plus': 'Membre+', 'membre+': 'Membre+', 'beta': 'Bêta', 'prepa': 'Prépa', 'admin': 'Admin' };
+  function get(p) { return fetch(API + p, { headers: h }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+  Promise.all([get('/auth/me'), get('/elo/me')]).then(function (d) {
+    var me = d[0], elo = d[1];
+    if (!me) return;
+    document.getElementById('elo').textContent = (elo ? elo.elo : (me.score || 0)) + ' elo';
+    var planKey = (me.plan || 'free').toLowerCase(), planEl = document.getElementById('plan');
+    planEl.textContent = planLabels[planKey] || planKey;
+    if (planKey === 'membre_plus' || planKey === 'membre+') planEl.classList.add('gold');
+    document.getElementById('rank').textContent = elo ? '#' + elo.rank : '—';
+    var any = false;
+    [['role-admin', !!me.is_admin],
+     ['role-td', !!me.is_charge_td || me.grade === 'ChargéTD'],
+     ['role-amb', !!me.is_ambassador]].forEach(function (r) {
+      if (r[1]) { document.getElementById(r[0]).classList.add('on'); any = true; }
+    });
+    if (any) document.getElementById('roles').classList.add('has-roles');
+    fit();
+  });
+  // Pas la place : les rôles s'effacent (jamais coupés), le « v » reste visible.
+  function fit() {
+    var box = document.getElementById('hp-link'), roles = document.getElementById('roles');
+    if (!roles.classList.contains('has-roles')) return;
+    roles.style.display = '';
+    if (box.scrollWidth > box.clientWidth + 1) roles.style.display = 'none';
+  }
+  window.addEventListener('resize', fit);
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(document.getElementById('hp-link'));
+})();
+</script>
