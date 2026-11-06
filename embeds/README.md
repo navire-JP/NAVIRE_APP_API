@@ -7,8 +7,9 @@
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
-| `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI), et la vue Prépa des inscrits Prép'AdJuris (remplace la page Prépa) |
-| `professeurs.html` | page `/professeurs` | Espace des chargés de TD : groupes (Discord, liens), étudiants, dépôt de PDF, devoirs à corriger, rémunération prévisionnelle |
+| `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI). Pour les inscrits Prép'AdJuris : documents à pastille « Prépa », bouton « Suivre dans Prépa », bandeau vers l'onglet Prépa |
+| `prepa.html` | page `/prepa` | Onglet Prépa des inscrits Prép'AdJuris : calendrier (semaine / mois) tel que prévu ou déplacé dans la console, copies mises en forme avec révisions et commentaires du correcteur (photo de profil, marge), téléchargement .docx / .pdf, dépôt de copie (.docx ou .pdf), cours suivis, facturation, Discord |
+| `professeurs.html` | page `/professeurs` | Espace des chargés de TD, DA de Lib : groupes (Discord, liens), étudiants, dépôt de PDF, **À corriger** avec le mode correction plein écran (fond blanc, révisions et commentaires), rémunération prévisionnelle |
 | `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
 | `fichiers.html` | onglet Fichiers | Tous les fichiers de l'élève dans un seul embed : panneau latéral rabattable, vue Lecture (arborescence + lecteur à onglets) ou vue Classeur (dossiers en grille). Ajout / suppression de PDF uniquement |
 | `framer/Navire_AdjurisBanner.tsx` | au-dessus du header (tout le site) | Bannière fine Prép'AdJuris : prochaine séance et Espace Prépa pour les inscrits, « Rejoindre la séance » juste avant le début, paiement en échec en rouge, « S'abonner » pour les autres. Code File `Navire_AdjurisBanner`, largeur Fill, hauteur Fit content |
@@ -143,6 +144,37 @@ la copie. Les admins voient toutes les copies. Routes :
 `POST|GET|DELETE /professeurs/devoirs/{id}/correction`,
 `GET /professeurs/devoirs/{id}/download`.
 
+## `/prepa` : onglet Prépa
+
+**Embed HTML.** Coller `prepa.html` dans un Embed HTML de la page `/prepa`.
+Liens du bloc `CONFIG` : `LIB_URL`, `FACTURES_URL` (profil, `?onglet=factures`),
+`ADJURIS_URL`, `LOGIN_URL`. Liens directs : `/prepa?onglet=copies|rendre|cours|factu`,
+`/prepa?copie=ID`.
+
+- **Calendrier** : séances de l'agenda de la console (semaine, mois ; liste
+  sur téléphone). Annulée : barrée. Déplacée : la date d'origine reste
+  affichée (`date_initiale`, posée par tout déplacement dans la console).
+  « En cours » quand le professeur a lancé le cours sur Discord.
+- **Copies** : l'étudiant dépose un `.docx` ou un PDF texte ; NAVIRE le met en
+  forme (un fichier illisible est refusé). Une fois la correction rendue :
+  révisions (barré, ajout en vert, surligné) dans le texte, commentaires du
+  correcteur dans la marge avec sa photo de profil, note et appréciation en
+  tête. Téléchargement `.docx` (révisions et commentaires Word natifs) ou `.pdf`.
+- **Cours** : cours suivis depuis Lib (« Suivre dans Prépa ») et cours de la
+  classe ; ils s'ouvrent dans Lib.
+- **Facturation** : prochain prélèvement par matière, impayés, lien factures.
+- **Épreuve** (timer plein écran) : à venir.
+
+Côté professeur, « Corriger » ouvre le **mode correction** : écran blanc,
+texte noir ; sélectionner un passage → Commenter (C), Surligner (H), Barrer
+(D), Remplacer (R), Ajouter après (A). Chaque geste est enregistré aussitôt ;
+l'étudiant ne voit rien avant « Rendre la correction » (note et appréciation
+générale, brouillon gardé dans le navigateur). Routes :
+`GET /professeurs/devoirs/{id}/copie`, `POST /professeurs/devoirs/{id}/annotations`,
+`PATCH|DELETE /professeurs/annotations/{id}`, `GET …/export?format=docx|pdf` ;
+côté étudiant `GET /lib/prepa/devoirs/{id}/copie|export`,
+`POST|DELETE /lib/prepa/suivis/{doc_id}`.
+
 ## `/lib` : NAVIRE Lib et Lib+
 
 **Embed HTML, comme NAVIRE AI.** Coller `lib.html` dans un Embed HTML de la
@@ -177,26 +209,11 @@ Un curseur en haut à droite passe de l'un à l'autre :
   d'Elo, bouton « Passer (admin) » sur chaque point de passage dès la première
   question, et les brouillons s'ouvrent en aperçu (étiquette « Brouillon »).
 
-- **Prépa** (inscrits Prép'AdJuris actifs, dans Lib comme dans Lib+ ;
-  invisible pour les autres comptes) : elle remplace la page Prépa.
-  - un encart « Prépa » sous les boutons QCM, NAVIRE AI et Actus : les
-    prochaines séances (agenda de la console) et les cours Lib de la classe ;
-  - une entrée « Espace Prépa » dans le menu et un bandeau en tête de la
-    bibliothèque ;
-  - les documents de l'espace Prépa (méthodo, PDF des matières, dépôts des
-    chargés de TD) sont des **documents NAVIRE Lib** avec la pastille
-    « Prépa » : dans la bibliothèque (filtre « Documents Prépa ») et dans la
-    vue Prépa, ils se lisent comme un cours (plan, surlignage ; en Lib+,
-    points de passage posés tout seuls, sans Elo), sans PDF à ouvrir. Le PDF
-    est lu à la première ouverture. Un document retiré disparaît de Lib ;
-    un document dépublié est masqué ;
-  - la vue Prépa, à onglets : **Emploi du temps** (séances de la semaine
-    écoulée et des quatre prochains mois, bouton Rejoindre), **Cours et
-    documents** (par matière souscrite : les documents Prépa puis les cours
-    Lib, avec le Discord et les liens du groupe ; puis la méthodologie et les
-    cours du niveau), **Devoirs** (rendre une copie PDF, suivre la
-    correction, le commentaire, la note et la copie corrigée).
-  Lien direct : `/lib?prepa=edt|cours|devoirs`. Données : `GET /lib/prepa`.
+- **Prépa** (inscrits Prép'AdJuris actifs) : l'espace Prépa a son propre
+  onglet (`/prepa`, `prepa.html`). Lib garde les documents de l'espace Prépa
+  (pastille « Prépa », lus comme un cours), un bandeau et une entrée de menu
+  vers `/prepa`, et le bouton **« Suivre dans Prépa »** sous le titre d'un
+  cours. Les anciens liens `/lib?prepa=edt|cours|devoirs` redirigent vers `/prepa`.
   Un cours Lib est « de la classe » si sa matière (ou son titre) reprend le
   nom d'une matière Prép'AdJuris de l'élève (ex. « Introduction au droit »),
   ou si son niveau est celui de l'élève (champ niveau du document : L1…).

@@ -20,9 +20,23 @@
   Un document déposé est publié pour les étudiants du groupe (espace
   Prép'AdJuris et NAVIRE Lib, section Prép'AdJuris).
 
+  DA de NAVIRE Lib, de l'accueil et du profil : bleu et blanc, sans traits,
+  barre latérale masquable (retenue d'une visite à l'autre).
+
+  À corriger : les copies rendues depuis l'onglet Prépa (.docx ou .pdf,
+  mises en forme par NAVIRE). « Corriger » ouvre le mode correction : tout
+  l'écran passe en blanc, texte en noir ; on sélectionne un passage pour le
+  commenter, le surligner, le barrer, le remplacer ou insérer un ajout. Tout
+  s'enregistre au fil de l'eau ; l'étudiant voit révisions et commentaires
+  (et les retrouve dans ses exports .docx / .pdf) quand on rend la correction,
+  avec la note et l'appréciation générale.
+    GET  /professeurs/devoirs/{id}/copie
+    POST /professeurs/devoirs/{id}/annotations, PATCH|DELETE /professeurs/annotations/{id}
+    GET  /professeurs/devoirs/{id}/export?format=docx|pdf
+
   Réglages : bloc CONFIG du script.
 -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <style>
 #nv-prof {
   --bg: transparent;
@@ -372,6 +386,132 @@
 #nv-prof .nv-dv-note { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 700; color: #0a0a12; background: #fff; padding: 2px 9px; border-radius: 8px; white-space: nowrap; }
 #nv-prof .nv-dv-grid { display: grid; grid-template-columns: 1fr 140px; gap: 10px; align-items: end; }
 #nv-prof.is-compact .nv-dv-grid { grid-template-columns: 1fr; }
+/* ================= DA NAVIRE Lib (bleu et blanc, sans traits) ================= */
+#nv-prof { --blue-hi: #B5CDFF; --blue-deep: #4F7DFF; --blue-soft: rgba(122,167,255,0.1); --blue-line: rgba(122,167,255,0.35); --ok: #7AA7FF; --warn: #B5CDFF; --danger: #FF8A8A; }
+#nv-prof ::selection { background: rgba(122,167,255,0.3); }
+#nv-prof .nv-side { width: 236px; border-right: 0; padding: 12px 8px 10px; gap: 2px; overflow-y: auto; transition: margin-left .3s var(--ease), visibility 0s; }
+#nv-prof:not(.is-compact).is-side-off .nv-side { margin-left: -236px; visibility: hidden; transition: margin-left .3s var(--ease), visibility 0s .3s; }
+#nv-prof:not(.is-compact) .nv-side-close { display: inline-flex; width: 28px; height: 28px; color: var(--text-4); }
+#nv-prof:not(.is-compact):not(.is-side-off) .nv-menu-btn { display: none; }
+#nv-prof:not(.is-compact).is-side-off .nv-menu-btn { display: inline-flex; }
+#nv-prof .nv-brand { padding: 2px 4px 12px 8px; gap: 9px; }
+#nv-prof .nv-logo { width: 24px; height: 24px; }
+#nv-prof .nv-brand-name { font-size: 13.5px; letter-spacing: .5px; }
+#nv-prof .nv-brand-sub { display: none; }
+#nv-prof .nv-brand-name span { font-weight: 500; color: var(--text-3); letter-spacing: 0; margin-left: 3px; }
+#nv-prof .nv-cta { border: 0; background: var(--blue); color: #0a0a12; border-radius: 99px; justify-content: center; height: 36px; padding: 0 14px; margin: 0 2px 10px; width: calc(100% - 4px); font-size: 12.5px; }
+#nv-prof .nv-cta:hover { background: var(--blue-hi); }
+#nv-prof .nv-nav { padding: 8px 10px; border-radius: 8px; font-size: 12.5px; color: var(--text-3); gap: 9px; text-decoration: none; }
+#nv-prof .nv-nav svg { width: 15px; height: 15px; opacity: .75; }
+#nv-prof .nv-nav .nv-badge.is-blue { color: #0a0a12; background: var(--blue); padding: 1px 6px; border-radius: 99px; font-weight: 600; }
+#nv-prof .nv-nav .nv-ext { margin-left: auto; opacity: .45; width: 12px; height: 12px; }
+#nv-prof .nv-side-label { font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 16px 10px 4px; }
+#nv-prof .nv-wallet { margin-top: 10px; }
+#nv-prof .nv-wallet-bar i, #nv-prof .nv-solde-bar i { background: linear-gradient(90deg, var(--blue-deep), var(--blue-hi)); }
+#nv-prof .nv-card, #nv-prof .nv-stat, #nv-prof .nv-step, #nv-prof .nv-solde, #nv-prof .nv-dv, #nv-prof .nv-dv-msg, #nv-prof .nv-pick, #nv-prof .nv-search, #nv-prof .nv-link { border-color: transparent; }
+#nv-prof .nv-card.is-on, #nv-prof .nv-dv.is-open { border-color: transparent; background: var(--panel-2); }
+#nv-prof .nv-input { border-color: transparent; background: var(--panel-2); }
+#nv-prof .nv-input:focus { border-color: var(--blue-line); }
+#nv-prof .nv-chip { border-color: rgba(255,255,255,0.14); }
+#nv-prof .nv-filters .nv-chip.is-active { border-color: transparent; }
+#nv-prof .nv-btn.is-blue { background: var(--blue); }
+#nv-prof .nv-discord { background: var(--blue-soft); color: var(--blue-hi); }
+#nv-prof .nv-discord:hover { background: rgba(122,167,255,0.2); filter: none; }
+#nv-prof .nv-dv-note { background: var(--blue); }
+#nv-prof .nv-notice { background: var(--blue-soft); border-color: transparent; color: var(--blue-hi); }
+#nv-prof .nv-notice.is-bad { background: rgba(255,138,138,0.08); color: #ffb3b3; }
+#nv-prof .nv-tag.ok { color: #0a0a12; background: var(--blue); }
+#nv-prof .nv-tag.warn { color: var(--blue-hi); background: var(--blue-soft); }
+#nv-prof .nv-tag.ok i { background: #0a0a12; }
+#nv-prof .nv-drop { border-color: rgba(255,255,255,0.14); }
+#nv-prof .nv-drop:hover, #nv-prof .nv-drop.is-over { border-color: var(--blue); background: var(--blue-soft); }
+#nv-prof .nv-month.is-current { box-shadow: inset 0 0 0 1px var(--blue-line); }
+#nv-prof .nv-month.is-selected { box-shadow: inset 0 0 0 1px var(--blue); }
+#nv-prof .nv-dv-corriger { background: var(--blue); color: #0a0a12; }
+#nv-prof .nv-dv-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+#nv-prof.is-compact .nv-topbar { border-bottom: 0; }
+#nv-prof .nv-toast { border-color: transparent; }
+
+/* ================= MODE CORRECTION (plein écran, blanc, texte noir) ================= */
+#nv-prof .cx-ed { position: absolute; inset: 0; z-index: 4000; display: none; flex-direction: column; background: #fff; color: #16171d; font-family: 'Inter', sans-serif; }
+#nv-prof .cx-ed.is-on { display: flex; animation: nv-fade .25s var(--ease); }
+#nv-prof .cx-ed ::selection { background: rgba(79,125,255,0.22); }
+#nv-prof .cx-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; flex-shrink: 0; background: #fff; }
+#nv-prof .cx-bar-txt { flex: 1; min-width: 0; }
+#nv-prof .cx-bar-txt b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .cx-bar-txt span { font-size: 12px; color: #6b6f80; }
+#nv-prof .cx-save { font-size: 11.5px; color: #8a8fa3; white-space: nowrap; }
+#nv-prof .cx-ed .cx-b { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border-radius: 99px; border: 0; background: #f1f2f6; color: #16171d; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; text-decoration: none; }
+#nv-prof .cx-ed .cx-b:hover { background: #e6e8ef; }
+#nv-prof .cx-ed .cx-b svg { width: 14px; height: 14px; }
+#nv-prof .cx-ed .cx-b.is-main { background: #16171d; color: #fff; }
+#nv-prof .cx-ed .cx-b.is-main:hover { background: #2c2e38; }
+#nv-prof .cx-ed .cx-b:disabled { opacity: .45; cursor: default; }
+#nv-prof .cx-ed .cx-ico { width: 34px; padding: 0; justify-content: center; background: transparent; }
+#nv-prof .cx-body { flex: 1; min-height: 0; overflow-y: auto; position: relative; scrollbar-width: thin; scrollbar-color: #d5d8e2 transparent; }
+#nv-prof .cx-grid { display: grid; grid-template-columns: minmax(0, 720px) 270px; gap: 36px; justify-content: center; padding: 26px 24px 120px; position: relative; }
+#nv-prof .cx-paper { font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; line-height: 1.8; color: #16171d; min-width: 0; }
+#nv-prof .cx-paper [data-bloc] { margin: 0 0 16px; text-align: justify; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: anywhere; }
+#nv-prof .cx-paper .cx-titre { font-family: 'Inter', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -.5px; line-height: 1.25; text-align: left; margin: 0 0 26px; }
+#nv-prof .cx-paper .cx-h { font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 700; margin: 30px 0 10px; text-align: left; }
+#nv-prof .cx-paper .cx-quote { margin-left: 24px; padding-left: 14px; box-shadow: inset 3px 0 0 #c9d6ff; font-style: italic; }
+#nv-prof .cx-paper table { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 13px; margin: 0 0 16px; }
+#nv-prof .cx-paper td { padding: 7px 10px; border: 1px solid #e3e5ec; }
+#nv-prof .cx-meta-top { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: #4F7DFF; margin-bottom: 10px; }
+#nv-prof .cx-msg { font-family: 'Inter', sans-serif; font-size: 13px; color: #555a6b; background: #f5f6f9; border-radius: 12px; padding: 10px 14px; margin: 0 0 24px; font-style: italic; white-space: pre-wrap; }
+#nv-prof .cx-del { color: #d23c3c; text-decoration: line-through; text-decoration-thickness: 1.5px; cursor: pointer; }
+#nv-prof .cx-ins { color: #13834f; text-decoration: underline; text-decoration-color: rgba(19,131,79,0.45); text-underline-offset: 3px; font-family: 'Inter', sans-serif; font-size: .9em; cursor: pointer; }
+#nv-prof .cx-del + .cx-ins { margin-left: 3px; }
+#nv-prof .cx-hl { background: #fff1a8; border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; cursor: pointer; }
+#nv-prof .cx-com { background: rgba(79,125,255,0.12); box-shadow: inset 0 -1.5px 0 #4F7DFF; cursor: pointer; }
+#nv-prof .cx-com.is-focus, #nv-prof .cx-hl.is-focus { background: rgba(79,125,255,0.26); }
+#nv-prof .cx-num { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 600; color: #4F7DFF; vertical-align: super; margin-left: 1px; }
+#nv-prof .cx-margin { position: relative; }
+#nv-prof .cx-note { position: absolute; left: 0; right: 0; padding: 10px 12px; border-radius: 12px; background: #f5f6f9; font-size: 12.5px; line-height: 1.5; color: #2b2d36; transition: top .25s var(--ease), background .15s, box-shadow .15s; white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer; }
+#nv-prof .cx-note:hover, #nv-prof .cx-note.is-focus { background: #eef2ff; box-shadow: 0 6px 18px rgba(30,40,90,0.08); }
+#nv-prof .cx-note small { display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: .6px; text-transform: uppercase; color: #4F7DFF; margin-bottom: 4px; white-space: normal; }
+#nv-prof .cx-note small em { margin-left: auto; font-style: normal; display: flex; gap: 2px; }
+#nv-prof .cx-note small em button { border: 0; background: transparent; color: #8a8fa3; font-size: 11px; cursor: pointer; padding: 2px 4px; border-radius: 6px; font-family: 'Inter', sans-serif; text-transform: none; letter-spacing: 0; }
+#nv-prof .cx-note small em button:hover { background: #e3e7f5; color: #16171d; }
+#nv-prof .cx-margin-empty { font-size: 12px; color: #9a9fb0; line-height: 1.6; padding: 4px 2px; }
+#nv-prof .cx-margin-empty b { color: #4a4e5e; display: block; margin-bottom: 4px; font-size: 12.5px; }
+#nv-prof .cx-margin-empty kbd { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; background: #f1f2f6; border-radius: 5px; padding: 1px 5px; }
+#nv-prof .cx-tool { position: absolute; z-index: 20; display: none; gap: 2px; padding: 4px; border-radius: 12px; background: #16171d; box-shadow: 0 10px 30px rgba(10,12,30,0.28); }
+#nv-prof .cx-tool.is-on { display: flex; animation: nv-rise .15s var(--ease); }
+#nv-prof .cx-tool button { border: 0; background: transparent; color: #fff; height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+#nv-prof .cx-tool button:hover { background: rgba(255,255,255,0.12); }
+#nv-prof .cx-tool button i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: rgba(255,255,255,0.45); }
+#nv-prof .cx-pop { position: absolute; z-index: 21; display: none; width: 300px; padding: 12px; border-radius: 14px; background: #fff; box-shadow: 0 16px 50px rgba(10,12,30,0.18), 0 0 0 1px rgba(10,12,30,0.06); }
+#nv-prof .cx-pop.is-on { display: block; animation: nv-rise .15s var(--ease); }
+#nv-prof .cx-pop small { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: .8px; text-transform: uppercase; color: #4F7DFF; margin-bottom: 6px; }
+#nv-prof .cx-pop q { display: block; font-family: 'Source Serif 4', Georgia, serif; font-size: 13px; color: #6b6f80; margin-bottom: 8px; quotes: "« " " »"; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+#nv-prof .cx-pop textarea { width: 100%; min-height: 76px; border: 0; border-radius: 10px; background: #f5f6f9; padding: 10px 12px; font: inherit; font-size: 13.5px; line-height: 1.5; color: #16171d; resize: vertical; outline: none; }
+#nv-prof .cx-pop textarea:focus { box-shadow: inset 0 0 0 1.5px #4F7DFF; }
+#nv-prof .cx-pop-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; align-items: center; }
+#nv-prof .cx-pop-btns span { margin-right: auto; font-size: 11px; color: #9a9fb0; }
+#nv-prof .cx-end { margin-top: 40px; padding: 22px; border-radius: 18px; background: #f5f6f9; font-family: 'Inter', sans-serif; }
+#nv-prof .cx-end h4 { margin: 0 0 4px; font-size: 15px; }
+#nv-prof .cx-end p { margin: 0 0 12px; font-size: 12.5px; color: #6b6f80; }
+#nv-prof .cx-end-grid { display: grid; grid-template-columns: 1fr 130px; gap: 10px; }
+#nv-prof .cx-end textarea, #nv-prof .cx-end input { width: 100%; border: 0; border-radius: 12px; background: #fff; padding: 11px 14px; font: inherit; font-size: 14px; color: #16171d; outline: none; }
+#nv-prof .cx-end textarea { min-height: 110px; resize: vertical; line-height: 1.55; }
+#nv-prof .cx-end input { height: 44px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 16px; text-align: center; }
+#nv-prof .cx-end textarea:focus, #nv-prof .cx-end input:focus { box-shadow: inset 0 0 0 1.5px #4F7DFF; }
+#nv-prof .cx-end label span { display: block; font-size: 11.5px; font-weight: 600; color: #6b6f80; margin-bottom: 6px; }
+#nv-prof .cx-end-btns { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+#nv-prof .cx-end-btns em { font-style: normal; font-size: 12px; color: #6b6f80; }
+#nv-prof .cx-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: #6b6f80; margin: 0 0 22px; font-family: 'Inter', sans-serif; }
+#nv-prof .cx-ed .cx-skel { height: 18px; border-radius: 6px; margin-bottom: 12px; background: linear-gradient(90deg, #f1f2f6 0%, #e7e9f0 50%, #f1f2f6 100%); background-size: 200% 100%; animation: nv-shimmer 1.4s linear infinite; }
+#nv-prof .cx-ed.is-ro .cx-tool, #nv-prof .cx-ed.is-ro .cx-note small em, #nv-prof .cx-ed.is-ro [data-cx="rendre"] { display: none !important; }
+#nv-prof .cx-inline-notes { display: none; }
+#nv-prof.is-compact .cx-grid, #nv-prof .cx-ed.is-narrow .cx-grid { grid-template-columns: minmax(0, 1fr); padding: 18px 16px 120px; }
+#nv-prof.is-compact .cx-margin, #nv-prof .cx-ed.is-narrow .cx-margin { display: none; }
+#nv-prof.is-compact .cx-inline-notes, #nv-prof .cx-ed.is-narrow .cx-inline-notes { display: block; margin: -8px 0 16px; }
+#nv-prof.is-compact .cx-inline-notes .cx-note, #nv-prof .cx-ed.is-narrow .cx-inline-notes .cx-note { position: static; margin-bottom: 6px; }
+#nv-prof.is-compact .cx-paper { font-size: 16px; }
+#nv-prof.is-compact .cx-paper [data-bloc] { text-align: left; }
+#nv-prof.is-compact .cx-bar-txt span, #nv-prof.is-compact .cx-save, #nv-prof.is-compact .cx-b .cx-lbl { display: none; }
+#nv-prof.is-compact .cx-end-grid { grid-template-columns: 1fr; }
 </style>
 
 <div id="nv-prof" class="is-solo">
@@ -379,11 +519,11 @@
     <div class="nv-brand">
       <div class="nv-logo" data-logo></div>
       <div>
-        <div class="nv-brand-name">NAVIRE</div>
+        <div class="nv-brand-name">NAVIRE<span>Professeurs</span></div>
         <div class="nv-brand-sub">Espace professeurs</div>
       </div>
-      <button class="nv-icon-btn nv-side-close" data-act="close-drawer" aria-label="Fermer le menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      <button class="nv-icon-btn nv-side-close" data-act="side-close" aria-label="Masquer le menu" title="Masquer le menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg>
       </button>
     </div>
     <button class="nv-cta" data-view="documents">
@@ -411,13 +551,14 @@
     </button>
     <button class="nv-nav" data-view="devoirs">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
-      Devoirs
+      À corriger
       <span class="nv-badge" data-el="dv-count"></span>
     </button>
     <button class="nv-nav" data-view="earnings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       Rémunération
     </button>
+    <div data-el="side-links"></div>
     <div class="nv-side-fill"></div>
     <div class="nv-wallet" data-el="wallet"></div>
     <button class="nv-logout" data-act="logout">Se déconnecter</button>
@@ -427,7 +568,7 @@
   <main class="nv-main">
     <div class="nv-apercu" data-el="apercu"></div>
     <div class="nv-topbar">
-      <button class="nv-icon-btn nv-menu-btn" data-act="open-drawer" aria-label="Menu">
+      <button class="nv-icon-btn nv-menu-btn" data-act="side-open" aria-label="Afficher le menu" title="Afficher le menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
       </button>
       <div class="nv-topbar-title" data-el="title">Vue d'ensemble</div>
@@ -438,6 +579,31 @@
     <div class="nv-page nv-scroll" data-el="page"></div>
     <div class="nv-toasts" data-el="toasts"></div>
   </main>
+  <div class="cx-ed" data-el="cx">
+    <div class="cx-bar">
+      <button class="cx-b cx-ico" data-cx="fermer" title="Retour (Échap)" aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+      <div class="cx-bar-txt"><b data-el="cx-titre">Copie</b><span data-el="cx-sous"></span></div>
+      <span class="cx-save" data-el="cx-save"></span>
+      <button class="cx-b" data-cx="export" data-f="docx" title="Télécharger en Word, avec les révisions et commentaires"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg><span class="cx-lbl">Word</span></button>
+      <button class="cx-b" data-cx="export" data-f="pdf" title="Télécharger en PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg><span class="cx-lbl">PDF</span></button>
+      <button class="cx-b" data-cx="plein" title="Plein écran"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+      <button class="cx-b is-main" data-cx="rendre" data-el="cx-rendre">Rendre la correction</button>
+    </div>
+    <div class="cx-body" data-el="cx-body">
+      <div class="cx-grid">
+        <article class="cx-paper" data-el="cx-paper"></article>
+        <aside class="cx-margin" data-el="cx-margin"></aside>
+      </div>
+      <div class="cx-tool" data-el="cx-tool">
+        <button data-cx="t-commentaire">Commenter<i>C</i></button>
+        <button data-cx="t-surligne">Surligner<i>H</i></button>
+        <button data-cx="t-barre">Barrer<i>D</i></button>
+        <button data-cx="t-remplacer">Remplacer<i>R</i></button>
+        <button data-cx="t-inserer">Ajouter après<i>A</i></button>
+      </div>
+      <div class="cx-pop" data-el="cx-pop"></div>
+    </div>
+  </div>
   <input type="file" accept="application/pdf,.pdf" data-el="file" style="display:none">
   <input type="file" accept="application/pdf,.pdf" data-el="dv-file" style="display:none">
 </div>
@@ -449,10 +615,12 @@
     API: "https://navire-app-api.onrender.com",
     TOKEN_KEY: "navire_token",           // même clé que les autres embeds
     SIGNUP_URL: "https://navire-ai.com/register",
-    CONTACT_URL: ""                      // ex. "mailto:…" : bouton « Contacter l'équipe »
+    CONTACT_URL: "",                     // ex. "mailto:…" : bouton « Contacter l'équipe »
+    LIB_URL: "https://navire-ai.com/lib",  // NAVIRE Lib (lien du menu)
+    DISCORD_URL: ""                      // serveur Discord NAVIRE (lien du menu), facultatif
   };
   var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
-  var TITLES = { home: "Vue d'ensemble", classes: "Mes groupes", students: "Étudiants", documents: "Documents", devoirs: "Devoirs", earnings: "Rémunération" };
+  var TITLES = { home: "Vue d'ensemble", classes: "Mes groupes", students: "Étudiants", documents: "Documents", devoirs: "À corriger", earnings: "Rémunération" };
 
   var root = document.getElementById("nv-prof");
   var S = { token: null, me: null, dash: null, view: "home", q: "", classFilter: "all", uploadClass: null, uploadFile: null,
@@ -503,6 +671,9 @@
   function initiales(e) { var s = e.username || e.email || "?"; return esc(s.charAt(0).toUpperCase()); }
 
   var ICON = {
+    pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+    ext: '<svg class="nv-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>',
     discord: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.3 4.4A19.6 19.6 0 0 0 15.4 3l-.6 1.3a18 18 0 0 0-5.6 0L8.6 3a19.6 19.6 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18a19.8 19.8 0 0 0 6 3l1.3-2a12.8 12.8 0 0 1-2-1l.5-.4a14 14 0 0 0 12.2 0l.5.4-2 1 1.3 2a19.7 19.7 0 0 0 6-3c.5-5.1-.8-9.6-3.6-13.6zM8 15.3c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.5 8 10.5s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4z"/></svg>',
     link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
     upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>',
@@ -549,7 +720,13 @@
     var compact = root.clientWidth < 760;
     root.classList.toggle("is-compact", compact);
     if (!compact) root.classList.remove("is-drawer");
+    var cx = el("cx");
+    if (cx) { cx.classList.toggle("is-narrow", root.clientWidth < 1060); if (CX.data) cxPlace(); }
   }
+  // Barre latérale masquée (grand écran) : retenue d'une visite à l'autre.
+  function setSide(on) { root.classList.toggle("is-side-off", !on); store("navire_prof_side", on ? null : "off"); }
+  root.classList.toggle("is-side-off", load("navire_prof_side") === "off");
+  var CX = { id: null, data: null, sel: null, pop: null, saving: 0 };
   if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
   else window.addEventListener("resize", updateCompact);
   updateCompact();
@@ -671,7 +848,7 @@
     var todo = S.devoirs.filter(function (x) { return x.statut === "depose"; }).length;
     if (todo) html += '<button class="nv-card" data-view="devoirs" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;color:inherit;font:inherit">' +
       '<span class="nv-tag warn"><i></i>' + todo + '</span><div style="flex:1"><div class="nv-card-title" style="margin:0">' + todo + ' copie' + (todo > 1 ? 's' : '') + ' à corriger</div>' +
-      '<div class="nv-card-sub" style="margin:0">Rendues par tes étudiants sur NAVIRE Lib.</div></div></button>';
+      '<div class="nv-card-sub" style="margin:0">Rendues par tes étudiants depuis leur onglet Prépa.</div></div></button>';
     html += '<div class="nv-group-label">Tes groupes</div>';
     d.classes.forEach(function (c) {
       html += '<div class="nv-card"><div class="nv-class-head"><div><div class="nv-card-title">' + esc(c.nom) + '</div>' +
@@ -783,7 +960,7 @@
   // ----- Devoirs -----
   function viewDevoirs() {
     var all = S.devoirs, todo = all.filter(function (x) { return x.statut === "depose"; });
-    var html = head("Devoirs", "Les copies que tes étudiants rendent depuis la vue Prépa de NAVIRE Lib. Ton commentaire, ta note et la copie corrigée leur sont renvoyés aussitôt.");
+    var html = head("À corriger", "Les copies que tes étudiants rendent depuis leur onglet Prépa, mises en forme par NAVIRE. « Corriger » ouvre la copie en plein écran : sélectionne un passage pour le commenter, le surligner, le barrer ou le remplacer, puis rends la correction avec ta note.");
     html += '<div class="nv-filters">' + [["todo", "À corriger", todo.length], ["done", "Corrigées", all.length - todo.length], ["all", "Toutes", all.length]].map(function (f) {
       return '<button class="nv-chip' + (S.dvFilter === f[0] ? " is-active" : "") + '" data-act="dv-filter" data-f="' + f[0] + '">' + f[1] + ' · ' + f[2] + '</button>';
     }).join("") + '</div>';
@@ -795,7 +972,9 @@
       html += '<div class="nv-dv' + (open ? " is-open" : "") + '" style="animation-delay:' + (i * 0.03) + 's">' +
         '<div class="nv-dv-top" data-act="dv-toggle" data-id="' + x.id + '"><div><b>' + esc(x.titre) + '</b><div class="nv-dv-meta"><span>' + esc(e.username || e.email || "Étudiant") + '</span>' +
           (x.classe_nom ? '<span>' + esc(x.classe_nom) + '</span>' : '<span>' + esc(x.matiere_label) + '</span>') + '<span>' + date(x.created_at) + '</span><span>' + taille(x.size_bytes) + '</span></div></div>' +
-          (x.note ? '<span class="nv-dv-note">' + esc(x.note) + '</span>' : done ? '<span class="nv-tag ok"><i></i>corrigée</span>' : '<span class="nv-tag warn"><i></i>à corriger</span>') + '</div>';
+          (x.note ? '<span class="nv-dv-note">' + esc(x.note) + '</span>' : done ? '<span class="nv-tag ok"><i></i>corrigée</span>' : '<span class="nv-tag warn"><i></i>à corriger</span>') + '</div>' +
+        '<div class="nv-dv-row"><button class="nv-btn nv-dv-corriger" data-act="cx-open" data-id="' + x.id + '">' + ICON.pen + (S.voir ? "Voir la correction" : done ? "Reprendre la correction" : "Corriger") + '</button>' +
+          '<button class="nv-chip" data-act="dv-toggle" data-id="' + x.id + '">' + (open ? "Masquer" : "Commentaire rapide, PDF corrigé…") + '</button></div>';
       if (open) {
         html += (x.message ? '<div class="nv-dv-msg">« ' + esc(x.message) + ' »</div>' : '') +
           '<div class="nv-dv-btns"><button class="nv-chip" data-act="dv-open" data-id="' + x.id + '">' + ICON.eye + 'Ouvrir la copie</button>' +
@@ -1013,7 +1192,19 @@
   var VIEWS = { home: viewHome, classes: viewClasses, students: viewStudents, documents: viewDocuments, devoirs: viewDevoirs, earnings: viewEarnings };
   function renderCounts() {
     var todo = S.devoirs.filter(function (x) { return x.statut === "depose"; }).length;
-    el("dv-count").textContent = todo || "";
+    var b = el("dv-count");
+    b.textContent = todo || "";
+    b.classList.toggle("is-blue", !!todo);
+  }
+  // Liens du menu : salons Discord des groupes, serveur NAVIRE, NAVIRE Lib.
+  function renderLinks() {
+    var h = "";
+    (S.dash && S.dash.classes || []).forEach(function (c) {
+      if (c.discord_url) h += '<a class="nv-nav" href="' + esc(c.discord_url) + '" target="_blank" rel="noopener">' + ICON.discord + esc(c.nom) + ICON.ext + '</a>';
+    });
+    if (CONFIG.DISCORD_URL) h += '<a class="nv-nav" href="' + esc(CONFIG.DISCORD_URL) + '" target="_blank" rel="noopener">' + ICON.discord + 'Discord NAVIRE' + ICON.ext + '</a>';
+    if (CONFIG.LIB_URL) h += '<a class="nv-nav" href="' + esc(CONFIG.LIB_URL) + '" target="_top">' + ICON.book + 'NAVIRE Lib' + ICON.ext + '</a>';
+    el("side-links").innerHTML = h ? '<div class="nv-side-label">Liens</div>' + h : "";
   }
 
   function renderApp() {
@@ -1022,6 +1213,7 @@
     el("student-count").textContent = t.etudiants || "";
     el("doc-count").textContent = t.documents || "";
     renderCounts();
+    renderLinks();
     el("wallet").innerHTML = 'Déjà gagné<b>' + eur(t.realise_cents) + '</b>' +
       '<div class="nv-wallet-bar"><i style="width:' + (t.total_cents ? Math.round(t.realise_cents / t.total_cents * 100) : 0) + '%"></i></div>' +
       '<div style="margin-top:6px">' + eur(t.verse_cents) + ' versés · ' + eur(t.total_cents) + ' prévus</div>' +
@@ -1051,6 +1243,9 @@
     if (act === "voir") { voirComme(id); return; }
     if (act === "open-drawer") root.classList.add("is-drawer");
     else if (act === "close-drawer") root.classList.remove("is-drawer");
+    else if (act === "side-close") { if (root.classList.contains("is-compact")) root.classList.remove("is-drawer"); else setSide(false); }
+    else if (act === "side-open") { if (root.classList.contains("is-compact")) root.classList.add("is-drawer"); else setSide(true); }
+    else if (act === "cx-open") cxOpen(id);
     else if (act === "refresh") (S.earnDetail = {}, loadDash()).then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
     else if (act === "logout") { S.token = null; S.dash = null; S.voir = null; S.admin = false; S.profs = null; store(CONFIG.TOKEN_KEY, null); store(VOIR_KEY, null); renderApercu(); viewLoggedOut(); }
     else if (act === "signup") go(CONFIG.SIGNUP_URL);
@@ -1153,6 +1348,346 @@
       .then(loadDash).then(function () { renderApp(); toast("Document retiré"); })
       .catch(function (x) { b.disabled = false; toast(x.message, true); });
   }
+
+  // ================= MODE CORRECTION =================
+  // La copie mise en forme par NAVIRE, en plein écran sur fond blanc. On
+  // sélectionne un passage : Commenter, Surligner, Barrer, Remplacer, Ajouter
+  // après. Chaque geste est enregistré tout de suite (POST /annotations).
+  function cxEl(n) { return el("cx-" + n); }
+  function cxCommente(a) { return a.type === "commentaire" || (a.type === "surligne" && !!a.texte); }
+  function cxLien(u) { u = String(u || "").trim(); return /^https?:\/\//i.test(u) ? u : ""; }
+  function cxAvatar(url, nom, size) {
+    var st = 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;';
+    if (cxLien(url)) return '<span style="' + st + 'background:#e6e8ef center/cover no-repeat;background-image:url(&quot;' + esc(url) + '&quot;)"></span>';
+    return '<span style="' + st + 'background:#4F7DFF;color:#fff;font-family:Inter,sans-serif;font-weight:700;font-size:' + Math.round(size * 0.45) + 'px;letter-spacing:0">' + esc(String(nom || "C").trim().charAt(0).toUpperCase()) + '</span>';
+  }
+
+  function cxMorceaux(b, anns) {
+    var text = b.text || "", n = text.length, B = {}, styles = [], pos = 0;
+    B[0] = 1; B[n] = 1;
+    (b.runs && b.runs.length ? b.runs : [[text, false, false]]).forEach(function (r) { styles.push([pos, pos + r[0].length, r[1], r[2]]); pos += r[0].length; B[pos] = 1; });
+    anns.forEach(function (a) { B[Math.max(0, Math.min(n, a.debut))] = 1; B[Math.max(0, Math.min(n, a.fin))] = 1; });
+    var bs = Object.keys(B).map(Number).sort(function (x, y) { return x - y; }), out = [];
+    for (var k = 0; k < bs.length; k++) {
+      var p = bs[k];
+      anns.forEach(function (a) { if (a.type === "correction" && a.fin === p && a.texte) out.push({ k: "ins", t: a.texte, a: a.id }); });
+      if (k + 1 >= bs.length) break;
+      var q = bs[k + 1];
+      if (q <= p) continue;
+      var st = styles.filter(function (x) { return x[0] <= p && p < x[1]; })[0] || [0, 0, false, false];
+      var barre = anns.filter(function (a) { return a.type === "correction" && a.debut <= p && p < a.fin; })[0];
+      out.push({
+        k: "txt", t: text.slice(p, q), o: p, g: st[2], i: st[3], barre: barre ? barre.id : null,
+        hl: anns.filter(function (a) { return a.type === "surligne" && a.debut <= p && p < a.fin; }).map(function (a) { return a.id; }),
+        coms: anns.filter(function (a) { return cxCommente(a) && a.debut <= p && p < a.fin; }).map(function (a) { return a.id; })
+      });
+    }
+    return out;
+  }
+  function cxNumeros() {
+    var idx = {}, map = {};
+    CX.data.blocs.forEach(function (b, i) { idx[b.id] = i; });
+    var list = CX.data.annotations.filter(cxCommente).sort(function (x, y) { return (idx[x.bloc] - idx[y.bloc]) || (x.debut - y.debut) || (x.id - y.id); });
+    list.forEach(function (a, i) { map[a.id] = i + 1; });
+    return { map: map, list: list };
+  }
+  function cxNote(a, num) {
+    return '<div class="cx-note" data-cx-note="' + a.id + '"><small>' + cxAvatar(a.auteur_avatar, a.auteur, 20) + '<span>' + num + ' · ' + esc(a.auteur || "Correcteur") + (a.type === "surligne" ? " · surligné" : "") + '</span>' +
+      '<em><button data-cx="note-edit" data-id="' + a.id + '">Modifier</button><button data-cx="ann-del" data-id="' + a.id + '">Retirer</button></em></small>' + esc(a.texte) + '</div>';
+  }
+  function cxRender() {
+    var data = CX.data, d = data.devoir, e = d.etudiant || {}, num = cxNumeros(), par = {};
+    data.annotations.forEach(function (a) { (par[a.bloc] = par[a.bloc] || []).push(a); });
+    cxEl("titre").textContent = d.titre;
+    cxEl("sous").textContent = (e.username || e.email || "Étudiant") + " · " + (d.classe_nom || d.matiere_label || d.matiere) + (data.mots ? " · " + data.mots + " mots" : "");
+    cxEl("rendre").textContent = d.statut === "corrige" ? "Mettre à jour la correction" : "Rendre la correction";
+    var vus = {}, html = '<div class="cx-meta-top">' + esc(d.matiere) + ' · rendue le ' + date(d.created_at) + '</div>' +
+      (d.message ? '<div class="cx-msg">« ' + esc(d.message) + ' »</div>' : "") +
+      '<div class="cx-legend"><span><span class="cx-del">barré</span> à retirer</span><span><span class="cx-ins">vert</span> ajouté</span><span><span class="cx-hl">&nbsp;surligné&nbsp;</span></span><span><span class="cx-com">&nbsp;commenté&nbsp;</span></span></div>';
+    data.blocs.forEach(function (b) {
+      if (b.t === "table") { html += '<table data-bloc="' + esc(b.id) + '">' + (b.rows || []).map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("") + '</table>'; return; }
+      var anns = par[b.id] || [];
+      var inner = cxMorceaux(b, anns).map(function (m) {
+        if (m.k === "ins") return '<span class="cx-ins" data-ins="1" data-ann="' + m.a + '">' + esc(m.t) + '</span>';
+        var t = esc(m.t);
+        if (m.g) t = "<b>" + t + "</b>";
+        if (m.i) t = "<i>" + t + "</i>";
+        var cls = "cx-t" + (m.barre ? " cx-del" : "") + (m.hl.length ? " cx-hl" : "") + (m.coms.length ? " cx-com" : "");
+        var ids = (m.barre ? [m.barre] : []).concat(m.hl).concat(m.coms);
+        var sup = "";
+        m.coms.forEach(function (id) {
+          var a = anns.filter(function (x) { return x.id === id; })[0];
+          if (a && m.o + m.t.length === Math.min(a.fin, b.text.length) && !vus[id]) { vus[id] = 1; sup += '<sup class="cx-num" data-ins="1">' + num.map[id] + '</sup>'; }
+        });
+        return '<span class="' + cls + '"' + (ids.length ? ' data-anns="' + ids.join(" ") + '"' : "") + '>' + t + '</span>' + sup;
+      }).join("");
+      var tag = b.t === "titre" ? "h2" : b.t === "h" ? "h3" : "p";
+      var cls2 = b.t === "titre" ? "cx-titre" : b.t === "h" ? "cx-h" : b.t === "quote" ? "cx-quote" : "";
+      var notes = anns.filter(cxCommente).map(function (a) { return cxNote(a, num.map[a.id]); }).join("");
+      html += '<' + tag + ' class="' + cls2 + '" data-bloc="' + esc(b.id) + '">' + inner + '</' + tag + '>' + (notes ? '<div class="cx-inline-notes">' + notes + '</div>' : "");
+    });
+    var dr = cxDraft();
+    html += '<div class="cx-end" data-cx-end><h4>Appréciation générale</h4><p>Elle s\'affiche en tête de la copie de l\'étudiant, avec la note, quand tu rends la correction.</p>' +
+      '<div class="cx-end-grid"><label><span>Appréciation</span><textarea data-cx-in="commentaire" maxlength="8000" placeholder="Ce qui va, ce qui manque, la piste pour progresser…">' + esc(dr.commentaire) + '</textarea></label>' +
+      '<label><span>Note</span><input data-cx-in="note" maxlength="40" placeholder="14/20" value="' + esc(dr.note) + '"></label></div>' +
+      '<div class="cx-end-btns"><button class="cx-b is-main" data-cx="rendre">' + (d.statut === "corrige" ? "Mettre à jour la correction" : "Rendre la correction") + '</button>' +
+      '<em>' + data.annotations.length + ' annotation' + (data.annotations.length > 1 ? "s" : "") + (d.statut === "corrige" ? " · corrigée le " + date(d.corrige_le) : " · l\'étudiant ne voit rien avant que tu rendes la correction") + '</em></div></div>';
+    cxEl("paper").innerHTML = html;
+    cxEl("margin").innerHTML = num.list.length ? num.list.map(function (a) { return cxNote(a, num.map[a.id]); }).join("")
+      : '<div class="cx-margin-empty"><b>Sélectionne un passage</b>pour le commenter, le surligner, le barrer ou le remplacer. Raccourcis : <kbd>C</kbd> <kbd>H</kbd> <kbd>D</kbd> <kbd>R</kbd> <kbd>A</kbd>, <kbd>Échap</kbd> pour sortir.</div>';
+    cxPlace();
+    try { document.fonts.ready.then(cxPlace); } catch (x) {}
+  }
+  function cxPlace() {
+    var m = cxEl("margin"), paper = cxEl("paper");
+    if (!m || !paper || !m.offsetParent) return;
+    var base = paper.getBoundingClientRect().top, bas = 0;
+    m.querySelectorAll(".cx-note").forEach(function (n) {
+      var anc = paper.querySelector('[data-anns~="' + n.getAttribute("data-cx-note") + '"]');
+      var top = Math.max(anc ? anc.getBoundingClientRect().top - base : bas, bas);
+      n.style.top = top + "px";
+      bas = top + n.offsetHeight + 8;
+    });
+    m.style.minHeight = bas + "px";
+  }
+  function cxDraftKey() { return "navire_prof_corr_" + CX.id; }
+  function cxDraft() {
+    var d = CX.data.devoir, dr = null;
+    try { dr = JSON.parse(load(cxDraftKey()) || "null"); } catch (x) {}
+    return dr || { commentaire: d.commentaire || "", note: d.note || "" };
+  }
+  function cxSaving(n) {
+    CX.saving += n;
+    cxEl("save").textContent = CX.saving > 0 ? "Enregistrement…" : "Enregistré";
+  }
+
+  function cxOpen(id) {
+    CX.id = id; CX.data = null; CX.sel = null;
+    var ed = el("cx");
+    ed.classList.add("is-on");
+    ed.classList.toggle("is-ro", !!S.voir);
+    ed.classList.toggle("is-narrow", root.clientWidth < 1060);
+    cxEl("titre").textContent = "Copie"; cxEl("sous").textContent = ""; cxEl("save").textContent = "";
+    cxEl("paper").innerHTML = '<div class="cx-skel" style="width:60%;height:30px;margin-bottom:26px"></div><div class="cx-skel"></div><div class="cx-skel"></div><div class="cx-skel" style="width:80%"></div>';
+    cxEl("margin").innerHTML = "";
+    cxHideTool(); cxClosePop();
+    api("GET", "/professeurs/devoirs/" + id + "/copie").then(function (data) {
+      if (CX.id !== id) return;
+      CX.data = data;
+      cxRender();
+      cxEl("body").scrollTop = 0;
+    }).catch(function (x) { cxEl("paper").innerHTML = '<p style="font-family:Inter,sans-serif;color:#6b6f80">' + esc(x.message) + '</p>'; });
+  }
+  function cxClose() {
+    el("cx").classList.remove("is-on");
+    cxHideTool(); cxClosePop();
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (x) {}
+    CX.id = null; CX.data = null;
+  }
+
+  // Position d'un point de la sélection dans le texte du bloc (ajouts et numéros exclus).
+  function cxOffset(blocEl, node, off) {
+    var r = document.createRange();
+    r.selectNodeContents(blocEl);
+    r.setEnd(node, off);
+    var frag = r.cloneContents();
+    frag.querySelectorAll("[data-ins]").forEach(function (x) { x.remove(); });
+    return frag.textContent.length;
+  }
+  function cxSelection() {
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+    var r = sel.getRangeAt(0), paper = cxEl("paper");
+    if (!paper.contains(r.commonAncestorContainer)) return null;
+    function bloc(n) { n = n.nodeType === 3 ? n.parentNode : n; return n && n.closest ? n.closest("[data-bloc]") : null; }
+    var b1 = bloc(r.startContainer), b2 = bloc(r.endContainer);
+    if (!b1 || b1 !== b2 || b1.tagName === "TABLE") return { erreur: b1 && b2 && b1 !== b2 ? "Sélectionne dans un seul paragraphe." : null };
+    var debut = cxOffset(b1, r.startContainer, r.startOffset), fin = cxOffset(b1, r.endContainer, r.endOffset);
+    var b = CX.data.blocs.filter(function (x) { return x.id === b1.getAttribute("data-bloc"); })[0];
+    while (debut < fin && b.text.charAt(debut) === " ") debut++;
+    while (fin > debut && b.text.charAt(fin - 1) === " ") fin--;
+    if (fin <= debut) return null;
+    return { bloc: b.id, debut: debut, fin: fin, citation: b.text.slice(debut, fin), rect: r.getBoundingClientRect() };
+  }
+  function cxPosAt(box, rect, w) {
+    var body = cxEl("body"), br = body.getBoundingClientRect();
+    var left = Math.max(8, Math.min(rect.left - br.left + rect.width / 2 - w / 2, body.clientWidth - w - 8));
+    box.style.left = left + "px";
+    box.style.top = (rect.top - br.top + body.scrollTop - 46) + "px";
+    return { left: left, top: rect.bottom - br.top + body.scrollTop + 10 };
+  }
+  function cxShowTool() {
+    if (S.voir || !CX.data) return;
+    var s2 = cxSelection();
+    if (!s2) { cxHideTool(); return; }
+    if (s2.erreur) { cxHideTool(); toast(s2.erreur, true); return; }
+    CX.sel = s2;
+    var t = cxEl("tool");
+    t.classList.add("is-on");
+    cxPosAt(t, s2.rect, t.offsetWidth || 420);
+  }
+  function cxHideTool() { var t = cxEl("tool"); if (t) t.classList.remove("is-on"); }
+  function cxClosePop() { var p = cxEl("pop"); if (p) { p.classList.remove("is-on"); p.innerHTML = ""; } CX.pop = null; }
+
+  // Fenêtre de saisie : commentaire, texte de remplacement, ajout.
+  function cxAsk(kind, sel, rect, init) {
+    var labels = { commentaire: ["Commentaire", "Ton commentaire pour l'étudiant…"], remplacer: ["Remplacer par", "Le texte correct…"], inserer: ["Ajouter après", "Le texte à ajouter…"], edit: ["Modifier", ""] };
+    var L = labels[kind];
+    var p = cxEl("pop");
+    CX.pop = { kind: kind, sel: sel, id: init && init.id };
+    p.innerHTML = '<small>' + L[0] + '</small>' + (sel && sel.citation ? '<q>' + esc(sel.citation) + '</q>' : "") +
+      '<textarea data-cx-pop placeholder="' + esc(L[1]) + '" maxlength="4000">' + esc(init ? init.texte : "") + '</textarea>' +
+      '<div class="cx-pop-btns"><span>Ctrl + Entrée</span><button class="cx-b" data-cx="pop-annuler">Annuler</button><button class="cx-b is-main" data-cx="pop-ok">Enregistrer</button></div>';
+    p.classList.add("is-on");
+    var pos = cxPosAt(p, rect, 300);
+    p.style.top = pos.top + "px";
+    var ta = p.querySelector("textarea");
+    setTimeout(function () { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
+  }
+  function cxAdd(type, sel, texte) {
+    cxSaving(1);
+    return api("POST", "/professeurs/devoirs/" + CX.id + "/annotations", { type: type, bloc: sel.bloc, debut: sel.debut, fin: sel.fin, texte: texte || "" })
+      .then(function (a) { CX.data.annotations.push(a); cxRender(); })
+      .catch(function (x) { toast(x.message, true); })
+      .then(function () { cxSaving(-1); });
+  }
+  function cxTool(action) {
+    var sel = CX.sel; if (!sel) return;
+    cxHideTool();
+    try { window.getSelection().removeAllRanges(); } catch (x) {}
+    if (action === "surligne") return cxAdd("surligne", sel, "");
+    if (action === "barre") return cxAdd("correction", sel, "");
+    if (action === "commentaire") return cxAsk("commentaire", sel, sel.rect);
+    if (action === "remplacer") return cxAsk("remplacer", sel, sel.rect);
+    if (action === "inserer") return cxAsk("inserer", { bloc: sel.bloc, debut: sel.fin, fin: sel.fin, citation: sel.citation }, sel.rect);
+  }
+  function cxPopOk() {
+    var P = CX.pop; if (!P) return;
+    var t = (cxEl("pop").querySelector("textarea").value || "").trim();
+    if (!t) return toast("Le texte est vide.", true);
+    cxClosePop();
+    if (P.kind === "commentaire") return cxAdd("commentaire", P.sel, t);
+    if (P.kind === "remplacer" || P.kind === "inserer") return cxAdd("correction", P.sel, t);
+    if (P.kind === "edit") {
+      cxSaving(1);
+      api("PATCH", "/professeurs/annotations/" + P.id, { texte: t })
+        .then(function (a) { CX.data.annotations = CX.data.annotations.map(function (x) { return x.id === a.id ? a : x; }); cxRender(); })
+        .catch(function (x) { toast(x.message, true); }).then(function () { cxSaving(-1); });
+    }
+  }
+  function cxDel(id) {
+    cxSaving(1);
+    api("DELETE", "/professeurs/annotations/" + id)
+      .then(function () { CX.data.annotations = CX.data.annotations.filter(function (x) { return x.id !== id; }); cxClosePop(); cxRender(); })
+      .catch(function (x) { toast(x.message, true); }).then(function () { cxSaving(-1); });
+  }
+  // Clic sur une marque : focus du commentaire, ou petite fenêtre pour la retirer.
+  function cxMark(ids, rect) {
+    var anns = CX.data.annotations.filter(function (a) { return ids.indexOf(String(a.id)) >= 0; });
+    root.querySelectorAll("#nv-prof .cx-ed .is-focus").forEach(function (x) { x.classList.remove("is-focus"); });
+    anns.forEach(function (a) {
+      root.querySelectorAll('[data-cx-note="' + a.id + '"], [data-anns~="' + a.id + '"]').forEach(function (x) { x.classList.add("is-focus"); });
+    });
+    if (S.voir) return;
+    var p = cxEl("pop"), lab = { commentaire: "Commentaire", surligne: "Surligné", correction: "Correction" };
+    CX.pop = { kind: "marks" };
+    p.innerHTML = anns.map(function (a) {
+      var quoi = a.type === "correction" ? (a.debut === a.fin ? "Ajout : « " + a.texte + " »" : a.texte ? "« " + a.citation + " » → « " + a.texte + " »" : "« " + a.citation + " » barré") : (a.texte || "« " + a.citation + " »");
+      return '<small>' + lab[a.type] + '</small><div style="font-size:13px;color:#2b2d36;margin-bottom:8px;overflow-wrap:anywhere">' + esc(quoi) + '</div>' +
+        '<div class="cx-pop-btns" style="margin:0 0 10px">' + (a.texte || a.type !== "surligne" ? '<button class="cx-b" data-cx="note-edit" data-id="' + a.id + '">Modifier</button>' : "") + '<button class="cx-b" data-cx="ann-del" data-id="' + a.id + '">Retirer</button></div>';
+    }).join("");
+    p.classList.add("is-on");
+    var pos = cxPosAt(p, rect, 300);
+    p.style.top = pos.top + "px";
+  }
+  function cxRendre(b) {
+    var dr = cxDraft(), body = { commentaire: dr.commentaire, note: dr.note, statut: "corrige" };
+    if (!CX.data.annotations.length && !String(dr.commentaire || "").trim() && !String(dr.note || "").trim()) return toast("Annote la copie ou ajoute une appréciation.", true);
+    if (b) b.disabled = true;
+    api("PATCH", "/professeurs/devoirs/" + CX.id, body).then(function (row) {
+      store(cxDraftKey(), null);
+      CX.data.devoir = Object.assign({}, CX.data.devoir, row);
+      S.devoirs = S.devoirs.map(function (x) { return x.id === row.id ? row : x; });
+      renderCounts();
+      toast("Correction rendue : l'étudiant a reçu un mail.");
+      cxClose();
+      if (S.view === "devoirs") viewDevoirs();
+    }).catch(function (x) { if (b) b.disabled = false; toast(x.message, true); });
+  }
+  function cxExport(fmt) {
+    toast("Préparation du fichier…");
+    fetch(CONFIG.API + "/professeurs/devoirs/" + CX.id + "/export?format=" + fmt, { headers: { Authorization: "Bearer " + S.token } })
+      .then(function (r) { if (!r.ok) return handle(r); return r.blob().then(function (b) { return { b: b, h: r.headers.get("content-disposition") || "" }; }); })
+      .then(function (x) {
+        var m = /filename\*=UTF-8''([^;]+)/i.exec(x.h), nom = m ? decodeURIComponent(m[1]) : "copie." + fmt;
+        var url = URL.createObjectURL(x.b), a = document.createElement("a");
+        a.href = url; a.download = nom; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      }).catch(function (x) { toast(x.message, true); });
+  }
+
+  (function () {
+    var ed = el("cx");
+    ed.addEventListener("mouseup", function (e) {
+      if (e.target.closest(".cx-tool,.cx-pop,.cx-bar,[data-cx-end]")) return;
+      setTimeout(function () {
+        var sel = window.getSelection();
+        if (sel && !sel.isCollapsed) return cxShowTool();
+        cxHideTool();
+        var mk = e.target.closest("[data-anns]");
+        if (mk) cxMark(mk.getAttribute("data-anns").split(" "), mk.getBoundingClientRect());
+        else if (e.target.closest("[data-ins]") && e.target.closest("[data-ann]")) { var i2 = e.target.closest("[data-ann]"); cxMark([i2.getAttribute("data-ann")], i2.getBoundingClientRect()); }
+        else if (!e.target.closest(".cx-note")) cxClosePop();
+      }, 0);
+    });
+    ed.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-cx]");
+      var n = e.target.closest(".cx-note");
+      if (!b && n) {
+        var id = n.getAttribute("data-cx-note");
+        root.querySelectorAll("#nv-prof .cx-ed .is-focus").forEach(function (x) { x.classList.remove("is-focus"); });
+        root.querySelectorAll('[data-cx-note="' + id + '"], [data-anns~="' + id + '"]').forEach(function (x) { x.classList.add("is-focus"); });
+        return;
+      }
+      if (!b) return;
+      var act = b.getAttribute("data-cx"), aid = +b.getAttribute("data-id");
+      if (act === "fermer") return cxClose();
+      if (act === "export") return cxExport(b.getAttribute("data-f"));
+      if (act === "plein") { try { if (document.fullscreenElement) document.exitFullscreen(); else ed.requestFullscreen(); } catch (x) {} return; }
+      if (act === "rendre") return S.voir ? toast("Aperçu admin : lecture seule", true) : cxRendre(b);
+      if (act.indexOf("t-") === 0) return cxTool(act.slice(2));
+      if (act === "pop-ok") return cxPopOk();
+      if (act === "pop-annuler") return cxClosePop();
+      if (act === "ann-del") return cxDel(aid);
+      if (act === "note-edit") {
+        var a = CX.data.annotations.filter(function (x) { return x.id === aid; })[0];
+        var anc = cxEl("paper").querySelector('[data-anns~="' + aid + '"]') || b;
+        return a && cxAsk("edit", { citation: a.citation }, anc.getBoundingClientRect(), a);
+      }
+    });
+    ed.addEventListener("input", function (e) {
+      var k = e.target.getAttribute && e.target.getAttribute("data-cx-in");
+      if (!k || !CX.data) return;
+      var dr = cxDraft(); dr[k] = e.target.value;
+      store(cxDraftKey(), JSON.stringify(dr));
+    });
+    ed.addEventListener("keydown", function (e) {
+      if (e.target.matches && e.target.matches("[data-cx-pop]")) {
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); cxPopOk(); }
+        if (e.key === "Escape") { e.stopPropagation(); cxClosePop(); }
+      }
+    });
+    document.addEventListener("keydown", function (e) {
+      if (!ed.classList.contains("is-on")) return;
+      var tag = (e.target.tagName || "").toLowerCase();
+      if (e.key === "Escape") { if (CX.pop) cxClosePop(); else if (cxEl("tool").classList.contains("is-on")) cxHideTool(); else if (!document.fullscreenElement) cxClose(); return; }
+      if (tag === "textarea" || tag === "input" || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!cxEl("tool").classList.contains("is-on")) return;
+      var map = { c: "commentaire", h: "surligne", d: "barre", r: "remplacer", a: "inserer" }, k = map[e.key.toLowerCase()];
+      if (k) { e.preventDefault(); cxTool(k); }
+    });
+    cxEl("body").addEventListener("scroll", function () { if (cxEl("tool").classList.contains("is-on")) cxShowTool(); });
+  })();
 
   // ================= DÉMARRAGE =================
   function loadDash() {

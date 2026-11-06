@@ -268,7 +268,7 @@ const CSS = `
 
 Navire_AdjurisBanner.defaultProps = {
     subscribeUrl: "https://navire-ai.com/adjuris",
-    espaceUrl: "https://navire-ai.com/lib?prepa=edt",
+    espaceUrl: "https://navire-ai.com/prepa",
     profilUrl: "https://navire-ai.com/profil",
     showVisitors: true,
 }

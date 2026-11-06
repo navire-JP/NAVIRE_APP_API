@@ -525,6 +525,17 @@ def document(
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
+    res = _document(doc_id, mode, db, user)
+    # « Suivre dans Prépa » : cours Lib suivis dans l'onglet Prépa (inscrits).
+    if user is not None and not res["document"].get("prepa") and not res["document"].get("perso"):
+        from app.routers.lib_prepa import niveau_prepa, suivis_ids
+
+        if niveau_prepa(db, user):
+            res["suivi_prepa"] = doc_id in suivis_ids(db, user)
+    return res
+
+
+def _document(doc_id: int, mode: str, db: Session, user: User | None) -> dict:
     if user is None:
         return _document_visiteur(db, doc_id, mode)
     doc = _get_published(db, doc_id, user)

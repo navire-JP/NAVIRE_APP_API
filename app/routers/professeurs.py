@@ -68,6 +68,7 @@ from app.core.prepa_storage import PREPA_ADJURIS_DIR, PREPA_COURSE_MAX_BYTES, de
 from app.db.database import get_db
 from app.db.models import (
     PrepaAdjurisAffectation,
+    PrepaAdjurisAnnotation,
     PrepaAdjurisClasse,
     PrepaAdjurisDevoir,
     PrepaAdjurisEnrollment,
@@ -78,6 +79,7 @@ from app.db.models import (
 )
 from app.core.prepa_adjuris_config import matiere_niveau
 from app.routers.auth import get_current_user
+from app.services import copies as csvc
 from app.services import devoirs as dsvc
 from app.services import professeurs as svc
 from app.services.prepa_adjuris_billing import cle_mois, date_prelevement, mois_de, parse_mois
@@ -426,11 +428,84 @@ def mes_devoirs(
 
 @router.get("/devoirs/{devoir_id}/download")
 def telecharger_copie(devoir_id: int, db: Session = Depends(get_db), acces=Depends(require_correcteur)):
+    from app.routers.lib_prepa import media_type
+
     d = _devoir_a_corriger(db, acces, devoir_id)
     if not Path(d.path).exists():
         raise HTTPException(404, detail="Fichier introuvable sur le disque.")
-    return FileResponse(d.path, media_type="application/pdf", filename=d.filename_original,
+    return FileResponse(d.path, media_type=media_type(d.path), filename=d.filename_original,
                         content_disposition_type="inline")
+
+
+# ============================================================
+# Mode correction : la copie mise en forme, révisions et commentaires
+# ============================================================
+# L'étudiant voit les annotations une fois la correction rendue
+# (PATCH /devoirs/{id} avec statut « corrige »).
+
+class AnnotationIn(BaseModel):
+    type: Literal["commentaire", "surligne", "correction"]
+    bloc: str = Field(..., max_length=16)
+    debut: int = Field(..., ge=0)
+    fin: int = Field(..., ge=0)
+    texte: str = Field("", max_length=csvc.TEXTE_MAX)
+
+
+class AnnotationModifIn(BaseModel):
+    texte: str = Field(..., max_length=csvc.TEXTE_MAX)
+
+
+def _annotation(db: Session, acces, annotation_id: int) -> PrepaAdjurisAnnotation:
+    a = db.get(PrepaAdjurisAnnotation, annotation_id)
+    if a is None:
+        raise HTTPException(404, detail="Annotation introuvable.")
+    _devoir_a_corriger(db, acces, a.devoir_id)
+    return a
+
+
+@router.get("/devoirs/{devoir_id}/copie")
+def copie_a_corriger(devoir_id: int, db: Session = Depends(get_db), acces=Depends(require_correcteur)):
+    return csvc.copie_row(db, _devoir_a_corriger(db, acces, devoir_id), pour_prof=True)
+
+
+@router.post("/devoirs/{devoir_id}/annotations")
+def annoter(devoir_id: int, payload: AnnotationIn, db: Session = Depends(get_db), acces=Depends(require_correcteur)):
+    d = _devoir_a_corriger(db, acces, devoir_id)
+    a = csvc.ajouter(db, d, acces[0], type=payload.type, bloc=payload.bloc, debut=payload.debut,
+                     fin=payload.fin, texte=payload.texte)
+    return csvc.annotation_row(db, a)
+
+
+@router.patch("/annotations/{annotation_id}")
+def modifier_annotation(annotation_id: int, payload: AnnotationModifIn, db: Session = Depends(get_db),
+                        acces=Depends(require_correcteur)):
+    a = _annotation(db, acces, annotation_id)
+    csvc.valider(db, a.devoir, type=a.type, bloc=a.bloc, debut=a.debut, fin=a.fin, texte=payload.texte,
+                 ignorer_id=a.id)
+    a.texte = payload.texte.strip()
+    db.commit()
+    db.refresh(a)
+    return csvc.annotation_row(db, a)
+
+
+@router.delete("/annotations/{annotation_id}")
+def retirer_annotation(annotation_id: int, db: Session = Depends(get_db), acces=Depends(require_correcteur)):
+    a = _annotation(db, acces, annotation_id)
+    db.delete(a)
+    db.commit()
+    return {"ok": True, "id": annotation_id}
+
+
+@router.get("/devoirs/{devoir_id}/export")
+def exporter_copie(
+    devoir_id: int,
+    format: str = Query("docx", description="docx | pdf"),
+    db: Session = Depends(get_db),
+    acces=Depends(require_correcteur),
+):
+    from app.routers.lib_prepa import exporter
+
+    return exporter(db, _devoir_a_corriger(db, acces, devoir_id), format, pour_prof=True)
 
 
 @router.patch("/devoirs/{devoir_id}")

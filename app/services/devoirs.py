@@ -89,8 +89,10 @@ def devoir_row(db: Session, d: PrepaAdjurisDevoir, *, pour_prof: bool = False) -
         u = db.get(User, d.corrige_par_id)
         nom = " ".join(x for x in ((prof.prenom, prof.nom) if prof else ()) if x).strip()
         row["corrige_par"] = nom or (u.username if u else None)
+        row["corrige_par_avatar"] = (u.avatar_url if u else None) or None
     else:
         row["corrige_par"] = None
+        row["corrige_par_avatar"] = None
     if pour_prof:
         u = db.get(User, d.user_id)
         c = db.get(PrepaAdjurisClasse, d.classe_id) if d.classe_id else None
@@ -156,9 +158,9 @@ def mail_copie_corrigee(to: str, prenom: str, matiere: str, titre: str) -> None:
     html = layout(f"""
     <p style="margin-top:0;">Bonjour {escape(prenom)},</p>
     <p>Ton professeur a corrigé ta copie en <strong>{escape(matiere)}</strong> : « {escape(titre)} ».</p>
-    <p>Retrouve son commentaire dans l'onglet Devoirs de la vue Prépa, sur NAVIRE Lib.</p>
-    {_bouton(f"{FRONTEND_URL}/lib?prepa=devoirs", "Voir la correction")}
-""", preheader="Le commentaire de ton professeur t'attend sur NAVIRE Lib.")
+    <p>Retrouve sa correction (révisions, commentaires et note) dans l'onglet Prépa, rubrique Copies.</p>
+    {_bouton(f"{FRONTEND_URL}/prepa?onglet=copies", "Voir la correction")}
+""", preheader="La correction de ton professeur t'attend dans ton espace Prépa.")
     try:
         send_mail(to, subject, html)
     except Exception:  # pragma: no cover
