@@ -163,7 +163,18 @@ Liens du bloc `CONFIG` : `LIB_URL`, `FACTURES_URL` (profil, `?onglet=factures`),
 - **Cours** : cours suivis depuis Lib (« Suivre dans Prépa ») et cours de la
   classe ; ils s'ouvrent dans Lib.
 - **Facturation** : prochain prélèvement par matière, impayés, lien factures.
-- **Épreuve** (timer plein écran) : à venir.
+- **Vue étudiant** (comptes admin) : case à cocher / décocher en bas du menu ;
+  cochée, l'onglet s'affiche comme pour un étudiant du niveau choisi (L1, L2,
+  L3, M1), inscrit à toutes les matières du niveau, en lecture seule. Le
+  choix est retenu dans le navigateur.
+- **Épreuves** : planifiées par le professeur (ouverture, disponibilité,
+  durée) ou entraînement libre (dissertation 3 h, commentaire d'arrêt 3 h,
+  cas pratique 3 h, fiche d'arrêt 1 h 15). Écran épuré : chrono lumineux,
+  l'étape en cours en une phrase, la suivante en petit et en grisé, détails
+  de l'étape à la demande, sujet en panneau. Les étapes s'ajustent à la durée
+  choisie. Le chrono est tenu par le serveur (reprise après rechargement) ;
+  « Rendre ma copie » envoie la copie au correcteur (« À corriger »).
+  Routes : `/lib/prepa/epreuves*` et `/professeurs/epreuves*`.
 
 Côté professeur, « Corriger » ouvre le **mode correction** : écran blanc,
 texte noir ; sélectionner un passage → Commenter (C), Surligner (H), Barrer
@@ -334,3 +345,17 @@ côté serveur (`/files/{id}/download?inline=1`,
 Le PDF ajouté prévient les autres embeds (`navire-files-updated`,
 `navire_files_refresh`), et l'onglet se recharge quand un autre embed en fait
 autant.
+
+## `demo/` : aperçus sans API
+
+`demo/demo-prepa.html` et `demo/demo-professeurs.html` : les embeds Prépa et
+professeurs avec une API simulée dans le navigateur (aucun appel réseau),
+pour les ouvrir et cliquer sans compte. À ne pas coller dans Framer.
+
+## Défilement des embeds Prépa, professeurs et Lib
+
+C'est la page du site qui défile, pas l'embed : l'embed prend la hauteur de
+son contenu, la barre latérale et la barre du haut suivent la partie visible
+de l'écran. Si l'embed ne peut pas accéder à la page du site (iframe d'une
+autre origine), il garde la hauteur de l'écran et son contenu défile dedans.
+La bande « aperçu / vue étudiant » des admins est une bande de verre discrète.
