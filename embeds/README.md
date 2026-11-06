@@ -163,6 +163,10 @@ Liens du bloc `CONFIG` : `LIB_URL`, `FACTURES_URL` (profil, `?onglet=factures`),
 - **Cours** : cours suivis depuis Lib (« Suivre dans Prépa ») et cours de la
   classe ; ils s'ouvrent dans Lib.
 - **Facturation** : prochain prélèvement par matière, impayés, lien factures.
+- **Vue étudiant** (comptes admin) : case à cocher / décocher en bas du menu ;
+  cochée, l'onglet s'affiche comme pour un étudiant du niveau choisi (L1, L2,
+  L3, M1), inscrit à toutes les matières du niveau, en lecture seule. Le
+  choix est retenu dans le navigateur.
 - **Épreuve** (timer plein écran) : à venir.
 
 Côté professeur, « Corriger » ouvre le **mode correction** : écran blanc,

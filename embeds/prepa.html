@@ -21,7 +21,9 @@
     cours     les cours suivis depuis NAVIRE Lib (« Suivre dans Prépa ») et
               ceux de la classe, qui s'ouvrent dans Lib ;
     factu     prochain prélèvement par matière, lien vers les factures.
-  En bas du menu : Discord, NAVIRE Lib, et pour les admins « Voir comme ».
+  En bas du menu : Discord, NAVIRE Lib, et pour les admins une case
+  « Vue étudiant » (à cocher / décocher) qui montre l'onglet tel qu'un
+  étudiant du niveau choisi (L1, L2, L3, M1) le voit, en lecture seule.
 
   Données : GET /lib/prepa, POST /lib/prepa/devoirs,
             GET /lib/prepa/devoirs/{id}/copie, …/export?format=docx|pdf,
@@ -95,7 +97,15 @@
 #nv-prepa .nv-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 25; }
 #nv-prepa .np-admin { margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--panel); }
 #nv-prepa .np-admin small { display: block; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-4); margin-bottom: 6px; }
-#nv-prepa .np-seg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 3px; border-radius: 10px; background: var(--panel-2); }
+#nv-prepa .np-switch { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; padding: 2px 0; cursor: pointer; text-align: left; font-size: 12.5px; font-weight: 600; color: var(--text); }
+#nv-prepa .np-switch span { flex: 1; }
+#nv-prepa .np-switch em { font-style: normal; display: block; font-size: 11px; font-weight: 400; color: var(--text-3); margin-top: 1px; }
+#nv-prepa .np-switch i { position: relative; width: 34px; height: 20px; border-radius: 99px; background: var(--panel-3); flex-shrink: 0; transition: background .2s; }
+#nv-prepa .np-switch i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .25s var(--ease); }
+#nv-prepa .np-switch.is-on i { background: var(--blue); }
+#nv-prepa .np-switch.is-on i::after { transform: translateX(14px); }
+#nv-prepa .np-admin .np-seg { margin-top: 10px; }
+#nv-prepa .np-seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; padding: 3px; border-radius: 10px; background: var(--panel-2); }
 #nv-prepa .np-seg button { height: 26px; border: 0; border-radius: 7px; background: transparent; font-size: 11px; font-weight: 700; color: var(--text-3); cursor: pointer; padding: 0; }
 #nv-prepa .np-seg button.is-on { background: #fff; color: #0a0a12; }
 
@@ -534,14 +544,18 @@
     el("side").innerHTML = html;
     var adm = "";
     if (S.me && S.me.is_admin) {
-      adm = '<div class="np-admin"><small>Voir comme</small><div class="np-seg">' + ["L1", "L2", "L3", "M1"].map(function (n) {
-        return '<button data-voir="' + n + '"' + (S.voir === n ? ' class="is-on"' : "") + '>' + n + '</button>';
-      }).join("") + '<button data-voir=""' + (!S.voir ? ' class="is-on"' : "") + '>Moi</button></div></div>';
+      // Case « Vue étudiant » : l'onglet tel qu'un étudiant du niveau choisi le voit.
+      adm = '<div class="np-admin"><small>Admin</small>' +
+        '<button class="np-switch' + (S.voir ? " is-on" : "") + '" data-act="vue-etudiant" role="switch" aria-checked="' + (S.voir ? "true" : "false") + '">' +
+        '<span>Vue étudiant<em>' + (S.voir ? "Étudiant de " + esc(S.voir) + ", inscrit à toutes les matières" : "Voir l'onglet comme un étudiant") + '</em></span><i></i></button>' +
+        (S.voir ? '<div class="np-seg">' + ["L1", "L2", "L3", "M1"].map(function (n) {
+          return '<button data-voir="' + n + '"' + (S.voir === n ? ' class="is-on"' : "") + '>' + n + '</button>';
+        }).join("") + '</div>' : "") + '</div>';
     }
     el("admin").innerHTML = adm;
     var a = el("apercu");
     a.classList.toggle("is-on", !!S.voir);
-    a.innerHTML = S.voir ? '<span>Aperçu admin : l\'espace Prépa d\'un étudiant de ' + esc(S.voir) + '.</span><button data-voir="">Quitter</button>' : "";
+    a.innerHTML = S.voir ? '<span>Vue étudiant : l\'onglet Prépa d\'un étudiant de ' + esc(S.voir) + '.</span><button data-act="vue-etudiant">Quitter</button>' : "";
   }
 
   // ================= VUES =================
@@ -570,7 +584,7 @@
     renderSide();
     setPage('<div class="nv-empty" style="padding-top:70px"><b>L\'espace Prép\'AdJuris</b>Ton calendrier de cours, le dépôt et la correction de tes copies, tes cours suivis : tout est ici une fois inscrit.' +
       '<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><a class="nv-btn is-blue" href="' + esc(CONFIG.ADJURIS_URL) + '" target="_top">Découvrir Prép\'AdJuris</a>' +
-      (S.me && S.me.is_admin ? '<span class="nv-chip">Admin : choisis un niveau en bas du menu</span>' : "") + '</div></div>');
+      (S.me && S.me.is_admin ? '<button class="nv-chip" data-act="vue-etudiant">Admin : activer la vue étudiant</button>' : "") + '</div></div>');
   }
 
   // ---------- Calendrier ----------
@@ -939,7 +953,7 @@
     if (!t || !root.contains(t)) return;
     if (t.hasAttribute("data-unfollow")) { e.stopPropagation(); return unfollow(t.getAttribute("data-unfollow")); }
     if (t.hasAttribute("data-view")) return show(t.getAttribute("data-view"));
-    if (t.hasAttribute("data-voir")) { S.voir = t.getAttribute("data-voir") || null; store("navire_prepa_voir", S.voir); return charger(); }
+    if (t.hasAttribute("data-voir")) { S.voir = t.getAttribute("data-voir") || null; store("navire_prepa_voir", S.voir); if (S.voir) store("navire_prepa_niveau", S.voir); return charger(); }
     if (t.hasAttribute("data-cal")) {
       var c = S.cal, a = t.getAttribute("data-cal");
       if (a === "today") c.ref = new Date();
@@ -961,6 +975,10 @@
       case "close-drawer": return root.classList.remove("is-drawer");
       case "pop-close": if (e.target === t || t.tagName === "BUTTON") el("pop").classList.remove("is-on"); return;
       case "login": return go(CONFIG.LOGIN_URL);
+      case "vue-etudiant":
+        S.voir = S.voir ? null : (load("navire_prepa_niveau") || "L1");
+        store("navire_prepa_voir", S.voir);
+        return charger();
       case "dv-submit": return submitDevoir();
     }
   });

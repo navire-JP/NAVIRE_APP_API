@@ -8,7 +8,7 @@
   window.fetch = function (url, o) {
     url = String(url); o = o || {}; var m = (o.method || "GET").toUpperCase(), q;
     if (url.indexOf("navire-app-api") < 0) return real.apply(this, arguments);
-    if (/\/auth\/me/.test(url)) return rep({ id: 1, is_admin: false });
+    if (/\/auth\/me/.test(url)) return rep({ id: 1, is_admin: true });
     if (/\/professeurs\/me$/.test(url)) return rep({ status: "active", admin: false });
     if (/\/me\/dashboard/.test(url)) return rep(DASH);
     if (/\/me\/devoirs/.test(url)) return rep({ items: [DV[8], DV[7]], a_corriger: 1 });
@@ -17,6 +17,7 @@
     if ((q = /annotations\/(\d+)/.exec(url))) { var id = +q[1]; for (var k in MINE) MINE[k] = MINE[k].filter(function (x) { return x.id !== id; }); if (m === "PATCH") { var p = JSON.parse(o.body); var a2 = ANNS.filter(function (x) { return x.id === id; })[0] || { id: id }; a2.texte = p.texte; return rep(a2); } return rep({ ok: true }); }
     if ((q = /professeurs\/devoirs\/(\d+)$/.exec(url)) && m === "PATCH") { var p2 = JSON.parse(o.body); Object.assign(DV[q[1]], p2, { corrige_par: "Camille Martin", corrige_le: new Date().toISOString() }); return rep(DV[q[1]]); }
     if (/\/export/.test(url)) return rep({ detail: "Démo : l'export Word/PDF fonctionne avec la vraie API." }, 400);
+    if ((q = /\/lib\/prepa\?voir_comme=(\w+)/.exec(url))) return rep(Object.assign({}, PREPA, { apercu: q[1], niveau: q[1], devoirs: [], suivis: [], facturation: [] }));
     if (/\/lib\/prepa/.test(url) && m === "GET") return rep(PREPA);
     return rep({ detail: "Démo : action non simulée." }, 400);
   };
