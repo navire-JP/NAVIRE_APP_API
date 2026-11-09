@@ -20,6 +20,11 @@
   Le menu : nouvelle discussion, historique, sources et PDF de NAVIRE AI,
   raccourcis (Veilles, Cours, Fichiers, QCM) et discussions récentes.
 
+  Téléphone (< 760px) : police DM Sans plus petite, le bouton menu ouvre
+  un voile opaque (au lieu du tiroir) ; rien ne défile dans l'embed, c'est la
+  page du site qui défile (la barre de saisie reste en bas de l'écran pendant
+  une discussion) ; une flèche blanche ramène en haut.
+
   Un lien qui pose directement une question : /home?q=Ta%20question
 
   Réglages : bloc CONFIG du script (liens des trois accès, offres).
@@ -27,7 +32,7 @@
            /navire/quota, /files, /veille/state, /veille/feed, /lib/catalogue,
            /users/me/profile-summary
 -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 #nv-home {
   --bg: transparent;
@@ -644,6 +649,49 @@
 #nv-home.is-compact .nv-switch::after { width: 22px; height: 22px; }
 #nv-home.is-compact .nv-switch[aria-checked="true"]::after { transform: translateX(22px); }
 
+/* ================= TÉLÉPHONE : police, menu en voile, page qui défile ================= */
+#nv-home.is-compact { font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px; }
+#nv-home.is-compact .nv-hero h1 { font-size: 23px; }
+#nv-home.is-compact .nv-hero-sub { font-size: 13px; }
+#nv-home.is-compact .nv-md { font-size: 14px; }
+#nv-home.is-compact .nv-shortcut-text b { font-size: 13.5px; }
+#nv-home.is-compact .nv-topbar { min-height: 50px; padding: 6px 8px; border-bottom: 0 !important; }
+#nv-home.is-compact .nv-topbar-title { font-size: 14px; }
+#nv-home.is-compact .nv-page-head h2 { font-size: 19px; }
+#nv-home.is-compact .nv-row-title { font-size: 13px; }
+
+/* Menu : un voile opaque et flou, posé sur la partie visible de l'écran */
+#nv-home.is-compact .nv-scrim { top: var(--vis-top, 0px); bottom: auto; height: var(--vis-h, 100%); background: rgba(6,7,12,0.8); -webkit-backdrop-filter: blur(30px) saturate(140%); backdrop-filter: blur(30px) saturate(140%); }
+#nv-home.is-compact .nv-side {
+  left: 12px; right: 12px; width: auto; bottom: auto;
+  top: calc(var(--vis-top, 0px) + 12px); max-height: calc(var(--vis-h, 100%) - 24px);
+  padding: 6px 6px 8px; border-radius: 18px;
+  background: rgba(24,26,38,0.97); box-shadow: 0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07);
+  transform: translateY(-8px) scale(.98); opacity: 0;
+  transition: transform .22s var(--ease), opacity .18s, visibility 0s .22s;
+}
+#nv-home.is-compact.is-drawer .nv-side { transform: none; opacity: 1; transition: transform .22s var(--ease), opacity .18s; }
+#nv-home.is-compact .nv-brand { padding: 0; }
+#nv-home.is-compact .nv-side-close { width: 36px; height: 36px; }
+#nv-home.is-compact .nv-newchat { height: 40px; font-size: 13.5px; margin-bottom: 2px; }
+#nv-home.is-compact .nv-nav { padding: 9px 12px; font-size: 13.5px; gap: 11px; }
+#nv-home.is-compact .nv-nav svg { width: 17px; height: 17px; }
+#nv-home.is-compact .nv-side-art { width: 18px; height: 18px; }
+#nv-home.is-compact .nv-recent-item { padding: 8px 12px; font-size: 13px; }
+#nv-home.is-compact .nv-recent-item:nth-child(n+6) { display: none; }
+#nv-home.is-compact .nv-side-fill { display: none; }
+
+/* Page qui défile (pas l'embed) : hauteur du contenu, barre de saisie
+   calée en bas de la partie visible pendant une discussion. */
+#nv-home.is-flow { height: auto !important; overflow: visible; }
+#nv-home.is-flow .nv-main { min-height: inherit; }
+#nv-home.is-flow .nv-view { flex: none; animation: none; }
+#nv-home.is-flow .nv-thread, #nv-home.is-flow .nv-page, #nv-home.is-flow .nv-hero { overflow: visible; flex: none; }
+#nv-home.is-flow .nv-hero { min-height: var(--hero-h, 400px); }
+#nv-home.is-flow:not(.is-home) [data-viewpane="chat"] > .nv-composer-wrap { position: absolute; left: 0; right: 0; z-index: 40; top: calc(var(--vis-top, 0px) + var(--vis-h, 100%) - var(--comp-h, 80px)); padding-top: 14px; background: linear-gradient(to bottom, transparent, rgba(8,8,14,0.9) 40%); }
+#nv-home.is-flow:not(.is-home) .nv-thread-inner { padding-bottom: calc(var(--comp-h, 80px) + 18px); }
+#nv-home.is-flow .nv-toasts { bottom: auto; top: calc(var(--vis-top, 0px) + var(--vis-h, 100%) - var(--comp-h, 0px) - 70px); }
+
 @media (prefers-reduced-motion: reduce) {
   #nv-home *, #nv-home *::before, #nv-home *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
@@ -898,12 +946,27 @@
   if (frameEl) {
     for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
   }
+  // Téléphone : l'embed prend la hauteur de son contenu et la page du site
+  // défile (possible si la page est accessible : même origine, ou pas d'iframe).
+  var CAN_FLOW = !FRAMED || !!HOST;
+  function isFlow() { return CAN_FLOW && root.clientWidth < 760; }
+  function rootTop() { return (frameEl ? frameEl.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; }
   function sizeApp() {
     var win = HOST || window;
     var anchor = frameEl || root;
     var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
     var h = Math.max(460, Math.round(win.innerHeight - top - 12));
-    root.style.height = h + 'px';
+    root.classList.toggle('is-flow', isFlow());
+    if (isFlow()) {
+      root.style.minHeight = h + 'px';
+      var bar = root.querySelector('.nv-topbar');
+      root.style.setProperty('--hero-h', (h - (bar ? bar.offsetHeight : 50)) + 'px');
+      h = Math.max(h, Math.ceil(root.offsetHeight));
+      layoutFlow();
+    } else {
+      root.style.minHeight = '';
+      root.style.height = h + 'px';
+    }
     if (frameEl) {
       frameEl.style.height = h + 'px';
       frameEl.style.minHeight = h + 'px';
@@ -914,6 +977,58 @@
   (HOST || window).addEventListener('resize', sizeApp);
   window.addEventListener('load', sizeApp);
   setTimeout(sizeApp, 600);   // après la mise en place de la page Framer
+
+  // Partie visible de l'embed (--vis-top, --vis-h) et hauteur de la barre de
+  // saisie (--comp-h) : la barre et le menu se calent dessus.
+  function layoutFlow() {
+    if (!isFlow()) return;
+    var win = HOST || window, rt = rootTop(), rh = root.offsetHeight, vh = win.innerHeight || 800;
+    var visH = Math.max(200, Math.min(vh, rt + rh) - Math.max(0, rt));
+    var visTop = Math.max(0, Math.min(-rt, rh - visH));
+    root.style.setProperty('--vis-top', Math.round(visTop) + 'px');
+    root.style.setProperty('--vis-h', Math.round(visH) + 'px');
+    var cw = root.querySelector('[data-el="composer-wrap"]');
+    root.style.setProperty('--comp-h', (root.classList.contains('is-home') || !cw ? 0 : cw.offsetHeight) + 'px');
+    paintUp();
+  }
+  var flowTick = false;
+  (HOST || window).addEventListener('scroll', function () {
+    if (flowTick) return; flowTick = true;
+    requestAnimationFrame(function () { flowTick = false; layoutFlow(); });
+  }, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(function () { if (isFlow()) sizeApp(); }).observe(root);
+  // Défilement de la page : haut de l'embed, bas de la discussion
+  function flowTo(y, smooth) {
+    var win = HOST || window;
+    var dest = Math.max(0, (win.scrollY || win.pageYOffset || 0) + rootTop() + y);
+    try { win.scrollTo({ top: dest, behavior: smooth ? 'smooth' : 'auto' }); } catch (e) { win.scrollTo(0, dest); }
+  }
+  function flowTop() { if (isFlow() && rootTop() < 0) flowTo(0); }
+
+  // Flèche « remonter » (téléphone) : posée sur la page du site, au-dessus de
+  // la barre de saisie pendant une discussion.
+  var upBtn = null;
+  if (CAN_FLOW) {
+    upBtn = (HOST || window).document.createElement('button');
+    upBtn.type = 'button';
+    upBtn.setAttribute('aria-label', 'Remonter en haut');
+    upBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+    upBtn.style.cssText = 'position:fixed;right:16px;bottom:20px;z-index:2147483000;width:44px;height:44px;border:0;border-radius:50%;' +
+      'background:#fff;color:#0a0a12;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.45);' +
+      'opacity:0;transform:translateY(10px) scale(.9);pointer-events:none;transition:opacity .2s,transform .2s,bottom .2s;-webkit-tap-highlight-color:transparent';
+    upBtn.addEventListener('click', function () { flowTo(0, true); });
+    (HOST || window).document.body.appendChild(upBtn);
+  }
+  function paintUp() {
+    if (!upBtn) return;
+    var vh = (HOST || window).innerHeight || 800;
+    var on = isFlow() && rootTop() < -vh * 0.8 && !root.classList.contains('is-drawer');
+    var comp = parseInt(root.style.getPropertyValue('--comp-h'), 10) || 0;
+    upBtn.style.bottom = (comp ? comp + 14 : 20) + 'px';
+    upBtn.style.opacity = on ? '1' : '0';
+    upBtn.style.transform = on ? 'none' : 'translateY(10px) scale(.9)';
+    upBtn.style.pointerEvents = on ? 'auto' : 'none';
+  }
 
   function $(sel) { return root.querySelector(sel); }
   function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
@@ -1099,10 +1214,23 @@
     root.classList.toggle('is-compact', compact);
     root.classList.toggle('is-side-off', !!state.sideOff);
     if (!compact) root.classList.remove('is-drawer');
+    if (isFlow() !== root.classList.contains('is-flow')) sizeApp();
   }
   if (window.ResizeObserver) new ResizeObserver(updateLayout).observe(root);
   else window.addEventListener('resize', updateLayout);
   updateLayout();
+
+  // Menu ouvert sur téléphone : la page du site ne défile pas derrière
+  function lockMenu() {
+    var on = root.classList.contains('is-drawer');
+    if (on) layoutFlow();
+    try { if (CAN_FLOW) (HOST || window).document.documentElement.style.overflow = on && isFlow() ? 'hidden' : ''; } catch (e) {}
+    paintUp();
+  }
+  if (window.MutationObserver) new MutationObserver(function () {
+    var on = root.classList.contains('is-drawer');
+    if (on !== lockMenu.was) { lockMenu.was = on; lockMenu(); }
+  }).observe(root, { attributes: true, attributeFilter: ['class'] });
 
   // ================= NAVIGATION =================
   var TITLES = { history: 'Historique', sources: 'Sources', files: 'PDF pour NAVIRE AI' };
@@ -1112,6 +1240,7 @@
     root.querySelectorAll('.nv-view').forEach(function (s) { s.classList.toggle('is-active', s.getAttribute('data-viewpane') === v); });
     root.classList.remove('is-drawer');
     root.classList.toggle('is-page', v !== 'chat');
+    flowTop();
     if (v === 'chat') { updateTitle(); setTimeout(function () { input.focus({ preventScroll: true }); }, 50); }
     else el('title').textContent = TITLES[v];
     if (v === 'history') renderHistory();
@@ -1130,6 +1259,7 @@
     var a = e.target.closest('[data-act]');
     if (!a || !root.contains(a)) return;
     var act = a.getAttribute('data-act');
+    if (act === 'open-drawer' || act === 'close-drawer' || act === 'close-side') setTimeout(lockMenu, 0);
     if (act === 'new') newChat();
     else if (act === 'back') setView('chat');
     else if (act === 'open-drawer') {
@@ -1231,15 +1361,22 @@
   }
 
   function showHome() {
+    flowTop();
     list.innerHTML = '';
     renderHello();
     placeComposer(true, !state.home);
   }
 
   // ================= DISCUSSION =================
-  function nearBottom() { return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120; }
+  function nearBottom() {
+    if (isFlow()) return rootTop() + root.offsetHeight - ((HOST || window).innerHeight || 800) < 120;
+    return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
+  }
   function scrollBottom(smooth) {
-    requestAnimationFrame(function () { thread.scrollTo({ top: thread.scrollHeight, behavior: smooth ? 'smooth' : 'auto' }); });
+    requestAnimationFrame(function () {
+      if (isFlow()) { sizeApp(); flowTo(root.offsetHeight - ((HOST || window).innerHeight || 800), smooth); return; }
+      thread.scrollTo({ top: thread.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    });
   }
 
   function addUser(text) {
