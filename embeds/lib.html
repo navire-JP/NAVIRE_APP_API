@@ -652,6 +652,20 @@
 #nv-lib .nl-pop .nl-seg button { height: 34px; font-size: 12px; }
 #nv-lib .nl-pop-note { padding: 2px 12px 10px; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
 #nv-lib .nl-pop-sep { height: 1px; margin: 4px 10px; background: rgba(255,255,255,0.06); }
+/* Téléphone, sans fond : pas de bande en haut de la bibliothèque, pas de titre
+   en double ; Lib / Lib+ et le pass admin passent à côté de la recherche.
+   En lecture, la barre (retour, plan) est transparente et défile avec le cours. */
+#nv-lib .nl-mrow { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+#nv-lib .nl-mrow .nl-search { flex: 1; min-width: 0; margin-bottom: 0; }
+#nv-lib .nl-mrow .nl-mode, #nv-lib .nl-mrow .nv-icon-btn { display: none; }
+#nv-lib.is-compact:not(.is-doc) .nv-topbar { display: none; }
+#nv-lib.is-compact .nv-topbar { position: static !important; background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-bottom: 0 !important; }
+#nv-lib.is-compact .nl-readbar, #nv-lib.is-compact .nv-page-head { display: none; }
+#nv-lib.is-compact .nl-mrow .nl-mode { display: inline-grid; }
+#nv-lib.is-compact.is-admin .nl-mrow .nv-icon-btn { display: inline-flex; width: 32px; height: 32px; border-radius: 9px; color: var(--text-4); }
+#nv-lib.is-compact.is-admin .nl-mrow .nv-icon-btn svg { width: 17px; height: 17px; }
+#nv-lib.is-compact:not(.is-doc) .nv-page-inner { padding-top: 10px; }
+#nv-lib.is-compact .nl-mtabs { margin-top: 0; }
 @keyframes nl-popfade { from { opacity: 0; } }
 @keyframes nl-pop { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
 </style>
@@ -1108,7 +1122,9 @@
     }
     if (hasPrepa()) html += prepaBanner();
     html += mtabsHtml(items);
-    html += '<div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="Rechercher un cours, une matière…" value="' + esc(S.query) + '"></div>';
+    html += '<div class="nl-mrow"><div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="' + (root.classList.contains("is-compact") ? "Rechercher…" : "Rechercher un cours, une matière…") + '" value="' + esc(S.query) + '"></div>' +
+      '<div class="nl-mode' + (plus() ? " is-plus" : "") + '"><i></i><button data-mode="lib" class="' + (plus() ? "" : "is-on") + '">Lib</button><button data-mode="plus" class="' + (plus() ? "is-on" : "") + '">Lib+</button></div>' +
+      '<button class="nv-icon-btn" data-act="admin-pop" aria-label="Pass admin" title="Pass admin · voir comme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></button></div>';
     if (!items.length) html += '<div class="nv-empty"><b>La bibliothèque arrive</b>Les premiers cours sont en préparation.</div>';
     else if (!list.length) html += '<div class="nv-empty"><b>Aucun résultat</b>Essaie un autre mot.</div>';
     else html += '<div class="nl-grid">' + list.map(bookCard).join("") + '</div>';
