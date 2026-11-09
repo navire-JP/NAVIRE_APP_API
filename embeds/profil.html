@@ -12,6 +12,9 @@
     - les stats (rang, réussite QCM, documents, deep work Discord), masquées
       aux autres quand le profil est en privé ;
     - les posts de veille de l'élève, avec « Voir plus ».
+  Téléphone : chaque post est en vue réduite (titre et deux lignes) avec
+  « Voir plus » pour le déplier ; une flèche blanche ramène en haut de la
+  page quand on est descendu loin.
 
   « Éditer le profil » ouvre un panneau à quatre onglets :
     - Profil : bannière, photo, nom, bio, lien LinkedIn, profil privé ;
@@ -369,6 +372,12 @@
 #nv-profil.is-narrow .pf-name { font-size: 20px; }
 #nv-profil.is-narrow .pf-stats { grid-template-columns: repeat(2, 1fr); }
 #nv-profil.is-narrow .pf-post { padding: 13px; gap: 10px; }
+/* Téléphone : posts en vue réduite, « Voir plus » pour les déplier */
+#nv-profil .pf-post-toggle { display: none; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--blue); cursor: pointer; }
+#nv-profil.is-narrow .pf-post-toggle { display: inline-flex; margin-left: auto; }
+#nv-profil.is-narrow .pf-post-title { font-size: 14px; }
+#nv-profil.is-narrow .pf-post:not(.is-open) .pf-post-text { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-profil.is-narrow .pf-post:not(.is-open) .pf-post-impact { display: none; }
 #nv-profil.is-narrow .pf-post-av { width: 32px; height: 32px; }
 #nv-profil.is-narrow .pf-stage { padding: 0; align-items: stretch; }
 #nv-profil.is-narrow .pf-panel { max-width: none; max-height: none; height: 100%; border-radius: 0; }
@@ -914,6 +923,7 @@
         '<div class="pf-post-foot">' +
           '<a href="' + esc(actuUrl(it.id)) + '" target="_top">' + ICON.read + 'Lire · ' + (it.reading_minutes || 1) + ' min</a>' +
           (it.source_url ? '<a href="' + safeUrl(it.source_url) + '" target="_blank" rel="noopener">' + ICON.out + esc(it.source_name || 'Source') + '</a>' : '') +
+          (it.essentiel || it.impact ? '<button class="pf-post-toggle" data-act="post-toggle" aria-expanded="false">Voir plus</button>' : '') +
         '</div>' +
       '</div></article>';
   }
@@ -1557,6 +1567,12 @@
       case 'close': closeEdit(); break;
       case 'save': saveProfile(btn); break;
       case 'more': loadMorePosts(btn); break;
+      case 'post-toggle':
+        var post = btn.closest('.pf-post'), open = !post.classList.contains('is-open');
+        post.classList.toggle('is-open', open);
+        btn.textContent = open ? 'Voir moins' : 'Voir plus';
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        break;
       case 'pick-banner': $('file-banner').click(); break;
       case 'pick-avatar': $('file-avatar').click(); break;
       case 'drop-banner':
@@ -1662,6 +1678,65 @@
     if (e.target.closest('[data-act="mon-profil"]')) openUser('');
   });
   document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('[data-el="find"]')) closeFind(); });
+
+  // ================= FLÈCHE « REMONTER » (téléphone) =================
+  // L'embed est aussi haut que son contenu : c'est la page du site qui défile.
+  // La flèche est posée sur cette page (fixe en bas à droite) quand on est
+  // descendu loin ; un clic ramène en haut du profil.
+  (function () {
+    var host = null, frame = null;
+    if (framed) { try { if (window.frameElement && window.parent.document) { host = window.parent; frame = window.frameElement; } } catch (e) {} if (!host) return; }
+    var win = host || window, doc = win.document;
+    var up = doc.createElement('button');
+    up.type = 'button';
+    up.setAttribute('aria-label', 'Remonter en haut');
+    up.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+    up.style.cssText = 'position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:2147483000;width:46px;height:46px;border:0;border-radius:50%;' +
+      'background:#fff;color:#0b0b12;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.45);' +
+      'opacity:0;transform:translateY(10px) scale(.9);pointer-events:none;transition:opacity .2s,transform .2s;-webkit-tap-highlight-color:transparent';
+    function top() { return (frame ? frame.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; }
+    up.addEventListener('click', function () {
+      var y = (win.scrollY || win.pageYOffset || 0) + top() - 12;
+      var dest = top() + (win.scrollY || 0) <= win.innerHeight / 2 ? 0 : Math.max(0, y - 70);
+      try { win.scrollTo({ top: dest, behavior: 'smooth' }); } catch (e) { win.scrollTo(0, dest); }
+    });
+    doc.body.appendChild(up);
+    var ticking = false;
+    function paint() {
+      ticking = false;
+      var on = root.classList.contains('is-narrow') && top() < -win.innerHeight * 0.8 && !overlay.classList.contains('is-open');
+      up.style.opacity = on ? '1' : '0';
+      up.style.transform = on ? 'none' : 'translateY(10px) scale(.9)';
+      up.style.pointerEvents = on ? 'auto' : 'none';
+    }
+    win.addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(paint); } }, { passive: true });
+    win.addEventListener('resize', paint);
+  })();
+
+  // Hauteur de l'iframe = hauteur du contenu (un post déplié, « Voir plus »…) :
+  // rien n'est coupé et rien ne défile à l'intérieur de l'embed.
+  (function () {
+    if (!framed) return;
+    var frame = null, wraps = [];
+    try { if (window.frameElement && window.parent.document) frame = window.frameElement; } catch (e) {}
+    if (frame) for (var n = frame.parentElement, i = 0; n && i < 4 && n !== window.parent.document.body; i++, n = n.parentElement) wraps.push(n);
+    var last = 0;
+    function fit() {
+      var h = Math.ceil(root.getBoundingClientRect().height + root.offsetTop + 2);
+      if (Math.abs(h - last) < 2) return;
+      last = h;
+      if (frame) {
+        frame.style.height = h + 'px';
+        wraps.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + 'px'; });
+      } else {
+        try { window.parent.postMessage({ type: 'NAVIRE_EMBED_HEIGHT', height: h }, '*'); } catch (e) {}
+      }
+    }
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(root);
+    window.addEventListener('load', fit);
+    setTimeout(fit, 600);
+    fit();
+  })();
 
   load().then(retourStripe);
 })();
