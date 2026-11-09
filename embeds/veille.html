@@ -5,9 +5,15 @@
   trait apparent (les blocs tiennent par leur fond), cartes à halo lumineux.
     - >= 760px de conteneur : menu à gauche, replié par défaut (bouton menu
       pour l'ouvrir, « « » pour le replier, retenu d'une visite à l'autre) ;
-    - < 760px : menu tiroir à gauche.
-  Hauteur : l'embed prend toute la hauteur de l'écran sous sa position
-  (sous le header du site) ; seul le contenu défile.
+    - < 760px (téléphone) : police DM Sans plus petite (comme Fichiers) ;
+      au-dessus de la liste, trois onglets « À la une / Non lues / À relire »,
+      puis la recherche et un bouton blanc qui ouvre la liste des rubriques
+      (avec les nouvelles actus de la semaine) ; le bouton menu ouvre un
+      voile de verre flou avec Sources officielles, NAVIRE AI et NAVIRE Lib.
+      Sur téléphone, l'embed prend la hauteur de son contenu : rien ne défile
+      à l'intérieur, c'est la page qui défile ; une flèche ramène en haut.
+  Hauteur (ordinateur) : l'embed prend toute la hauteur de l'écran sous sa
+  position (sous le header du site) ; seul le contenu défile.
 
   Chaque actu affiche qui l'a postée (photo, pseudo, rôle : Équipe NAVIRE,
   Professeur, Étudiant — champ `author` de l'API) ; un clic sur l'auteur
@@ -19,7 +25,7 @@
   jusqu'à 2 cours de la matière (champ `cours` de GET /veille/actus/{id}).
   Réglages : bloc CONFIG du script.
 -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 #nv-news {
   --panel: rgba(255,255,255,0.035);
@@ -344,6 +350,96 @@
 #nv-news.is-compact .nv-lf-row { flex-direction: column; align-items: stretch; }
 #nv-news.is-compact .nv-author .nv-role { display: none; }
 
+/* ================= TÉLÉPHONE : onglets, recherche, rubriques, voile ================= */
+/* Hors téléphone : onglets et bouton de rubrique cachés, les pastilles restent */
+#nv-news .nv-mtabs, #nv-news .nv-rubbtn { display: none; }
+#nv-news .nv-searchrow { display: flex; align-items: center; gap: 8px; }
+#nv-news .nv-searchrow .nv-search { flex: 1; min-width: 0; }
+
+#nv-news.is-compact { font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px; }
+#nv-news.is-compact .nv-mtabs { display: flex; gap: 2px; padding: 2px; margin: 2px 0 10px; border-radius: 10px; background: rgba(255,255,255,0.05); }
+#nv-news.is-compact .nv-mtabs button { flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; transition: background .15s, color .15s; }
+#nv-news.is-compact .nv-mtabs button.is-on { background: rgba(255,255,255,0.1); color: var(--text); box-shadow: 0 1px 8px rgba(0,0,0,0.2); }
+#nv-news.is-compact .nv-mtabs b { font-family: var(--mono); font-size: 9.5px; font-weight: 600; color: var(--text-4); }
+#nv-news.is-compact .nv-mtabs b.is-hot { color: #0a0a12; background: var(--blue); border-radius: 99px; padding: 0 5px; }
+#nv-news.is-compact .nv-mtabs b:empty { display: none; }
+#nv-news.is-compact .nv-filters { display: none; }
+/* Recherche au format de l'onglet Fichiers */
+#nv-news.is-compact .nv-search { position: relative; height: 34px; padding: 0 10px; gap: 7px; border-radius: 10px; background: rgba(255,255,255,0.05); overflow: hidden; }
+#nv-news.is-compact .nv-search:focus-within { background: rgba(255,255,255,0.08); box-shadow: none; }
+#nv-news.is-compact .nv-search svg { width: 15px; height: 15px; }
+/* 16px réduit à 13px à l'affichage : même taille que Fichiers, sans le zoom auto d'iOS */
+#nv-news.is-compact .nv-searchrow .nv-search input { flex: 0 0 auto; font-size: 16px; width: calc((100% - 26px) / 0.8125); margin-right: calc((100% - 26px) - (100% - 26px) / 0.8125); transform: scale(0.8125); transform-origin: 0 50%; }
+#nv-news.is-compact .nv-search .nv-icon-btn { position: absolute; right: 3px; top: 3px; width: 28px; height: 28px; border-radius: 8px; background: rgba(20,22,32,0.6); }
+#nv-news.is-compact .nv-search .nv-icon-btn svg { width: 14px; height: 14px; }
+/* Bouton blanc : choix de la rubrique */
+#nv-news.is-compact .nv-rubbtn { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 48%; height: 34px; padding: 0 9px 0 7px; border: 0; border-radius: 10px; background: #fff; color: #0a0a12; cursor: pointer; font-size: 12.5px; font-weight: 600; transition: background .15s; }
+#nv-news.is-compact .nv-rubbtn:active { background: rgba(255,255,255,0.86); }
+#nv-news.is-compact .nv-rubbtn img { width: 20px; height: 20px; flex-shrink: 0; }
+#nv-news.is-compact .nv-rubbtn span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#nv-news.is-compact .nv-rubbtn svg { width: 14px; height: 14px; color: #0a0a12; }
+/* Tailles de texte plus petites */
+#nv-news.is-compact .nv-topbar { min-height: 50px; padding: 6px 8px; }
+#nv-news.is-compact .nv-topbar-title { font-size: 14px; color: var(--text); }
+#nv-news.is-compact .nv-topbar [data-act="search"] { visibility: hidden; }
+#nv-news.is-compact .nv-inner { padding: 2px 12px 28px; }
+#nv-news.is-compact .nv-list { gap: 6px; margin-top: 12px; }
+#nv-news.is-compact .nv-card { padding: 11px 13px 9px; border-radius: 13px; }
+#nv-news.is-compact .nv-card-title { font-size: 13.5px; line-height: 1.38; }
+#nv-news.is-compact .nv-card-meta { font-size: 11px; gap: 5px 8px; margin-top: 6px; }
+#nv-news.is-compact .nv-rub { font-size: 9.5px; }
+#nv-news.is-compact .nv-tag { font-size: 9.5px; }
+#nv-news.is-compact .nv-save { width: 34px; height: 34px; }
+#nv-news.is-compact .nv-save svg { width: 16px; height: 16px; }
+#nv-news.is-compact .nv-feature { margin-top: 12px; padding: 15px 15px 11px; border-radius: 16px; }
+#nv-news.is-compact .nv-feature h3 { font-size: 15.5px; letter-spacing: -.2px; }
+#nv-news.is-compact .nv-result { font-size: 11.5px; margin-top: 10px; }
+#nv-news.is-compact .nv-btn { height: 36px; padding: 0 14px; font-size: 12.5px; }
+#nv-news.is-compact .nv-pagecount { font-size: 11px; }
+#nv-news.is-compact .nv-page-head h1 { font-size: 20px; }
+#nv-news.is-compact .nv-page-head p { font-size: 12.5px; }
+#nv-news.is-compact .nv-article h1 { font-size: 20px; letter-spacing: -.4px; }
+#nv-news.is-compact .nv-crumbs button { font-size: 12px; }
+#nv-news.is-compact .nv-byline-txt b { font-size: 13px; }
+#nv-news.is-compact .nv-byline-txt small { font-size: 11.5px; }
+#nv-news.is-compact .nv-prose { font-size: 14px; line-height: 1.66; }
+#nv-news.is-compact .nv-callout .nv-prose { font-size: 13.5px; }
+#nv-news.is-compact .nv-actions .nv-btn { height: 40px; }
+#nv-news.is-compact .nv-section-head h2 { font-size: 14.5px; }
+#nv-news.is-compact .nv-cours-txt b { font-size: 13px; }
+#nv-news.is-compact .nv-link b { font-size: 12.5px; }
+#nv-news.is-compact .nv-empty { font-size: 12.5px; }
+#nv-news.is-compact .nv-empty b { font-size: 13.5px; }
+#nv-news.is-compact .nv-lf .nv-search input { font-size: 16px; }
+
+/* Voile de verre flou (menu et rubriques sur téléphone) */
+#nv-news .nv-pop { position: absolute; top: 0; left: 0; right: 0; height: 100%; z-index: 1100; display: flex; flex-direction: column; padding: 12px 12px 14px; background: rgba(6,7,12,0.8); -webkit-backdrop-filter: blur(30px) saturate(140%); backdrop-filter: blur(30px) saturate(140%); animation: nv-popfade .18s ease both; }
+#nv-news .nv-pop[hidden] { display: none; }
+#nv-news .nv-pop-card { max-height: 100%; overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 18px; background: rgba(24,26,38,0.97); box-shadow: 0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07); animation: nv-pop .2s var(--ease) both; }
+#nv-news .nv-pop-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 4px 12px; font-size: 10.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); }
+#nv-news .nv-pop-head .nv-icon-btn { margin-left: auto; width: 32px; height: 32px; border-radius: 9px; }
+#nv-news .nv-pop-head .nv-icon-btn svg { width: 16px; height: 16px; }
+#nv-news .nv-pop-item { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 12px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; text-align: left; text-decoration: none; color: var(--text); font-size: 13.5px; font-weight: 500; transition: background .15s; }
+#nv-news .nv-pop-item:hover, #nv-news .nv-pop-item:active { background: rgba(255,255,255,0.06); }
+#nv-news .nv-pop-item.is-on { background: rgba(255,255,255,0.1); }
+#nv-news .nv-pop-item > svg { width: 17px; height: 17px; color: var(--blue); }
+#nv-news .nv-pop-item .nv-dot { margin: 0 3px; }
+#nv-news .nv-pop-txt { flex: 1; min-width: 0; }
+#nv-news .nv-pop-txt span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#nv-news .nv-pop-txt small { display: block; margin-top: 1px; font-size: 11.5px; font-weight: 500; color: var(--text-3); }
+#nv-news .nv-pop-txt small.is-new { color: var(--blue); }
+#nv-news .nv-pop-count { font-family: var(--mono); font-size: 10.5px; color: var(--text-4); }
+#nv-news .nv-pop-item .nv-pop-check { width: 15px; height: 15px; color: #fff; }
+#nv-news .nv-pop-sep { height: 6px; }
+#nv-news .nv-pop .nv-goal { padding: 10px 12px 8px; }
+/* Téléphone : l'embed a la hauteur de son contenu, c'est la page qui défile */
+#nv-news.is-compact { height: auto !important; overflow: visible; }
+#nv-news.is-compact .nv-main { min-height: inherit; }
+#nv-news.is-compact .nv-content { flex: none; overflow: visible; }
+#nv-news.is-compact .nv-toasts { bottom: auto; }
+@keyframes nv-popfade { from { opacity: 0; } }
+@keyframes nv-pop { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+
 @media (prefers-reduced-motion: reduce) {
   #nv-news *, #nv-news *::before, #nv-news *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
@@ -420,6 +516,7 @@
     </div>
     <div class="nv-content nv-scroll" data-el="content"></div>
     <div class="nv-toasts" data-el="toasts" aria-live="polite"></div>
+    <div class="nv-pop" data-el="pop" hidden></div>
   </main>
 </div>
 
@@ -432,6 +529,7 @@
   var LIB_URL = '/lib';           // page NAVIRE Lib (un cours s'ouvre avec ?doc=ID)
   var PROFIL_URL = '/profile';    // page profil : ?u=ID ouvre le profil de l'auteur
   var PAGE_SIZE = 20;
+  var LOGO_NOIR = API + '/assets/logo-navire-app-noir.png';   // icône du bouton blanc de rubrique (téléphone)
 
   var RUBRIQUES = [
     { key: 'civil',    label: 'Droit civil',        desc: 'Contrats, responsabilité, famille, biens' },
@@ -484,12 +582,24 @@
   if (frameEl) {
     for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
   }
+  function isPhone() { return root.clientWidth < 760; }
+  function anchorTop() {
+    var win = HOST || window, anchor = frameEl || root;
+    return anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
+  }
   function sizeApp() {
     var win = HOST || window;
-    var anchor = frameEl || root;
-    var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
+    var top = anchorTop();
     var h = Math.max(460, Math.round(win.innerHeight - top - 12));
-    root.style.height = h + 'px';
+    if (isPhone()) {
+      // Téléphone : hauteur du contenu (au moins l'écran), sans défilement interne
+      root.style.minHeight = h + 'px';
+      h = Math.max(h, Math.ceil(root.scrollHeight));
+      if (!frameEl && FRAMED) { try { window.parent.postMessage({ type: 'NAVIRE_EMBED_HEIGHT', height: h }, '*'); } catch (e) {} }
+    } else {
+      root.style.minHeight = '';
+      root.style.height = h + 'px';
+    }
     if (frameEl) {
       frameEl.style.height = h + 'px';
       frameEl.style.minHeight = h + 'px';
@@ -500,6 +610,51 @@
   (HOST || window).addEventListener('resize', sizeApp);
   window.addEventListener('load', sizeApp);
   setTimeout(sizeApp, 600);   // après la mise en place de la page Framer
+
+  // Partie de l'embed visible à l'écran (téléphone : l'embed est plus haut que l'écran)
+  function viewBox() {
+    var win = HOST || window;
+    var r = (frameEl || root).getBoundingClientRect();
+    if (HOST || !FRAMED) return { top: Math.max(0, -r.top), h: win.innerHeight - Math.max(0, r.top) };
+    return { top: 0, h: Math.min(root.offsetHeight, (window.screen && window.screen.availHeight) || 800) };
+  }
+  // Remonte en haut de l'embed (la page entière défile sur téléphone)
+  function scrollToTop(smooth) {
+    var win = HOST || window;
+    if (!HOST && FRAMED) { try { window.parent.postMessage({ type: 'NAVIRE_EMBED_SCROLL_TOP' }, '*'); } catch (e) {} return; }
+    var top = anchorTop();
+    var y = top <= win.innerHeight / 2 ? 0 : top - 80;
+    if ((win.scrollY || win.pageYOffset || 0) <= y) return;
+    try { win.scrollTo({ top: y, behavior: smooth ? 'smooth' : 'auto' }); } catch (e) { win.scrollTo(0, y); }
+  }
+
+  // Flèche « remonter » : posée sur la page du site (fixe en bas à droite),
+  // visible sur téléphone quand on est descendu loin dans la liste.
+  var upBtn = null;
+  (function () {
+    if (FRAMED && !HOST) return;   // page d'une autre origine : pas d'accès à son défilement
+    var doc = (HOST || window).document;
+    upBtn = doc.createElement('button');
+    upBtn.type = 'button';
+    upBtn.setAttribute('aria-label', 'Remonter en haut');
+    upBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+    upBtn.style.cssText = 'position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:2147483000;width:46px;height:46px;border:0;border-radius:50%;' +
+      'background:#fff;color:#0a0a12;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.45);' +
+      'opacity:0;transform:translateY(10px) scale(.9);pointer-events:none;transition:opacity .2s,transform .2s;-webkit-tap-highlight-color:transparent';
+    upBtn.addEventListener('click', function () { scrollToTop(true); });
+    doc.body.appendChild(upBtn);
+  })();
+  function paintUp() {
+    if (!upBtn) return;
+    var win = HOST || window;
+    var r = (frameEl || root).getBoundingClientRect();
+    var on = isPhone() && r.top < -win.innerHeight * 0.8 && r.bottom > win.innerHeight * 0.5;
+    upBtn.style.opacity = on ? '1' : '0';
+    upBtn.style.transform = on ? 'none' : 'translateY(10px) scale(.9)';
+    upBtn.style.pointerEvents = on ? 'auto' : 'none';
+  }
+  (HOST || window).addEventListener('scroll', paintUp, { passive: true });
+  (HOST || window).addEventListener('resize', paintUp);
 
   // ================= ÉTAT =================
   function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
@@ -556,7 +711,9 @@
     var t = document.createElement('div');
     t.className = 'nv-toast' + (kind ? ' is-' + kind : '');
     t.textContent = msg;
-    el('toasts').appendChild(t);
+    var box = el('toasts');
+    if (isPhone()) { var v = viewBox(); box.style.top = Math.max(0, v.top + v.h - 80) + 'px'; } else box.style.top = '';
+    box.appendChild(t);
     setTimeout(function () { t.remove(); }, 2900);
   }
   function rub(key) {
@@ -603,6 +760,8 @@
     ai: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+    sources: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 4.5v1H3v-1z"/><path d="M5 10v7M9.5 10v7M14.5 10v7M19 10v7M3 20h18"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'
   };
 
@@ -692,12 +851,18 @@
     var w = root.clientWidth - (!compact && !state.sideOff ? 244 : 0);
     root.classList.toggle('is-wide', !compact && w >= 1060);
     root.classList.toggle('is-xl', !compact && w >= 1560);
-    if (!compact) root.classList.remove('is-drawer');
+    if (!compact) { root.classList.remove('is-drawer'); closePop(); }
+    sizeApp(); paintUp();
     // La place a changé : on recalcule combien d'actus tiennent à l'écran
     clearTimeout(refit);
     refit = setTimeout(function () { if (state.view === 'list' && state.items.length && !state.loading) renderList(); }, 350);
   }
-  if (window.ResizeObserver) new ResizeObserver(updateLayout).observe(root);
+  if (window.ResizeObserver) {
+    new ResizeObserver(updateLayout).observe(root);
+    // Téléphone : l'embed suit la hauteur de son contenu
+    var sizing = 0;
+    new ResizeObserver(function () { cancelAnimationFrame(sizing); sizing = requestAnimationFrame(function () { if (isPhone()) sizeApp(); }); }).observe(content);
+  }
   else window.addEventListener('resize', updateLayout);
   updateLayout();
 
@@ -719,6 +884,9 @@
     u.textContent = token && state.counts.unread != null ? state.counts.unread : '';
     u.classList.toggle('is-hot', !!(token && state.counts.unread));
     s.textContent = token && state.counts.saved ? state.counts.saved : '';
+    var mu = el('mt-unread'), ms = el('mt-saved');
+    if (mu) { mu.textContent = u.textContent; mu.classList.toggle('is-hot', u.classList.contains('is-hot')); }
+    if (ms) ms.textContent = s.textContent;
   }
   function loadCounts() {
     if (!token) { updateCounts(); return; }
@@ -742,6 +910,49 @@
       (me && me.streak ? ' Série : ' + plural(me.streak, 'jour', 'jours') + '.' : '') + '</div>';
   }
 
+  // ================= VOILE DE VERRE (téléphone) =================
+  // « menu » : Sources officielles, NAVIRE AI, NAVIRE Lib et l'objectif du jour.
+  // « rub »  : les rubriques, avec le nombre de nouvelles actus de la semaine.
+  function popHead(title) {
+    return '<div class="nv-pop-head">' + esc(title) + '<button class="nv-icon-btn" data-act="close-pop" aria-label="Fermer">' + ICON.close + '</button></div>';
+  }
+  function newLine(n) { return n ? '<small class="is-new">+' + plural(n, 'nouvelle actu', 'nouvelles actus') + '</small>' : ''; }
+  function popMenu() {
+    return popHead('Aller plus loin') +
+      '<button class="nv-pop-item" data-nav="sources">' + ICON.sources + '<span class="nv-pop-txt"><span>Sources officielles</span><small>Légifrance, Judilibre, EUR-Lex…</small></span></button>' +
+      '<a class="nv-pop-item" href="' + esc(AI_URL) + '" target="_top">' + ICON.ai + '<span class="nv-pop-txt"><span>NAVIRE AI</span><small>Pose une question sur une actu</small></span></a>' +
+      '<a class="nv-pop-item" href="' + esc(LIB_URL) + '" target="_top">' + ICON.book + '<span class="nv-pop-txt"><span>NAVIRE Lib</span><small>Réviser les cours de la matière</small></span></a>' +
+      '<div class="nv-pop-sep"></div><div class="nv-goal">' + el('goal').innerHTML + '</div>';
+  }
+  function popRub() {
+    var d = state.rubriques || {}, stats = {}, cur = state.filters.category;
+    (d.rubriques || []).forEach(function (r) { stats[r.key] = r; });
+    function item(key, label, s) {
+      var on = cur === key;
+      return '<button class="nv-pop-item' + (on ? ' is-on' : '') + '" data-filter-cat="' + key + '"' + (key ? ' data-cat="' + key + '"' : '') + '>' +
+        (key ? '<i class="nv-dot"></i>' : '<img src="' + esc(LOGO_NOIR) + '" alt="" style="width:16px;height:16px;filter:invert(1)">') +
+        '<span class="nv-pop-txt"><span>' + esc(label) + '</span>' + newLine(s.week) + '</span>' +
+        (s.count != null ? '<span class="nv-pop-count">' + s.count + '</span>' : '') +
+        (on ? '<span class="nv-pop-check">' + ICON.check + '</span>' : '') + '</button>';
+    }
+    return popHead('Rubriques') +
+      item('', 'Toutes les rubriques', { count: d.total, week: d.week_total }) +
+      RUBRIQUES.map(function (r) { var s = stats[r.key]; return item(r.key, r.label, { count: s ? s.count : null, week: s ? s.week_count : 0 }); }).join('');
+  }
+  function openPop(kind) {
+    var p = el('pop');
+    p.innerHTML = '<div class="nv-pop-card" role="dialog" aria-modal="true">' + (kind === 'menu' ? popMenu() : popRub()) + '</div>';
+    var v = viewBox();
+    p.style.top = v.top + 'px';
+    p.style.height = Math.max(320, Math.min(v.h, root.offsetHeight - v.top)) + 'px';
+    p.hidden = false;
+    lockPage(true);
+  }
+  function closePop() { var p = el('pop'); if (p && !p.hidden) { p.hidden = true; p.innerHTML = ''; lockPage(false); } }
+  function lockPage(on) {
+    try { var d = (HOST || window).document.documentElement; d.style.overflow = on ? 'hidden' : ''; } catch (e) {}
+  }
+
   // ================= NAVIGATION =================
   function isDefault(f) { return f.status === 'all' && !f.category && !f.q && f.period === 'all'; }
   function navKey() {
@@ -763,7 +974,9 @@
     state.view = view;
     content.innerHTML = '<div class="nv-inner' + (view === 'list' ? ' is-list' : '') + '">' + html + '</div>';
     content.scrollTop = 0;
+    if (isPhone()) scrollToTop(false);
     root.classList.remove('is-drawer');
+    closePop();
     markNav();
   }
   function goNav(key) {
@@ -832,6 +1045,13 @@
     if (f.q) return 'Recherche';
     return 'À la une';
   }
+  // Téléphone : « À la une / Non lues / À relire » au-dessus de la recherche
+  function mtabsHtml(f) {
+    function tab(k, label, count) {
+      return '<button type="button" class="' + (f.status === k ? 'is-on' : '') + '" data-mtab="' + k + '">' + label + (count ? '<b data-el="mt-' + k + '"></b>' : '') + '</button>';
+    }
+    return '<div class="nv-mtabs" role="tablist">' + tab('all', 'À la une') + tab('unread', 'Non lues', 1) + tab('saved', 'À relire', 1) + '</div>';
+  }
   function openList(f, focus) {
     lastRetry = function () { openList(state.filters); };
     state.filters = f;
@@ -843,9 +1063,12 @@
     setTitle(title);
     show('list',
       '<div class="nv-page-head"><h1' + (r ? ' data-cat="' + r.key + '"' : '') + '>' + (r ? '<i class="nv-dot"></i>' : '') + h1 + '</h1><p data-el="list-sub">' + esc(desc) + '</p></div>' +
-      '<form class="nv-search" data-form="filter">' + ICON.search +
-        '<input type="text" enterkeyhint="search" name="q" data-el="q" value="' + esc(f.q) + '" placeholder="Rechercher dans ' + (r ? 'la rubrique' : 'les actus') + '…" autocomplete="off" aria-label="Rechercher">' +
+      mtabsHtml(f) +
+      '<div class="nv-searchrow"><form class="nv-search" data-form="filter">' + ICON.search +
+        '<input type="text" enterkeyhint="search" name="q" data-el="q" value="' + esc(f.q) + '" placeholder="Rechercher' + (root.classList.contains('is-compact') ? '' : ' dans ' + (r ? 'la rubrique' : 'les actus')) + '…" autocomplete="off" aria-label="Rechercher">' +
         (f.q ? '<button type="button" class="nv-icon-btn" data-act="clear-q" aria-label="Effacer">' + ICON.close + '</button>' : '') + '</form>' +
+        '<button type="button" class="nv-rubbtn" data-act="pick-rub" aria-haspopup="dialog" title="Choisir une rubrique">' +
+          '<img src="' + esc(LOGO_NOIR) + '" alt="" aria-hidden="true"><span>' + esc(r ? r.label : 'Toutes') + '</span>' + ICON.down + '</button></div>' +
       '<div class="nv-filters">' +
         '<button class="nv-chip' + (!f.category ? ' is-on' : '') + '" data-filter-cat="">Toutes</button>' +
         RUBRIQUES.map(function (x) { return '<button class="nv-chip' + (f.category === x.key ? ' is-on' : '') + '" data-filter-cat="' + x.key + '" data-cat="' + x.key + '"><i class="nv-dot"></i>' + esc(x.label) + '</button>'; }).join('') +
@@ -854,6 +1077,7 @@
       '<div data-el="list"><div class="nv-list">' + skeleton(5) + '</div></div>' +
       '<div class="nv-loadmore" data-el="more"></div>'
     );
+    updateCounts();
     if (focus) setTimeout(function () { var q = el('q'); if (q) { q.focus({ preventScroll: true }); q.select(); } }, 60);
     state.items = []; state.total = 0; state.hasMore = false;
     state.start = 0; state.starts = []; state.shown = 0;
@@ -936,6 +1160,7 @@
     state.starts.push(state.start);
     state.start += Math.max(1, state.shown);
     content.scrollTop = 0;
+    if (isPhone()) scrollToTop(true);
     if (state.start + PAGE_SIZE > state.items.length && state.hasMore) loadPage();
     else renderList();
   }
@@ -943,6 +1168,7 @@
     if (!state.starts.length) return;
     state.start = state.starts.pop();
     content.scrollTop = 0;
+    if (isPhone()) scrollToTop(true);
     renderList();
   }
 
@@ -1091,6 +1317,13 @@
   // ================= ÉVÉNEMENTS =================
   root.addEventListener('click', function (e) {
     var t = e.target;
+    if (t === el('pop')) return closePop();   // clic sur le voile, hors de la carte
+    var mt = t.closest('[data-mtab]');
+    if (mt) {
+      var k = mt.getAttribute('data-mtab');
+      if (k !== 'all' && !token) return needLogin(k === 'saved' ? 'garder des actus à relire' : 'voir tes actus non lues');
+      var fm = copyF(); fm.status = k; return openList(fm);
+    }
     // Auteur d'une actu : son profil (sans ouvrir la carte de l'actu)
     var prof = t.closest('[data-profil]');
     if (prof && root.contains(prof)) { e.preventDefault(); e.stopPropagation(); try { window.top.location.href = prof.href; } catch (x) { window.open(prof.href, '_blank'); } return; }
@@ -1121,10 +1354,12 @@
     if (!a) return;
     var act = a.getAttribute('data-act');
     if (act === 'open-drawer') {
-      if (root.classList.contains('is-compact')) root.classList.add('is-drawer');
+      if (root.classList.contains('is-compact')) openPop('menu');
       else { state.sideOff = false; LS.set('side_off', false); updateLayout(); }
     }
     else if (act === 'close-drawer') root.classList.remove('is-drawer');
+    else if (act === 'close-pop') closePop();
+    else if (act === 'pick-rub') openPop('rub');
     else if (act === 'close-side') {
       if (root.classList.contains('is-compact')) root.classList.remove('is-drawer');
       else { state.sideOff = true; LS.set('side_off', true); updateLayout(); }
@@ -1180,7 +1415,8 @@
   function onKey(e) {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K') && document.body.contains(root)) { e.preventDefault(); openSearch(); }
     if (e.key === 'Escape') {
-      if (root.classList.contains('is-drawer')) root.classList.remove('is-drawer');
+      if (!el('pop').hidden) closePop();
+      else if (root.classList.contains('is-drawer')) root.classList.remove('is-drawer');
       else if (state.view === 'article') goBack();
     }
   }
