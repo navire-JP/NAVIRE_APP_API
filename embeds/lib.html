@@ -629,9 +629,9 @@
 #nv-lib.is-compact .nl-msgs { max-height: none; }
 
 /* Voile (plan du cours, pass admin) : posé sur la partie visible de l'écran */
-#nv-lib .nl-pop { position: absolute; left: 0; right: 0; top: var(--vis-top, 0px); height: var(--vis-h, 100%); z-index: 2500; display: flex; flex-direction: column; padding: 12px 12px 14px; background: rgba(6,7,12,0.8); -webkit-backdrop-filter: blur(30px) saturate(140%); backdrop-filter: blur(30px) saturate(140%); animation: nl-popfade .18s ease both; font-family: 'DM Sans', system-ui, sans-serif; }
+#nv-lib .nl-pop { position: absolute; left: 0; right: 0; top: var(--vis-top, 0px); height: var(--vis-h, 100%); z-index: 2500; display: flex; flex-direction: column; padding: 12px 12px 14px; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; animation: nl-popfade .18s ease both; font-family: 'DM Sans', system-ui, sans-serif; }
 #nv-lib .nl-pop[hidden] { display: none; }
-#nv-lib .nl-pop-card { max-height: 100%; overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 18px; background: rgba(24,26,38,0.97); box-shadow: 0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07); animation: nl-pop .2s var(--ease) both; }
+#nv-lib .nl-pop-card { max-height: 100%; overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 18px; background: #181a26; box-shadow: 0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07); animation: nl-pop .2s var(--ease) both; }
 #nv-lib .nl-pop-card::-webkit-scrollbar { display: none; }
 #nv-lib .nl-pop-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 4px 12px; font-size: 10.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); }
 #nv-lib .nl-pop-head .nv-icon-btn { margin-left: auto; width: 32px; height: 32px; border-radius: 9px; }
@@ -652,6 +652,20 @@
 #nv-lib .nl-pop .nl-seg button { height: 34px; font-size: 12px; }
 #nv-lib .nl-pop-note { padding: 2px 12px 10px; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
 #nv-lib .nl-pop-sep { height: 1px; margin: 4px 10px; background: rgba(255,255,255,0.06); }
+/* Téléphone, sans fond : pas de bande en haut de la bibliothèque, pas de titre
+   en double ; Lib / Lib+ et le pass admin passent à côté de la recherche.
+   En lecture, la barre (retour, plan) est transparente et défile avec le cours. */
+#nv-lib .nl-mrow { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+#nv-lib .nl-mrow .nl-search { flex: 1; min-width: 0; margin-bottom: 0; }
+#nv-lib .nl-mrow .nl-mode, #nv-lib .nl-mrow .nv-icon-btn { display: none; }
+#nv-lib.is-compact:not(.is-doc) .nv-topbar { display: none; }
+#nv-lib.is-compact .nv-topbar { position: static !important; background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-bottom: 0 !important; }
+#nv-lib.is-compact .nl-readbar, #nv-lib.is-compact .nv-page-head { display: none; }
+#nv-lib.is-compact .nl-mrow .nl-mode { display: inline-grid; }
+#nv-lib.is-compact.is-admin .nl-mrow .nv-icon-btn { display: inline-flex; width: 32px; height: 32px; border-radius: 9px; color: var(--text-4); }
+#nv-lib.is-compact.is-admin .nl-mrow .nv-icon-btn svg { width: 17px; height: 17px; }
+#nv-lib.is-compact:not(.is-doc) .nv-page-inner { padding-top: 10px; }
+#nv-lib.is-compact .nl-mtabs { margin-top: 0; }
 @keyframes nl-popfade { from { opacity: 0; } }
 @keyframes nl-pop { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
 </style>
@@ -1108,7 +1122,9 @@
     }
     if (hasPrepa()) html += prepaBanner();
     html += mtabsHtml(items);
-    html += '<div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="Rechercher un cours, une matière…" value="' + esc(S.query) + '"></div>';
+    html += '<div class="nl-mrow"><div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="' + (root.classList.contains("is-compact") ? "Rechercher…" : "Rechercher un cours, une matière…") + '" value="' + esc(S.query) + '"></div>' +
+      '<div class="nl-mode' + (plus() ? " is-plus" : "") + '"><i></i><button data-mode="lib" class="' + (plus() ? "" : "is-on") + '">Lib</button><button data-mode="plus" class="' + (plus() ? "is-on" : "") + '">Lib+</button></div>' +
+      '<button class="nv-icon-btn" data-act="admin-pop" aria-label="Pass admin" title="Pass admin · voir comme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></button></div>';
     if (!items.length) html += '<div class="nv-empty"><b>La bibliothèque arrive</b>Les premiers cours sont en préparation.</div>';
     else if (!list.length) html += '<div class="nv-empty"><b>Aucun résultat</b>Essaie un autre mot.</div>';
     else html += '<div class="nl-grid">' + list.map(bookCard).join("") + '</div>';
