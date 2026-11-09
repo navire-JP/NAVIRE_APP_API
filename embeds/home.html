@@ -661,12 +661,12 @@
 #nv-home.is-compact .nv-row-title { font-size: 13px; }
 
 /* Menu : un voile opaque et flou, posé sur la partie visible de l'écran */
-#nv-home.is-compact .nv-scrim { top: var(--vis-top, 0px); bottom: auto; height: var(--vis-h, 100%); background: rgba(255,255,255,0.02); -webkit-backdrop-filter: blur(22px) saturate(130%); backdrop-filter: blur(22px) saturate(130%); }
+#nv-home.is-compact .nv-scrim { top: var(--vis-top, 0px); bottom: auto; height: var(--vis-h, 100%); background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
 #nv-home.is-compact .nv-side {
   left: 12px; right: 12px; width: auto; bottom: auto;
   top: calc(var(--vis-top, 0px) + 12px); max-height: calc(var(--vis-h, 100%) - 24px);
   padding: 6px 6px 8px; border-radius: 18px;
-  background: rgba(24,26,38,0.97); box-shadow: 0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07);
+  background: #181a26; box-shadow: 0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07);
   transform: translateY(-8px) scale(.98); opacity: 0;
   transition: transform .22s var(--ease), opacity .18s, visibility 0s .22s;
 }
