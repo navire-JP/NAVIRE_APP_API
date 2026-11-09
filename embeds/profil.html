@@ -10,7 +10,9 @@
       la date d'arrivée sur NAVIRE ;
     - l'Elo et le rang, à la place des abonnés ;
     - les stats (rang, réussite QCM, documents, deep work Discord), masquées
-      aux autres quand le profil est en privé ;
+      aux autres quand le profil est en privé ; chacune porte son visuel
+      NAVIRE (trophée, cible, dossier, orbe : assets/profil-*.png et
+      home-fichiers.png, servis par GET /assets/{nom}) ;
     - les posts de veille de l'élève, avec « Voir plus ».
   Téléphone : chaque post est en vue réduite (titre et deux lignes) avec
   « Voir plus » pour le déplier ; une flèche blanche ramène en haut de la
@@ -196,6 +198,10 @@
 #nv-profil .pf-stat:nth-child(4) { animation-delay: .12s; }
 #nv-profil .pf-stat-ico { width: 28px; height: 28px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--blue-soft); color: var(--blue); margin-bottom: 12px; }
 #nv-profil .pf-stat-ico svg { width: 15px; height: 15px; }
+/* Visuels NAVIRE des statistiques (assets/profil-*.png, home-fichiers.png), sans carré autour */
+#nv-profil .pf-stat-art { display: block; width: 40px; height: 40px; margin: -4px 0 10px -2px; background: center/contain no-repeat; filter: drop-shadow(0 5px 12px rgba(79,125,255,0.22)); transition: transform .35s var(--ease); }
+#nv-profil .pf-stat:hover .pf-stat-art { transform: translateY(-2px) scale(1.06) rotate(-3deg); }
+#nv-profil.is-narrow .pf-stat-art { width: 36px; height: 36px; }
 #nv-profil .pf-stat-value { font-size: 22px; font-weight: 700; letter-spacing: -.7px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 #nv-profil .pf-stat-label { margin-top: 5px; font-size: 12px; line-height: 1.4; color: var(--text-3); overflow-wrap: anywhere; }
 #nv-profil .pf-bar { height: 4px; border-radius: 9px; background: var(--panel-2); margin-top: 9px; overflow: hidden; }
@@ -873,15 +879,17 @@
     var sessions = dw.total_sessions || 0;
     box.innerHTML =
       '<div class="pf-stats">' +
-        tile(ICON.trophy, st.rank ? '#' + fmtInt(st.rank) : '…', st.total_ranked_users ? 'rang sur ' + fmtInt(st.total_ranked_users) : 'rang') +
-        tile(ICON.target, String(rate).replace('.', ',') + ' %', 'réussite QCM · ' + fmtInt(qcm.total_sessions) + ' session' + ((qcm.total_sessions || 0) > 1 ? 's' : ''), Math.round(rate)) +
-        tile(ICON.doc, docsVal, 'documents', docsPct, true) +
-        tile(ICON.wave, sessions ? esc(dw.total_label || '0 min') : '0 min', 'deep work · ' + fmtInt(sessions) + ' session' + (sessions > 1 ? 's' : '') + ' Discord') +
+        tile(art('profil-rang.png'), st.rank ? '#' + fmtInt(st.rank) : '…', st.total_ranked_users ? 'rang sur ' + fmtInt(st.total_ranked_users) : 'rang') +
+        tile(art('profil-qcm.png'), String(rate).replace('.', ',') + ' %', 'réussite QCM · ' + fmtInt(qcm.total_sessions) + ' session' + ((qcm.total_sessions || 0) > 1 ? 's' : ''), Math.round(rate)) +
+        tile(art('home-fichiers.png'), docsVal, 'documents', docsPct, true) +
+        tile(art('profil-deepwork.png'), sessions ? esc(dw.total_label || '0 min') : '0 min', 'deep work · ' + fmtInt(sessions) + ' session' + (sessions > 1 ? 's' : '') + ' Discord') +
       '</div>' + deepworkFoot(dw);
   }
 
+  // Visuel d'une statistique, servi par GET /assets/{nom}
+  function art(name) { return '<span class="pf-stat-art" aria-hidden="true" style="background-image:url(&quot;' + API + '/assets/' + name + '&quot;)"></span>'; }
   function tile(icon, value, label, pct, rawValue) {
-    return '<div class="pf-stat"><div class="pf-stat-ico">' + icon + '</div>' +
+    return '<div class="pf-stat">' + icon +
       '<div class="pf-stat-value">' + (rawValue ? value : esc(value)) + '</div>' +
       '<div class="pf-stat-label">' + esc(label) + '</div>' +
       (pct != null ? '<div class="pf-bar"><i style="width:' + pct + '%"></i></div>' : '') +

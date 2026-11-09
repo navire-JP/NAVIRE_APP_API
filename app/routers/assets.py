@@ -32,6 +32,12 @@ BRAND_FILES: dict[str, str] = {
     # Lib reprennent home-fichiers / home-cours.
     "files-cristal.png": "files-cristal.png",
     "files-diamant.png": "files-diamant.png",
+    # Visuels des statistiques du profil (embeds/profil.html), recadrés en
+    # 256 px : rang (trophée), réussite QCM (cible), deep work (orbe).
+    # Documents reprend home-fichiers.
+    "profil-rang.png": "profil-rang.png",
+    "profil-qcm.png": "profil-qcm.png",
+    "profil-deepwork.png": "profil-deepwork.png",
 }
 
 # Une semaine : ces fichiers ne changent qu'à un changement d'identité visuelle,
