@@ -6,6 +6,11 @@
     - >= 760px de conteneur : barre latérale, masquable (bouton « « » en
       haut du menu, retenu d'une visite à l'autre) ; < 760px : menu tiroir ;
     - prend la hauteur de l'écran sous sa position, seule la page défile.
+  Téléphone (< 760px) : police DM Sans plus petite (comme Fichiers), cours
+  sur 2 colonnes, pas de menu tiroir : trois onglets « Toute la
+  bibliothèque / Mes fichiers / Cours » ; en lecture, un bouton retour et un
+  bouton « plan » discret (les titres, en voile) ; comptes admin : un bouton
+  qui ouvre « Voir comme » en voile ; une flèche ramène en haut de la page.
 
   Un curseur passe de NAVIRE Lib à NAVIRE Lib+ :
     Lib   → consultation : le cours entier, sans point de passage ni Elo.
@@ -37,7 +42,7 @@
   Anciens liens /lib?prepa=edt|cours|devoirs : redirigés vers /prepa.
   Réglages : bloc CONFIG du script (liens QCM, NAVIRE AI, actus, offres).
 -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <style>
 #nv-lib {
   --panel: rgba(255,255,255,0.035);
@@ -566,6 +571,89 @@
 #nv-lib .nl-apercu { background: rgba(255,255,255,0.04) !important; color: rgba(255,255,255,0.62) !important; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); font-weight: 500 !important; box-shadow: inset 0 -1px 0 rgba(255,255,255,0.05); }
 #nv-lib .nl-apercu button, #nv-lib .nl-apercu select { background: rgba(255,255,255,0.08) !important; color: #fff !important; }
 #nv-lib.is-flow .nl-apercu { position: relative; top: var(--vis-top, 0px); z-index: 39; }
+
+/* ================= TÉLÉPHONE ================= */
+/* Hors téléphone : onglets et boutons du téléphone cachés */
+#nv-lib .nl-mtabs, #nv-lib .nl-m-btn { display: none; }
+#nv-lib.is-compact { font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px; }
+/* Pas de menu tiroir : onglets en bibliothèque, retour + plan en lecture */
+#nv-lib.is-compact .nv-menu-btn { display: none !important; }
+#nv-lib.is-compact.is-doc .nl-m-back, #nv-lib.is-compact.is-doc .nl-m-plan, #nv-lib.is-compact.is-admin .nl-m-admin { display: inline-flex; }
+#nv-lib.is-compact [data-el="hl-btn"] { display: none !important; }
+#nv-lib.is-compact .nv-topbar { min-height: 50px; padding: 6px 8px; gap: 4px; }
+#nv-lib.is-compact .nv-topbar-title { font-size: 13.5px; color: var(--text); padding-left: 6px; }
+#nv-lib.is-compact.is-doc .nv-topbar-title { padding-left: 0; font-weight: 500; color: var(--text-2); }
+#nv-lib.is-compact .nl-m-back { width: 36px; height: 36px; }
+#nv-lib.is-compact .nl-m-plan, #nv-lib.is-compact .nl-m-admin { width: 32px; height: 32px; border-radius: 9px; color: var(--text-4); }
+#nv-lib.is-compact .nl-m-plan svg, #nv-lib.is-compact .nl-m-admin svg { width: 17px; height: 17px; }
+#nv-lib.is-compact .nl-m-plan:hover, #nv-lib.is-compact .nl-m-admin:hover { color: var(--text-2); background: transparent; }
+#nv-lib.is-compact .nl-mode { height: 28px; padding: 2px; }
+#nv-lib.is-compact .nl-mode button { padding: 0 9px; font-size: 11px; }
+#nv-lib.is-compact .nl-mode i { top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); }
+/* Onglets de la bibliothèque */
+#nv-lib.is-compact .nl-mtabs { display: flex; gap: 2px; padding: 2px; margin: 2px 0 10px; border-radius: 10px; background: rgba(255,255,255,0.05); }
+#nv-lib.is-compact .nl-mtabs button { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 30px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, color .15s; }
+#nv-lib.is-compact .nl-mtabs button.is-on { background: rgba(255,255,255,0.1); color: var(--text); box-shadow: 0 1px 8px rgba(0,0,0,0.2); }
+#nv-lib.is-compact .nl-mtabs b { font-family: var(--mono); font-size: 9.5px; font-weight: 600; color: var(--text-4); }
+/* Recherche au format de l'onglet Fichiers (16px réduit à 13px : pas de zoom iOS) */
+#nv-lib.is-compact .nl-search { height: 34px; padding: 0 10px; gap: 7px; border: 0; border-radius: 10px; background: rgba(255,255,255,0.05); margin-bottom: 10px; overflow: hidden; }
+#nv-lib.is-compact .nl-search:focus-within { background: rgba(255,255,255,0.08); }
+#nv-lib.is-compact .nl-search svg { width: 15px; height: 15px; }
+#nv-lib.is-compact .nl-search input { flex: 0 0 auto; font-size: 16px; width: calc((100% - 22px) / 0.8125); margin-right: calc((100% - 22px) - (100% - 22px) / 0.8125); transform: scale(0.8125); transform-origin: 0 50%; }
+/* Page, en-tête, stats, bandeaux */
+#nv-lib.is-compact .nv-page-inner { padding: 6px 12px 40px; }
+#nv-lib.is-compact .nv-page-head { margin: 4px 0 12px; }
+#nv-lib.is-compact .nv-page-head h2 { font-size: 18px; letter-spacing: -.3px; }
+#nv-lib.is-compact .nv-page-head p { font-size: 12.5px; }
+#nv-lib.is-compact .nl-stats { gap: 6px; margin-bottom: 12px; }
+#nv-lib.is-compact .nl-stat { padding: 10px; border-radius: 12px; }
+#nv-lib.is-compact .nl-stat small { font-size: 8.5px; }
+#nv-lib.is-compact .nl-stats b { font-size: 16px; margin-top: 4px; }
+#nv-lib.is-compact .nl-banner { gap: 10px; padding: 12px; border-radius: 14px; }
+#nv-lib.is-compact .nl-banner b { font-size: 13px; }
+#nv-lib.is-compact .nl-banner span { font-size: 11.5px; }
+#nv-lib.is-compact .nl-banner .nl-qico { width: 32px; height: 32px; border-radius: 10px; }
+/* Cartes des cours : 2 colonnes */
+#nv-lib.is-compact .nl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#nv-lib.is-compact .nl-book { min-height: 132px; padding: 12px; gap: 6px; border-radius: 14px; }
+#nv-lib.is-compact .nl-book::after { width: 90px; height: 90px; right: -30px; top: -30px; }
+#nv-lib.is-compact .nl-book-top { gap: 4px; }
+#nv-lib.is-compact .nl-book .nv-tag { font-size: 8.5px; padding: 1px 6px; }
+#nv-lib.is-compact .nl-book h3 { font-size: 13.5px; line-height: 1.28; letter-spacing: -.2px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-lib.is-compact .nl-book p { font-size: 11.5px; line-height: 1.4; }
+#nv-lib.is-compact .nl-book-foot { font-size: 10.5px; gap: 6px; }
+#nv-lib.is-compact .nl-book .nl-lockbadge { right: 8px; top: 8px; }
+#nv-lib.is-compact .nv-empty { font-size: 12.5px; }
+#nv-lib.is-compact .nv-chip { font-size: 12px; }
+/* Rien ne défile à l'intérieur : le chat s'allonge avec la page */
+#nv-lib.is-compact .nl-msgs { max-height: none; }
+
+/* Voile (plan du cours, pass admin) : posé sur la partie visible de l'écran */
+#nv-lib .nl-pop { position: absolute; left: 0; right: 0; top: var(--vis-top, 0px); height: var(--vis-h, 100%); z-index: 2500; display: flex; flex-direction: column; padding: 12px 12px 14px; background: rgba(6,7,12,0.8); -webkit-backdrop-filter: blur(30px) saturate(140%); backdrop-filter: blur(30px) saturate(140%); animation: nl-popfade .18s ease both; font-family: 'DM Sans', system-ui, sans-serif; }
+#nv-lib .nl-pop[hidden] { display: none; }
+#nv-lib .nl-pop-card { max-height: 100%; overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 18px; background: rgba(24,26,38,0.97); box-shadow: 0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07); animation: nl-pop .2s var(--ease) both; }
+#nv-lib .nl-pop-card::-webkit-scrollbar { display: none; }
+#nv-lib .nl-pop-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 4px 12px; font-size: 10.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); }
+#nv-lib .nl-pop-head .nv-icon-btn { margin-left: auto; width: 32px; height: 32px; border-radius: 9px; }
+#nv-lib .nl-pop-head .nv-icon-btn svg { width: 16px; height: 16px; }
+#nv-lib .nl-pop-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; text-align: left; color: var(--text); font-size: 13px; font-weight: 500; }
+#nv-lib .nl-pop-item:hover { background: rgba(255,255,255,0.06); }
+#nv-lib .nl-pop-item svg { width: 16px; height: 16px; color: var(--blue); }
+#nv-lib .nl-pop-item .nl-switch { margin-left: auto; width: 32px; height: 18px; border-radius: 99px; background: var(--panel-3); position: relative; transition: background .2s; }
+#nv-lib .nl-pop-item .nl-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .2s var(--ease); }
+#nv-lib .nl-pop-item.is-on .nl-switch { background: var(--blue); }
+#nv-lib .nl-pop-item.is-on .nl-switch::after { transform: translateX(14px); }
+#nv-lib .nl-pop .nl-plan { margin: 2px 0 4px; padding: 0; }
+#nv-lib .nl-pop .nl-plan-item { padding-top: 8px; padding-bottom: 8px; font-size: 13px; }
+#nv-lib .nl-pop .nl-plan-item.l2 { font-size: 12.5px; }
+#nv-lib .nl-pop .nl-plan-item.l3 { font-size: 12px; }
+#nv-lib .nl-pop .nl-plan-cp { font-size: 11.5px; }
+#nv-lib .nl-pop .nl-admin { margin: 4px 6px 6px; border: 0; padding: 4px 6px 6px; }
+#nv-lib .nl-pop .nl-seg button { height: 34px; font-size: 12px; }
+#nv-lib .nl-pop-note { padding: 2px 12px 10px; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
+#nv-lib .nl-pop-sep { height: 1px; margin: 4px 10px; background: rgba(255,255,255,0.06); }
+@keyframes nl-popfade { from { opacity: 0; } }
+@keyframes nl-pop { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
 </style>
 
 <div id="nv-lib" class="is-solo">
@@ -592,11 +680,20 @@
       <button class="nv-icon-btn nv-menu-btn" data-act="side-open" aria-label="Afficher le menu" title="Afficher le menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
       </button>
+      <button class="nv-icon-btn nl-m-btn nl-m-back" data-act="library" aria-label="Retour à la bibliothèque" title="Bibliothèque">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
       <div class="nv-topbar-title" data-el="title">Bibliothèque</div>
+      <button class="nv-icon-btn nl-m-btn nl-m-plan" data-act="plan-pop" aria-label="Plan du cours" title="Plan du cours">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
+      </button>
       <button class="nv-icon-btn" data-act="toggle-hl" data-el="hl-btn" aria-label="Surlignage" title="Surlignage des références">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
       </button>
       <span class="nl-pill" data-el="pill"></span>
+      <button class="nv-icon-btn nl-m-btn nl-m-admin" data-act="admin-pop" aria-label="Pass admin" title="Pass admin · voir comme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+      </button>
       <div class="nl-mode" data-el="mode" data-act="toggle-mode" role="switch" aria-label="NAVIRE Lib ou Lib+">
         <i></i><button data-mode="lib">Lib</button><button data-mode="plus">Lib+</button>
       </div>
@@ -606,6 +703,7 @@
     <div class="nv-page nv-scroll" data-el="page"></div>
     <div class="nv-toasts" data-el="toasts"></div>
   </main>
+  <div class="nl-pop" data-el="pop" hidden></div>
 
   <div class="nl-pdf" data-el="pdf">
     <div class="nl-pdf-bar">
@@ -841,7 +939,8 @@
   function updateCompact() {
     var compact = root.clientWidth < 760;
     root.classList.toggle("is-compact", compact);
-    if (!compact) root.classList.remove("is-drawer");
+    if (!compact) { root.classList.remove("is-drawer"); closePop(); }
+    if (typeof paintUp === "function") paintUp();
   }
   if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
   else window.addEventListener("resize", updateCompact);
@@ -858,6 +957,8 @@
   // ================= RENDU COMMUN =================
   function setPage(html, solo) {
     root.classList.toggle("is-solo", !!solo);
+    root.classList.toggle("is-doc", S.view === "doc");
+    closePop();
     var p = el("page");
     p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
     FLOW.top();
@@ -1006,6 +1107,7 @@
         : '<div class="nv-page-head"><h2>Bibliothèque</h2><p>Les cours en libre consultation, et les PDF de tes fichiers.</p></div>';
     }
     if (hasPrepa()) html += prepaBanner();
+    html += mtabsHtml(items);
     html += '<div class="nl-search">' + ICON.search + '<input id="lib-search" placeholder="Rechercher un cours, une matière…" value="' + esc(S.query) + '"></div>';
     if (!items.length) html += '<div class="nv-empty"><b>La bibliothèque arrive</b>Les premiers cours sont en préparation.</div>';
     else if (!list.length) html += '<div class="nv-empty"><b>Aucun résultat</b>Essaie un autre mot.</div>';
@@ -1023,6 +1125,14 @@
       viewLibrary();
       var n = document.getElementById("lib-search"); n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {}
     });
+  }
+  // Téléphone : « Toute la bibliothèque / Mes fichiers / Cours » à la place du menu
+  function mtabsHtml(items) {
+    var n = { all: items.length };
+    items.forEach(function (d) { n[d.kind] = (n[d.kind] || 0) + 1; });
+    return '<div class="nl-mtabs" role="tablist">' + [["all", "Toute la bibliothèque"], ["perso", "Mes fichiers"], ["cours", "Cours"]].map(function (t) {
+      return '<button type="button" data-mtab="' + t[0] + '" class="' + (S.filter === t[0] ? "is-on" : "") + '">' + t[1] + (t[0] !== "all" && n[t[0]] ? '<b>' + n[t[0]] + '</b>' : "") + '</button>';
+    }).join("") + '</div>';
   }
   function bookCard(d, i) {
     var p = plus();
@@ -1047,6 +1157,7 @@
     if (S.docId !== id) { S.Q = {}; S.redo = {}; S.after = {}; S.chat = {}; }
     S.docId = id; setPageParam("doc", id); setPageParam("prepa", null);
     S.view = "doc";
+    root.classList.add("is-doc");
     root.classList.remove("is-solo");
     root.classList.remove("is-drawer");
     el("hl-btn").style.display = "";
@@ -1091,7 +1202,7 @@
         (plus() && doc.nb_points_passage ? bar(doc.progression_pct) + '<div class="nl-bar-label"><span>' + doc.valides + ' / ' + doc.nb_points_passage + ' points de passage</span><span>' + doc.progression_pct + ' %</span></div>' : "") +
       '</div>' +
       '<div class="nv-group-label">Plan</div>' +
-      '<div class="nl-plan nv-scroll" data-el="plan">' + items.join("") + '</div>' +
+      '<div class="nl-plan nv-scroll" data-el="plan">' + (S.planHtml = items.join("")) + '</div>' +
       actions();
   }
   function planCp(c) {
@@ -1393,6 +1504,7 @@
     while (n && k < 3) { n.classList.add("nl-flash"); n = n.nextElementSibling; k++; }
   }
   function scrollToEl(t) {
+    closePop();
     if (t) FLOW.toEl(t, 16, true);
     root.classList.remove("is-drawer");
   }
@@ -1512,6 +1624,7 @@
   // ----- Pass admin : voir Lib comme un étudiant d'un niveau -----
   function renderAdmin() {
     var a = el("admin"), b = el("apercu");
+    root.classList.toggle("is-admin", isAdmin());
     if (!isAdmin()) { a.innerHTML = ""; b.classList.remove("is-on"); b.innerHTML = ""; return; }
     a.innerHTML = '<div class="nl-admin"><small>Pass admin · voir comme</small><div class="nl-seg">' +
       [["", "Admin"], ["L1", "L1"], ["L2", "L2"], ["L3", "L3"], ["M1", "M1"]].map(function (o) {
@@ -1521,6 +1634,7 @@
     b.innerHTML = S.voir ? '<span>Aperçu étudiant ' + esc(S.voir) + ' : brouillons masqués, Prépa d\'un inscrit à toutes les matières du niveau.</span><button data-voir="">Quitter l\'aperçu</button>' : "";
   }
   function setVoir(v) {
+    closePop();
     S.voir = v || null; store("navire_lib_voir", S.voir);
     S.prepa = null;
     renderAdmin();
@@ -1531,8 +1645,71 @@
     }).catch(function (x) { toast(x.message, true); });
   }
 
+  // ================= VOILE (téléphone) : plan du cours, pass admin =================
+  function popHead(title) { return '<div class="nl-pop-head">' + esc(title) + '<button class="nv-icon-btn" data-act="pop-close" aria-label="Fermer">' + ICON.x + '</button></div>'; }
+  function popPlan() {
+    var d = S.doc && S.doc.document;
+    return popHead("Plan du cours") +
+      '<button class="nl-pop-item" data-act="library">' + ICON.back + 'Bibliothèque</button>' +
+      '<button class="nl-pop-item' + (S.plain ? "" : " is-on") + '" data-act="toggle-hl">' + ico("link", 16) + 'Surlignage des références<span class="nl-switch"></span></button>' +
+      '<div class="nl-pop-sep"></div>' +
+      (d ? '<div class="nl-pop-note"><b style="color:#fff;font-weight:600">' + esc(d.titre) + '</b>' + (plus() && d.nb_points_passage ? '<br>' + d.valides + ' / ' + d.nb_points_passage + ' points de passage' : "") + '</div>' : "") +
+      '<div class="nl-plan">' + (S.planHtml || '<div class="nl-pop-note">Ce document n\'a pas de titres.</div>') + '</div>';
+  }
+  function popAdmin() {
+    return popHead("Pass admin · voir comme") +
+      '<div class="nl-pop-note">La bibliothèque telle qu\'un étudiant de ce niveau la voit : brouillons masqués, Prépa d\'un inscrit à toutes les matières du niveau.</div>' +
+      '<div class="nl-admin"><div class="nl-seg">' + [["", "Admin"], ["L1", "L1"], ["L2", "L2"], ["L3", "L3"], ["M1", "M1"]].map(function (o) {
+        return '<button data-voir="' + o[0] + '" class="' + ((S.voir || "") === o[0] ? "is-on" : "") + '">' + o[1] + '</button>';
+      }).join("") + '</div></div>';
+  }
+  function lockPage(on) { if (FLOW.boxed) return; try { (HOST || window).document.documentElement.style.overflow = on ? "hidden" : ""; } catch (e) {} }
+  function openPop(kind) {
+    var p = el("pop");
+    FLOW.layout();
+    p.innerHTML = '<div class="nl-pop-card" role="dialog" aria-modal="true">' + (kind === "plan" ? popPlan() : popAdmin()) + '</div>';
+    p.hidden = false;
+    lockPage(true);
+    paintUp();
+    if (kind === "plan" && S.current) { var cur = p.querySelector('[data-goto="' + S.current + '"]'); if (cur) { cur.classList.add("is-current"); cur.scrollIntoView({ block: "center" }); } }
+  }
+  function closePop() { var p = el("pop"); if (p && !p.hidden) { p.hidden = true; p.innerHTML = ""; lockPage(false); paintUp(); } }
+
+  // Flèche « remonter » (téléphone) : posée sur la page du site, en bas à droite,
+  // quand on est descendu loin.
+  var upBtn = null;
+  (function () {
+    if (FLOW.boxed) return;
+    var doc = (HOST || window).document;
+    upBtn = doc.createElement("button");
+    upBtn.type = "button";
+    upBtn.setAttribute("aria-label", "Remonter en haut");
+    upBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+    upBtn.style.cssText = "position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:2147483000;width:46px;height:46px;border:0;border-radius:50%;" +
+      "background:#fff;color:#0a0a12;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.45);" +
+      "opacity:0;transform:translateY(10px) scale(.9);pointer-events:none;transition:opacity .2s,transform .2s;-webkit-tap-highlight-color:transparent";
+    upBtn.addEventListener("click", function () { FLOW.to(0, true); });
+    doc.body.appendChild(upBtn);
+  })();
+  function paintUp() {
+    if (!upBtn) return;
+    var vh = (HOST || window).innerHeight || 800;
+    var on = root.classList.contains("is-compact") && FLOW.y() > vh * 0.8 && el("pop").hidden;
+    upBtn.style.opacity = on ? "1" : "0";
+    upBtn.style.transform = on ? "none" : "translateY(10px) scale(.9)";
+    upBtn.style.pointerEvents = on ? "auto" : "none";
+  }
+  FLOW.onScroll(paintUp);
+
   // ================= ÉVÉNEMENTS =================
   root.addEventListener("click", function (e) {
+    if (e.target === el("pop")) return closePop();   // clic sur le voile, hors de la carte
+    var mt = e.target.closest("[data-mtab]");
+    if (mt) {
+      var k = mt.getAttribute("data-mtab");
+      if (k === "perso" && visitor()) { toast("Crée ton compte pour ajouter tes propres PDF."); return; }
+      S.filter = k; return viewLibrary();
+    }
     var t = e.target.closest("[data-act],[data-open],[data-filter],[data-goto],[data-goto-cp],[data-choice],[data-go],[data-mode],[data-mode-set],[data-cp-submit],[data-cp-next],[data-cp-skip],[data-cp-redo],[data-cp-close],[data-chat-open],[data-chat-close],[data-chat-sugg],[data-ptab],[data-voir]");
     if (!t || !root.contains(t)) return;
     var a = function (n) { return +t.getAttribute(n); };
@@ -1596,8 +1773,11 @@
     else if (act === "side-open") { if (root.classList.contains("is-compact")) root.classList.add("is-drawer"); else setSide(true); }
     else if (act === "side-close") { if (root.classList.contains("is-compact")) root.classList.remove("is-drawer"); else setSide(false); }
     else if (act === "close-drawer") root.classList.remove("is-drawer");
+    else if (act === "pop-close") closePop();
+    else if (act === "plan-pop") openPop("plan");
+    else if (act === "admin-pop") openPop("admin");
     else if (act === "library") { root.classList.remove("is-drawer"); refreshCatalogue().then(viewLibrary); }
-    else if (act === "toggle-hl") { S.plain = !S.plain; root.classList.toggle("is-plain", S.plain); t.classList.toggle("is-on", !S.plain); store("navire_lib_plain", S.plain ? "1" : null); toast(S.plain ? "Surlignage masqué" : "Surlignage affiché"); }
+    else if (act === "toggle-hl") { S.plain = !S.plain; root.classList.toggle("is-plain", S.plain); t.classList.toggle("is-on", !S.plain); el("hl-btn").classList.toggle("is-on", !S.plain); store("navire_lib_plain", S.plain ? "1" : null); toast(S.plain ? "Surlignage masqué" : "Surlignage affiché"); }
     else if (act === "prepa") viewPrepa();
     else if (act === "pdf-close") closePdf();
     else if (act === "suivi") toggleSuivi();
@@ -1632,7 +1812,8 @@
   });
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
-    if (el("pdf").classList.contains("is-on")) closePdf();
+    if (!el("pop").hidden) closePop();
+    else if (el("pdf").classList.contains("is-on")) closePdf();
     else root.classList.remove("is-drawer");
   });
 
