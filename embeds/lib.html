@@ -629,7 +629,7 @@
 #nv-lib.is-compact .nl-msgs { max-height: none; }
 
 /* Voile (plan du cours, pass admin) : posé sur la partie visible de l'écran */
-#nv-lib .nl-pop { position: absolute; left: 0; right: 0; top: var(--vis-top, 0px); height: var(--vis-h, 100%); z-index: 2500; display: flex; flex-direction: column; padding: 12px 12px 14px; background: rgba(6,7,12,0.8); -webkit-backdrop-filter: blur(30px) saturate(140%); backdrop-filter: blur(30px) saturate(140%); animation: nl-popfade .18s ease both; font-family: 'DM Sans', system-ui, sans-serif; }
+#nv-lib .nl-pop { position: absolute; left: 0; right: 0; top: var(--vis-top, 0px); height: var(--vis-h, 100%); z-index: 2500; display: flex; flex-direction: column; padding: 12px 12px 14px; background: rgba(255,255,255,0.02); -webkit-backdrop-filter: blur(22px) saturate(130%); backdrop-filter: blur(22px) saturate(130%); animation: nl-popfade .18s ease both; font-family: 'DM Sans', system-ui, sans-serif; }
 #nv-lib .nl-pop[hidden] { display: none; }
 #nv-lib .nl-pop-card { max-height: 100%; overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 18px; background: rgba(24,26,38,0.97); box-shadow: 0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07); animation: nl-pop .2s var(--ease) both; }
 #nv-lib .nl-pop-card::-webkit-scrollbar { display: none; }
