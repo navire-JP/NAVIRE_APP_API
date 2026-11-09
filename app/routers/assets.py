@@ -19,6 +19,8 @@ ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
 BRAND_FILES: dict[str, str] = {
     "logo-navire.png": "LOGO SEUL (3).png",   # logo NAVIRE, blanc sur transparent
     "logo-navire-app.png": "logoNAVIRE.png",   # icône d'app (carré arrondi blanc), interface NAVIRE AI
+    # Même icône en noir (128 px), pour les boutons blancs (sélecteur de rubrique de la Veille sur téléphone).
+    "logo-navire-app-noir.png": "logoNAVIRE-noir.png",
     # Visuels des trois accès de l'accueil (embeds/home.html), recadrés en
     # 256 px depuis « NAVIRE_<Cours|Fichiers|Veille>_embed asset.png ».
     "home-veilles.png": "home-veilles.png",
