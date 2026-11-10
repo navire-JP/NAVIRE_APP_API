@@ -517,6 +517,10 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 /* Téléphone : pas de titre en double (l'onglet actif suffit) */
 #nv-prepa.is-compact:not(.is-solo) .nv-topbar-title { visibility: hidden; }
 #nv-prepa.is-compact .nv-topbar { min-height: 44px; }
+
+/* PC : seul le menu latéral reste fixe (sous le header du site) ; la barre du
+   haut et le bandeau admin défilent avec la page, rien ne passe dessous. */
+#nv-prepa.is-flow .nv-topbar, #nv-prepa.is-flow .np-apercu, #nv-prepa.is-flow .nv-apercu { position: static !important; top: auto !important; }
 </style>
 
 <div id="nv-prepa">
@@ -714,6 +718,20 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     // Haut de l'embed dans la fenêtre du site.
     function rootTop() { return (frameEl ? frameEl.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; }
     function barH() { var b = root.querySelector(".nv-topbar"); return b && b.offsetParent ? b.offsetHeight : 0; }
+    // Bas du header fixe ou collant du site, au-dessus de l'embed (0 sinon).
+    function siteHead() {
+      try {
+        var w = win(), d = w.document, x = w.innerWidth / 2, best = 0;
+        (d.elementsFromPoint ? d.elementsFromPoint(x, 4) : []).forEach(function (n) {
+          if (n === frameEl || root.contains(n) || (frameEl && n.contains(frameEl)) || n.contains(root)) return;
+          for (var e = n; e && e !== d.body; e = e.parentElement) {
+            var p = w.getComputedStyle(e).position;
+            if (p === "fixed" || p === "sticky") { var r = e.getBoundingClientRect(); if (r.top <= 4 && r.bottom < w.innerHeight / 2) best = Math.max(best, r.bottom); break; }
+          }
+        });
+        return Math.round(best);
+      } catch (e) { return 0; }
+    }
     var F = {
       boxed: BOXED,
       // Défilement lu depuis le haut de l'embed.
@@ -741,9 +759,10 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       onScroll: function (fn) { subs.push(fn); },
       layout: function () {
         if (BOXED) { root.style.setProperty("--vis-top", "0px"); root.style.setProperty("--vis-h", root.offsetHeight + "px"); return; }
-        var rt = rootTop(), rh = root.offsetHeight, h = vh();
-        var visH = Math.max(200, Math.min(h, rt + rh) - Math.max(0, rt));
-        var visTop = Math.max(0, Math.min(-rt, rh - visH));
+        // Le header fixe du site (s'il y en a un) : la partie visible commence dessous.
+        var rt = rootTop(), rh = root.offsetHeight, h = vh(), hd = siteHead();
+        var visH = Math.max(200, Math.min(h, rt + rh) - Math.max(hd, rt));
+        var visTop = Math.max(0, Math.min(hd - rt, rh - visH));
         root.style.setProperty("--vis-top", Math.round(visTop) + "px");
         root.style.setProperty("--vis-h", Math.round(visH) + "px");
       },
