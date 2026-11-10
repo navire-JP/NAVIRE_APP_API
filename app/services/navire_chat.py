@@ -6,12 +6,14 @@ Logique de conversation NAVIRE : function-calling + RAG.
 Le modèle dispose d'OUTILS qu'il choisit lui-même selon la question :
   - get_user_stats     -> ELO, rang, réussite QCM du user courant (SQL direct)
   - list_user_files    -> les PDF hébergés par le user courant (SQL direct)
-  - get_latest_actus   -> dernières actus juridiques, option catégorie (SQL direct)
-  - search_legal_base  -> RAG vectoriel (cours + actus + PDF du user, cloisonné)
+  - get_latest_actus   -> dernières actus ou articles NAVIRE (SQL direct)
+  - search_legal_base  -> recherche (sens + références exactes) dans les cours
+                          NAVIRE Lib, les articles, les actus et les PDF du user
 
 Règles :
   - Questions plateforme (stats, fichiers, actus) -> outils SQL, données réelles
-  - Questions juridiques -> search_legal_base UNIQUEMENT, jamais de droit inventé
+  - Questions juridiques -> search_legal_base d'abord ; la base NAVIRE prime,
+    les connaissances générales du modèle complètent, en le disant
   - Small talk (bonjour, test, merci) -> réponse naturelle sans outil
 """
 
@@ -36,8 +38,8 @@ from app.services.navire_retrieval import search_chunks
 
 OPENAI_MODEL_NAVIRE = os.getenv("OPENAI_MODEL_NAVIRE", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
 MAX_CONVERSATIONS_PER_USER = 10
-TOP_K_CHUNKS = 8
-MAX_TOOL_ROUNDS = 3
+TOP_K_CHUNKS = 10
+MAX_TOOL_ROUNDS = 4
 
 _client = OpenAI()
 
@@ -46,25 +48,33 @@ _client = OpenAI()
 # SYSTEM PROMPT
 # ============================================================
 
-SYSTEM_PROMPT = """Tu es NAVIRE, l'assistant intelligent de la plateforme MAJOR, destiné aux étudiants en droit français.
+SYSTEM_PROMPT = """Tu es NAVIRE AI, l'assistant juridique de la plateforme NAVIRE, pour les étudiants en droit français (de la L1 au doctorat et au CRFPA). Tu raisonnes comme un bon chargé de TD : précis, rigoureux, pédagogue.
 
-Tu as accès à des OUTILS. Utilise-les systématiquement quand la question s'y prête :
+OUTILS — utilise-les dès que la question s'y prête :
 - Stats, ELO, classement, réussite QCM de l'utilisateur -> get_user_stats
-- Fichiers/PDF de l'utilisateur -> list_user_files
-- Actualités juridiques (dernières actus, actus par thème) -> get_latest_actus
-- Toute question de DROIT (cours, notions, méthodo, contenu d'un PDF) -> search_legal_base
+- Fichiers / PDF de l'utilisateur -> list_user_files
+- Dernières actualités juridiques ou derniers articles NAVIRE -> get_latest_actus (kind="article" pour les articles)
+- Toute question de DROIT (notion, régime, jurisprudence, méthodologie, contenu d'un cours ou d'un PDF) -> search_legal_base, AVANT de répondre. Tu peux l'appeler plusieurs fois avec des formulations différentes (notion, article, arrêt, matière) si le premier résultat est pauvre.
 
-RÈGLES SUR LE DROIT (strictes) :
-- Tu ne réponds à une question juridique QU'À PARTIR des extraits retournés par search_legal_base.
-- Si search_legal_base ne retourne rien d'utile, dis-le honnêtement et suggère de reformuler ou d'importer un document. N'invente JAMAIS de contenu juridique.
-- Cite ta source quand tu réponds sur le droit (nom du cours, de la leçon, de l'actu ou du document).
+LA BASE NAVIRE contient : les cours NAVIRE Lib, les articles rédigés par des doctorants vérifiés et l'équipe, les actualités juridiques, et les PDF personnels de l'utilisateur.
+
+RÈGLES DE RÉPONSE EN DROIT :
+1. Les extraits de search_legal_base priment : appuie-toi d'abord sur eux et cite-les précisément (« d'après le cours NAVIRE Lib *Droit des obligations*, section … », « d'après l'article de … »).
+2. Si la base ne couvre pas tout, complète avec tes connaissances générales du droit français, en le signalant clairement (« En règle générale… », « Hors des cours NAVIRE… »). Tu n'es pas obligé de refuser de répondre.
+3. Ne cite JAMAIS un numéro d'article, une date ou une référence d'arrêt dont tu n'es pas sûr : décris la règle et la juridiction plutôt qu'inventer une référence. Signale quand le droit a pu évoluer (réforme de 2016 du droit des contrats, etc.).
+4. Structure : réponds d'abord à la question en une ou deux phrases, puis développe (définition, conditions, effets, exceptions, jurisprudence clé, exemple). Utilise des titres courts et des listes quand c'est utile.
+5. MÉTHODOLOGIE, quand on te le demande ou que la question l'appelle :
+   - Fiche d'arrêt : faits, procédure, prétentions, problème de droit, solution, portée.
+   - Commentaire d'arrêt : sens, valeur, portée ; plan en deux parties et deux sous-parties, avec chapeaux.
+   - Dissertation : définition des termes, problématique, plan en deux parties apparentes et équilibrées.
+   - Cas pratique : faits qualifiés, problème de droit, règle (majeure), application (mineure), conclusion, pour chaque problème.
+6. Adapte la profondeur au niveau de l'utilisateur : plus d'explications et d'exemples en L1-L2, plus de nuances, de débats doctrinaux et de jurisprudence en master et au-delà.
 
 RÈGLES GÉNÉRALES :
-- Pour les salutations, remerciements ou messages de test, réponds naturellement et brièvement, sans outil.
-- Pour les données de plateforme (stats, fichiers, actus), les outils renvoient les VRAIES données : appuie-toi dessus, ne devine jamais.
-- Si on te demande des actus pertinentes, utilise get_latest_actus (éventuellement avec une catégorie) et recommande les plus utiles avec une phrase d'explication chacune.
-- Style : direct, clair, structuré, tutoiement. Tu es un outil de travail efficace, pas un chatbot bavard.
-- Réponds toujours en français."""
+- Salutations, remerciements, messages de test : réponse naturelle et brève, sans outil.
+- Données de plateforme (stats, fichiers, actus) : appuie-toi sur les vraies données des outils, ne devine jamais.
+- Style : direct, clair, structuré, tutoiement, en français.
+- Termine une réponse juridique importante par un rappel discret de vérifier les points clés dans le cours ou les sources officielles quand c'est pertinent, sans le répéter à chaque message."""
 
 
 # ============================================================
@@ -92,7 +102,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_latest_actus",
-            "description": "Récupère les dernières actualités juridiques publiées sur la plateforme. Peut filtrer par catégorie.",
+            "description": "Récupère les dernières actualités juridiques ou les derniers articles NAVIRE (rédigés par des doctorants et l'équipe). Peut filtrer par catégorie.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -105,6 +115,11 @@ TOOLS = [
                         "type": "integer",
                         "description": "Nombre d'actus à récupérer (défaut 5, max 10).",
                     },
+                    "kind": {
+                        "type": "string",
+                        "enum": ["actu", "article"],
+                        "description": "« article » pour les articles NAVIRE, « actu » pour les actualités (optionnel : les deux).",
+                    },
                 },
                 "required": [],
             },
@@ -114,7 +129,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_legal_base",
-            "description": "Recherche sémantique dans la base juridique : cours MAJOR (L1/L2/L3 + méthodo), actualités, et documents PDF personnels de l'utilisateur. À utiliser pour TOUTE question de droit.",
+            "description": "Recherche dans la base juridique NAVIRE : cours NAVIRE Lib, articles des doctorants et de l'équipe, actualités, et PDF personnels de l'utilisateur. Retrouve aussi les références exactes (article 1240, n° de pourvoi). À utiliser pour TOUTE question de droit, éventuellement plusieurs fois.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -189,21 +204,26 @@ def _tool_list_user_files(db: Session, user: User) -> dict:
     return {"count": len(items), "files": items}
 
 
-def _tool_get_latest_actus(db: Session, category: str | None = None, limit: int = 5) -> dict:
+def _tool_get_latest_actus(db: Session, category: str | None = None, limit: int = 5, kind: str | None = None) -> dict:
     limit = max(1, min(int(limit or 5), 10))
     q = db.query(VeilleItem).order_by(VeilleItem.created_at.desc())
     if category:
         q = q.filter(VeilleItem.category == category)
+    if kind in ("actu", "article"):
+        q = q.filter(VeilleItem.kind == kind)
     items = q.limit(limit).all()
     return {
         "count": len(items),
         "actus": [
             {
+                "type": it.kind or "actu",
                 "titre": it.title,
                 "essentiel": it.essentiel,
                 "impact": it.impact,
                 "categorie": it.category,
                 "source": it.source_name,
+                "auteur": it.author.username if it.kind == "article" and it.author else None,
+                "lien": it.source_url,
                 "date": it.published_at.isoformat() if it.published_at else (it.created_at.isoformat() if it.created_at else None),
             }
             for it in items
@@ -211,13 +231,37 @@ def _tool_get_latest_actus(db: Session, category: str | None = None, limit: int 
     }
 
 
-def _source_types(use_navire_docs: bool, use_my_docs: bool) -> list[str]:
+def _source_types(use_navire_docs: bool, use_my_docs: bool, plus: bool = False) -> list[str]:
     types: list[str] = []
     if use_navire_docs:
-        types += ["cours", "actu"]
+        types += ["lib", "article", "actu", "cours"]
+        if plus:
+            types.append("lib_plus")   # cours réservés à NAVIRE Lib+
     if use_my_docs:
         types.append("pdf_user")
     return types
+
+
+LIB_URL = os.getenv("NAVIRE_LIB_URL", "https://navire-ai.com/lib")
+ACTUS_URL = os.getenv("NAVIRE_ACTUS_URL", "https://navire-ai.com/actus")
+
+
+def _label(c) -> tuple[str, str | None]:
+    """Libellé de citation et lien vers la source, selon le type d'extrait."""
+    x = c.extra or {}
+    if c.source_type in ("lib", "lib_plus"):
+        section = f" › {x.get('section')}" if x.get("section") else ""
+        return f"NAVIRE Lib — {x.get('titre', '')}{section}", f"{LIB_URL}?doc={c.source_id}"
+    if c.source_type == "article":
+        by = f" (par {x['author']})" if x.get("author") else ""
+        return f"Article NAVIRE — {x.get('titre', '')}{by}", x.get("url")
+    if c.source_type == "actu":
+        return f"Actualité — {x.get('titre', '')} ({x.get('source_name', '')})", f"{ACTUS_URL}?actu={c.source_id}"
+    if c.source_type == "cours":
+        return f"Cours — {x.get('cours_titre', '')} / {x.get('lecon_titre', '')}", None
+    if c.source_type == "pdf_user":
+        return f"Votre document — {x.get('filename', '')}", None
+    return "Source", None
 
 
 def _tool_search_legal_base(
@@ -228,7 +272,12 @@ def _tool_search_legal_base(
     use_my_docs: bool = True,
     file_ids: list[int] | None = None,
 ) -> dict:
-    source_types = _source_types(use_navire_docs, use_my_docs)
+    try:
+        from app.routers.lib import has_plus
+        plus = has_plus(db, user)
+    except Exception:
+        plus = False
+    source_types = _source_types(use_navire_docs, use_my_docs, plus)
     if not source_types:
         return {
             "found": False,
@@ -247,18 +296,16 @@ def _tool_search_legal_base(
         source_types=source_types,
         annee_filter=annee_filter,
         user_file_ids=file_ids if use_my_docs else None,
+        query_text=query,
     )
     if not chunks:
         return {"found": False, "extraits": [], "note": "Aucun extrait pertinent. La base est peut-être vide ou la question hors périmètre."}
 
     extraits = []
     for c in chunks:
-        label = {
-            "cours": f"Cours — {c.extra.get('cours_titre', '')} / {c.extra.get('lecon_titre', '')}",
-            "actu": f"Actualité — {c.extra.get('titre', '')} ({c.extra.get('source_name', '')})",
-            "pdf_user": f"Votre document — {c.extra.get('filename', '')}",
-        }.get(c.source_type, "Source")
-        extraits.append({"source": label, "kind": c.source_type, "contenu": c.content})
+        label, url = _label(c)
+        kind = "lib" if c.source_type == "lib_plus" else c.source_type
+        extraits.append({"source": label, "kind": kind, "url": url, "contenu": c.content})
 
     return {"found": True, "extraits": extraits}
 
@@ -270,7 +317,7 @@ def _run_tool(db: Session, user: User, name: str, arguments: dict, search_opts: 
         if name == "list_user_files":
             return _tool_list_user_files(db, user)
         if name == "get_latest_actus":
-            return _tool_get_latest_actus(db, arguments.get("category"), arguments.get("limit", 5))
+            return _tool_get_latest_actus(db, arguments.get("category"), arguments.get("limit", 5), arguments.get("kind"))
         if name == "search_legal_base":
             return _tool_search_legal_base(db, user, arguments.get("query", ""), **(search_opts or {}))
         return {"error": f"Outil inconnu : {name}"}
@@ -350,6 +397,7 @@ def send_message(
     use_my_docs: bool = True,
     file_ids: list[int] | None = None,
     context: str | None = None,
+    tier: str | None = None,
 ) -> dict:
     """
     context : texte ajouté au prompt système (non enregistré dans la
@@ -357,7 +405,13 @@ def send_message(
     use_navire_docs / use_my_docs : sources que search_legal_base a le droit
     d'interroger (réglées par l'utilisateur dans l'onglet Sources).
     file_ids : sous-ensemble des PDF perso à utiliser (None = tous).
+    tier : niveau de modèle choisi (rapide | avance | expert), voir
+    app/core/navire_models.py. Le débit des crédits est fait par la route.
     """
+    from app.core.navire_models import get_tier, is_reasoning_model
+
+    tier_id, tier_conf = get_tier(tier)
+    model = tier_conf["model"]
     conv = get_or_create_conversation(db, user, conversation_id, mode)
     search_opts = {
         "use_navire_docs": use_navire_docs,
@@ -376,7 +430,7 @@ def send_message(
     if not use_navire_docs or not use_my_docs:
         actives = []
         if use_navire_docs:
-            actives.append("la base NAVIRE (cours et actus)")
+            actives.append("la base NAVIRE (cours Lib, articles, actus)")
         if use_my_docs:
             actives.append("les documents personnels de l'utilisateur")
         system_prompt += (
@@ -397,19 +451,21 @@ def send_message(
 
     # Boucle de function-calling : le modèle peut enchaîner plusieurs outils.
     assistant_reply = ""
+    completed = False   # vraie réponse du modèle (sinon : pas de débit de crédits)
     for _round in range(MAX_TOOL_ROUNDS + 1):
-        rep = _client.chat.completions.create(
-            model=OPENAI_MODEL_NAVIRE,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-            temperature=0.3,
-            max_tokens=1100,
-        )
+        params = {"model": model, "messages": messages, "tools": TOOLS, "tool_choice": "auto"}
+        if is_reasoning_model(model):
+            # Modèle à raisonnement : pas de température, longueur via max_completion_tokens
+            params["max_completion_tokens"] = tier_conf["max_tokens"]
+        else:
+            params["temperature"] = 0.3
+            params["max_tokens"] = tier_conf["max_tokens"]
+        rep = _client.chat.completions.create(**params)
         msg = rep.choices[0].message
 
         if not msg.tool_calls:
             assistant_reply = (msg.content or "").strip()
+            completed = bool(assistant_reply)
             break
 
         # Le modèle demande des outils : on les exécute tous, on répond, on reboucle.
@@ -440,6 +496,7 @@ def send_message(
                         "type": "rag",
                         "kind": ex.get("kind", ""),
                         "label": ex.get("source", ""),
+                        "url": ex.get("url"),
                     })
 
             messages.append({
@@ -464,12 +521,13 @@ def send_message(
     # Sauvegarde de la conversation (les sources sont gardées pour que
     # l'historique les réaffiche sous chaque réponse)
     conv.messages = (conv.messages or []) + [
-        {"role": "user", "content": user_message, "at": now_iso},
+        {"role": "user", "content": user_message, "at": now_iso, "tier": tier_id},
         {
             "role": "assistant",
             "content": assistant_reply,
             "at": datetime.now(timezone.utc).isoformat(),
             "sources": unique_sources,
+            "tier": tier_id,
         },
     ]
     if not conv.title:
@@ -484,4 +542,7 @@ def send_message(
         "conversation_id": conv.id,
         "reply": assistant_reply,
         "sources": unique_sources,
+        "tier": tier_id,
+        "model": model,
+        "completed": completed,
     }

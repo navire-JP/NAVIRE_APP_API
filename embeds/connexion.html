@@ -15,6 +15,12 @@
   jamais de compte ici, l'inscription a son propre parcours.
 
   Se connecter vaut acceptation des CGU (mention sous le bouton, lien CGU_URL).
+
+  Mot de passe oublié : lien sous le champ du mot de passe. Un code à 6
+  chiffres part à l'adresse (POST /auth/password/forgot), puis code + nouveau
+  mot de passe (POST /auth/password/reset) : mot de passe changé, et la
+  personne est connectée dans la foulée. Sert aussi à un compte Google /
+  Facebook qui veut se créer un mot de passe.
 -->
 
 <style>
@@ -124,6 +130,26 @@
 
   .nv-eye:hover { color: #FFFFFF; }
 
+  [hidden] { display: none !important; }
+  .nv-view { display: flex; flex-direction: column; gap: 14px; }
+  .nv-forgot-row { display: flex; justify-content: flex-end; margin-top: -6px; }
+  .nv-linkbtn {
+    border: none;
+    background: none;
+    padding: 0;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--nv-txt-soft);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .nv-linkbtn:hover { color: #FFFFFF; }
+  .nv-linkbtn[disabled] { opacity: .45; cursor: default; text-decoration: none; }
+  .nv-links-row { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .nv-hint { font-size: 11.5px; line-height: 1.45; color: var(--nv-txt-dim); }
+  #nv-reset-code { font-size: 24px; font-weight: 700; letter-spacing: 12px; text-align: center; height: 52px; }
+  #nv-reset-code::placeholder { letter-spacing: 12px; font-size: 20px; }
   .nv-err { display: none; font-size: 12px; line-height: 1.35; color: var(--nv-bad); }
   .nv-err.show { display: block; }
 
@@ -166,7 +192,7 @@
   .nv-or::before, .nv-or::after { content: ""; flex: 1; height: 1px; background: var(--nv-line-soft); }
 
   /* ── Bouton ────────────────────────────────────────────── */
-  #nv-submit {
+  #nv-submit, .nv-main-btn {
     width: 100%;
     height: 46px;
     margin-top: 6px;
@@ -180,9 +206,9 @@
     transition: opacity 0.18s, transform 0.12s;
   }
 
-  #nv-submit:hover:not([disabled]) { background: #E8EEF8; }
-  #nv-submit:active { transform: scale(0.985); }
-  #nv-submit[disabled] { opacity: 0.5; cursor: not-allowed; }
+  #nv-submit:hover:not([disabled]), .nv-main-btn:hover:not([disabled]) { background: #E8EEF8; }
+  #nv-submit:active, .nv-main-btn:active { transform: scale(0.985); }
+  #nv-submit[disabled], .nv-main-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 
   /* ── Mentions ──────────────────────────────────────────── */
   .nv-legal {
@@ -253,7 +279,7 @@
   @media (max-width: 430px) {
     .nv-title { font-size: 23px; }
     .nv-input { font-size: 16px; height: 42px; }
-    #nv-submit { height: 48px; font-size: 15px; }
+    #nv-submit, .nv-main-btn { height: 48px; font-size: 15px; }
     .nv-social-btn { height: 44px; }
   }
 
@@ -265,6 +291,7 @@
 </style>
 
 <div id="nv-root">
+ <div class="nv-view" id="nv-login-view">
   <h2 class="nv-title">Content de te <em>revoir</em></h2>
   <div class="nv-sub">Reprends ta progression là où tu l'as laissée.</div>
 
@@ -308,6 +335,8 @@
     <div class="nv-err" data-err="password"></div>
   </div>
 
+  <div class="nv-forgot-row"><button class="nv-linkbtn" type="button" id="nv-forgot-link">Mot de passe oublié ?</button></div>
+
   <div class="nv-err" data-err="submit"></div>
 
   <button id="nv-submit" type="button">Se connecter</button>
@@ -322,6 +351,64 @@
     Pas encore de compte ?
     <a id="nv-register-link" href="#">Créer un compte</a>
   </div>
+ </div>
+
+ <!-- MOT DE PASSE OUBLIÉ -->
+ <div class="nv-view" id="nv-reset-view" hidden>
+  <h2 class="nv-title">Mot de passe <em>oublié</em></h2>
+
+  <!-- 1. adresse -->
+  <div class="nv-view" id="nv-reset-step1">
+    <div class="nv-sub">Entre l'adresse de ton compte : on t'envoie un code à 6 chiffres pour choisir un nouveau mot de passe.</div>
+    <div class="nv-field">
+      <label class="nv-label" for="nv-reset-email">Email</label>
+      <div class="nv-input-wrap">
+        <input id="nv-reset-email" class="nv-input" type="email" autocomplete="email" placeholder="tonmail@exemple.com" />
+      </div>
+      <div class="nv-err" data-err="reset-email"></div>
+    </div>
+    <button class="nv-main-btn" id="nv-reset-send" type="button">Recevoir un code</button>
+  </div>
+
+  <!-- 2. code + nouveau mot de passe -->
+  <div class="nv-view" id="nv-reset-step2" hidden>
+    <div class="nv-sub" id="nv-reset-sent"></div>
+    <div class="nv-field">
+      <label class="nv-label" for="nv-reset-code">Code reçu par email</label>
+      <div class="nv-input-wrap">
+        <input id="nv-reset-code" class="nv-input" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" maxlength="6" />
+      </div>
+      <div class="nv-err" data-err="reset-code"></div>
+    </div>
+    <div class="nv-field">
+      <label class="nv-label" for="nv-reset-pw">Nouveau mot de passe</label>
+      <div class="nv-input-wrap">
+        <input id="nv-reset-pw" class="nv-input has-eye" type="password" autocomplete="new-password" placeholder="Nouveau mot de passe" maxlength="72" />
+        <button class="nv-eye" type="button" data-eye="nv-reset-pw" aria-label="Afficher le mot de passe"></button>
+      </div>
+      <div class="nv-err" data-err="reset-pw"></div>
+      <div class="nv-hint">8 caractères minimum, avec 1 majuscule et 1 chiffre ou symbole.</div>
+    </div>
+    <div class="nv-field">
+      <label class="nv-label" for="nv-reset-pw2">Confirmer le mot de passe</label>
+      <div class="nv-input-wrap">
+        <input id="nv-reset-pw2" class="nv-input has-eye" type="password" autocomplete="new-password" placeholder="Confirmer le mot de passe" maxlength="72" />
+        <button class="nv-eye" type="button" data-eye="nv-reset-pw2" aria-label="Afficher le mot de passe"></button>
+      </div>
+      <div class="nv-err" data-err="reset-pw2"></div>
+    </div>
+    <div class="nv-err" data-err="reset-submit"></div>
+    <button class="nv-main-btn" id="nv-reset-submit" type="button">Changer mon mot de passe</button>
+    <div class="nv-links-row">
+      <button class="nv-linkbtn" type="button" id="nv-reset-resend">Renvoyer le code</button>
+      <button class="nv-linkbtn" type="button" id="nv-reset-other">Changer d'adresse</button>
+    </div>
+  </div>
+
+  <div class="nv-links-row" style="justify-content:center">
+    <button class="nv-linkbtn" type="button" id="nv-reset-back">Retour à la connexion</button>
+  </div>
+ </div>
 
   <div id="nv-toast"></div>
 </div>
@@ -517,7 +604,7 @@
             setError("email", "Aucun compte avec cette adresse.");
             return;
           }
-          setError("submit", "Mot de passe incorrect.");
+          setError("submit", "Mot de passe incorrect. Oublié ? Clique sur « Mot de passe oublié ? » juste au-dessus.");
           return;
         }
 
@@ -661,9 +748,165 @@
   });
 
   // ============================================================
+  // Mot de passe oublié
+  // ============================================================
+  const PWD_RE = /^(?=.*[A-Z])(?=.*(\d|[^\w\s])).{8,72}$/;   // même règle que l'API
+  const R = {
+    login: $("#nv-login-view"),
+    view: $("#nv-reset-view"),
+    step1: $("#nv-reset-step1"),
+    step2: $("#nv-reset-step2"),
+    email: $("#nv-reset-email"),
+    send: $("#nv-reset-send"),
+    sent: $("#nv-reset-sent"),
+    code: $("#nv-reset-code"),
+    pw: $("#nv-reset-pw"),
+    pw2: $("#nv-reset-pw2"),
+    submit: $("#nv-reset-submit"),
+    resend: $("#nv-reset-resend"),
+  };
+  let resetEmail = "";
+  let resendTimer = null;
+
+  function openReset() {
+    clearErrors();
+    R.login.hidden = true;
+    R.view.hidden = false;
+    R.step1.hidden = false;
+    R.step2.hidden = true;
+    R.email.value = R.email.value || els.email.value.trim();
+    setTimeout(() => R.email.focus(), 60);
+  }
+
+  function closeReset() {
+    clearErrors();
+    R.view.hidden = true;
+    R.login.hidden = false;
+    if (resetEmail) els.email.value = resetEmail;
+    setTimeout(() => (els.email.value ? els.password : els.email).focus(), 60);
+  }
+
+  function startResendCooldown(seconds) {
+    let left = seconds || 60;
+    clearInterval(resendTimer);
+    R.resend.disabled = true;
+    const tick = () => {
+      R.resend.textContent = left > 0 ? "Renvoyer le code (" + left + "s)" : "Renvoyer le code";
+      if (left <= 0) { clearInterval(resendTimer); R.resend.disabled = false; }
+      left -= 1;
+    };
+    tick();
+    resendTimer = setInterval(tick, 1000);
+  }
+
+  async function sendResetCode(btn, errKey) {
+    const email = (resetEmail || R.email.value).trim();
+    if (!EMAIL_RE.test(email)) {
+      setError("reset-email", "Entre une adresse email valide.");
+      R.email.focus();
+      return false;
+    }
+    if (btn) busy(btn, "Envoi du code...");
+    try {
+      const res = await fetch(API_BASE + "/auth/password/forgot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email }),
+      });
+      const detail = res.ok ? "" : await readError(res);
+      if (!res.ok && res.status !== 429) {
+        setError(errKey, detail || "Envoi impossible pour le moment.");
+        return false;
+      }
+      if (res.status === 429) toast(detail || "Un code vient déjà de partir.");
+      resetEmail = email;
+      startResendCooldown(60);
+      return true;
+    } catch (e) {
+      setError(errKey, "Erreur réseau : " + e.message);
+      return false;
+    } finally {
+      if (btn) unbusy(btn);
+    }
+  }
+
+  R.send.addEventListener("click", async () => {
+    clearErrors();
+    resetEmail = "";
+    if (await sendResetCode(R.send, "reset-email")) {
+      R.sent.textContent = "Si un compte existe avec " + resetEmail + ", un code vient d'y partir. Il est valable 15 minutes ; pense à regarder dans les indésirables.";
+      R.step1.hidden = true;
+      R.step2.hidden = false;
+      R.code.value = ""; R.pw.value = ""; R.pw2.value = "";
+      setTimeout(() => R.code.focus(), 60);
+    }
+  });
+
+  R.resend.addEventListener("click", async () => {
+    if (R.resend.disabled) return;
+    clearErrors();
+    if (await sendResetCode(null, "reset-submit")) toast("Nouveau code envoyé à " + resetEmail);
+  });
+
+  $("#nv-reset-other").addEventListener("click", () => {
+    clearErrors();
+    R.email.value = resetEmail;
+    resetEmail = "";
+    R.step2.hidden = true;
+    R.step1.hidden = false;
+    setTimeout(() => R.email.focus(), 60);
+  });
+
+  R.code.addEventListener("input", () => {
+    const cleaned = R.code.value.replace(/\D/g, "").slice(0, 6);
+    if (cleaned !== R.code.value) R.code.value = cleaned;
+    setError("reset-code", "");
+    if (cleaned.length === 6 && !R.pw.value) R.pw.focus();
+  });
+
+  R.submit.addEventListener("click", async () => {
+    clearErrors();
+    const code = R.code.value.trim();
+    if (!/^\d{6}$/.test(code)) { setError("reset-code", "Entre les 6 chiffres reçus par email."); R.code.focus(); return; }
+    if (!PWD_RE.test(R.pw.value)) { setError("reset-pw", "8 à 72 caractères, avec 1 majuscule et 1 chiffre ou symbole."); R.pw.focus(); return; }
+    if (R.pw.value !== R.pw2.value) { setError("reset-pw2", "Les deux mots de passe ne correspondent pas."); R.pw2.focus(); return; }
+
+    busy(R.submit, "Changement...");
+    try {
+      const res = await fetch(API_BASE + "/auth/password/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail, code: code, new_password: R.pw.value }),
+      });
+      if (!res.ok) {
+        const detail = await readError(res);
+        unbusy(R.submit);
+        if (/code/i.test(detail)) { setError("reset-code", detail); R.code.focus(); }
+        else setError("reset-submit", detail || ("Changement impossible (" + res.status + ")."));
+        return;
+      }
+      toast("Mot de passe changé. Bienvenue !");
+      finish(await res.json());
+    } catch (e) {
+      unbusy(R.submit);
+      setError("reset-submit", "Erreur réseau : " + e.message);
+    }
+  });
+
+  $("#nv-forgot-link").addEventListener("click", openReset);
+  $("#nv-reset-back").addEventListener("click", closeReset);
+  R.email.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); R.send.click(); } });
+  [R.code, R.pw, R.pw2].forEach((input) => input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); R.submit.click(); }
+  }));
+  [["reset-email", R.email], ["reset-pw", R.pw], ["reset-pw2", R.pw2]].forEach(([k, input]) =>
+    input.addEventListener("input", () => setError(k, "")));
+
+  // ============================================================
   // Divers
   // ============================================================
   els.cguLink.href = CGU_URL;
+
 
   els.registerLink.href = REGISTER_URL;
   els.registerLink.addEventListener("click", (e) => {
@@ -674,7 +917,7 @@
   els.email.addEventListener("input", () => { setError("email", ""); setError("submit", ""); });
   els.password.addEventListener("input", () => { setError("password", ""); setError("submit", ""); });
 
-  $$(".nv-input").forEach((input) => {
+  [els.email, els.password].forEach((input) => {
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") { e.preventDefault(); els.submit.click(); }
     });

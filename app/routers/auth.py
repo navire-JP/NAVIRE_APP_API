@@ -16,6 +16,8 @@ from app.schemas.auth import (
     EmailCodeRequestIn,
     EmailCodeVerifyIn,
     OAuthIn,
+    PasswordForgotIn,
+    PasswordResetIn,
     validate_password,
 )
 from app.core.security import hash_password, verify_password, create_access_token, decode_token
@@ -23,6 +25,7 @@ from app.core.config import REQUIRE_EMAIL_VERIFICATION
 from app.core.limits import get_user_limits
 from app.core.cloudinary_client import resolve_avatar_url
 from app.services.email_verification import (
+    RESET_TOKEN_SCOPE,
     request_code,
     check_code,
     email_token_is_valid,
@@ -439,6 +442,72 @@ def verify_email_code(payload: EmailCodeVerifyIn, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail=e.message)
 
     return {"verified": True, "email_token": email_token}
+
+
+# ============================================================
+# Mot de passe oublié
+# ============================================================
+# Même code à 6 chiffres que l'inscription, envoyé à l'adresse du compte.
+# Rendre le code avec le nouveau mot de passe suffit : la personne prouve
+# qu'elle lit la boîte du compte. Elle est connectée dans la foulée.
+
+@router.post("/password/forgot")
+def password_forgot(payload: PasswordForgotIn, db: Session = Depends(get_db)):
+    """
+    Envoie un code pour changer de mot de passe. La réponse est la même que le
+    compte existe ou non : la route ne sert pas à tester des adresses.
+    Un compte Google/Facebook peut aussi s'en servir pour se créer un mot de passe.
+    """
+    email = payload.email.strip().lower()
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is None:
+        return {"sent": True, "cooldown": 60}
+    try:
+        cooldown = request_code(db, email, user.username or "", purpose="reset")
+    except VerificationError as e:
+        status_code = 429 if e.retry_after else 400
+        raise HTTPException(status_code=status_code, detail=e.message)
+    return {"sent": True, "cooldown": cooldown}
+
+
+@router.post("/password/reset", response_model=AuthOut)
+def password_reset(payload: PasswordResetIn, db: Session = Depends(get_db)):
+    """Code reçu + nouveau mot de passe → mot de passe changé, et connecté."""
+    email = payload.email.strip().lower()
+    # Le mot de passe d'abord : un refus ici ne doit pas consommer un essai de code.
+    try:
+        validate_password(payload.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=400, detail="Aucun code en cours pour cette adresse. Demande un nouvel envoi.")
+
+    try:
+        check_code(db, email, payload.code, scope=RESET_TOKEN_SCOPE)
+    except VerificationError as e:
+        raise HTTPException(status_code=400, detail=e.message)
+
+    had_password = bool(user.password_hash)
+    user.password_hash = hash_password(payload.new_password)
+    # Rendre le code prouve aussi que l'adresse est bien la sienne.
+    if not user.email_verified:
+        user.email_verified = True
+        user.email_verified_at = datetime.now(timezone.utc)
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+    purge_verification(db, email)
+
+    try:
+        from app.services.email import mail_password_changed, send_mail
+        subject, html = mail_password_changed(user.username, was_set=not had_password, via_code=True)
+        send_mail(user.email, subject, html)
+    except Exception:
+        pass
+
+    return AuthOut(access_token=create_access_token(str(user.id)), user=user)
 
 
 # ============================================================

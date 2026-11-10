@@ -31,9 +31,13 @@ from app.core.config import (
 )
 from app.core.security import hash_password, verify_password
 from app.db.models import EmailVerification
-from app.services.email import send_mail_result, mail_verification_code
+from app.services.email import send_mail_result, mail_verification_code, mail_password_reset_code
 
 EMAIL_TOKEN_SCOPE = "email_verify"
+# Mot de passe oublié : même code à 6 chiffres, mais un jeton d'une autre
+# portée, pour qu'une vérification d'inscription ne puisse jamais servir à
+# changer un mot de passe (et inversement).
+RESET_TOKEN_SCOPE = "password_reset"
 EMAIL_TOKEN_TTL_MINUTES = 30
 
 
@@ -71,7 +75,7 @@ def generate_code() -> str:
 # Envoi
 # ============================================================
 
-def request_code(db: Session, email: str, username: str = "") -> int:
+def request_code(db: Session, email: str, username: str = "", purpose: str = "signup") -> int:
     """
     Crée (ou remplace) le code de l'adresse et l'envoie par email.
     Retourne le nombre de secondes avant qu'un nouvel envoi soit possible.
@@ -105,7 +109,10 @@ def request_code(db: Session, email: str, username: str = "") -> int:
     row.verified_at = None
     db.commit()
 
-    subject, html = mail_verification_code(code, username, EMAIL_CODE_TTL_MINUTES)
+    if purpose == "reset":
+        subject, html = mail_password_reset_code(code, username, EMAIL_CODE_TTL_MINUTES)
+    else:
+        subject, html = mail_verification_code(code, username, EMAIL_CODE_TTL_MINUTES)
     outcome = send_mail_result(to=email, subject=subject, html=html)
 
     if not outcome["sent"]:
@@ -144,7 +151,7 @@ def request_code(db: Session, email: str, username: str = "") -> int:
 # Vérification
 # ============================================================
 
-def check_code(db: Session, email: str, code: str) -> str:
+def check_code(db: Session, email: str, code: str, scope: str = EMAIL_TOKEN_SCOPE) -> str:
     """
     Valide le code et retourne le jeton de vérification à passer ensuite à
     /auth/register. Lève VerificationError sinon.
@@ -176,25 +183,25 @@ def check_code(db: Session, email: str, code: str) -> str:
     row.verified_at = _now()
     db.commit()
 
-    return issue_email_token(email)
+    return issue_email_token(email, scope)
 
 
 # ============================================================
 # Jeton de vérification
 # ============================================================
 
-def issue_email_token(email: str) -> str:
+def issue_email_token(email: str, scope: str = EMAIL_TOKEN_SCOPE) -> str:
     now = _now()
     payload = {
         "sub": email.strip().lower(),
-        "scope": EMAIL_TOKEN_SCOPE,
+        "scope": scope,
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=EMAIL_TOKEN_TTL_MINUTES)).timestamp()),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
 
-def email_token_is_valid(token: str, email: str) -> bool:
+def email_token_is_valid(token: str, email: str, scope: str = EMAIL_TOKEN_SCOPE) -> bool:
     """Le jeton prouve-t-il la vérification de CETTE adresse ?"""
     if not token:
         return False
@@ -203,7 +210,7 @@ def email_token_is_valid(token: str, email: str) -> bool:
     except Exception:
         return False
 
-    if payload.get("scope") != EMAIL_TOKEN_SCOPE:
+    if payload.get("scope") != scope:
         return False
 
     return (payload.get("sub") or "").strip().lower() == email.strip().lower()

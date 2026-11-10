@@ -28,6 +28,12 @@
   Un lien qui pose directement une question : /home?q=Ta%20question
 
   Réglages : bloc CONFIG du script (liens des trois accès, offres).
+  Modèle au choix (sélecteur dans la barre de saisie) : ⚡ Rapide (gratuit,
+  quota du jour), 🧠 Avancé (1 crédit), 🎓 Expert (4 crédits). Les crédits se
+  rechargent le 1er du mois selon l'offre (GET /navire/quota → credits, tiers) ;
+  la question part avec `tier`, le débit n'a lieu qu'après la réponse. Sans
+  crédits : retour au modèle Rapide. Choix retenu d'une visite à l'autre.
+
   Routes : /navire/chat, /navire/conversations, /navire/documents,
            /navire/quota, /files, /veille/state, /veille/feed, /lib/catalogue,
            /users/me/profile-summary
@@ -324,6 +330,10 @@
 #nv-home .nv-src[data-kind="cours"] i { background: var(--k-cours); }
 #nv-home .nv-src[data-kind="actu"] i { background: var(--k-actu); }
 #nv-home .nv-src[data-kind="pdf_user"] i { background: var(--k-pdf); }
+#nv-home .nv-src[data-kind="lib"] i { background: var(--k-cours); }
+#nv-home .nv-src[data-kind="article"] i { background: #B89BFF; }
+#nv-home a.nv-src { text-decoration: none; cursor: pointer; }
+#nv-home a.nv-src:hover { color: #fff; background: var(--panel-2); }
 #nv-home .nv-src span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Actions sous une réponse */
@@ -441,6 +451,27 @@
 #nv-home .nv-send:hover:not(:disabled) { transform: scale(1.06); }
 #nv-home .nv-send:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; }
 #nv-home .nv-disclaimer { text-align: center; font-size: 10.5px; color: var(--text-4); margin-top: 8px; }
+
+/* Sélecteur de modèle */
+#nv-home .nv-tier { position: relative; }
+#nv-home .nv-tier-btn { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px; border-radius: 99px; border: 1px solid var(--line); background: transparent; font: inherit; font-size: 12px; color: var(--text-2); cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+#nv-home .nv-tier-btn:hover, #nv-home .nv-tier.is-open .nv-tier-btn { background: var(--panel-2); color: #fff; }
+#nv-home .nv-tier-btn.is-paid { color: #fff; background: rgba(155,111,255,0.16); border-color: transparent; }
+#nv-home .nv-tier-btn svg { width: 11px; height: 11px; opacity: .7; }
+#nv-home .nv-tier-menu { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 60; width: 280px; max-width: calc(100vw - 32px); padding: 6px; border-radius: 16px; background: rgba(16,16,26,0.98); box-shadow: 0 18px 50px rgba(0,0,0,0.5); display: none; }
+#nv-home .nv-tier.is-open .nv-tier-menu { display: block; animation: nv-rise .2s var(--ease) both; }
+#nv-home .nv-tier-opt { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 9px 10px; border: none; border-radius: 11px; background: transparent; color: #fff; font: inherit; text-align: left; cursor: pointer; }
+#nv-home .nv-tier-opt:hover { background: var(--panel-2); }
+#nv-home .nv-tier-opt.is-on { background: var(--panel-3); }
+#nv-home .nv-tier-opt[disabled] { opacity: .45; cursor: not-allowed; }
+#nv-home .nv-tier-opt .e { font-size: 17px; line-height: 1.2; }
+#nv-home .nv-tier-opt b { display: block; font-size: 13px; font-weight: 600; }
+#nv-home .nv-tier-opt small { display: block; margin-top: 1px; font-size: 11.5px; color: var(--text-3); line-height: 1.35; }
+#nv-home .nv-tier-opt .c { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--text-2); white-space: nowrap; padding-top: 2px; }
+#nv-home .nv-tier-foot { margin: 4px 4px 2px; padding: 8px 6px 2px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--text-3); line-height: 1.45; }
+#nv-home .nv-tier-foot b { color: #fff; }
+#nv-home.is-compact .nv-tier-btn .nv-tier-name { display: none; }
+#nv-home .nv-tier-note { margin-top: 6px; font-size: 11px; color: var(--text-4); }
 
 #nv-home .nv-banner {
   max-width: 760px; margin: 0 auto 10px;
@@ -796,12 +827,19 @@
               <span class="nv-dots" data-el="src-dots"><i style="background:var(--k-cours)"></i><i style="background:var(--k-pdf)"></i></span>
               <span class="nv-chip-label" data-el="src-label">Toutes les sources</span>
             </button>
+            <div class="nv-tier" data-el="tier">
+              <button class="nv-tier-btn" type="button" data-act="tier-menu" title="Choisir le modèle" aria-haspopup="menu">
+                <span data-el="tier-emoji">⚡</span><span class="nv-tier-name" data-el="tier-name">Rapide</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+              </button>
+              <div class="nv-tier-menu" data-el="tier-menu" role="menu"></div>
+            </div>
             <button class="nv-send" data-el="send" aria-label="Envoyer" disabled>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
             </button>
           </div>
         </div>
-        <div class="nv-disclaimer">NAVIRE répond à partir des cours, des actus et de tes documents. Vérifie toujours les points importants.</div>
+        <div class="nv-disclaimer">NAVIRE AI s'appuie sur les cours NAVIRE Lib, les articles, les actus et tes documents. Vérifie toujours les points importants.</div>
       </div>
     </section>
 
@@ -838,12 +876,13 @@
               <div class="nv-src-ico is-navire" data-logo></div>
               <div class="nv-src-text">
                 <b>Base NAVIRE</b>
-                <span>Cours L1 à L3, méthodologie et actualités juridiques.</span>
+                <span>Cours NAVIRE Lib, articles des doctorants et actualités juridiques.</span>
               </div>
               <button class="nv-switch" role="switch" data-act="toggle-navire" aria-label="Base NAVIRE"></button>
             </div>
             <div class="nv-src-legend">
-              <span><i style="background:var(--k-cours)"></i>Cours</span>
+              <span><i style="background:var(--k-cours)"></i>Cours Lib</span>
+              <span><i style="background:#B89BFF"></i>Articles</span>
               <span><i style="background:var(--k-actu)"></i>Actualités</span>
             </div>
           </div>
@@ -1055,7 +1094,14 @@
     sideOff: LS.get('home_side_off', true),   // replié par défaut
     busy: false,
     userName: '',
-    histQuery: ''
+    histQuery: '',
+    tier: LS.get('tier', 'rapide'),     // modèle choisi : rapide | avance | expert
+    tiers: [
+      { id: 'rapide', label: 'Rapide', emoji: '⚡', description: 'Définitions, questions simples', cost: 0 },
+      { id: 'avance', label: 'Avancé', emoji: '🧠', description: 'Explications de cours, cas pratiques', cost: 1 },
+      { id: 'expert', label: 'Expert', emoji: '🎓', description: 'Plans de dissertation, commentaires, raisonnements longs', cost: 4 }
+    ],
+    credits: null                       // { allowance, bonus, used, balance, resets_at }
   };
 
   el('banner-link').href = UPGRADE_URL;
@@ -1272,6 +1318,7 @@
       else { state.sideOff = true; LS.set('home_side_off', true); updateLayout(); }
     }
     else if (act === 'attach') el('file-input').click();
+    else if (act === 'tier-menu') { e.stopPropagation(); el('tier').classList.toggle('is-open'); renderTier(); }
     else if (act === 'toggle-navire') { state.useNavire = !state.useNavire; LS.set('use_navire', state.useNavire); renderSources(); }
     else if (act === 'toggle-mine') { state.useMine = !state.useMine; LS.set('use_mine', state.useMine); renderSources(); }
   });
@@ -1281,7 +1328,8 @@
       e.preventDefault(); newChat();
     }
     if (e.key === 'Escape') {
-      if (root.classList.contains('is-drawer')) root.classList.remove('is-drawer');
+      if (el('tier').classList.contains('is-open')) el('tier').classList.remove('is-open');
+      else if (root.classList.contains('is-drawer')) root.classList.remove('is-drawer');
       else if (state.view !== 'chat' && document.activeElement && !document.activeElement.classList.contains('nv-rename')) setView('chat');
     }
   });
@@ -1391,8 +1439,11 @@
   function sourcesHtml(sources) {
     if (!sources || !sources.length) return '';
     return '<div class="nv-sources">' + sources.map(function (s, i) {
-      var label = (s.label || '').replace(/^(Cours|Actualité|Votre document)\s+—\s+/, '');
-      return '<span class="nv-src" data-kind="' + esc(s.kind || '') + '" style="animation-delay:' + (i * 0.04) + 's" title="' + esc(s.label) + '"><i></i><span>' + esc(label || s.label) + '</span></span>';
+      var label = (s.label || '').replace(/^(Cours|Actualité|Votre document|NAVIRE Lib|Article NAVIRE)\s+—\s+/, '');
+      var attrs = ' data-kind="' + esc(s.kind || '') + '" style="animation-delay:' + (i * 0.04) + 's" title="' + esc(s.label) + '"';
+      // Cours Lib, article ou actu : la source s'ouvre (page entière, hors de l'iframe).
+      if (s.url && /^https?:\/\//.test(s.url)) return '<a class="nv-src" href="' + esc(s.url) + '" target="_top"' + attrs + '><i></i><span>' + esc(label || s.label) + '</span></a>';
+      return '<span class="nv-src"' + attrs + '><i></i><span>' + esc(label || s.label) + '</span></span>';
     }).join('') + '</div>';
   }
 
@@ -1417,7 +1468,7 @@
       if (!opts.error) actions += '<button class="nv-icon-btn" data-copy title="Copier">' + ICON.copy + '</button>';
       if (opts.retry) actions += '<button class="nv-icon-btn" data-retry title="Réessayer">' + ICON.retry + '</button>';
       actions += '</div>';
-      extra.innerHTML = sourcesHtml(opts.sources) + actions;
+      extra.innerHTML = sourcesHtml(opts.sources) + (opts.tierNote ? '<div class="nv-tier-note">' + esc(opts.tierNote) + '</div>' : '') + actions;
       var cp = extra.querySelector('[data-copy]');
       if (cp) cp.addEventListener('click', function () { copyText(text, cp); });
       var rt = extra.querySelector('[data-retry]');
@@ -1528,9 +1579,48 @@
       conversation_id: state.conversationId,
       use_navire_docs: state.useNavire,
       use_my_docs: state.useMine,
-      file_ids: fileIds
+      file_ids: fileIds,
+      tier: state.tier
     };
   }
+
+  // ================= MODÈLE ET CRÉDITS =================
+  function tierInfo(id) { return state.tiers.filter(function (t) { return t.id === id; })[0] || state.tiers[0]; }
+  function creditsWord(n) { return n + ' crédit' + (n > 1 ? 's' : ''); }
+  function resetLabel() {
+    if (!state.credits || !state.credits.resets_at) return 'le 1er du mois';
+    var d = new Date(state.credits.resets_at);
+    return 'le ' + (d.getDate() === 1 ? '1er' : d.getDate()) + ' ' + ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'][d.getMonth()];
+  }
+  function renderTier() {
+    var t = tierInfo(state.tier);
+    el('tier-emoji').textContent = t.emoji;
+    el('tier-name').textContent = t.label;
+    var btn = el('tier').querySelector('.nv-tier-btn');
+    btn.classList.toggle('is-paid', t.cost > 0);
+    btn.title = t.cost > 0 ? t.label + ' · ' + creditsWord(t.cost) + ' par question' : 'Choisir le modèle';
+    var bal = state.credits ? state.credits.balance : null;
+    el('tier-menu').innerHTML = state.tiers.map(function (x) {
+      var off = x.cost > 0 && bal != null && bal < x.cost;
+      return '<button type="button" class="nv-tier-opt' + (x.id === state.tier ? ' is-on' : '') + '" data-tier="' + x.id + '"' + (off ? ' disabled' : '') + ' role="menuitemradio" aria-checked="' + (x.id === state.tier) + '">' +
+        '<span class="e">' + x.emoji + '</span><span><b>' + esc(x.label) + '</b><small>' + esc(x.description) + '</small></span>' +
+        '<span class="c">' + (x.cost ? creditsWord(x.cost) : 'Gratuit') + '</span></button>';
+    }).join('') +
+      '<div class="nv-tier-foot">' + (bal == null ? 'Connecte-toi pour utiliser les modèles Avancé et Expert.' :
+        'Il te reste <b>' + creditsWord(bal) + '</b> ce mois-ci' + (state.credits.allowance ? ' sur ' + (state.credits.allowance + (state.credits.bonus || 0)) : '') + '. Recharge ' + resetLabel() + '.') + '</div>';
+  }
+  function setTier(id) {
+    state.tier = tierInfo(id).id;
+    LS.set('tier', state.tier);
+    el('tier').classList.remove('is-open');
+    renderTier();
+  }
+  // Clic sur une option du menu / hors du menu
+  root.addEventListener('click', function (e) {
+    var opt = e.target.closest('[data-tier]');
+    if (opt && root.contains(opt)) { if (!opt.disabled) setTier(opt.getAttribute('data-tier')); return; }
+    if (!e.target.closest('[data-el="tier"]')) el('tier').classList.remove('is-open');
+  });
 
   function send(retryText) {
     var text = typeof retryText === 'string' ? retryText : input.value.trim();
@@ -1563,8 +1653,10 @@
         var isNew = state.conversationId !== data.conversation_id;
         state.conversationId = data.conversation_id;
         LS.set('conv', state.conversationId);
+        if (data.credits) { state.credits = data.credits; renderTier(); }
         addAssistant(data.reply || "Je n'ai pas de réponse à te donner.", {
           sources: data.sources, animate: true,
+          tierNote: data.credits_spent ? tierInfo(data.tier).emoji + ' ' + tierInfo(data.tier).label + ' · ' + creditsWord(data.credits_spent) + ' · il t\'en reste ' + (data.credits ? data.credits.balance : '?') : '',
           onDone: function () { state.busy = false; autoGrow(); }
         });
         loadConversations(isNew);
@@ -1574,6 +1666,12 @@
         stop();
         state.busy = false; autoGrow();
         var d = err.data && err.data.detail;
+        if (d && d.code === 'NAVIRE_CREDITS_EXHAUSTED') {
+          if (d.credits) state.credits = d.credits;
+          setTier('rapide');
+          addAssistant((d.message || 'Plus assez de crédits pour ce modèle.') + '\n\nJe repasse sur le modèle **Rapide** : renvoie ta question si tu veux.', { error: true, retry: function () { send(text); } });
+          return;
+        }
         if (d && d.code === 'NAVIRE_DAILY_LIMIT_REACHED') {
           showLimit(d.limit);
           addAssistant('Tu as utilisé tes **' + d.limit + ' questions** du jour. Reviens demain ou passe à un abonnement pour un accès illimité.', { error: true });
@@ -1968,6 +2066,10 @@
   function loadQuota() {
     if (!token) return;
     api('/navire/quota').then(function (q) {
+      if (q.tiers && q.tiers.length) state.tiers = q.tiers;
+      if (q.credits) state.credits = q.credits;
+      if (!state.tiers.some(function (t) { return t.id === state.tier; })) state.tier = 'rapide';
+      renderTier();
       var box = el('quota');
       if (q.limit == null) { box.classList.remove('is-visible'); el('banner').classList.remove('is-visible'); return; }
       box.classList.add('is-visible');
@@ -1992,6 +2094,7 @@
   placeComposer(true, false);
   renderHello();
   renderSources();
+  renderTier();
   autoGrow();
   if (token) {
     api('/users/me/profile-summary').then(function (d) {

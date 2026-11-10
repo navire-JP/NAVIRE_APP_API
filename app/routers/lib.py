@@ -846,6 +846,15 @@ def _admin_doc(db: Session, doc: LibDocument, *, full: bool = False) -> dict:
     return out
 
 
+def _reindex_lib(doc_id: int) -> None:
+    """NAVIRE AI lit les cours Lib publiés : on (ré)indexe en tâche de fond."""
+    try:
+        from app.services.navire_ingest import reindex_in_background
+        reindex_in_background("lib", doc_id)
+    except Exception as e:  # jamais bloquant pour la console
+        print(f"⚠️ NAVIRE reindex lib#{doc_id} : {e}")
+
+
 def _admin_get(db: Session, doc_id: int) -> LibDocument:
     doc = db.get(LibDocument, doc_id)
     if not doc:
@@ -982,6 +991,7 @@ async def admin_import(
     n = _apply_detection(db, doc, palier=elo_palier, recompense=recompense_elo, keep_existing=False) if auto else 0
     db.commit()
     db.refresh(doc)
+    _reindex_lib(doc.id)
     return {**_admin_doc(db, doc), "detection": {"points_passage": n, **parsed["stats"]}}
 
 
@@ -1018,6 +1028,7 @@ def admin_patch(doc_id: int, payload: DocPatch, db: Session = Depends(get_db)):
             setattr(doc, k, v.strip() if isinstance(v, str) else v)
     db.commit()
     db.refresh(doc)
+    _reindex_lib(doc.id)   # publication, dépublication, titre, Lib+…
     return _admin_doc(db, doc)
 
 
@@ -1026,8 +1037,10 @@ def admin_delete(doc_id: int, db: Session = Depends(get_db)):
     doc = _admin_get(db, doc_id)
     path = doc.source_path
     db.query(LibProgress).filter(LibProgress.document_id == doc.id).delete(synchronize_session=False)
+    doc_id = doc.id
     db.delete(doc)
     db.commit()
+    _reindex_lib(doc_id)   # retire le cours de l'index de NAVIRE AI
     try:
         if path:
             Path(path).unlink(missing_ok=True)
@@ -1056,6 +1069,7 @@ async def admin_reimport(doc_id: int, file: UploadFile = FastAPIFile(...), db: S
             Path(old_path).unlink(missing_ok=True)
     except OSError:
         pass
+    _reindex_lib(doc.id)
     return {**_admin_doc(db, doc), "detection": {"points_passage": n, **parsed["stats"]}}
 
 

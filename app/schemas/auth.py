@@ -72,6 +72,18 @@ class OAuthIn(BaseModel):
     referral_code: str | None = Field(default=None, max_length=40)
 
 
+class PasswordForgotIn(BaseModel):
+    """Mot de passe oublié : demande du code."""
+    email: EmailStr
+
+
+class PasswordResetIn(BaseModel):
+    """Mot de passe oublié : code reçu + nouveau mot de passe."""
+    email: EmailStr
+    code: str = Field(min_length=4, max_length=10)
+    new_password: str = Field(min_length=8, max_length=72)
+
+
 class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=72)
