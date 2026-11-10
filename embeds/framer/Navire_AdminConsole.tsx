@@ -27,6 +27,10 @@
 // Mails : onglet « Mails » (rédiger un mail, choisir les destinataires par
 // catégorie, pièces jointes, aperçu signé, test puis envoi par Brevo). Le
 // code de la section est dans Navire_Mails.tsx.
+//
+// Catégories : onglet « Catég. » (universités et niveaux d'études de
+// l'inscription, niveaux à vérifier comme Doctorant, validation des demandes
+// de statut). Le code de la section est dans Navire_Categories.tsx.
 
 import type { Override } from "framer"
 import * as React from "react"
