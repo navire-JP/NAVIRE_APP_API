@@ -446,6 +446,77 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 .nvx.is-narrow .nvx-top { padding: 0 6px; gap: 2px; }
 @media (prefers-reduced-motion: reduce) { .nvx, .nvx * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
+
+/* Téléphone : barre resserrée, champs à 16 px (pas de zoom iOS), fenêtres en bas d'écran */
+.nvx.is-narrow .nvx-field, .nvx.is-narrow .nvx-bub textarea, .nvx.is-narrow .nvx-panel textarea { font-size: 16px; }
+.nvx.is-narrow .nvx-save { display: none; }
+.nvx.is-narrow .nvx-b { padding: 0 9px; }
+.nvx.is-narrow .nvx-b.is-main { padding: 0 12px; }
+.nvx.is-narrow .nvx-info { gap: 6px; }
+.nvx.is-narrow .nvx-panel { width: 100%; }
+.nvx.is-narrow .nvx-modal { align-items: flex-end; padding: 0; }
+.nvx.is-narrow .nvx-card { width: 100%; border-radius: 18px 18px 0 0; padding: 22px 18px calc(18px + env(safe-area-inset-bottom)); }
+.nvx.is-narrow .nvx-verdict { padding: 14px; gap: 10px; }
+.nvx.is-narrow .nvx-note { font-size: 15px; }
+.nvx.is-narrow .nvx-end { padding: 16px; margin-top: 32px; }
+.nvx.is-narrow .nvx-tool { max-width: calc(100vw - 16px); }
+
+/* ================= SANS FOND ================= */
+/* Rien derrière l'embed : la page du site se voit partout, seuls les blocs
+   gardent un voile très léger. Barre du haut et menu transparents. */
+#nv-prepa .nv-side { background: transparent; }
+#nv-prepa.is-flow .nv-topbar, #nv-prepa .nv-topbar { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+#nv-prepa .np-apercu { background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: none !important; }
+#nv-prepa .np-pop { background: transparent; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+#nv-prepa .np-pop-card { background: #161826; box-shadow: 0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06); max-height: calc(var(--vis-h, 100%) - 32px); overflow-y: auto; }
+#nv-prepa .np-row, #nv-prepa .np-note-box, #nv-prepa .np-wday, #nv-prepa .np-mday { background: rgba(255,255,255,0.025); }
+#nv-prepa .np-tabs { display: none; }
+
+/* ================= TÉLÉPHONE ================= */
+#nv-prepa.is-compact .nv-topbar { position: static !important; top: auto !important; min-height: 46px; padding: 4px 4px 0; }
+#nv-prepa.is-compact .nv-topbar-title { text-align: left; font-size: 17px; font-weight: 700; color: #fff; padding-left: 2px; }
+#nv-prepa.is-compact .np-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 14px 12px; margin: 0 -14px; -webkit-overflow-scrolling: touch; }
+#nv-prepa.is-compact .np-tabs::-webkit-scrollbar { display: none; }
+#nv-prepa.is-compact .np-tabs button { flex-shrink: 0; height: 34px; padding: 0 14px; border-radius: 99px; border: 0; background: rgba(255,255,255,0.06); color: var(--text-2); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+#nv-prepa.is-compact .np-tabs button.is-on { background: #fff; color: #0a0a12; }
+#nv-prepa.is-compact .np-tabs .nv-badge { font-family: var(--mono); font-size: 10px; padding: 0 5px; border-radius: 99px; background: var(--blue); color: #0a0a12; }
+#nv-prepa.is-compact .nv-page-inner { padding-top: 0; padding-bottom: 80px; }
+#nv-prepa.is-compact .nv-page-head { margin: 2px 0 14px; }
+#nv-prepa.is-compact .nv-page-head h2 { display: none; }
+#nv-prepa.is-compact .nv-page-head p { margin: 0; font-size: 12.5px; }
+#nv-prepa.is-compact .np-cards .np-card:first-child:not(.np-book) { grid-column: 1 / -1; min-height: 96px; }
+#nv-prepa.is-compact .np-card-text small { font-size: 11.5px; }
+#nv-prepa.is-compact .np-row { padding: 11px 12px; gap: 10px; }
+#nv-prepa.is-compact .np-row-art { width: 28px; height: 28px; }
+#nv-prepa.is-compact .np-row-txt b { font-size: 13px; }
+#nv-prepa.is-compact .np-row .nv-btn.is-sm { height: 30px; padding: 0 12px; font-size: 12px; }
+#nv-prepa.is-compact .np-note { font-size: 12.5px; padding: 2px 8px; }
+#nv-prepa.is-compact .np-calbar { margin-top: 22px; gap: 4px; }
+#nv-prepa.is-compact .np-calbar h3 { flex: 1 0 100%; margin: 0 0 6px; font-size: 14px; }
+#nv-prepa.is-compact .np-calbar .np-seg2 { margin-left: auto; }
+#nv-prepa.is-compact .np-mday { min-height: 54px; padding: 4px; border-radius: 8px; gap: 2px; }
+#nv-prepa.is-compact .np-mday > span { font-size: 10.5px; }
+#nv-prepa.is-compact .np-mev { font-size: 0; height: 5px; padding: 0; border-radius: 3px; background: var(--blue); }
+#nv-prepa.is-compact .np-mev.is-off { background: var(--panel-3); }
+#nv-prepa.is-compact .np-mev.is-live { background: var(--live); }
+#nv-prepa.is-compact .np-mhead { font-size: 9px; letter-spacing: 0; }
+#nv-prepa.is-compact .np-pop { align-items: flex-end; padding: 0; }
+#nv-prepa.is-compact .np-pop-card { width: 100%; border-radius: 20px 20px 0 0; padding: 20px 16px calc(16px + env(safe-area-inset-bottom)); }
+#nv-prepa.is-compact .np-pop-btns .nv-btn, #nv-prepa.is-compact .np-pop-btns .nv-chip { flex: 1; height: 42px; }
+#nv-prepa.is-compact .nv-chip { height: 34px; }
+
+/* Écrans rétractables de l'écran blanc : aucun fond derrière la fenêtre */
+.nvx .nvx-modal { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.nvx .nvx-card { box-shadow: 0 30px 80px rgba(20,24,40,0.22), 0 0 0 1px #e6e9f2; }
+.nvx.is-narrow .nvx-panel.is-on { box-shadow: 0 -10px 40px rgba(20,24,40,0.12); }
+
+/* Écrans rétractables (menu, fenêtres) : overlay seul, aucun fond derrière */
+#nv-prepa .np-pop, #nv-prepa.is-compact .nv-scrim { background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+#nv-prepa.is-compact .nv-side { background: #181a26; box-shadow: 0 24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07); }
+
+/* Téléphone : pas de titre en double (l'onglet actif suffit) */
+#nv-prepa.is-compact:not(.is-solo) .nv-topbar-title { visibility: hidden; }
+#nv-prepa.is-compact .nv-topbar { min-height: 44px; }
 </style>
 
 <div id="nv-prepa">
@@ -748,9 +819,18 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   }
   updateCompact();
 
+  // Téléphone : les rubriques en onglets en haut de page (pas besoin du menu).
+  function tabs() {
+    if (!S.p || !S.p.prepa) return "";
+    var n = nonLues().length, ep = epOuvertes().length;
+    return '<div class="np-tabs">' + VIEWS.map(function (v) {
+      var b = v === "copies" && n ? n : v === "epreuves" && ep ? ep : 0;
+      return '<button data-view="' + v + '"' + (S.view === v ? ' class="is-on"' : "") + ">" + TITRES[v] + (b ? '<span class="nv-badge">' + b + "</span>" : "") + "</button>";
+    }).join("") + "</div>";
+  }
   function setPage(html, wide) {
     var p = el("page");
-    p.innerHTML = '<div class="nv-page-inner' + (wide ? " is-wide" : "") + '">' + html + "</div>";
+    p.innerHTML = '<div class="nv-page-inner' + (wide ? " is-wide" : "") + '">' + tabs() + html + "</div>";
     FLOW.top();
     sizeApp();
   }

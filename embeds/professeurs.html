@@ -683,6 +683,76 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 .nvx.is-narrow .nvx-top { padding: 0 6px; gap: 2px; }
 @media (prefers-reduced-motion: reduce) { .nvx, .nvx * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
+
+/* Téléphone : barre resserrée, champs à 16 px (pas de zoom iOS), fenêtres en bas d'écran */
+.nvx.is-narrow .nvx-field, .nvx.is-narrow .nvx-bub textarea, .nvx.is-narrow .nvx-panel textarea { font-size: 16px; }
+.nvx.is-narrow .nvx-save { display: none; }
+.nvx.is-narrow .nvx-b { padding: 0 9px; }
+.nvx.is-narrow .nvx-b.is-main { padding: 0 12px; }
+.nvx.is-narrow .nvx-info { gap: 6px; }
+.nvx.is-narrow .nvx-panel { width: 100%; }
+.nvx.is-narrow .nvx-modal { align-items: flex-end; padding: 0; }
+.nvx.is-narrow .nvx-card { width: 100%; border-radius: 18px 18px 0 0; padding: 22px 18px calc(18px + env(safe-area-inset-bottom)); }
+.nvx.is-narrow .nvx-verdict { padding: 14px; gap: 10px; }
+.nvx.is-narrow .nvx-note { font-size: 15px; }
+.nvx.is-narrow .nvx-end { padding: 16px; margin-top: 32px; }
+.nvx.is-narrow .nvx-tool { max-width: calc(100vw - 16px); }
+
+/* ================= SANS FOND ================= */
+#nv-prof .nv-side { background: transparent; }
+#nv-prof.is-flow .nv-topbar, #nv-prof .nv-topbar { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+#nv-prof .nv-apercu { background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: none !important; }
+#nv-prof .nv-pop { background: transparent; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+#nv-prof .nv-pop-card { background: #161826; box-shadow: 0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06); }
+#nv-prof .nv-row, #nv-prof .nv-card, #nv-prof .nv-stat, #nv-prof .nv-solde, #nv-prof .nv-month, #nv-prof .ep-item, #nv-prof .nv-wallet { background: rgba(255,255,255,0.025); }
+#nv-prof .nv-tabs { display: none; }
+
+/* ================= TÉLÉPHONE ================= */
+#nv-prof.is-compact .nv-topbar { position: static !important; top: auto !important; min-height: 46px; padding: 4px 4px 0; }
+#nv-prof.is-compact .nv-topbar-title { text-align: left; font-size: 17px; font-weight: 700; color: #fff; padding-left: 2px; }
+#nv-prof.is-compact .nv-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 14px 12px; margin: 0 -14px; }
+#nv-prof.is-compact .nv-tabs::-webkit-scrollbar { display: none; }
+#nv-prof.is-compact .nv-tabs button { flex-shrink: 0; height: 34px; padding: 0 14px; border-radius: 99px; border: 0; background: rgba(255,255,255,0.06); color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+#nv-prof.is-compact .nv-tabs button.is-on { background: #fff; color: #0a0a12; }
+#nv-prof.is-compact .nv-tabs .nv-badge { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 0 5px; border-radius: 99px; background: var(--blue); color: #0a0a12; }
+#nv-prof.is-compact .nv-page-inner { padding-top: 0; padding-bottom: 80px; }
+#nv-prof.is-compact .nv-page-head { margin: 2px 0 14px; }
+#nv-prof.is-compact .nv-page-head h2 { font-size: 18px; }
+#nv-prof.is-compact .nv-page-head p { font-size: 12.5px; }
+#nv-prof.is-compact .nv-cards .nv-hcard:first-child { grid-column: 1 / -1; min-height: 96px; }
+#nv-prof.is-compact .nv-big { font-size: 22px; }
+#nv-prof.is-compact .nv-hcard-text small { font-size: 11.5px; }
+#nv-prof.is-compact .nv-row { padding: 11px 12px; gap: 10px; }
+#nv-prof.is-compact .nv-row-art { width: 28px; height: 28px; }
+#nv-prof.is-compact .nv-row-meta span:nth-child(n+3) { display: none; }
+#nv-prof.is-compact .nv-row .nv-btn.is-sm { height: 30px; padding: 0 12px; font-size: 12px; }
+#nv-prof.is-compact .nv-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+#nv-prof.is-compact .nv-filters .nv-chip { flex-shrink: 0; }
+#nv-prof.is-compact .nv-class-head .nv-discord { align-self: flex-start; }
+#nv-prof.is-compact .ep-item-top { flex-wrap: wrap; }
+#nv-prof.is-compact .nv-solde-grid { grid-template-columns: 1fr 1fr; }
+#nv-prof.is-compact .nv-month { padding: 10px 12px; gap: 8px; }
+#nv-prof.is-compact .nv-month-amount { width: auto; }
+#nv-prof.is-compact .nv-pop { align-items: flex-end; padding: 0; top: var(--vis-top, 0px) !important; height: var(--vis-h, 100%) !important; }
+#nv-prof.is-compact .nv-pop-card { width: 100%; max-height: calc(var(--vis-h, 100%) - 24px); border-radius: 20px 20px 0 0; padding: 20px 16px calc(16px + env(safe-area-inset-bottom)); }
+#nv-prof.is-compact .nv-pop-btns .nv-btn, #nv-prof.is-compact .nv-pop-btns .nv-chip { flex: 1; height: 42px; }
+#nv-prof.is-compact .ep-chips .nv-chip { flex: 1; justify-content: center; }
+#nv-prof.is-compact .nv-wallet { display: none; }
+
+/* Écrans rétractables de l'écran blanc : aucun fond derrière la fenêtre */
+.nvx .nvx-modal { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.nvx .nvx-card { box-shadow: 0 30px 80px rgba(20,24,40,0.22), 0 0 0 1px #e6e9f2; }
+.nvx.is-narrow .nvx-panel.is-on { box-shadow: 0 -10px 40px rgba(20,24,40,0.12); }
+
+/* Écrans rétractables (menu, fenêtres) : overlay seul, aucun fond derrière */
+#nv-prof .nv-pop, #nv-prof.is-compact .nv-scrim { background: transparent !important; opacity: 1 !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+#nv-prof.is-compact .nv-scrim { pointer-events: none; }
+#nv-prof.is-compact.is-drawer .nv-scrim { pointer-events: auto; }
+#nv-prof.is-compact .nv-side { background: #181a26; box-shadow: 0 24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07); }
+
+/* Téléphone : pas de titre en double (l'onglet actif suffit) */
+#nv-prof.is-compact:not(.is-solo) .nv-topbar-title { visibility: hidden; }
+#nv-prof.is-compact .nv-topbar { min-height: 44px; }
 </style>
 
 <div id="nv-prof" class="is-solo">
@@ -959,10 +1029,17 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   applyLogos();
 
   // ================= RENDU =================
+  // Téléphone : les rubriques en onglets en haut de page.
+  function tabs() {
+    var todo = aCorriger().length;
+    return '<div class="nv-tabs">' + Object.keys(TITLES).map(function (v) {
+      return '<button data-view="' + v + '"' + (S.view === v ? ' class="is-on"' : "") + ">" + TITLES[v] + (v === "copies" && todo ? '<span class="nv-badge">' + todo + "</span>" : "") + "</button>";
+    }).join("") + "</div>";
+  }
   function setPage(html, solo) {
     root.classList.toggle("is-solo", !!solo);
     var p = el("page");
-    p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
+    p.innerHTML = '<div class="nv-page-inner">' + (solo || !S.dash ? "" : tabs()) + html + '</div>';
     FLOW.top();
     sizeApp();
     applyLogos(p);
