@@ -309,14 +309,18 @@ def _section_devoirs(db: Session, user: User) -> dict | None:
             "commentaire": r["commentaire"] or None,
             "corrige_par": r["corrige_par"],
         }
+        # La copie mise en forme par NAVIRE, en PDF : une fois corrigée, avec
+        # les révisions, les commentaires, la note et l'appréciation du
+        # correcteur (même rendu que le téléchargement depuis l'onglet Prépa).
+        corrigee = r["statut"] == "corrige"
         items.append({
-            "id": f"d-{d.id}", "type": "pdf", "label": f"{r['titre']} (copie)",
-            "size_bytes": r["size_bytes"], "date": r["created_at"],
-            "src": f"/lib/prepa/devoirs/{d.id}/fichier", "meta": meta, "_dossier": r["matiere_label"],
+            "id": f"d-{d.id}", "type": "pdf", "label": f"{r['titre']} ({'corrigée' if corrigee else 'copie'})",
+            "date": r["corrige_le"] if corrigee else r["created_at"],
+            "src": f"/lib/prepa/devoirs/{d.id}/export?format=pdf", "meta": meta, "_dossier": r["matiere_label"],
         })
         if r["correction"]:
             items.append({
-                "id": f"c-{d.id}", "type": "pdf", "label": f"{r['titre']} (corrigé)",
+                "id": f"c-{d.id}", "type": "pdf", "label": f"{r['titre']} (PDF du correcteur)",
                 "date": r["corrige_le"], "src": f"/lib/prepa/devoirs/{d.id}/correction",
                 "meta": meta, "_dossier": r["matiere_label"],
             })

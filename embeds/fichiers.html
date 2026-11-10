@@ -543,7 +543,7 @@
       return (items || []).filter(function (n) { return n.type !== "lib"; })
         .map(function (n) { return n.type === "folder" ? Object.assign({}, n, { children: propre(n.children) }) : n; });
     }
-    if (out.copies && !out.copies.action) out.copies.action = { label: "Déposer une copie", link: "/lib?prepa=devoirs" };
+    if (out.copies && !out.copies.action) out.copies.action = { label: "Nouvelle copie", link: "/prepa?onglet=copies" };
     return ["mes-pdf", "copies", "enregistres"].filter(function (k) { return out[k]; })
       .map(function (k) { out[k].items = propre(out[k].items); return out[k]; });
   }
