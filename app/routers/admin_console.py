@@ -49,6 +49,15 @@ class PrepaGrantIn(BaseModel):
 # =========================================================
 # Helpers
 # =========================================================
+def _navire_reindex(item_id: int) -> None:
+    """Actu ajoutée ou supprimée : NAVIRE AI suit (indexation en tâche de fond)."""
+    try:
+        from app.services.navire_ingest import reindex_in_background
+        reindex_in_background("veille", item_id)
+    except Exception as e:  # jamais bloquant
+        print(f"⚠️ NAVIRE reindex veille#{item_id} : {e}")
+
+
 def get_user_or_404(db: Session, user_id: int) -> User:
     u = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
     if not u:
@@ -540,6 +549,7 @@ def admin_actus_add(
     db.add(item)
     db.commit()
     db.refresh(item)
+    _navire_reindex(item.id)
 
     return {
         "ok": True,
@@ -567,6 +577,7 @@ def admin_actus_delete(
 
     db.delete(item)
     db.commit()
+    _navire_reindex(item_id)
 
     return {"ok": True, "deleted_id": item_id}
 

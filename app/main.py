@@ -334,6 +334,13 @@ async def lifespan(app: FastAPI):
     print("🚀 Startup: running articles migration...")
     run_articles_migration()
 
+    # NAVIRE AI : indexe en tâche de fond les cours Lib, articles et actus qui
+    # n'ont pas encore de chunks (après un déploiement, sans action manuelle).
+    if not engine.url.get_backend_name().startswith("sqlite"):
+        from app.services.navire_ingest import backfill_in_background
+        print("🚀 Startup: NAVIRE index backfill (background)...")
+        backfill_in_background()
+
     print("🚀 Startup: creating default professor groups...")
     _creer_groupes_professeurs()
 

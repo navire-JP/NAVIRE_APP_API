@@ -330,6 +330,10 @@
 #nv-home .nv-src[data-kind="cours"] i { background: var(--k-cours); }
 #nv-home .nv-src[data-kind="actu"] i { background: var(--k-actu); }
 #nv-home .nv-src[data-kind="pdf_user"] i { background: var(--k-pdf); }
+#nv-home .nv-src[data-kind="lib"] i { background: var(--k-cours); }
+#nv-home .nv-src[data-kind="article"] i { background: #B89BFF; }
+#nv-home a.nv-src { text-decoration: none; cursor: pointer; }
+#nv-home a.nv-src:hover { color: #fff; background: var(--panel-2); }
 #nv-home .nv-src span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Actions sous une réponse */
@@ -835,7 +839,7 @@
             </button>
           </div>
         </div>
-        <div class="nv-disclaimer">NAVIRE répond à partir des cours, des actus et de tes documents. Vérifie toujours les points importants.</div>
+        <div class="nv-disclaimer">NAVIRE AI s'appuie sur les cours NAVIRE Lib, les articles, les actus et tes documents. Vérifie toujours les points importants.</div>
       </div>
     </section>
 
@@ -872,12 +876,13 @@
               <div class="nv-src-ico is-navire" data-logo></div>
               <div class="nv-src-text">
                 <b>Base NAVIRE</b>
-                <span>Cours L1 à L3, méthodologie et actualités juridiques.</span>
+                <span>Cours NAVIRE Lib, articles des doctorants et actualités juridiques.</span>
               </div>
               <button class="nv-switch" role="switch" data-act="toggle-navire" aria-label="Base NAVIRE"></button>
             </div>
             <div class="nv-src-legend">
-              <span><i style="background:var(--k-cours)"></i>Cours</span>
+              <span><i style="background:var(--k-cours)"></i>Cours Lib</span>
+              <span><i style="background:#B89BFF"></i>Articles</span>
               <span><i style="background:var(--k-actu)"></i>Actualités</span>
             </div>
           </div>
@@ -1434,8 +1439,11 @@
   function sourcesHtml(sources) {
     if (!sources || !sources.length) return '';
     return '<div class="nv-sources">' + sources.map(function (s, i) {
-      var label = (s.label || '').replace(/^(Cours|Actualité|Votre document)\s+—\s+/, '');
-      return '<span class="nv-src" data-kind="' + esc(s.kind || '') + '" style="animation-delay:' + (i * 0.04) + 's" title="' + esc(s.label) + '"><i></i><span>' + esc(label || s.label) + '</span></span>';
+      var label = (s.label || '').replace(/^(Cours|Actualité|Votre document|NAVIRE Lib|Article NAVIRE)\s+—\s+/, '');
+      var attrs = ' data-kind="' + esc(s.kind || '') + '" style="animation-delay:' + (i * 0.04) + 's" title="' + esc(s.label) + '"';
+      // Cours Lib, article ou actu : la source s'ouvre (page entière, hors de l'iframe).
+      if (s.url && /^https?:\/\//.test(s.url)) return '<a class="nv-src" href="' + esc(s.url) + '" target="_top"' + attrs + '><i></i><span>' + esc(label || s.label) + '</span></a>';
+      return '<span class="nv-src"' + attrs + '><i></i><span>' + esc(label || s.label) + '</span></span>';
     }).join('') + '</div>';
   }
 

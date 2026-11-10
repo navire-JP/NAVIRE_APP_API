@@ -42,6 +42,15 @@ VALID_EVENT_TYPES = {"impression", "read", "skip", "open"}
 # ============================================================
 # Helpers
 # ============================================================
+def _reindex(item_id: int) -> None:
+    """Actu ou article : (ré)indexé pour NAVIRE AI en tâche de fond."""
+    try:
+        from app.services.navire_ingest import reindex_in_background
+        reindex_in_background("veille", item_id)
+    except Exception as e:  # jamais bloquant
+        print(f"⚠️ NAVIRE reindex veille#{item_id} : {e}")
+
+
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -353,6 +362,7 @@ def admin_create_item(
     db.add(item)
     db.commit()
     db.refresh(item)
+    _reindex(item.id)   # NAVIRE AI peut citer l'actu tout de suite
 
     # Diffusion Discord (#veille + trace dans #logsnewsletter). C'est la route
     # qu'utilise la console du site : elle doit publier au même titre que
@@ -809,6 +819,7 @@ def create_article(
     item.source_url = articles_svc.article_url(item.id)
     db.commit()
     db.refresh(item)
+    _reindex(item.id)
     out = _hub_item(item, set(), set())
     out["body_html"] = item.body_html
     out["can_edit"] = True
@@ -838,6 +849,7 @@ def update_article(
     item.updated_at = utcnow()
     db.commit()
     db.refresh(item)
+    _reindex(item.id)
 
     read_ids, saved_ids = _read_ids(db, user), _saved_ids(db, user)
     out = _hub_item(item, read_ids, saved_ids)
@@ -860,4 +872,5 @@ def delete_article(
     db.query(VeilleEvent).filter(VeilleEvent.item_id == item.id).delete(synchronize_session=False)
     db.delete(item)
     db.commit()
+    _reindex(item_id)   # retire l'article de l'index de NAVIRE AI
     return {"ok": True, "deleted_id": item_id}

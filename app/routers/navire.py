@@ -18,7 +18,13 @@ from app.db.models import User, NavireConversation, NavireChunk, File
 from app.routers.auth import get_current_user
 from app.core.limits import check_navire_daily_limit, navire_daily_usage
 from app.services.navire_chat import send_message
-from app.services.navire_ingest import ingest_all_prepa_courses, ingest_all_veille_items, ingest_user_file
+from app.services.navire_ingest import (
+    backfill_missing,
+    ingest_all_lib_documents,
+    ingest_all_prepa_courses,
+    ingest_all_veille_items,
+    ingest_user_file,
+)
 
 router = APIRouter(prefix="/navire", tags=["navire"])
 
@@ -382,8 +388,33 @@ def admin_index_status(
     return {
         "total_chunks": sum(counts.values()),
         "by_source": {
-            "cours": counts.get("cours", 0),
+            "lib": counts.get("lib", 0),
+            "lib_plus": counts.get("lib_plus", 0),
+            "article": counts.get("article", 0),
             "actu": counts.get("actu", 0),
+            "cours": counts.get("cours", 0),
             "pdf_user": counts.get("pdf_user", 0),
         },
     }
+
+
+@router.post("/admin/ingest/lib")
+def admin_ingest_lib(
+    db: Session = Depends(get_db),
+    x_admin_code: str = Header(...),
+):
+    """Réindexe tous les cours NAVIRE Lib (les non publiés sont retirés de l'index)."""
+    if x_admin_code != ADMIN_CODE:
+        raise HTTPException(status_code=403, detail="Accès refusé.")
+    return ingest_all_lib_documents(db)
+
+
+@router.post("/admin/ingest/missing")
+def admin_ingest_missing(
+    db: Session = Depends(get_db),
+    x_admin_code: str = Header(...),
+):
+    """Rattrapage : indexe les cours Lib, articles et actus qui n'ont pas encore de chunks."""
+    if x_admin_code != ADMIN_CODE:
+        raise HTTPException(status_code=403, detail="Accès refusé.")
+    return backfill_missing(db)
