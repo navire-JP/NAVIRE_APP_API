@@ -39,6 +39,7 @@ from app.services.navire_retrieval import search_chunks
 OPENAI_MODEL_NAVIRE = os.getenv("OPENAI_MODEL_NAVIRE", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
 MAX_CONVERSATIONS_PER_USER = 10
 TOP_K_CHUNKS = 10
+MAX_SOURCES = 6   # sources affichées sous une réponse (une par document)
 MAX_TOOL_ROUNDS = 4
 
 _client = OpenAI()
@@ -246,6 +247,23 @@ LIB_URL = os.getenv("NAVIRE_LIB_URL", "https://navire-ai.com/lib")
 ACTUS_URL = os.getenv("NAVIRE_ACTUS_URL", "https://navire-ai.com/actus")
 
 
+def _doc_label(c) -> str:
+    """Libellé court d'une source, au niveau du document (sans le chemin de section)."""
+    x = c.extra or {}
+    if c.source_type in ("lib", "lib_plus"):
+        return f"NAVIRE Lib — {x.get('titre', '')}"
+    if c.source_type == "article":
+        by = f" (par {x['author']})" if x.get("author") else ""
+        return f"Article NAVIRE — {x.get('titre', '')}{by}"
+    if c.source_type == "actu":
+        return f"Actualité — {x.get('titre', '')}"
+    if c.source_type == "cours":
+        return f"Cours — {x.get('cours_titre', '')}"
+    if c.source_type == "pdf_user":
+        return f"Votre document — {x.get('filename', '')}"
+    return "Source"
+
+
 def _label(c) -> tuple[str, str | None]:
     """Libellé de citation et lien vers la source, selon le type d'extrait."""
     x = c.extra or {}
@@ -305,7 +323,12 @@ def _tool_search_legal_base(
     for c in chunks:
         label, url = _label(c)
         kind = "lib" if c.source_type == "lib_plus" else c.source_type
-        extraits.append({"source": label, "kind": kind, "url": url, "contenu": c.content})
+        extraits.append({
+            "source": label, "kind": kind, "url": url, "contenu": c.content,
+            # Une source = un document (cours, article, actu, PDF), pas un extrait
+            "doc": f"{kind}:{c.source_id}",
+            "doc_label": _doc_label(c),
+        })
 
     return {"found": True, "extraits": extraits}
 
@@ -511,8 +534,9 @@ def send_message(
                     sources_cited.append({
                         "type": "rag",
                         "kind": ex.get("kind", ""),
-                        "label": ex.get("source", ""),
+                        "label": ex.get("doc_label") or ex.get("source", ""),
                         "url": ex.get("url"),
+                        "doc": ex.get("doc"),
                     })
 
             messages.append({
@@ -526,13 +550,15 @@ def send_message(
     if not assistant_reply:
         assistant_reply = "Je n'ai pas de réponse à te donner sur ce point."
 
-    # Dédupliquer les sources
+    # Une source par document (dans l'ordre de pertinence), au plus MAX_SOURCES
     seen = set()
     unique_sources = []
     for s in sources_cited:
-        if s["label"] and s["label"] not in seen:
-            seen.add(s["label"])
+        key = s.get("doc") or s["label"]
+        if s["label"] and key not in seen:
+            seen.add(key)
             unique_sources.append(s)
+    unique_sources = unique_sources[:MAX_SOURCES]
 
     # Sauvegarde de la conversation (les sources sont gardées pour que
     # l'historique les réaffiche sous chaque réponse)

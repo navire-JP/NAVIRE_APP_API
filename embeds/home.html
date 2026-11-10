@@ -333,6 +333,9 @@
 #nv-home .nv-src[data-kind="lib"] i { background: var(--k-cours); }
 #nv-home .nv-src[data-kind="article"] i { background: #B89BFF; }
 #nv-home a.nv-src { text-decoration: none; cursor: pointer; }
+#nv-home .nv-sources:not(.is-all) [data-src-extra] { display: none; }
+#nv-home .nv-src-more { font: inherit; font-size: 11.5px; color: var(--text-3); cursor: pointer; }
+#nv-home .nv-src-more:hover { color: #fff; background: var(--panel-2); }
 #nv-home a.nv-src:hover { color: #fff; background: var(--panel-2); }
 #nv-home .nv-src span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -1437,16 +1440,25 @@
     return w;
   }
 
+  // Trois sources visibles au plus ; « +N » déplie les autres.
+  var SOURCES_SHOWN = 3;
   function sourcesHtml(sources) {
     if (!sources || !sources.length) return '';
+    var extra = sources.length - SOURCES_SHOWN;
     return '<div class="nv-sources">' + sources.map(function (s, i) {
       var label = (s.label || '').replace(/^(Cours|Actualité|Votre document|NAVIRE Lib|Article NAVIRE)\s+—\s+/, '');
-      var attrs = ' data-kind="' + esc(s.kind || '') + '" style="animation-delay:' + (i * 0.04) + 's" title="' + esc(s.label) + '"';
+      var attrs = ' data-kind="' + esc(s.kind || '') + '" style="animation-delay:' + (i * 0.04) + 's" title="' + esc(s.label) + '"' + (i >= SOURCES_SHOWN ? ' data-src-extra' : '');
       // Cours Lib, article ou actu : la source s'ouvre (page entière, hors de l'iframe).
       if (s.url && /^https?:\/\//.test(s.url)) return '<a class="nv-src" href="' + esc(s.url) + '" target="_top"' + attrs + '><i></i><span>' + esc(label || s.label) + '</span></a>';
       return '<span class="nv-src"' + attrs + '><i></i><span>' + esc(label || s.label) + '</span></span>';
-    }).join('') + '</div>';
+    }).join('') + (extra > 0 ? '<button type="button" class="nv-src nv-src-more" data-more-src>+' + extra + ' source' + (extra > 1 ? 's' : '') + '</button>' : '') + '</div>';
   }
+  root.addEventListener('click', function (e) {
+    var more = e.target.closest('[data-more-src]');
+    if (!more || !root.contains(more)) return;
+    more.parentNode.classList.add('is-all');
+    more.remove();
+  });
 
   function addAssistant(text, opts) {
     opts = opts || {};

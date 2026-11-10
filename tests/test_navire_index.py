@@ -127,3 +127,45 @@ def test_sources_et_consignes(db):
     c = NavireChunk(source_type="lib_plus", source_id=12, content="x", extra={"titre": "Obligations", "section": "Partie 1"})
     label, url = nc._label(c)
     assert label == "NAVIRE Lib — Obligations › Partie 1" and url.endswith("/lib?doc=12")
+
+
+def test_filtre_de_pertinence():
+    from app.services.navire_retrieval import keep_relevant
+    rows = [("dintilhac", 0.31), ("article", 0.36), ("actu", 0.41), ("bail", 0.47), ("suretes", 0.66)]
+    assert keep_relevant(rows, max_distance=0.62, margin=0.12) == ["dintilhac", "article", "actu"]
+    # Rien d'assez proche : aucune source plutôt que du hors sujet
+    assert keep_relevant([("x", 0.7), ("y", 0.72)], max_distance=0.62, margin=0.12) == []
+
+
+def test_une_source_par_document(monkeypatch):
+    """Dix extraits de trois documents → trois sources sous la réponse."""
+    from app.services import navire_chat as nc
+
+    extraits = [
+        {"source": f"NAVIRE Lib — Sûretés › Titre {i}", "kind": "lib", "url": "u", "contenu": "x",
+         "doc": "lib:1", "doc_label": "NAVIRE Lib — Sûretés"} for i in range(8)
+    ] + [
+        {"source": "Article NAVIRE — Dintilhac (par JVLIEN)", "kind": "article", "url": "a", "contenu": "y",
+         "doc": "article:7", "doc_label": "Article NAVIRE — Dintilhac (par JVLIEN)"},
+        {"source": "Votre document — rapport.pdf", "kind": "pdf_user", "url": None, "contenu": "z",
+         "doc": "pdf_user:3", "doc_label": "Votre document — rapport.pdf"},
+    ]
+    monkeypatch.setattr(nc, "_run_tool", lambda *a, **k: {"found": True, "extraits": extraits})
+    calls = iter([
+        SimpleNamespace(content="", tool_calls=[SimpleNamespace(id="t1", function=SimpleNamespace(name="search_legal_base", arguments='{"query": "préjudice"}'))]),
+        SimpleNamespace(content="Réponse.", tool_calls=None),
+    ])
+    monkeypatch.setattr(nc._client.chat.completions, "create",
+                        lambda **p: SimpleNamespace(choices=[SimpleNamespace(message=next(calls))]))
+    monkeypatch.setattr(nc, "get_or_create_conversation", lambda *a, **k: SimpleNamespace(id=1, messages=[], title=""))
+
+    class FakeDB:
+        def add(self, x): pass
+        def commit(self): pass
+        def refresh(self, x): pass
+    monkeypatch.setattr(nc, "_enforce_conversation_retention", lambda *a: None)
+    user = SimpleNamespace(id=1, username="eleve", study_level="L2", university=None)
+    r = nc.send_message(FakeDB(), user, None, "Qu'est-ce qu'un préjudice extrapatrimonial ?")
+    assert [s["label"] for s in r["sources"]] == [
+        "NAVIRE Lib — Sûretés", "Article NAVIRE — Dintilhac (par JVLIEN)", "Votre document — rapport.pdf",
+    ]
