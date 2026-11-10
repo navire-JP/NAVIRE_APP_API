@@ -590,3 +590,263 @@ def admin_user_delete(
     db.commit()
     
     return {"ok": True, "deleted_id": user_id}
+
+# =========================================================
+# CATÉGORIES (universités, niveaux d'études)
+# =========================================================
+
+class OptionIn(BaseModel):
+    kind: Literal["university", "study_level"]
+    label: str = Field(..., min_length=1, max_length=120)
+    position: int | None = None
+    active: bool = True
+    requires_verification: bool = False
+    badge: str | None = Field(default=None, max_length=40)
+    verification_hint: str | None = Field(default=None, max_length=300)
+
+
+class OptionPatch(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=120)
+    position: int | None = None
+    active: bool | None = None
+    requires_verification: bool | None = None
+    badge: str | None = Field(default=None, max_length=40)
+    verification_hint: str | None = Field(default=None, max_length=300)
+
+
+def _clean(v: str | None) -> str | None:
+    v = " ".join((v or "").split())
+    return v or None
+
+
+@router.get("/options")
+def admin_options_list(
+    kind: Literal["university", "study_level"] | None = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Toutes les catégories, désactivées comprises, avec le nombre de comptes
+    qui les portent. Commande console : onglet « Catég. ».
+    """
+    from sqlalchemy import func
+    from app.services.user_categories import list_options, option_dict
+
+    opts = list_options(db, kind=kind, include_inactive=True)
+    uni_counts = dict(db.execute(
+        select(User.university, func.count(User.id)).group_by(User.university)
+    ).all())
+    lvl_counts = dict(db.execute(
+        select(User.study_level, func.count(User.id)).group_by(User.study_level)
+    ).all())
+    return {
+        "items": [
+            {
+                **option_dict(o),
+                "users_count": int(
+                    (uni_counts if o.kind == "university" else lvl_counts).get(o.label, 0)
+                ),
+            }
+            for o in opts
+        ]
+    }
+
+
+@router.post("/options")
+def admin_options_create(
+    body: OptionIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from sqlalchemy import func
+    from app.db.models import MetaOption
+    from app.services.user_categories import ensure_seeded, find_option, option_dict
+
+    ensure_seeded(db)
+    label = _clean(body.label)
+    if not label:
+        raise HTTPException(400, detail="Libellé vide.")
+    if find_option(db, body.kind, label):
+        raise HTTPException(409, detail="Cette catégorie existe déjà.")
+
+    position = body.position
+    if position is None:
+        position = (db.execute(
+            select(func.max(MetaOption.position)).where(MetaOption.kind == body.kind)
+        ).scalar_one() or 0) + 1
+
+    o = MetaOption(
+        kind=body.kind,
+        label=label,
+        position=position,
+        active=body.active,
+        requires_verification=body.requires_verification,
+        badge=_clean(body.badge) or (label if body.requires_verification else None),
+        verification_hint=_clean(body.verification_hint),
+    )
+    db.add(o)
+    db.commit()
+    db.refresh(o)
+    return option_dict(o)
+
+
+@router.patch("/options/{option_id}")
+def admin_options_update(
+    option_id: int,
+    body: OptionPatch,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Renommer met aussi à jour les comptes qui portaient l'ancien libellé, pour
+    que le classement des facs ne se coupe pas en deux.
+    """
+    from app.db.models import MetaOption
+    from app.services.user_categories import find_option, option_dict
+
+    o = db.get(MetaOption, option_id)
+    if not o:
+        raise HTTPException(404, detail="Catégorie introuvable.")
+
+    fields = body.model_dump(exclude_unset=True)
+    if "label" in fields:
+        label = _clean(body.label)
+        if not label:
+            raise HTTPException(400, detail="Libellé vide.")
+        if label != o.label:
+            other = find_option(db, o.kind, label)
+            if other and other.id != o.id:
+                raise HTTPException(409, detail="Cette catégorie existe déjà.")
+            column = User.university if o.kind == "university" else User.study_level
+            db.query(User).filter(column == o.label).update(
+                {column: label}, synchronize_session=False
+            )
+            o.label = label
+    if "position" in fields and body.position is not None:
+        o.position = body.position
+    if "active" in fields and body.active is not None:
+        o.active = body.active
+    if "requires_verification" in fields and body.requires_verification is not None:
+        o.requires_verification = body.requires_verification
+    if "badge" in fields:
+        o.badge = _clean(body.badge)
+    if "verification_hint" in fields:
+        o.verification_hint = _clean(body.verification_hint)
+
+    db.commit()
+    db.refresh(o)
+    return option_dict(o)
+
+
+@router.delete("/options/{option_id}")
+def admin_options_delete(
+    option_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """
+    Supprime la catégorie des listes. Les comptes qui la portent gardent leur
+    valeur (texte libre) : préférer « désactiver » pour la masquer seulement.
+    """
+    from app.db.models import MetaOption
+
+    o = db.get(MetaOption, option_id)
+    if not o:
+        raise HTTPException(404, detail="Catégorie introuvable.")
+    db.delete(o)
+    db.commit()
+    return {"ok": True, "deleted_id": option_id}
+
+
+# =========================================================
+# VÉRIFICATIONS DE STATUT (badge Doctorant…)
+# =========================================================
+
+class VerificationDecisionIn(BaseModel):
+    reason: str = Field(default="", max_length=300)
+
+
+@router.get("/verifications")
+def admin_verifications_list(
+    status: Literal["pending", "approved", "rejected", "revoked", "all"] = "pending",
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from sqlalchemy import func
+    from app.db.models import StatusVerification
+    from app.services.user_categories import verification_dict
+
+    limit = max(1, min(200, int(limit)))
+    stmt = select(StatusVerification).order_by(desc(StatusVerification.created_at)).limit(limit)
+    if status != "all":
+        stmt = stmt.where(StatusVerification.status == status)
+    rows = db.execute(stmt).scalars().all()
+    pending = db.execute(
+        select(func.count(StatusVerification.id)).where(StatusVerification.status == "pending")
+    ).scalar_one()
+    return {
+        "pending_count": int(pending or 0),
+        "items": [verification_dict(v, with_user=True) for v in rows],
+    }
+
+
+def _decide(verification_id: int, decision: str, reason: str, db: Session, admin: User) -> dict:
+    from app.db.models import StatusVerification
+    from app.services.user_categories import review, verification_dict
+
+    v = db.get(StatusVerification, verification_id)
+    if not v:
+        raise HTTPException(404, detail="Demande introuvable.")
+    allowed = {"approve": ("pending", "rejected"), "reject": ("pending",), "revoke": ("approved",)}
+    if v.status not in allowed[decision]:
+        raise HTTPException(400, detail=f"Demande déjà traitée ({v.status}).")
+    review(db, v, admin, decision, reason)
+    db.commit()
+    db.refresh(v)
+
+    # Prévenir l'élève, sans jamais bloquer la décision.
+    try:
+        from app.services.email import mail_status_verification, send_mail
+
+        user = v.user
+        if user and decision in ("approve", "reject"):
+            subject, html = mail_status_verification(
+                user.username, v.label, decision == "approve", v.rejection_reason,
+            )
+            send_mail(user.email, subject, html)
+    except Exception:
+        pass
+
+    return verification_dict(v, with_user=True)
+
+
+@router.post("/verifications/{verification_id}/approve")
+def admin_verification_approve(
+    verification_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Valide : le niveau (ex. Doctorant) et son badge passent sur le compte."""
+    return _decide(verification_id, "approve", "", db, admin)
+
+
+@router.post("/verifications/{verification_id}/reject")
+def admin_verification_reject(
+    verification_id: int,
+    body: VerificationDecisionIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    return _decide(verification_id, "reject", body.reason, db, admin)
+
+
+@router.post("/verifications/{verification_id}/revoke")
+def admin_verification_revoke(
+    verification_id: int,
+    body: VerificationDecisionIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Retire un statut déjà validé (le niveau d'études du compte est vidé)."""
+    return _decide(verification_id, "revoke", body.reason, db, admin)

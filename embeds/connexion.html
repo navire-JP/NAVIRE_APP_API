@@ -1,0 +1,690 @@
+<!--
+  NAVIRE : connexion (embed unique)
+  =================================
+  À coller dans un composant "Embed" Framer. Même charte que l'inscription
+  (embeds/inscription.html) : une seule colonne centrée, sans fond ni carte,
+  fluide jusqu'au format téléphone.
+
+  Deux chemins :
+    - email et mot de passe, via POST /auth/login ;
+    - Google ou Facebook, via la fenêtre /auth/{provider}/start, qui rend un
+      ticket signé envoyé ensuite à POST /auth/oauth.
+
+  Un compte créé avec Google n'a pas de mot de passe : le serveur le signale,
+  et l'écran renvoie alors vers le bon bouton. Une adresse inconnue ne crée
+  jamais de compte ici, l'inscription a son propre parcours.
+
+  Se connecter vaut acceptation des CGU (mention sous le bouton, lien CGU_URL).
+-->
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  #nv-root {
+    /* L'embed vit dans une iframe : la pile de polices est déclarée ici. */
+    --nv-font: Arial, Helvetica, sans-serif;
+    --nv-grad: linear-gradient(100deg, #4C93FF 0%, #A8CCFF 45%, #FFFFFF 100%);
+    --nv-txt-soft: rgba(255,255,255,0.62);
+    --nv-txt-dim: rgba(255,255,255,0.40);
+    --nv-line: rgba(255,255,255,0.22);
+    --nv-line-soft: rgba(255,255,255,0.12);
+    --nv-bad: #FF9B8A;
+
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    height: 100%;
+    margin: 0 auto;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    font-family: var(--nv-font);
+    color: #FFFFFF;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #nv-root::-webkit-scrollbar { width: 0; height: 0; }
+  #nv-root * { font-family: var(--nv-font); }
+
+  /* ── Typo ──────────────────────────────────────────────── */
+  .nv-title {
+    margin: 0;
+    font-size: 26px;
+    line-height: 1.16;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+
+  #nv-root .nv-title em {
+    font-style: normal;
+    background: var(--nv-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .nv-sub { font-size: 13px; line-height: 1.5; color: var(--nv-txt-dim); }
+
+  /* ── Champs soulignés ──────────────────────────────────── */
+  .nv-field { display: flex; flex-direction: column; gap: 4px; }
+
+  .nv-label { font-size: 12px; font-weight: 700; color: var(--nv-txt-soft); }
+
+  .nv-input-wrap { position: relative; display: flex; }
+
+  .nv-input {
+    width: 100%;
+    height: 40px;
+    padding: 0 0 6px;
+    font-size: 15px;
+    color: #FFFFFF;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--nv-line);
+    border-radius: 0;
+    outline: none;
+    transition: border-color 0.18s;
+  }
+
+  .nv-input::placeholder { color: rgba(255,255,255,0.30); }
+  .nv-input:focus { border-bottom-color: #FFFFFF; }
+  .nv-input.has-eye { padding-right: 36px; }
+  .nv-input-wrap.err .nv-input { border-bottom-color: var(--nv-bad); }
+
+  .nv-eye {
+    position: absolute;
+    right: 0;
+    top: 42%;
+    transform: translateY(-50%);
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: rgba(255,255,255,0.55);
+  }
+
+  .nv-eye:hover { color: #FFFFFF; }
+
+  .nv-err { display: none; font-size: 12px; line-height: 1.35; color: var(--nv-bad); }
+  .nv-err.show { display: block; }
+
+  /* ── Google / Facebook ─────────────────────────────────── */
+  #nv-social { display: flex; gap: 10px; }
+
+  .nv-social-btn {
+    flex: 1;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #FFFFFF;
+    background: transparent;
+    border: 1px solid var(--nv-line);
+    border-radius: 99px;
+    cursor: pointer;
+    transition: border-color 0.18s, background 0.18s;
+  }
+
+  .nv-social-btn:hover { border-color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.06); }
+  .nv-social-btn[disabled] { opacity: 0.55; cursor: progress; }
+
+  .nv-logo { width: 16px; height: 16px; display: block; flex: 0 0 auto; }
+
+  .nv-or {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--nv-txt-dim);
+  }
+
+  .nv-or::before, .nv-or::after { content: ""; flex: 1; height: 1px; background: var(--nv-line-soft); }
+
+  /* ── Bouton ────────────────────────────────────────────── */
+  #nv-submit {
+    width: 100%;
+    height: 46px;
+    margin-top: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #0A1A33;
+    background: #FFFFFF;
+    border: none;
+    border-radius: 99px;
+    cursor: pointer;
+    transition: opacity 0.18s, transform 0.12s;
+  }
+
+  #nv-submit:hover:not([disabled]) { background: #E8EEF8; }
+  #nv-submit:active { transform: scale(0.985); }
+  #nv-submit[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Mentions ──────────────────────────────────────────── */
+  .nv-legal {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--nv-txt-dim);
+    text-align: center;
+  }
+
+  .nv-legal a, #nv-register-line a {
+    color: var(--nv-txt-soft);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .nv-legal a:hover, #nv-register-line a:hover { color: #FFFFFF; }
+
+  #nv-register-line { font-size: 12.5px; color: var(--nv-txt-dim); text-align: center; }
+  #nv-register-line a { color: #FFFFFF; font-weight: 700; }
+
+  /* ── Message flottant ──────────────────────────────────── */
+  #nv-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    width: calc(100% - 32px);
+    max-width: 400px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(6,14,32,0.92);
+    border: 1px solid var(--nv-line);
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #FFFFFF;
+    opacity: 0;
+    transform: translate(-50%, 8px);
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 20;
+  }
+
+  #nv-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ── Attente ───────────────────────────────────────────── */
+  .nv-spin {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(10,26,51,0.35);
+    border-top-color: #0A1A33;
+    animation: nv-rot 0.7s linear infinite;
+    display: inline-block;
+    vertical-align: -2px;
+    margin-right: 7px;
+  }
+
+  @keyframes nv-rot { to { transform: rotate(360deg); } }
+
+  @keyframes nv-shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-3px); }
+    40%, 60% { transform: translateX(3px); }
+  }
+
+  .nv-shake { animation: nv-shake 0.4s; }
+
+  /* Téléphone : 16px sur les champs, en dessous iOS zoome. */
+  @media (max-width: 430px) {
+    .nv-title { font-size: 23px; }
+    .nv-input { font-size: 16px; height: 42px; }
+    #nv-submit { height: 48px; font-size: 15px; }
+    .nv-social-btn { height: 44px; }
+  }
+
+  /* Hauteur réduite : le contenu part du haut et défile. */
+  @media (max-height: 560px) {
+    #nv-root { justify-content: flex-start; }
+    .nv-title { font-size: 20px; }
+  }
+</style>
+
+<div id="nv-root">
+  <h2 class="nv-title">Content de te <em>revoir</em></h2>
+  <div class="nv-sub">Reprends ta progression là où tu l'as laissée.</div>
+
+  <div id="nv-social">
+    <button class="nv-social-btn" id="nv-google" type="button">
+      <svg class="nv-logo" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+        <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+        <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+      </svg>
+      Google
+    </button>
+    <button class="nv-social-btn" id="nv-facebook" type="button">
+      <svg class="nv-logo" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="11" fill="#FFFFFF"/>
+        <path fill="#1877F2" d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.85v2.22h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/>
+      </svg>
+      Facebook
+    </button>
+  </div>
+
+  <div class="nv-or">ou</div>
+
+  <div class="nv-field">
+    <label class="nv-label" for="nv-email">Email</label>
+    <div class="nv-input-wrap">
+      <input id="nv-email" class="nv-input" type="email" autocomplete="email"
+             placeholder="tonmail@exemple.com" />
+    </div>
+    <div class="nv-err" data-err="email"></div>
+  </div>
+
+  <div class="nv-field">
+    <label class="nv-label" for="nv-password">Mot de passe</label>
+    <div class="nv-input-wrap">
+      <input id="nv-password" class="nv-input has-eye" type="password"
+             autocomplete="current-password" placeholder="Mot de passe" maxlength="72" />
+      <button class="nv-eye" type="button" data-eye="nv-password" aria-label="Afficher le mot de passe"></button>
+    </div>
+    <div class="nv-err" data-err="password"></div>
+  </div>
+
+  <div class="nv-err" data-err="submit"></div>
+
+  <button id="nv-submit" type="button">Se connecter</button>
+
+  <div class="nv-legal">
+    En te connectant, tu acceptes les
+    <a id="nv-cgu-link" href="#" target="_blank" rel="noopener">conditions générales d'utilisation</a>
+    de NAVIRE.
+  </div>
+
+  <div id="nv-register-line">
+    Pas encore de compte ?
+    <a id="nv-register-link" href="#">Créer un compte</a>
+  </div>
+
+  <div id="nv-toast"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  const API_BASE = "https://navire-app-api.onrender.com";
+
+  // Destination une fois connecté.
+  const REDIRECT_AFTER_LOGIN = "https://navire-ai.com/";
+
+  // Page d'inscription, pour le lien du bas.
+  const REGISTER_URL = "https://navire-ai.com/register";
+
+  // Conditions générales d'utilisation (lien de la mention sous le bouton).
+  const CGU_URL = "https://navire-ai.com/cgu";
+
+  // Google et Facebook ne se configurent pas ici : l'embed vit dans une iframe
+  // dont l'origine vaut "null", ce que les fournisseurs refusent. Le bouton
+  // ouvre une fenêtre sur l'API, qui mène l'échange sur son propre domaine.
+
+  // ============================================================
+  // Éléments
+  // ============================================================
+  const $  = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const els = {
+    toast: $("#nv-toast"),
+    email: $("#nv-email"),
+    password: $("#nv-password"),
+    submit: $("#nv-submit"),
+    google: $("#nv-google"),
+    facebook: $("#nv-facebook"),
+    registerLink: $("#nv-register-link"),
+    cguLink: $("#nv-cgu-link"),
+  };
+
+  let busyLogin = false;
+
+  // ============================================================
+  // Utilitaires
+  // ============================================================
+  let toastTimer = null;
+  function toast(msg, ms) {
+    els.toast.textContent = msg;
+    els.toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => els.toast.classList.remove("show"), ms || 4200);
+  }
+
+  function setError(key, msg) {
+    const el = document.querySelector('[data-err="' + key + '"]');
+    if (!el) return;
+    el.textContent = msg || "";
+    el.classList.toggle("show", !!msg);
+    const wrap = el.previousElementSibling;
+    if (wrap && wrap.classList.contains("nv-input-wrap")) {
+      wrap.classList.toggle("err", !!msg);
+      if (msg) {
+        wrap.classList.remove("nv-shake");
+        void wrap.offsetWidth;
+        wrap.classList.add("nv-shake");
+      }
+    }
+  }
+
+  function clearErrors() {
+    $$(".nv-err").forEach((el) => { el.textContent = ""; el.classList.remove("show"); });
+    $$(".nv-input-wrap").forEach((el) => el.classList.remove("err"));
+  }
+
+  function broadcast(msg) {
+    try { window.postMessage(msg, "*"); } catch (e) {}
+    try { window.parent && window.parent.postMessage(msg, "*"); } catch (e) {}
+    try { window.top && window.top.postMessage(msg, "*"); } catch (e) {}
+  }
+
+  async function readError(res) {
+    try {
+      const err = await res.json();
+      if (typeof err.detail === "string") return err.detail;
+      if (Array.isArray(err.detail) && err.detail[0] && err.detail[0].msg) return err.detail[0].msg;
+    } catch (e) {}
+    return "";
+  }
+
+  function busy(btn, label) {
+    btn.dataset.label = btn.dataset.label || btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="nv-spin"></span>' + label;
+  }
+
+  function unbusy(btn) {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.label || btn.textContent;
+  }
+
+  // L'embed est dans une iframe : c'est la page entière qui doit changer.
+  function navigate(url) {
+    if (!url) return;
+    try {
+      if (window.top && window.top !== window) { window.top.location.href = url; return; }
+    } catch (e) {}
+    window.location.href = url;
+  }
+
+  async function emailExists(email) {
+    try {
+      const res = await fetch(API_BASE + "/auth/email-exists?email=" + encodeURIComponent(email));
+      if (!res.ok) return null;   // indéterminé
+      const data = await res.json();
+      return !!data.exists;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ============================================================
+  // Fin de parcours
+  // ============================================================
+  function finish(data) {
+    const token = data.access_token;
+
+    try {
+      localStorage.setItem("navire_token", token);
+      localStorage.setItem("navire_user", JSON.stringify(data.user || {}));
+    } catch (e) {}
+
+    broadcast({ type: "NAVIRE_LOGGED_IN", token: token, user: data.user || null });
+    try { window.dispatchEvent(new CustomEvent("navire-auth-updated")); } catch (e) {}
+
+    els.submit.disabled = true;
+    els.submit.textContent = "Connecté";
+    navigate(REDIRECT_AFTER_LOGIN);
+  }
+
+  // ============================================================
+  // Connexion par mot de passe
+  // ============================================================
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+
+  async function login() {
+    if (busyLogin) return;
+    clearErrors();
+
+    const email = els.email.value.trim();
+    const password = els.password.value;
+
+    if (!EMAIL_RE.test(email)) {
+      setError("email", "Entre une adresse email valide.");
+      els.email.focus();
+      return;
+    }
+    if (!password) {
+      setError("password", "Entre ton mot de passe.");
+      els.password.focus();
+      return;
+    }
+
+    busyLogin = true;
+    busy(els.submit, "Connexion...");
+
+    try {
+      const res = await fetch(API_BASE + "/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, password: password }),
+      });
+
+      if (!res.ok) {
+        const detail = await readError(res);
+        busyLogin = false;
+        unbusy(els.submit);
+
+        // Compte créé via un fournisseur : pas de mot de passe, le serveur le
+        // dit explicitement. On oriente vers le bon bouton.
+        if (/google|facebook/i.test(detail)) {
+          setError("submit", detail);
+          toast("Ce compte se connecte avec Google ou Facebook, utilise le bouton du haut.");
+          return;
+        }
+
+        // Adresse inconnue : autant le dire plutôt que de laisser chercher.
+        if (res.status === 401) {
+          const existe = await emailExists(email);
+          if (existe === false) {
+            setError("email", "Aucun compte avec cette adresse.");
+            return;
+          }
+          setError("submit", "Mot de passe incorrect.");
+          return;
+        }
+
+        setError("submit", detail || ("Connexion impossible (" + res.status + ")."));
+        return;
+      }
+
+      finish(await res.json());
+
+    } catch (e) {
+      busyLogin = false;
+      unbusy(els.submit);
+      setError("submit", "Erreur réseau : " + e.message);
+    }
+  }
+
+  els.submit.addEventListener("click", login);
+
+  // ============================================================
+  // Connexion Google et Facebook, par fenêtre
+  // ============================================================
+  let popup = null;
+  let pending = null;
+
+  function closePending(err) {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    const p = pending;
+    pending = null;
+    if (err) p.reject(err); else p.resolve();
+  }
+
+  window.addEventListener("message", (event) => {
+    const data = event && event.data;
+    if (!data || typeof data !== "object") return;
+
+    if (data.type === "NAVIRE_OAUTH_TICKET") {
+      closePending(null);
+      loginWithTicket(data);
+      return;
+    }
+
+    if (data.type === "NAVIRE_OAUTH_ERROR") {
+      closePending(new Error(data.message || "Connexion impossible."));
+    }
+  });
+
+  async function loginWithTicket(data) {
+    // Une adresse inconnue ne crée pas de compte ici : l'inscription a son
+    // propre parcours (faculté, niveau, premier document, accueil).
+    const existe = await emailExists((data.email || "").trim());
+    if (existe === false) {
+      toast("Aucun compte NAVIRE avec cette adresse. Crée ton compte d'abord.");
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE + "/auth/oauth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: data.provider, ticket: data.ticket }),
+      });
+
+      if (!res.ok) {
+        toast((await readError(res)) || "Connexion impossible pour le moment.");
+        return;
+      }
+
+      finish(await res.json());
+
+    } catch (e) {
+      toast("Erreur réseau : " + e.message);
+    }
+  }
+
+  function openProviderWindow(provider) {
+    return new Promise((resolve, reject) => {
+      const w = 480, h = 640;
+      const y = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+      const x = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+
+      popup = window.open(
+        API_BASE + "/auth/" + provider + "/start",
+        "navire_oauth",
+        "width=" + w + ",height=" + h + ",left=" + x + ",top=" + y
+      );
+
+      if (!popup) {
+        reject(new Error("Ton navigateur a bloqué la fenêtre. Autorise-la puis réessaie."));
+        return;
+      }
+
+      const watcher = setInterval(() => {
+        if (popup && popup.closed) {
+          clearInterval(watcher);
+          if (pending) closePending(new Error("Connexion interrompue."));
+        }
+      }, 500);
+
+      pending = {
+        provider: provider,
+        resolve: () => { clearInterval(watcher); resolve(); },
+        reject: (e) => { clearInterval(watcher); reject(e); },
+        timer: setTimeout(() => {
+          clearInterval(watcher);
+          closePending(new Error("Connexion trop longue, réessaie."));
+        }, 120000),
+      };
+    });
+  }
+
+  function withBusy(btn, fn) {
+    return async function () {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try { await fn(); }
+      catch (e) { toast(e && e.message ? e.message : "Connexion impossible."); }
+      finally { btn.disabled = false; }
+    };
+  }
+
+  els.google.addEventListener("click", withBusy(els.google, () => openProviderWindow("google")));
+  els.facebook.addEventListener("click", withBusy(els.facebook, () => openProviderWindow("facebook")));
+
+  // ============================================================
+  // Voir le mot de passe
+  // ============================================================
+  const EYE_OPEN = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+  const EYE_OFF  = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+  $$(".nv-eye").forEach((btn) => {
+    btn.innerHTML = EYE_OPEN;
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(btn.dataset.eye);
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.innerHTML = show ? EYE_OFF : EYE_OPEN;
+      btn.setAttribute("aria-label", show ? "Masquer le mot de passe" : "Afficher le mot de passe");
+      input.focus();
+    });
+  });
+
+  // ============================================================
+  // Divers
+  // ============================================================
+  els.cguLink.href = CGU_URL;
+
+  els.registerLink.href = REGISTER_URL;
+  els.registerLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    navigate(REGISTER_URL);
+  });
+
+  els.email.addEventListener("input", () => { setError("email", ""); setError("submit", ""); });
+  els.password.addEventListener("input", () => { setError("password", ""); setError("submit", ""); });
+
+  $$(".nv-input").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); els.submit.click(); }
+    });
+  });
+
+  // Déjà connecté : inutile de redemander.
+  try {
+    if (localStorage.getItem("navire_token")) toast("Tu es déjà connecté.");
+  } catch (e) {}
+
+  setTimeout(() => els.email.focus(), 120);
+})();
+</script>

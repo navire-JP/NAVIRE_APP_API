@@ -783,6 +783,36 @@ def mail_ambassador_rejected(prenom: str, reason: str | None) -> tuple[str, str]
     return subject, html
 
 
+def mail_status_verification(
+    username: str, label: str, approved: bool, reason: str | None = None,
+) -> tuple[str, str]:
+    """(subject, html) envoyé quand la console valide ou refuse un statut (ex. Doctorant)."""
+    from html import escape
+    if approved:
+        subject = f"Ton statut {label} est validé"
+        body = f"""
+    <p style="margin-top:0;">Bonjour {escape(username)},</p>
+    <p>Ton statut <strong>{escape(label)}</strong> vient d'être validé : le badge
+    apparaît maintenant sur ton profil NAVIRE.</p>
+    {_bouton(f"{FRONTEND_URL}/profil", "Voir mon profil")}
+"""
+        return subject, layout(body, preheader=f"Badge {label} ajouté à ton profil.")
+
+    motif = (
+        f'<p style="background: #1f1f1f; border-radius: 8px; padding: 16px;">{escape(reason)}</p>'
+        if (reason or "").strip() else ""
+    )
+    subject = f"Ta demande de statut {label}"
+    body = f"""
+    <p style="margin-top:0;">Bonjour {escape(username)},</p>
+    <p>Nous n'avons pas pu valider ton statut <strong>{escape(label)}</strong> pour le moment.</p>
+    {motif}
+    <p>Tu peux refaire une demande depuis ton profil, avec un justificatif
+    (attestation d'inscription en doctorat, par exemple).</p>
+"""
+    return subject, layout(body, preheader="Réponse à ta demande de statut.")
+
+
 def mail_ambassador_commission(prenom: str, filleul: str, montant_eur: str) -> tuple[str, str]:
     """(subject, html) envoyé à l'ambassadeur quand un filleul paie son inscription."""
     from html import escape

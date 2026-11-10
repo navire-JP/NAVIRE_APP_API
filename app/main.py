@@ -19,6 +19,7 @@ from app.db.auth_migration import run_auth_migration
 from app.db.prepa_migration import run_prepa_migration
 from app.db.prepa_adjuris_migration import run_prepa_adjuris_migration
 from app.db.lib_migration import run_lib_migration
+from app.db.categories_migration import run_categories_migration
 from app.db.navire_migration import run_navire_migration, ensure_vector_extension
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
@@ -325,6 +326,9 @@ async def lifespan(app: FastAPI):
 
     print("🚀 Startup: running lib migration...")
     run_lib_migration()
+
+    print("🚀 Startup: running categories migration...")
+    run_categories_migration()
 
     print("🚀 Startup: creating default professor groups...")
     _creer_groupes_professeurs()

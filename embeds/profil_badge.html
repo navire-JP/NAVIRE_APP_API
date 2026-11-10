@@ -64,6 +64,7 @@ html, body { margin: 0; background: transparent; }
 .hp-role-admin { background: #EF476F; color: #fff; }
 .hp-role-td    { background: #06D6A0; color: #0a1628; }
 .hp-role-amb   { background: #8E7DFF; color: #fff; }
+.hp-role-doc   { background: #FFD166; color: #0a1628; }
 
 .hp-rank { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .hp-rank-val { font-size: 13px; font-weight: 800; letter-spacing: -.6px; line-height: 1; }
@@ -104,6 +105,7 @@ html, body { margin: 0; background: transparent; }
       <span class="hp-role hp-role-admin" id="hp-role-admin">Admin</span>
       <span class="hp-role hp-role-td" id="hp-role-td">Chargé TD</span>
       <span class="hp-role hp-role-amb" id="hp-role-amb">Ambassadeur</span>
+      <span class="hp-role hp-role-doc" id="hp-role-doc">Doctorant</span>
     </div>
   </div>
   <div class="hp-rank">
@@ -142,7 +144,8 @@ html, body { margin: 0; background: transparent; }
     // Pastilles de rôle (cumulables), sur la même ligne que l'Elo et l'offre
     [['hp-role-admin', !!me.is_admin],
      ['hp-role-td', !!me.is_charge_td || me.grade === 'ChargéTD'],
-     ['hp-role-amb', !!me.is_ambassador]].forEach(function (r) {
+     ['hp-role-amb', !!me.is_ambassador],
+     ['hp-role-doc', !!me.is_doctorant]].forEach(function (r) {
       if (r[1]) document.getElementById(r[0]).classList.add('on');
     });
     fit();

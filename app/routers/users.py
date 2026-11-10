@@ -3,7 +3,10 @@ from __future__ import annotations
 import re
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File as FastAPIFile
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, File as FastAPIFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select, asc, desc
 
@@ -15,9 +18,11 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.core.cloudinary_client import (
     MAX_AVATAR_BYTES,
     is_allowed_image,
+    is_allowed_proof,
     resolve_avatar_url,
     upload_avatar,
     upload_banner,
+    upload_proof,
 )
 from app.core.config import DISCORD_INVITE_URL
 from app.core.limits import get_user_limit
@@ -30,6 +35,7 @@ from app.services.discord_link import (
     seconds_left,
 )
 from app.services.email import discord_sync_channel_url, mail_password_changed, send_mail
+from app.services import user_categories
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -121,7 +127,7 @@ def update_profile(
     if payload.university is not None:
         current_user.university = payload.university
     if payload.study_level is not None:
-        current_user.study_level = payload.study_level
+        user_categories.apply_study_level(db, current_user, payload.study_level)
     if payload.username is not None:
         current_user.username = payload.username.strip()
 
@@ -150,8 +156,11 @@ def update_me(
     if payload.university is not None:
         current_user.university = payload.university
 
+    # Un niveau à vérifier (ex. Doctorant) ouvre une demande pour la console :
+    # le niveau actuel reste en place jusqu'à la validation.
+    level_status = "unchanged"
     if payload.study_level is not None:
-        current_user.study_level = payload.study_level
+        level_status = user_categories.apply_study_level(db, current_user, payload.study_level)
 
     if payload.bio is not None:
         current_user.bio = " ".join(payload.bio.split()) or None
@@ -164,7 +173,93 @@ def update_me(
 
     db.commit()
     db.refresh(current_user)
-    return _user_dict(current_user)
+    return {**_user_dict(current_user), "study_level_status": level_status}
+
+
+# ============================================================
+# Statuts vérifiés (ex. badge Doctorant) — validés dans la console
+# ============================================================
+
+@router.get("/me/verifications")
+def my_verifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Demandes de statut de l'élève, plus récentes d'abord, et badges acquis."""
+    return {
+        "badges": user_categories.user_badges(db, current_user),
+        "items": [
+            user_categories.verification_dict(v)
+            for v in user_categories.user_verifications(db, current_user)
+        ],
+    }
+
+
+@router.post("/me/verifications")
+async def request_my_verification(
+    label: str = Form(..., max_length=120),
+    message: str = Form(default="", max_length=4000),
+    proof: UploadFile | None = FastAPIFile(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Demande (ou complète) un statut vérifié, ex. label="Doctorant".
+    multipart : label, message (justificatif), proof (image ou PDF, facultatif).
+    """
+    option = user_categories.find_option(db, "study_level", label.strip())
+    if option is None or not option.active or not option.requires_verification:
+        raise HTTPException(status_code=400, detail="Ce statut ne demande pas de vérification.")
+
+    content = None
+    if proof is not None and proof.filename:
+        if not is_allowed_proof(proof.content_type):
+            raise HTTPException(status_code=400, detail="Justificatif : JPG, PNG, WEBP ou PDF.")
+        content = await proof.read()
+        if len(content) > MAX_AVATAR_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Justificatif trop volumineux (max {MAX_AVATAR_BYTES // (1024*1024)} Mo).",
+            )
+
+    v = user_categories.request_verification(db, current_user, option, message=message)
+    if v.status == "approved":
+        db.commit()
+        return user_categories.verification_dict(v)
+    if not (v.message or "").strip() and content is None:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Ajoute quelques mots ou un justificatif.")
+
+    if content is not None:
+        try:
+            v.proof_url = upload_proof(content, user_id=current_user.id, request_id=v.id)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=502, detail=f"Échec de l'envoi du justificatif : {e}")
+
+    db.commit()
+    db.refresh(v)
+    return user_categories.verification_dict(v)
+
+
+# ============================================================
+# Parcours d'accueil (après l'inscription)
+# ============================================================
+
+class OnboardingIn(BaseModel):
+    done: bool = True
+
+
+@router.post("/me/onboarding")
+def set_my_onboarding(
+    payload: OnboardingIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Marque le parcours d'accueil comme terminé (ou à refaire avec done=false)."""
+    current_user.onboarding_completed_at = datetime.now(timezone.utc) if payload.done else None
+    db.commit()
+    return {"onboarding_done": current_user.onboarding_completed_at is not None}
 
 
 # ============================================================
@@ -826,6 +921,7 @@ def get_user_profile(
             "avatar_url": resolve_avatar_url(u.avatar_url),
             "plan": u.plan,
             "discord_linked": bool(u.discord_id),
+            "badges": user_categories.user_badges(db, u),
             **_profile_fields(u),
         },
         "elo": {"value": int(u.elo or 0)},

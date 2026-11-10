@@ -27,6 +27,10 @@
 // Mails : onglet « Mails » (rédiger un mail, choisir les destinataires par
 // catégorie, pièces jointes, aperçu signé, test puis envoi par Brevo). Le
 // code de la section est dans Navire_Mails.tsx.
+//
+// Catégories : onglet « Catég. » (universités et niveaux d'études de
+// l'inscription, niveaux à vérifier comme Doctorant, validation des demandes
+// de statut). Le code de la section est dans Navire_Categories.tsx.
 
 import type { Override } from "framer"
 import * as React from "react"
@@ -34,6 +38,7 @@ import { AmbassadeursSection } from "./Navire_Ambassadeurs.tsx"
 import { LibSection } from "./Navire_Lib.tsx"
 import { ProfesseursSection } from "./Navire_Professeurs.tsx"
 import { MailsSection } from "./Navire_Mails.tsx"
+import { CategoriesSection } from "./Navire_Categories.tsx"
 
 // ── Hide all scrollbars globally ──
 if (typeof document !== "undefined") {
@@ -172,6 +177,7 @@ type Section =
     | "lib"
     | "professeurs"
     | "mails"
+    | "categories"
 
 type Onglet =
     | "etudiants"
@@ -7173,6 +7179,7 @@ const SECTIONS: { id: Section; label: string }[] = [
     { id: "lib", label: "Lib" },
     { id: "professeurs", label: "Prof." },
     { id: "mails", label: "Mails" },
+    { id: "categories", label: "Catég." },
     { id: "terminal", label: "Terminal" },
 ]
 
@@ -7289,6 +7296,7 @@ function ConsoleUI() {
                 {section === "lib" && <LibSection />}
                 {section === "professeurs" && <ProfesseursSection />}
                 {section === "mails" && <MailsSection />}
+                {section === "categories" && <CategoriesSection />}
             </div>
         </div>
     )

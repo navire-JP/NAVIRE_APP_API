@@ -4,6 +4,8 @@
 |---|---|---|
 | `home.html` | page d'accueil (`/home`) | Accueil épuré : barre de recherche au centre qui démarre NAVIRE AI sur place (la barre glisse en bas, la discussion s'ouvre), et trois accès dessous : Veilles, Cours (NAVIRE Lib), Fichiers. DA de NAVIRE Lib (bleu et blanc, cartes à halo, sans traits ni logo — le header du site les porte — ; barre latérale repliée par défaut, avec raccourcis Veilles / Cours / Fichiers / QCM et discussions récentes). `/home?q=…` pose directement une question. Liens des trois accès : bloc CONFIG (`LINKS`) |
 | `veille.html` | page `/actus` | Veille juridique : même DA que Lib et l'accueil (bleu et blanc, sans traits, menu à gauche replié par défaut). À la une, rubriques, recherche, non lues, à relire, sources officielles, références cliquables, « Réviser dans la Lib ». Chaque actu affiche qui l'a postée (`author` de l'API : photo, pseudo, rôle) ; lien direct `?actu=ID` |
+| `connexion.html` | page de connexion | Connexion simple, une colonne dans la charte de l'inscription : Google / Facebook, email et mot de passe, mention d'acceptation des CGU, lien vers l'inscription. Réglages : bloc CONFIG (`CGU_URL`, `REGISTER_URL`, `REDIRECT_AFTER_LOGIN`) |
+| `inscription.html` | page d'inscription | Inscription en 6 étapes (pseudo, email ou Google/Facebook, code, fac et niveau, premier PDF, récap), puis accueil en 4 étapes : tour des fonctionnalités, photo et bio, liaison Discord, Prép'AdJuris. Un niveau « à vérifier » (Doctorant) demande un justificatif. Réglages : bloc CONFIG |
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe |
@@ -21,6 +23,7 @@
 | `framer/Navire_Lib.tsx` | `/console` | Section « Lib » importée par la console (import des cours) |
 | `framer/Navire_Professeurs.tsx` | `/console` | Section « Prof. » importée par la console (professeurs, groupes, rémunération) |
 | `framer/Navire_Mails.tsx` | `/console` | Section « Mails » importée par la console : rédaction, destinataires par catégorie, PJ, aperçu signé, test, envoi Brevo |
+| `framer/Navire_Categories.tsx` | `/console` | Section « Catég. » importée par la console : universités et niveaux d'études de l'inscription, niveaux « à vérifier » (badge Doctorant), file des demandes de statut |
 | `framer/FlashcardsApp.tsx` | page Flashcards | Decks, cartes, révision, génération depuis un PDF ; charte bleu et blanc. Code File `FlashcardsApp`, le composant remplit son cadre |
 
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
@@ -73,6 +76,42 @@ Deux Code Files Framer, à coller tels quels :
    de l'admin qui envoie. Mise en forme : ligne vide = paragraphe, `## Titre`,
    `- liste`, `**gras**`, `*italique*`, `[texte](https://…)`,
    `[bouton: Texte](https://…)`, `{prenom}`. Routes : `/admin/mailing/*`.
+
+6. `framer/Navire_Categories.tsx` → Code File nommé `Navire_Categories`
+   (section « Catég. »), déjà importé par `Navire_AdminConsole`.
+   - **Niveaux / Universités** : les listes déroulantes de l'inscription et du
+     profil (`GET /meta/options`). Ajouter, renommer (les comptes qui portaient
+     l'ancien libellé suivent), réordonner, masquer, supprimer. La table est
+     remplie au premier démarrage avec les anciens préréglages, plus
+     « Doctorant ».
+   - Un niveau marqué **à vérifier** n'est jamais appliqué d'office : le
+     choisir (inscription ou profil) ouvre une demande. On règle le badge
+     affiché et la consigne montrée à l'élève.
+   - **Vérifs** : demandes en attente (pastille jaune = nombre), message et
+     justificatif de l'élève. « Valider » pose le niveau et le badge sur le
+     compte et prévient l'élève par mail ; « Refuser » envoie le motif ;
+     « Retirer le statut » l'enlève après coup.
+   Routes : `/admin/options`, `/admin/verifications`. Côté élève :
+   `POST /users/me/verifications` (label, message, proof), et `GET /auth/me`
+   renvoie `badges`, `is_doctorant`, `pending_verifications`.
+
+## Inscription et accueil (`inscription.html`)
+
+Embed HTML de la page d'inscription, dessiné pour 440 × 577. Après la
+création du compte, l'embed enchaîne l'accueil au lieu de rediriger :
+
+1. tour rapide (NAVIRE AI, Lib, QCM et flashcards, veille et classement) ;
+2. photo de profil (`POST /users/me/avatar`) et bio (`PATCH /users/me`) ;
+3. liaison Discord : code de liaison (`POST /users/me/discord-code`), l'étape
+   passe toute seule en « lié » quand le bot a fait la liaison ;
+4. Prép'AdJuris : « Découvrir » mène à `PREPA_ADJURIS_URL`, « Mon espace » à
+   `REDIRECT_AFTER_REGISTER`.
+
+Chaque étape se passe. La fin (ou « Passer ») appelle
+`POST /users/me/onboarding` ; `GET /auth/me` renvoie `onboarding_done`, et un
+compte existant qui se reconnecte via Google/Facebook ne revoit pas
+l'accueil. Les comptes créés avant cette version sont marqués « accueil
+terminé ».
 
 ## `/professeurs` : espace des chargés de TD
 
