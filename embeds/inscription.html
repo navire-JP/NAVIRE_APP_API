@@ -641,6 +641,10 @@
     text-overflow: ellipsis;
   }
 
+  .nv-legal { font-size: 11.5px; line-height: 1.5; color: var(--nv-txt-dim); }
+  .nv-legal a { color: var(--nv-txt-soft); text-decoration: underline; text-underline-offset: 3px; }
+  .nv-legal a:hover { color: #FFFFFF; }
+
   /* ── Accueil : tour des fonctionnalités ────────────────── */
   .nv-features { display: flex; flex-direction: column; }
 
@@ -1083,6 +1087,12 @@
             <div class="nv-filecard-badge">↓</div>
           </a>
 
+          <div class="nv-legal">
+            En créant ton compte, tu acceptes les
+            <a id="nv-cgu-link" href="#" target="_blank" rel="noopener">conditions générales d'utilisation</a>
+            de NAVIRE.
+          </div>
+
           <div class="nv-err" data-err="submit"></div>
         </div>
         <div class="nv-actions">
@@ -1239,6 +1249,9 @@
 
   // Bouton « Découvrir Prép'AdJuris » de la dernière étape d'accueil.
   const PREPA_ADJURIS_URL = "https://navire-ai.com/adjuris";
+
+  // Conditions générales d'utilisation (mention de l'étape 6).
+  const CGU_URL = "https://navire-ai.com/cgu";
 
   // PDF offert de l'étape 6 (URL publique du fichier).
   const WELCOME_PDF_URL = "";
@@ -1902,6 +1915,8 @@
       : ".";
     els.recap.file.textContent = state.file ? state.file.name : "Aucun";
   }
+
+  document.getElementById("nv-cgu-link").href = CGU_URL;
 
   if (WELCOME_PDF_URL) {
     els.pdf.href = WELCOME_PDF_URL;
