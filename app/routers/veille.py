@@ -4,9 +4,10 @@ from datetime import datetime, timezone, timedelta
 
 import math
 import re
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, and_, case, func, or_
 from sqlalchemy.orm import Session, object_session
 
@@ -22,6 +23,7 @@ from app.db.models import (
     VeilleDailyState,
 )
 from app.routers.auth import get_current_user, get_current_user_optional
+from app.services import articles as articles_svc
 
 router = APIRouter(prefix="/veille", tags=["veille"])
 
@@ -454,12 +456,15 @@ def _date_key():
 
 
 def _reading_minutes(it: VeilleItem) -> int:
-    words = len(f"{it.title} {it.essentiel} {it.impact}".split())
+    if it.kind == articles_svc.ARTICLE_KIND and it.body_html:
+        words = len(f"{it.title} {articles_svc.html_to_text(it.body_html)}".split())
+    else:
+        words = len(f"{it.title} {it.essentiel} {it.impact}".split())
     return max(1, math.ceil(words / WORDS_PER_MINUTE))
 
 
 def _author(it: VeilleItem) -> dict | None:
-    """Qui a posté l'actu : pseudo, photo et rôle (Équipe NAVIRE, Professeur, Étudiant).
+    """Qui a posté l'actu : pseudo, photo et rôle (Équipe NAVIRE, Professeur, Doctorant, Étudiant).
     None pour une actu importée automatiquement ou postée avant ce champ."""
     u = it.author
     if u is None:
@@ -475,6 +480,10 @@ def _author(it: VeilleItem) -> dict | None:
         ).first() if db is not None else None
         if prof:
             role = "Professeur"
+        elif db is not None:
+            from app.services.user_categories import user_badges
+            if "Doctorant" in user_badges(db, u):
+                role = "Doctorant"
     return {"id": u.id, "name": u.username, "avatar_url": u.avatar_url, "role": role}
 
 
@@ -494,6 +503,10 @@ def _hub_item(it: VeilleItem, read_ids: set[int], saved_ids: set[int]) -> dict:
         "is_read":         it.id in read_ids,
         "is_saved":        it.id in saved_ids,
         "author":          _author(it),
+        # "actu" ou "article" ; un article a sa propre adresse (navire-ai.com/actus/NA<id>)
+        "kind":            it.kind or "actu",
+        "url":             articles_svc.article_url(it.id) if it.kind == articles_svc.ARTICLE_KIND else None,
+        "updated_at":      it.updated_at.isoformat() if it.updated_at else None,
     }
 
 
@@ -569,6 +582,7 @@ def list_actus(
     q: str | None = Query(default=None, max_length=120),
     status: str = Query(default="all"),     # all | unread | saved
     period: str = Query(default="all"),     # all | 7d | 30d | 365d
+    kind: str | None = Query(default=None), # actu | article
     limit: int = Query(default=20, ge=1, le=HUB_PAGE_MAX),
     offset: int = Query(default=0, ge=0),
 ):
@@ -580,6 +594,7 @@ def list_actus(
       tous les mots doivent apparaître
     - `status` : `unread` / `saved` (connexion requise)
     - `period` : `7d`, `30d` ou `365d`
+    - `kind` : `article` (articles NAVIRE seulement) ou `actu`
     """
     if status not in {"all", "unread", "saved"}:
         raise HTTPException(400, detail=f"status invalide : {status}")
@@ -588,7 +603,12 @@ def list_actus(
     if status != "all" and not user:
         raise HTTPException(401, detail="Connecte-toi pour filtrer tes actus.")
 
+    if kind not in (None, "", "actu", "article"):
+        raise HTTPException(400, detail=f"kind invalide : {kind}")
+
     conds = []
+    if kind:
+        conds.append(VeilleItem.kind == kind)
     if category:
         conds.append(VeilleItem.category == category)
     if period != "all":
@@ -599,6 +619,7 @@ def list_actus(
             VeilleItem.essentiel.icontains(term, autoescape=True),
             VeilleItem.impact.icontains(term, autoescape=True),
             VeilleItem.source_name.icontains(term, autoescape=True),
+            VeilleItem.body_html.icontains(term, autoescape=True),
         ))
     if status == "unread":
         conds.append(VeilleItem.id.not_in(
@@ -644,7 +665,8 @@ def get_actu(
     if not item:
         raise HTTPException(404, detail="Actu introuvable.")
 
-    ref = _keywords(f"{item.title} {item.essentiel} {item.impact}")
+    body_text = articles_svc.html_to_text(item.body_html) if item.body_html else ""
+    ref = _keywords(f"{item.title} {item.essentiel} {item.impact} {body_text}")
     candidates = db.execute(
         select(VeilleItem)
         .where(VeilleItem.id != item.id)
@@ -664,8 +686,12 @@ def get_actu(
     related = [c for _, _, c in scored[:4]]
 
     read_ids, saved_ids = _read_ids(db, user), _saved_ids(db, user)
+    out = _hub_item(item, read_ids, saved_ids)
+    if item.kind == articles_svc.ARTICLE_KIND:
+        out["body_html"] = item.body_html or ""
+        out["can_edit"] = articles_svc.can_edit(db, user, item)
     return {
-        "item":    _hub_item(item, read_ids, saved_ids),
+        "item":    out,
         "related": [_hub_item(c, read_ids, saved_ids) for c in related],
     }
 
@@ -708,3 +734,130 @@ def unsave_actu(
         db.delete(bm)
         db.commit()
     return {"ok": True, "is_saved": False}
+
+
+# ============================================================
+# Articles NAVIRE (doctorants vérifiés et équipe)
+# ============================================================
+# Un article est une actu de format « article » : texte mis en forme, rédigé
+# sur le site. Il s'ouvre à navire-ai.com/actus/NA<id>, s'enregistre comme une
+# actu et apparaît dans les posts du profil de son auteur.
+
+class ArticleIn(BaseModel):
+    title: str = Field(..., min_length=5, max_length=200)
+    category: str = "general"
+    body_html: str = Field(..., min_length=1, max_length=200_000)
+
+
+class ArticlePatch(BaseModel):
+    title: str | None = Field(default=None, min_length=5, max_length=200)
+    category: str | None = None
+    body_html: str | None = Field(default=None, min_length=1, max_length=200_000)
+
+
+def _clean_body(raw: str) -> tuple[str, str]:
+    body = articles_svc.sanitize_html(raw)
+    text = articles_svc.html_to_text(body)
+    if len(text) < articles_svc.MIN_TEXT_CHARS:
+        raise HTTPException(400, detail=f"Article trop court : au moins {articles_svc.MIN_TEXT_CHARS} caractères.")
+    if len(body) > articles_svc.MAX_BODY_CHARS:
+        raise HTTPException(400, detail="Article trop long.")
+    return body, text
+
+
+def _check_category(cat: str) -> str:
+    cat = (cat or "general").strip()
+    if cat not in RUBRIQUES:
+        raise HTTPException(400, detail=f"Rubrique inconnue : {cat}")
+    return cat
+
+
+def _get_article(db: Session, item_id: int) -> VeilleItem:
+    item = db.get(VeilleItem, item_id)
+    if not item or item.kind != articles_svc.ARTICLE_KIND:
+        raise HTTPException(404, detail="Article introuvable.")
+    return item
+
+
+@router.post("/articles")
+def create_article(
+    payload: ArticleIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Publie un article. Réservé aux doctorants vérifiés et aux admins."""
+    if not articles_svc.can_publish(db, user):
+        raise HTTPException(403, detail="Seuls les doctorants vérifiés et l'équipe publient des articles.")
+
+    body, text = _clean_body(payload.body_html)
+    now = utcnow()
+    item = VeilleItem(
+        external_id=f"article:{uuid.uuid4().hex}",
+        title=" ".join(payload.title.split()),
+        essentiel=articles_svc.excerpt(text),
+        impact="",
+        category=_check_category(payload.category),
+        source_url="",
+        source_name=articles_svc.SOURCE_NAME,
+        published_at=now,
+        author_id=user.id,
+        kind=articles_svc.ARTICLE_KIND,
+        body_html=body,
+    )
+    db.add(item)
+    db.flush()
+    item.source_url = articles_svc.article_url(item.id)
+    db.commit()
+    db.refresh(item)
+    out = _hub_item(item, set(), set())
+    out["body_html"] = item.body_html
+    out["can_edit"] = True
+    return out
+
+
+@router.patch("/articles/{item_id}")
+def update_article(
+    item_id: int,
+    payload: ArticlePatch,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Modifie un article (son auteur, ou un admin)."""
+    item = _get_article(db, item_id)
+    if not articles_svc.can_edit(db, user, item):
+        raise HTTPException(403, detail="Tu ne peux pas modifier cet article.")
+
+    if payload.title is not None:
+        item.title = " ".join(payload.title.split())
+    if payload.category is not None:
+        item.category = _check_category(payload.category)
+    if payload.body_html is not None:
+        body, text = _clean_body(payload.body_html)
+        item.body_html = body
+        item.essentiel = articles_svc.excerpt(text)
+    item.updated_at = utcnow()
+    db.commit()
+    db.refresh(item)
+
+    read_ids, saved_ids = _read_ids(db, user), _saved_ids(db, user)
+    out = _hub_item(item, read_ids, saved_ids)
+    out["body_html"] = item.body_html
+    out["can_edit"] = True
+    return out
+
+
+@router.delete("/articles/{item_id}")
+def delete_article(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Supprime un article (son auteur, ou un admin). Les enregistrements partent avec."""
+    item = _get_article(db, item_id)
+    if not articles_svc.can_edit(db, user, item):
+        raise HTTPException(403, detail="Tu ne peux pas supprimer cet article.")
+    db.query(VeilleBookmark).filter(VeilleBookmark.item_id == item.id).delete(synchronize_session=False)
+    db.query(VeilleEvent).filter(VeilleEvent.item_id == item.id).delete(synchronize_session=False)
+    db.delete(item)
+    db.commit()
+    return {"ok": True, "deleted_id": item_id}

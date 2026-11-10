@@ -42,6 +42,33 @@ Si un jour l'embed ne voit plus le `?ref=` (iframe cloisonnée), le composant
 `framer/NavireEmbed.tsx` sert de solution de repli : il affiche les mêmes
 pages servies par l'API (`GET /ambassadors/embed/{rejoindre|ambassadeur}`).
 
+## Articles (Actus, Lib, profil)
+
+Format rédigé sur NAVIRE, réservé aux **doctorants vérifiés** (badge validé
+dans la console, onglet Catég. → Vérifs) et aux **admins**. Icône :
+`/assets/NAVIRE_Articles_icon.png`.
+
+- **Actus (`veille.html`)** : menu et onglet « Articles », carte « Écrire un
+  article » pour les comptes autorisés (`GET /auth/me` →
+  `can_publish_articles`). Éditeur : gras, italique, souligné, intertitre,
+  listes, citation, emojis ; l'auteur ou un admin peut modifier ou supprimer.
+  Chaque article montre qui l'a publié (photo, pseudo, rôle : Doctorant,
+  Équipe NAVIRE…), avec un lien vers son profil.
+- **Adresse** : `navire-ai.com/actus/NA<id>`. Dans Framer, la page `/actus`
+  doit aussi répondre aux adresses `/actus/NA…` (l'embed lit le `NA<id>` en
+  fin d'adresse ; `?actu=NA<id>` marche aussi).
+- **Lib (`lib.html`)** : format « Articles » dans la bibliothèque (auteur,
+  rubrique, durée de lecture) ; un clic ouvre l'article dans Actus.
+- **Profil (`profil.html`)** : les articles arrivent dans « Posts et
+  articles » (avec « Voir plus ») et s'enregistrent depuis le post. Sous les 4
+  statistiques, sans les changer : « N articles publiés · Doctorant ».
+- **Enregistrer** : un article enregistré rejoint « À relire » (Actus) et
+  « Enregistrées » (Fichiers, avec l'icône des articles).
+
+Routes : `POST /veille/articles`, `PATCH|DELETE /veille/articles/{id}`,
+`GET /veille/actus?kind=article`. Le HTML est nettoyé côté serveur (liste
+blanche de balises, aucun attribut).
+
 ## `/console`
 
 Deux Code Files Framer, à coller tels quels :

@@ -21,6 +21,16 @@
   automatiquement n'ont pas d'auteur : on affiche alors leur source.
 
   Lien direct vers une actu : ajoute ?actu=ID à l'adresse de la page.
+
+  Articles : format rédigé sur NAVIRE par les doctorants vérifiés et l'équipe
+  (icône NAVIRE_Articles_icon). Menu « Articles », lecture du texte mis en
+  forme, enregistrement comme une actu. Adresse d'un article :
+  navire-ai.com/actus/NA<id> (la page /actus doit aussi répondre à
+  /actus/NA<id> ; ?actu=NA<id> marche aussi). « Écrire un article » n'apparaît
+  qu'aux comptes autorisés (GET /auth/me → can_publish_articles) : éditeur
+  avec gras, italique, souligné, listes, citation et emojis ; l'auteur (ou un
+  admin) peut ensuite modifier ou supprimer l'article.
+    POST /veille/articles · PATCH|DELETE /veille/articles/{id}
   Passerelle vers NAVIRE Lib : sous une actu, « Réviser dans la Lib » propose
   jusqu'à 2 cours de la matière (champ `cours` de GET /veille/actus/{id}).
   Réglages : bloc CONFIG du script.
@@ -208,6 +218,47 @@
 #nv-news .nv-rub:hover { color: #fff; }
 #nv-news .nv-tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); white-space: nowrap; }
 #nv-news .nv-tag.is-new { background: var(--blue-soft); color: var(--blue); }
+#nv-news .nv-tag.is-article { background: rgba(155,111,255,0.14); color: #CDB8FF; }
+#nv-news .nv-art-ic { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 2px 5px rgba(120,70,255,0.35)); }
+#nv-news .nv-card-title .nv-art-ic { width: 15px; height: 15px; vertical-align: -2px; margin-right: 7px; }
+#nv-news .nv-nav .nv-art-ic { width: 15px; height: 15px; }
+#nv-news .nv-art-kicker { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: #CDB8FF; }
+#nv-news .nv-art-kicker .nv-art-ic { width: 20px; height: 20px; }
+#nv-news .nv-article-body { margin-top: 26px; }
+#nv-news .nv-article-body h3 { margin: 22px 0 10px; font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+#nv-news .nv-article-body ul, #nv-news .nv-article-body ol { margin: 0 0 12px; padding-left: 22px; }
+#nv-news .nv-article-body li { margin: 4px 0; }
+#nv-news .nv-article-body blockquote { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--blue-soft); color: #d6e4ff; }
+#nv-news .nv-article-body strong { color: #fff; }
+#nv-news .nv-btn.is-danger { color: #FF8A8A; }
+#nv-news .nv-write { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 14px 16px; border-radius: 16px; background: linear-gradient(120deg, rgba(155,111,255,0.14), rgba(122,167,255,0.08)); border: none; width: 100%; text-align: left; cursor: pointer; color: #fff; }
+#nv-news .nv-write:hover { background: linear-gradient(120deg, rgba(155,111,255,0.2), rgba(122,167,255,0.12)); }
+#nv-news .nv-write img { width: 34px; height: 34px; object-fit: contain; }
+#nv-news .nv-write b { display: block; font-size: 14px; }
+#nv-news .nv-write span { display: block; margin-top: 2px; font-size: 12.5px; color: var(--text-3); }
+/* Éditeur d'article */
+#nv-news .nv-editor { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+#nv-news .nv-ed-title { width: 100%; padding: 10px 2px; border: none; background: transparent; color: #fff; font: inherit; font-size: 26px; font-weight: 700; letter-spacing: -.5px; outline: none; }
+#nv-news .nv-ed-title::placeholder { color: var(--text-4); }
+#nv-news .nv-ed-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#nv-news .nv-ed-select { height: 34px; padding: 0 12px; border-radius: 99px; border: none; background: var(--panel-2); color: #fff; font: inherit; font-size: 12.5px; outline: none; }
+#nv-news .nv-ed-select option { background: #101a33; }
+#nv-news .nv-ed-tools { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border-radius: 12px; background: rgba(16,26,51,0.92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+#nv-news .nv-ed-tools button { min-width: 34px; height: 32px; padding: 0 9px; border-radius: 8px; border: none; background: transparent; color: var(--text-2); font: inherit; font-size: 13.5px; cursor: pointer; }
+#nv-news .nv-ed-tools button:hover, #nv-news .nv-ed-tools button.is-on { background: var(--panel-3); color: #fff; }
+#nv-news .nv-ed-tools i.nv-ed-sep { width: 1px; margin: 6px 3px; background: var(--panel-3); }
+#nv-news .nv-emojis { display: none; flex-wrap: wrap; gap: 2px; padding: 6px; border-radius: 12px; background: var(--panel-2); }
+#nv-news .nv-emojis.is-open { display: flex; }
+#nv-news .nv-emojis button { width: 34px; height: 34px; border-radius: 8px; border: none; background: transparent; font-size: 19px; cursor: pointer; }
+#nv-news .nv-emojis button:hover { background: var(--panel-3); }
+#nv-news .nv-ed-body { min-height: 300px; padding: 16px 18px; border-radius: 16px; background: var(--panel); outline: none; font-size: 15.5px; line-height: 1.72; color: rgba(255,255,255,0.92); overflow-wrap: anywhere; }
+#nv-news .nv-ed-body:focus { background: var(--panel-2); }
+#nv-news .nv-ed-body:empty::before { content: attr(data-placeholder); color: var(--text-4); }
+#nv-news .nv-ed-body p { margin: 0 0 12px; }
+#nv-news .nv-ed-body ul, #nv-news .nv-ed-body ol { padding-left: 22px; }
+#nv-news .nv-ed-body blockquote { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--blue-soft); }
+#nv-news .nv-ed-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#nv-news .nv-ed-foot small { margin-right: auto; font-size: 12px; color: var(--text-3); }
 
 /* À la une : carte à halo, comme les cours de NAVIRE Lib */
 #nv-news .nv-feature { position: relative; overflow: hidden; display: flex; flex-direction: column; margin-top: 14px; padding: 20px 20px 14px; border-radius: 18px; background: var(--blue-soft); cursor: pointer; transition: background .2s, transform .2s var(--ease); animation: nv-rise .4s var(--ease) both; }
@@ -480,6 +531,14 @@
       À relire
       <span class="nv-badge" data-el="count-saved"></span>
     </button>
+    <button class="nv-nav" data-nav="articles">
+      <img class="nv-art-ic" data-art-ic alt="" aria-hidden="true">
+      Articles
+    </button>
+    <button class="nv-nav" data-act="write" data-el="write-nav" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      Écrire un article
+    </button>
 
     <div class="nv-side-label">Rubriques</div>
     <div data-el="side-rubs"></div>
@@ -530,6 +589,9 @@
   var PROFIL_URL = '/profile';    // page profil : ?u=ID ouvre le profil de l'auteur
   var PAGE_SIZE = 20;
   var LOGO_NOIR = API + '/assets/logo-navire-app-noir.png';   // icône du bouton blanc de rubrique (téléphone)
+  var ART_ICON = API + '/assets/NAVIRE_Articles_icon.png';    // icône des articles
+  var ARTICLE_URL = 'https://navire-ai.com/actus/NA';          // + id : adresse publique d'un article
+  var EMOJIS = ['⚖️', '📚', '🎓', '✍️', '📝', '📌', '💡', '🔎', '📖', '🏛️', '✅', '❌', '⚠️', '❗', '❓', '🔥', '🚀', '📅', '🔗', '👉', '👏', '🙂', '😉', '🤔', '❤️', '⭐'];
 
   var RUBRIQUES = [
     { key: 'civil',    label: 'Droit civil',        desc: 'Contrats, responsabilité, famille, biens' },
@@ -670,7 +732,9 @@
   var state = {
     view: 'home',               // list | article | sources
     sideOff: LS.get('side_off', true),   // menu replié par défaut
-    filters: { status: 'all', category: '', q: '', period: 'all' },
+    filters: { status: 'all', category: '', q: '', period: 'all', kind: '' },
+    canWrite: false,            // rédaction d'articles (doctorant vérifié ou admin)
+    editing: null,              // article en cours de modification (null : nouvel article)
     items: [], total: 0, hasMore: false, loading: false,
     start: 0, starts: [], shown: 0,   // pagination « Charger plus » sans défilement
     rubriques: null,            // réponse de /veille/rubriques
@@ -740,7 +804,12 @@
   function plural(n, one, many) { return n + ' ' + (n > 1 ? many : one); }
   // URL de la page qui contient l'embed (la page Framer, pas l'iframe)
   function pageLocation() { try { return (HOST || window).location; } catch (e) { return window.location; } }
-  function actuLink(id) { var l = pageLocation(); return l.origin + l.pathname + '?actu=' + id; }
+  function actuLink(id) {
+    var it = state.known[id];
+    if (it && it.kind === 'article') return it.url || ARTICLE_URL + id;
+    var l = pageLocation(); return l.origin + l.pathname.replace(/\/NA\d+\/?$/, '') + '?actu=' + id;
+  }
+  function artIc(cls) { return '<img class="nv-art-ic' + (cls ? ' ' + cls : '') + '" src="' + esc(ART_ICON) + '" alt="" aria-hidden="true">'; }
   function aiLink(q) { return AI_URL + (q ? (AI_URL.indexOf('?') < 0 ? '?' : '&') + 'q=' + encodeURIComponent(q) : ''); }
   function hilite(html, q) {
     // Surligne les mots recherchés dans un texte déjà échappé
@@ -762,8 +831,10 @@
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
     sources: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 4.5v1H3v-1z"/><path d="M5 10v7M9.5 10v7M14.5 10v7M19 10v7M3 20h18"/></svg>',
-    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+    pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>'
   };
+  root.querySelectorAll('[data-art-ic]').forEach(function (img) { img.src = ART_ICON; });
 
   el('ai-link').href = AI_URL;
   el('lib-link').href = LIB_URL;
@@ -954,12 +1025,13 @@
   }
 
   // ================= NAVIGATION =================
-  function isDefault(f) { return f.status === 'all' && !f.category && !f.q && f.period === 'all'; }
+  function isDefault(f) { return f.status === 'all' && !f.category && !f.q && f.period === 'all' && !f.kind; }
   function navKey() {
     if (state.view === 'sources') return 'sources';
     if (state.view === 'list') {
       var f = state.filters;
       if (f.status !== 'all') return f.status;
+      if (f.kind === 'article' && !f.category && !f.q) return 'articles';
       if (f.category && !f.q) return 'rub:' + f.category;
       if (isDefault(f)) return 'home';
     }
@@ -988,6 +1060,7 @@
       f.status = key;
     }
     if (key.indexOf('rub:') === 0) f.category = key.slice(4);
+    if (key === 'articles') f.kind = 'article';
     openList(f);
   }
   function needLogin(what) { toast('Connecte-toi pour ' + what + '.'); }
@@ -1006,6 +1079,7 @@
       (who ? '<i class="nv-sep"></i>' + who : '') +
       '<i class="nv-sep"></i><span>' + esc(relTime(it.published_at)) + '</span>' +
       (isNew(it) ? '<span class="nv-tag is-new">Nouveau</span>' : '') +
+      (it.kind === 'article' ? '<span class="nv-tag is-article">Article</span>' : '') +
       (it.is_read ? '<i class="nv-sep"></i><span class="nv-readmark">' + ICON.check + 'Lue</span>' : '') +
       saveBtn(it) + '</div>';
   }
@@ -1013,11 +1087,11 @@
   function rowHtml(it, i) {
     var q = state.filters.q;
     return '<article class="nv-card is-row' + (it.is_read ? ' is-read' : (token ? ' is-unread' : '')) + '" data-open="' + it.id + '" tabindex="0" style="animation-delay:' + Math.min(i || 0, 10) * 0.025 + 's">' +
-      '<h3 class="nv-card-title">' + hilite(esc(it.title), q) + '</h3>' + metaHtml(it) + '</article>';
+      '<h3 class="nv-card-title">' + (it.kind === 'article' ? artIc() : '') + hilite(esc(it.title), q) + '</h3>' + metaHtml(it) + '</article>';
   }
   function featureHtml(it) {
     return '<article class="nv-feature" data-open="' + it.id + '" data-cat="' + esc(it.category) + '" tabindex="0">' +
-      '<div class="nv-card-top"><span class="nv-tag is-new">À la une</span></div>' +
+      '<div class="nv-card-top"><span class="nv-tag is-new">À la une</span>' + (it.kind === 'article' ? '<span class="nv-art-kicker">' + artIc() + 'Article</span>' : '') + '</div>' +
       '<h3>' + esc(it.title) + '</h3><p>' + esc(it.essentiel) + '</p>' + metaHtml(it) + '</article>';
   }
   function skeleton(n, h) { var s = ''; for (var i = 0; i < n; i++) s += '<div class="nv-skel" style="height:' + (h || 64) + 'px"></div>'; return s; }
@@ -1041,6 +1115,7 @@
   function listTitle(f) {
     if (f.status === 'unread') return 'Non lues';
     if (f.status === 'saved') return 'À relire';
+    if (f.kind === 'article' && !f.category) return 'Articles';
     if (f.category) return rub(f.category).label;
     if (f.q) return 'Recherche';
     return 'À la une';
@@ -1050,7 +1125,9 @@
     function tab(k, label, count) {
       return '<button type="button" class="' + (f.status === k ? 'is-on' : '') + '" data-mtab="' + k + '">' + label + (count ? '<b data-el="mt-' + k + '"></b>' : '') + '</button>';
     }
-    return '<div class="nv-mtabs" role="tablist">' + tab('all', 'À la une') + tab('unread', 'Non lues', 1) + tab('saved', 'À relire', 1) + '</div>';
+    var art = f.kind === 'article';
+    return '<div class="nv-mtabs" role="tablist">' + (art ? tab('', 'À la une') : tab('all', 'À la une')) + tab('unread', 'Non lues', 1) + tab('saved', 'À relire', 1) +
+      '<button type="button" class="' + (art ? 'is-on' : '') + '" data-mtab="articles">Articles</button></div>';
   }
   function openList(f, focus) {
     lastRetry = function () { openList(state.filters); };
@@ -1058,12 +1135,14 @@
     var title = listTitle(f), r = f.category ? rub(f.category) : null;
     var desc = f.status === 'unread' ? 'Les actus que tu n\'as pas encore ouvertes.' :
       f.status === 'saved' ? 'Les actus que tu as gardées pour plus tard.' :
+      f.kind === 'article' && !r ? 'Les articles rédigés sur NAVIRE par les doctorants et l\'équipe.' :
       r ? r.desc + '.' : heroSub(state.rubriques);
-    var h1 = isDefault(f) ? 'Veille <span class="nv-grad">juridique</span>' : esc(title);
+    var h1 = isDefault(f) ? 'Veille <span class="nv-grad">juridique</span>' : f.kind === 'article' && !r ? artIc() + 'Articles' : esc(title);
     setTitle(title);
     show('list',
       '<div class="nv-page-head"><h1' + (r ? ' data-cat="' + r.key + '"' : '') + '>' + (r ? '<i class="nv-dot"></i>' : '') + h1 + '</h1><p data-el="list-sub">' + esc(desc) + '</p></div>' +
       mtabsHtml(f) +
+      (f.kind === 'article' && state.canWrite ? writeCard() : '') +
       '<div class="nv-searchrow"><form class="nv-search" data-form="filter">' + ICON.search +
         '<input type="text" enterkeyhint="search" name="q" data-el="q" value="' + esc(f.q) + '" placeholder="Rechercher' + (root.classList.contains('is-compact') ? '' : ' dans ' + (r ? 'la rubrique' : 'les actus')) + '…" autocomplete="off" aria-label="Rechercher">' +
         (f.q ? '<button type="button" class="nv-icon-btn" data-act="clear-q" aria-label="Effacer">' + ICON.close + '</button>' : '') + '</form>' +
@@ -1089,6 +1168,7 @@
     if (f.q) p.push('q=' + encodeURIComponent(f.q));
     if (f.status !== 'all') p.push('status=' + f.status);
     if (f.period !== 'all') p.push('period=' + f.period);
+    if (f.kind) p.push('kind=' + f.kind);
     return '/veille/actus?' + p.join('&');
   }
   function loadPage() {
@@ -1175,7 +1255,7 @@
   // ================= ARTICLE =================
   function openArticle(id) {
     id = +id;
-    if (state.view !== 'article') state.back = { view: state.view, filters: state.filters, items: state.items, total: state.total, hasMore: state.hasMore, start: state.start, starts: state.starts.slice() };
+    if (state.view !== 'article' && state.view !== 'editor') state.back = { view: state.view, filters: state.filters, items: state.items, total: state.total, hasMore: state.hasMore, start: state.start, starts: state.starts.slice() };
     lastRetry = function () { openArticle(id); };
     var known = state.known[id];
     setTitle(known ? known.category_label : 'Actu');
@@ -1212,15 +1292,16 @@
     var a = it.author;
     var src = it.source_name ? (it.source_url ? '<a href="' + esc(it.source_url) + '" target="_blank" rel="noopener" data-src="' + it.id + '">' + esc(it.source_name) + '</a>' : esc(it.source_name)) : '';
     var details = [esc(longDate(it.published_at))];
-    if (a && src) details.push('Source : ' + src);
+    if (a && src && it.kind !== 'article') details.push('Source : ' + src);
     details.push(it.reading_minutes + ' min de lecture');
     if (it.is_read) details.push('<span class="nv-readmark">' + ICON.check + 'Lue</span>');
     var who = a
-      ? '<a href="' + esc(profilUrl(a)) + '" target="_top" data-profil class="nv-byline-who" title="Voir le profil">' + avatarHtml(a) + '</a><div class="nv-byline-txt"><b>Posté par <a href="' + esc(profilUrl(a)) + '" target="_top" data-profil class="nv-byline-who">' + esc(a.name) + '</a>' + roleHtml(a) + '</b><small>' + details.join(' · ') + '</small></div>'
+      ? '<a href="' + esc(profilUrl(a)) + '" target="_top" data-profil class="nv-byline-who" title="Voir le profil">' + avatarHtml(a) + '</a><div class="nv-byline-txt"><b>' + (it.kind === 'article' ? 'Publié par' : 'Posté par') + ' <a href="' + esc(profilUrl(a)) + '" target="_top" data-profil class="nv-byline-who">' + esc(a.name) + '</a>' + roleHtml(a) + '</b><small>' + details.join(' · ') + '</small></div>'
       : '<span class="nv-av">' + esc((it.source_name || 'N').charAt(0)) + '</span><div class="nv-byline-txt"><b>' + (src || 'NAVIRE') + '</b><small>' + details.join(' · ') + '</small></div>';
     return '<div class="nv-byline">' + who + '</div>';
   }
   function articleHtml(it, related, cours) {
+    if (it.kind === 'article') return writtenHtml(it, related);
     var refs = findRefs(it.essentiel + '\n' + it.impact), seen = {};
     refs = refs.filter(function (r) { var k = r.text.toLowerCase().replace(/\s+/g, ' '); if (seen[k]) return false; seen[k] = 1; return true; });
     var backLabel = state.back && state.back.view === 'list' ? listTitle(state.back.filters) : 'À la une';
@@ -1246,10 +1327,140 @@
           related.map(rowHtml).join('') + '</div></section>' : '') +
     '</div>';
   }
+  // Article NAVIRE : texte mis en forme (déjà nettoyé par l'API)
+  function writtenHtml(it, related) {
+    var backLabel = state.back && state.back.view === 'list' ? listTitle(state.back.filters) : 'Articles';
+    var body = it.body_html != null ? it.body_html : '<p>' + esc(it.essentiel) + '</p>';
+    return '<div class="nv-article" data-cat="' + esc(it.category) + '">' +
+      '<div class="nv-crumbs"><button data-act="back">' + ICON.back + esc(backLabel) + '</button></div>' +
+      '<div class="nv-card-top"><span class="nv-art-kicker">' + artIc() + 'Article NAVIRE</span>' + rubTag(it) + (isNew(it) ? '<span class="nv-tag is-new">Nouveau</span>' : '') + '</div>' +
+      '<h1>' + esc(it.title) + '</h1>' +
+      bylineHtml(it) +
+      '<div class="nv-prose nv-article-body">' + body + '</div>' +
+      (it.updated_at ? '<p style="margin:14px 0 0;font-size:12px;color:var(--text-3)">Modifié le ' + esc(longDate(it.updated_at)) + '</p>' : '') +
+      '<div class="nv-actions">' +
+        '<button class="nv-btn' + (it.is_saved ? ' is-on' : '') + '" data-save="' + it.id + '" aria-pressed="' + !!it.is_saved + '">' + ICON.save + (it.is_saved ? 'Gardée' : 'À relire') + '</button>' +
+        '<button class="nv-btn" data-copy="' + it.id + '">' + ICON.link + 'Copier le lien</button>' +
+        '<a class="nv-btn" href="' + esc(aiLink('Explique-moi cet article juridique : « ' + it.title + ' »')) + '" target="_top">' + ICON.ai + 'Demander à NAVIRE AI</a>' +
+        (it.can_edit ? '<button class="nv-btn" data-act="edit-article" data-id="' + it.id + '">' + ICON.pen + 'Modifier</button>' +
+          '<button class="nv-btn is-danger" data-act="delete-article" data-id="' + it.id + '">Supprimer</button>' : '') +
+      '</div>' +
+      (related === null ? '<section class="nv-section">' + skeleton(2, 64) + '</section>' :
+        related && related.length ? '<section class="nv-section"><div class="nv-section-head"><h2>À lire aussi</h2></div><div class="nv-list">' +
+          related.map(rowHtml).join('') + '</div></section>' : '') +
+    '</div>';
+  }
+
+  // ================= RÉDACTION D'ARTICLES =================
+  function writeCard() {
+    return '<button class="nv-write" data-act="write"><img src="' + esc(ART_ICON) + '" alt="" aria-hidden="true">' +
+      '<div><b>Écrire un article</b><span>Publié dans Actus, dans la Lib et sur ton profil.</span></div></button>';
+  }
+  function openEditor(item) {
+    if (!state.canWrite && !(item && item.can_edit)) return toast('La rédaction d\'articles est réservée aux doctorants vérifiés.');
+    if (state.view !== 'editor') state.back = state.view === 'article' ? { view: 'list', filters: { status: 'all', category: '', q: '', period: 'all', kind: 'article' } } : { view: state.view, filters: state.filters, items: state.items, total: state.total, hasMore: state.hasMore, start: state.start, starts: state.starts.slice() };
+    state.editing = item || null;
+    lastRetry = null;
+    setTitle(item ? 'Modifier l\'article' : 'Nouvel article');
+    var cat = item ? item.category : 'general';
+    show('editor',
+      '<div class="nv-editor">' +
+        '<div class="nv-crumbs"><button data-act="back">' + ICON.back + 'Annuler</button><span class="nv-art-kicker">' + artIc() + (item ? 'Modifier l\'article' : 'Nouvel article') + '</span></div>' +
+        '<input class="nv-ed-title" data-el="ed-title" maxlength="200" placeholder="Titre de l\'article" value="' + esc(item ? item.title : '') + '">' +
+        '<div class="nv-ed-row"><select class="nv-ed-select" data-el="ed-cat" aria-label="Rubrique">' +
+          RUBRIQUES.map(function (r) { return '<option value="' + r.key + '"' + (r.key === cat ? ' selected' : '') + '>' + esc(r.label) + '</option>'; }).join('') +
+        '</select></div>' +
+        '<div class="nv-ed-tools" data-el="ed-tools">' +
+          '<button type="button" data-cmd="bold" title="Gras (Ctrl B)"><b>G</b></button>' +
+          '<button type="button" data-cmd="italic" title="Italique (Ctrl I)"><i>I</i></button>' +
+          '<button type="button" data-cmd="underline" title="Souligné (Ctrl U)"><u>S</u></button>' +
+          '<i class="nv-ed-sep"></i>' +
+          '<button type="button" data-cmd="formatBlock" data-val="h3" title="Intertitre">Titre</button>' +
+          '<button type="button" data-cmd="insertUnorderedList" title="Liste à puces">• Liste</button>' +
+          '<button type="button" data-cmd="insertOrderedList" title="Liste numérotée">1. Liste</button>' +
+          '<button type="button" data-cmd="formatBlock" data-val="blockquote" title="Citation">« »</button>' +
+          '<i class="nv-ed-sep"></i>' +
+          '<button type="button" data-act="ed-emoji" title="Emojis">🙂 Emojis</button>' +
+        '</div>' +
+        '<div class="nv-emojis" data-el="ed-emojis">' + EMOJIS.map(function (e) { return '<button type="button" data-emoji="' + e + '">' + e + '</button>'; }).join('') + '</div>' +
+        '<div class="nv-ed-body" data-el="ed-body" contenteditable="true" data-placeholder="Écris ton article… Sélectionne un mot pour le mettre en gras ou en italique."></div>' +
+        '<div class="nv-ed-foot"><small data-el="ed-count"></small>' +
+          '<button class="nv-btn" data-act="back">Annuler</button>' +
+          '<button class="nv-btn is-primary" data-act="publish-article">' + (item ? 'Enregistrer les modifications' : 'Publier l\'article') + '</button></div>' +
+      '</div>');
+    var body = el('ed-body');
+    if (item && item.body_html) body.innerHTML = item.body_html;
+    try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch (x) {}
+    // Collage : texte brut seulement, pour ne pas importer la mise en page d'ailleurs.
+    body.addEventListener('paste', function (e) {
+      var txt = (e.clipboardData || window.clipboardData).getData('text/plain');
+      if (txt == null) return;
+      e.preventDefault();
+      document.execCommand('insertText', false, txt);
+    });
+    body.addEventListener('input', edCount);
+    edCount();
+    setTimeout(function () { (item ? body : el('ed-title')).focus(); }, 60);
+  }
+  function edText() { var b = el('ed-body'); return b ? (b.innerText || '').replace(/\s+/g, ' ').trim() : ''; }
+  function edCount() {
+    var c = el('ed-count'); if (!c) return;
+    var n = edText().split(' ').filter(Boolean).length;
+    c.textContent = n ? n + ' mot' + (n > 1 ? 's' : '') + ' · ' + Math.max(1, Math.ceil(n / 200)) + ' min de lecture' : '';
+  }
+  function publishArticle(btn) {
+    var title = (el('ed-title').value || '').trim();
+    if (title.length < 5) { toast('Donne un titre d\'au moins 5 caractères.', 'error'); el('ed-title').focus(); return; }
+    if (edText().length < 80) { toast('L\'article est trop court (80 caractères au moins).', 'error'); el('ed-body').focus(); return; }
+    var editing = state.editing;
+    var payload = { title: title, category: el('ed-cat').value, body_html: el('ed-body').innerHTML };
+    btn.disabled = true;
+    btn.textContent = editing ? 'Enregistrement…' : 'Publication…';
+    api(editing ? '/veille/articles/' + editing.id : '/veille/articles', { method: editing ? 'PATCH' : 'POST', body: payload, authOnly: true }).then(function (it) {
+      state.known[it.id] = it;
+      state.editing = null;
+      toast(editing ? 'Article modifié' : 'Article publié', 'ok');
+      state.back = { view: 'list', filters: { status: 'all', category: '', q: '', period: 'all', kind: 'article' } };
+      openArticle(it.id);
+      loadMeta();
+    }).catch(function (e) {
+      btn.disabled = false;
+      btn.textContent = editing ? 'Enregistrer les modifications' : 'Publier l\'article';
+      var d = e.data && e.data.detail;
+      toast(typeof d === 'string' ? d : 'Publication impossible, réessaie.', 'error');
+    });
+  }
+  function deleteArticle(id) {
+    if (!window.confirm('Supprimer cet article ? Il disparaîtra d\'Actus, de la Lib et des profils.')) return;
+    api('/veille/articles/' + id, { method: 'DELETE', authOnly: true }).then(function () {
+      delete state.known[id];
+      toast('Article supprimé');
+      goNav('articles');
+      loadMeta();
+    }).catch(function () { toast('Suppression impossible, réessaie.', 'error'); });
+  }
+  root.addEventListener('mousedown', function (e) {
+    // Les boutons de l'éditeur ne doivent pas faire perdre la sélection du texte.
+    if (e.target.closest('[data-cmd], [data-emoji], [data-act="ed-emoji"]')) e.preventDefault();
+  });
+  function edCommand(btn) {
+    var body = el('ed-body'); if (!body) return;
+    if (document.activeElement !== body) body.focus();
+    var cmd = btn.getAttribute('data-cmd'), val = btn.getAttribute('data-val');
+    if (cmd === 'formatBlock') {
+      // Second clic : retour au paragraphe normal
+      var cur = (document.queryCommandValue('formatBlock') || '').toLowerCase();
+      document.execCommand('formatBlock', false, cur === val ? 'p' : val);
+    } else document.execCommand(cmd, false, null);
+    edCount();
+  }
+
   function goBack() {
     var b = state.back;
+    if (state.view === 'editor' && state.editing) { var ed = state.editing; state.editing = null; state.back = { view: 'list', filters: { status: 'all', category: '', q: '', period: 'all', kind: 'article' } }; return openArticle(ed.id); }
     if (!b || b.view !== 'list' && b.view !== 'sources') return renderHome();
     if (b.view === 'sources') return renderSources();
+    if (!b.items) return openList(b.filters);
     // Retour à la liste telle qu'on l'a laissée (sans recharger)
     state.filters = b.filters;
     openList(b.filters);
@@ -1321,8 +1532,10 @@
     var mt = t.closest('[data-mtab]');
     if (mt) {
       var k = mt.getAttribute('data-mtab');
+      if (k === 'articles') return goNav('articles');
+      if (k === '') return renderHome();
       if (k !== 'all' && !token) return needLogin(k === 'saved' ? 'garder des actus à relire' : 'voir tes actus non lues');
-      var fm = copyF(); fm.status = k; return openList(fm);
+      var fm = copyF(); fm.status = k; fm.kind = ''; return openList(fm);
     }
     // Auteur d'une actu : son profil (sans ouvrir la carte de l'actu)
     var prof = t.closest('[data-profil]');
@@ -1348,6 +1561,10 @@
     if (fc) { var f1 = copyF(); f1.category = fc.getAttribute('data-filter-cat'); return openList(f1); }
     var tg = t.closest('[data-target]');
     if (tg) { tg.parentNode.querySelectorAll('.nv-chip').forEach(function (c) { c.classList.toggle('is-on', c === tg); }); return; }
+    var cmdBtn = t.closest('[data-cmd]');
+    if (cmdBtn) return edCommand(cmdBtn);
+    var emo = t.closest('[data-emoji]');
+    if (emo) { var eb = el('ed-body'); if (eb) { if (document.activeElement !== eb) eb.focus(); document.execCommand('insertText', false, emo.getAttribute('data-emoji')); edCount(); } return; }
     var open = t.closest('[data-open]');
     if (open) return openArticle(open.getAttribute('data-open'));
     var a = t.closest('[data-act]');
@@ -1371,8 +1588,13 @@
     else if (act === 'retry') { loadMeta(); if (lastRetry) lastRetry(); }
     else if (act === 'widen') openList({ status: state.filters.status, category: '', q: state.filters.q, period: 'all' });
     else if (act === 'clear-q') { var f3 = copyF(); f3.q = ''; openList(f3, true); }
+    else if (act === 'write') { root.classList.remove('is-drawer'); openEditor(null); }
+    else if (act === 'edit-article') { var ai = state.known[+a.getAttribute('data-id')]; if (ai) openEditor(ai); }
+    else if (act === 'delete-article') deleteArticle(+a.getAttribute('data-id'));
+    else if (act === 'publish-article') publishArticle(a);
+    else if (act === 'ed-emoji') { var pe = el('ed-emojis'); if (pe) pe.classList.toggle('is-open'); }
   });
-  function copyF() { var f = state.filters; return { status: f.status, category: f.category, q: f.q, period: f.period }; }
+  function copyF() { var f = state.filters; return { status: f.status, category: f.category, q: f.q, period: f.period, kind: f.kind || '' }; }
   function openSearch() {
     root.classList.remove('is-drawer');
     if (state.view === 'list' && el('q')) { el('q').focus(); el('q').select(); return; }
@@ -1418,6 +1640,7 @@
       if (!el('pop').hidden) closePop();
       else if (root.classList.contains('is-drawer')) root.classList.remove('is-drawer');
       else if (state.view === 'article') goBack();
+      else if (state.view === 'editor' && el('ed-emojis') && el('ed-emojis').classList.contains('is-open')) el('ed-emojis').classList.remove('is-open');
     }
   }
   document.addEventListener('keydown', onKey);
@@ -1440,10 +1663,30 @@
   renderSideRubs();
   renderGoal();
   updateCounts();
+  // Lien direct : ?actu=ID, ?actu=NA<id> ou /actus/NA<id> (articles)
   var start = null;
-  try { start = new URLSearchParams(pageLocation().search).get('actu'); } catch (e) {}
+  try {
+    var loc = pageLocation();
+    start = new URLSearchParams(loc.search).get('actu');
+    var pm = loc.pathname.match(/\/NA(\d+)\/?$/i);
+    if (pm) start = pm[1];
+  } catch (e) {}
+  if (start) start = String(start).replace(/^NA/i, '');
   if (start && /^\d+$/.test(start)) { state.back = { view: 'home' }; openArticle(start); }
   else renderHome();
+  // Rédaction d'articles : doctorants vérifiés et admins
+  function loadWriter() {
+    if (!token) return;
+    api('/auth/me', { authOnly: true }).then(function (me) {
+      state.canWrite = !!(me && me.can_publish_articles);
+      var w = el('write-nav'); if (w) w.hidden = !state.canWrite;
+      if (state.canWrite && state.view === 'list' && state.filters.kind === 'article' && !content.querySelector('.nv-write')) {
+        var head = content.querySelector('.nv-mtabs');
+        if (head) head.insertAdjacentHTML('afterend', writeCard());
+      }
+    }).catch(function () {});
+  }
+  loadWriter();
   loadMeta();
   loadMe();
   loadCounts();

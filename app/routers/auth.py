@@ -382,6 +382,8 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
         "badges": badges,
         "is_doctorant": "Doctorant" in badges,
         "pending_verifications": pending,
+        # Rédaction d'articles (Actus) : doctorants vérifiés et admins
+        "can_publish_articles": bool(current_user.is_admin) or "Doctorant" in badges,
 
         # Parcours d'accueil après l'inscription
         "onboarding_done": current_user.onboarding_completed_at is not None,

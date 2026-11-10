@@ -386,7 +386,7 @@
     ACTUS_URL: "https://navire-ai.com/actus"  // page Actus (une actu enregistrée s'y ouvre : ?actu=ID)
   };
   // Visuel de chaque type d'élément (servi par GET /assets/{nom}, app/routers/assets.py)
-  var ART = { pdf: "files-cristal.png", actu: "files-diamant.png", folder: "home-fichiers.png", lib: "home-cours.png" };
+  var ART = { pdf: "files-cristal.png", actu: "files-diamant.png", folder: "home-fichiers.png", lib: "home-cours.png", article: "NAVIRE_Articles_icon.png" };
 
   var root = document.getElementById("nv-files");
   var S = {
@@ -473,7 +473,7 @@
   // Icône d'un élément : son visuel NAVIRE (PDF et copies : cristal ; enregistrés : diamant).
   function nodeIcon(n, size) {
     size = size || 15;
-    var k = n.type === "folder" || n.type === "actu" || n.type === "lib" ? n.type : "pdf";
+    var k = n.type === "actu" && n.meta && n.meta.kind === "article" ? "article" : n.type === "folder" || n.type === "actu" || n.type === "lib" ? n.type : "pdf";
     return '<span class="fx-art" aria-hidden="true" style="width:' + size + 'px;height:' + size + 'px;background-image:url(&quot;' + CONFIG.API + '/assets/' + ART[k] + '&quot;)"></span>';
   }
   function hydrateIcons(scope) {
@@ -924,7 +924,7 @@
         }).catch(function (er) { toast(er.message, "err"); });
         break;
       case "study": go(CONFIG.SITE + IDX[id].node.study); break;
-      case "actus": var an = IDX[id].node, num = String(an.link || an.id).match(/(\d+)$/); go(CONFIG.ACTUS_URL + (num ? "?actu=" + num[1] : "")); break;
+      case "actus": var an = IDX[id].node, num = String(an.link || an.id).match(/(\d+)$/); go(an.meta && an.meta.kind === "article" && an.meta.url ? an.meta.url : CONFIG.ACTUS_URL + (num ? "?actu=" + num[1] : "")); break;
       case "go": go(CONFIG.SITE + t.getAttribute("data-link")); break;
       case "login": go(CONFIG.LOGIN_URL); break;
       case "retry": fetchAll(); break;

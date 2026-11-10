@@ -208,6 +208,17 @@
 #nv-profil .pf-bar i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, var(--blue-deep), var(--blue-hi)); transition: width .5s var(--ease); }
 #nv-profil .pf-stats-foot { margin: 10px 4px 0; font-size: 12px; color: var(--text-3); line-height: 1.5; }
 #nv-profil .pf-stats-foot b { color: var(--text-2); font-weight: 600; }
+/* Doctorant : nombre d'articles publiés, en petit sous les 4 statistiques */
+#nv-profil .pf-articles-line { display: inline-flex; align-items: center; gap: 7px; margin: 10px 4px 0; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; color: var(--text-3); cursor: pointer; text-decoration: none; }
+#nv-profil .pf-articles-line:hover { color: var(--text-2); }
+#nv-profil .pf-articles-line b { color: var(--text-2); font-weight: 600; }
+#nv-profil .pf-art-ic { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 2px 5px rgba(120,70,255,0.35)); }
+#nv-profil .pf-post-title .pf-art-ic { width: 15px; height: 15px; vertical-align: -2px; margin-right: 6px; }
+#nv-profil .pf-tag.art { background: rgba(155,111,255,0.14); color: #CDB8FF; }
+#nv-profil .pf-post-save { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--text-3); cursor: pointer; }
+#nv-profil .pf-post-save:hover, #nv-profil .pf-post-save.is-on { color: var(--blue); }
+#nv-profil .pf-post-save svg { width: 13px; height: 13px; }
+#nv-profil .pf-post-save.is-on svg { fill: currentColor; }
 #nv-profil .pf-locked { display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: 16px; background: var(--panel); }
 #nv-profil .pf-locked-ico { width: 40px; height: 40px; border-radius: 12px; background: var(--panel-2); display: flex; align-items: center; justify-content: center; color: var(--text-3); }
 #nv-profil .pf-locked-ico svg { width: 18px; height: 18px; }
@@ -464,7 +475,7 @@
       <div data-el="stats"></div>
     </section>
 
-    <div class="pf-tabs-bar"><div class="pf-tab-static">Posts de veille<small data-el="posts-count"></small></div></div>
+    <div class="pf-tabs-bar"><div class="pf-tab-static">Posts et articles<small data-el="posts-count"></small></div></div>
     <div class="pf-posts" data-el="posts"></div>
     <div class="pf-more is-hidden" data-el="more"><button class="pf-btn" data-act="more">Voir plus</button></div>
   </div>
@@ -583,6 +594,7 @@
     API: 'https://navire-app-api.onrender.com',
     OFFRES_URL: 'https://navire-ai.com/offres',   // « Voir les offres » d'un compte gratuit
     ACTUS_URL: 'https://navire-ai.com/actus',     // page de la veille : ?actu=<id> ouvre une actu
+    ARTICLE_URL: 'https://navire-ai.com/actus/NA', // + id : adresse d'un article
     PLANS: { membre: 'Membre', 'membre+': 'Membre+', prepa: 'Prépa' }
   };
   var API = CONFIG.API;
@@ -700,6 +712,7 @@
     doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M14 2v6h6"/></svg>',
     wave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>',
     out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>',
+    save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>',
     read: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>'
   };
@@ -863,7 +876,7 @@
 
     if (!S.stats) {
       box.innerHTML = '<div class="pf-locked"><div class="pf-locked-ico">' + ICON.lock + '</div>' +
-        '<div><b>Profil privé</b><span>' + esc(S.user.username || 'Cet élève') + ' garde ses statistiques pour lui.</span></div></div>';
+        '<div><b>Profil privé</b><span>' + esc(S.user.username || 'Cet élève') + ' garde ses statistiques pour lui.</span></div></div>' + articlesLine();
       return;
     }
     var st = S.stats;
@@ -883,7 +896,17 @@
         tile(art('profil-qcm.png'), String(rate).replace('.', ',') + ' %', 'réussite QCM · ' + fmtInt(qcm.total_sessions) + ' session' + ((qcm.total_sessions || 0) > 1 ? 's' : ''), Math.round(rate)) +
         tile(art('home-fichiers.png'), docsVal, 'documents', docsPct, true) +
         tile(art('profil-deepwork.png'), sessions ? esc(dw.total_label || '0 min') : '0 min', 'deep work · ' + fmtInt(sessions) + ' session' + (sessions > 1 ? 's' : '') + ' Discord') +
-      '</div>' + deepworkFoot(dw);
+      '</div>' + articlesLine() + deepworkFoot(dw);
+  }
+
+  // Doctorant (ou auteur d'articles) : nombre d'articles publiés, sous les
+  // statistiques sans toucher à la grille. Un clic descend aux posts.
+  function articlesLine() {
+    var n = S.user.articles_count || 0;
+    if (!S.user.is_doctorant && !n) return '';
+    return '<div><button class="pf-articles-line" data-act="to-posts">' +
+      '<img class="pf-art-ic" src="' + API + '/assets/NAVIRE_Articles_icon.png" alt="" aria-hidden="true">' +
+      '<span><b>' + fmtInt(n) + '</b> article' + (n > 1 ? 's' : '') + ' publié' + (n > 1 ? 's' : '') + (S.user.is_doctorant ? ' · Doctorant' : '') + '</span></button></div>';
   }
 
   // Visuel d'une statistique, servi par GET /assets/{nom}
@@ -913,7 +936,14 @@
   // ================= POSTS DE VEILLE =================
   function actuUrl(id) { return CONFIG.ACTUS_URL + (CONFIG.ACTUS_URL.indexOf('?') < 0 ? '?' : '&') + 'actu=' + encodeURIComponent(id); }
 
+  function postUrl(it) { return it.kind === 'article' ? (it.url || CONFIG.ARTICLE_URL + it.id) : actuUrl(it.id); }
+  function saveBtnHtml(it) {
+    if (!token) return '';
+    return '<button class="pf-post-save' + (it.is_saved ? ' is-on' : '') + '" data-act="post-save" data-id="' + it.id + '" aria-pressed="' + !!it.is_saved + '">' + ICON.save + (it.is_saved ? 'Enregistré' : 'Enregistrer') + '</button>';
+  }
+
   function postHtml(it, i) {
+    var art = it.kind === 'article';
     var a = it.author || { name: S.user.username, avatar_url: S.user.avatar_url };
     var av = a.avatar_url
       ? '<div class="pf-post-av" style="background-image:url(&quot;' + esc(a.avatar_url) + '&quot;)"></div>'
@@ -923,17 +953,34 @@
         '<div class="pf-post-top"><b>' + esc(a.name || '') + '</b>' +
           (a.role ? '<span class="pf-tag">' + esc(a.role) + '</span>' : '') +
           '<span>· ' + esc(relDate(it.published_at)) + '</span>' +
-          (it.category_label ? '<span class="pf-tag blue" style="margin-left:auto">' + esc(it.category_label) + '</span>' : '') +
+          (art ? '<span class="pf-tag art" style="margin-left:auto">Article</span>' : '') +
+          (it.category_label ? '<span class="pf-tag blue"' + (art ? '' : ' style="margin-left:auto"') + '>' + esc(it.category_label) + '</span>' : '') +
         '</div>' +
-        '<h3 class="pf-post-title"><a href="' + esc(actuUrl(it.id)) + '" target="_top">' + esc(it.title) + '</a></h3>' +
+        '<h3 class="pf-post-title"><a href="' + esc(postUrl(it)) + '" target="_top">' + (art ? '<img class="pf-art-ic" src="' + API + '/assets/NAVIRE_Articles_icon.png" alt="" aria-hidden="true">' : '') + esc(it.title) + '</a></h3>' +
         (it.essentiel ? '<p class="pf-post-text">' + esc(it.essentiel) + '</p>' : '') +
         (it.impact ? '<p class="pf-post-impact"><b>Pourquoi c\'est important · </b>' + esc(it.impact) + '</p>' : '') +
         '<div class="pf-post-foot">' +
-          '<a href="' + esc(actuUrl(it.id)) + '" target="_top">' + ICON.read + 'Lire · ' + (it.reading_minutes || 1) + ' min</a>' +
-          (it.source_url ? '<a href="' + safeUrl(it.source_url) + '" target="_blank" rel="noopener">' + ICON.out + esc(it.source_name || 'Source') + '</a>' : '') +
+          '<a href="' + esc(postUrl(it)) + '" target="_top">' + ICON.read + (art ? 'Lire l\'article · ' : 'Lire · ') + (it.reading_minutes || 1) + ' min</a>' +
+          (!art && it.source_url ? '<a href="' + safeUrl(it.source_url) + '" target="_blank" rel="noopener">' + ICON.out + esc(it.source_name || 'Source') + '</a>' : '') +
+          saveBtnHtml(it) +
           (it.essentiel || it.impact ? '<button class="pf-post-toggle" data-act="post-toggle" aria-expanded="false">Voir plus</button>' : '') +
         '</div>' +
       '</div></article>';
+  }
+
+  // Enregistrer un post (actu ou article) : il rejoint « À relire » dans Actus
+  // et « Enregistrées » dans Fichiers.
+  function togglePostSave(btn) {
+    var id = +btn.getAttribute('data-id');
+    var it = S.posts.filter(function (p) { return p.id === id; })[0] || {};
+    var on = !it.is_saved;
+    btn.disabled = true;
+    api(on ? 'PUT' : 'DELETE', '/veille/actus/' + id + '/save').then(function () {
+      it.is_saved = on;
+      btn.classList.toggle('is-on', on);
+      btn.setAttribute('aria-pressed', on);
+      btn.innerHTML = ICON.save + (on ? 'Enregistré' : 'Enregistrer');
+    }).catch(function () {}).then(function () { btn.disabled = false; });
   }
 
   function renderPosts() {
@@ -1575,6 +1622,8 @@
       case 'close': closeEdit(); break;
       case 'save': saveProfile(btn); break;
       case 'more': loadMorePosts(btn); break;
+      case 'to-posts': var pb = $('posts'); if (pb && pb.scrollIntoView) pb.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
+      case 'post-save': togglePostSave(btn); break;
       case 'post-toggle':
         var post = btn.closest('.pf-post'), open = !post.classList.contains('is-open');
         post.classList.toggle('is-open', open);
