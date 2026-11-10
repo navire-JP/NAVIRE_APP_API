@@ -20,7 +20,10 @@ Professeur (embeds/professeurs.html, rubrique « Épreuves ») :
   GET    /lib/prepa/epreuves/sessions/{id}/sujet   le PDF du sujet (épreuve commencée)
   POST   /lib/prepa/epreuves/sessions/{id}/rendre  la copie (.docx / .pdf) : devient un
                                                devoir, corrigé par le professeur du groupe
-  POST   /lib/prepa/epreuves/sessions/{id}/abandonner
+  PUT    /lib/prepa/epreuves/sessions/{id}/brouillon    la copie en cours de saisie
+                                               dans NAVIRE (écran blanc), au fil de l'eau
+  POST   /lib/prepa/epreuves/sessions/{id}/rendre-texte la copie saisie dans NAVIRE
+  POST   /lib/prepa/epreuves/sessions/{id}/abandonner   (quitter l'écran d'épreuve)
 
 Règles :
   - Une épreuve planifiée se commence entre ouvre_le et ferme_le (la
@@ -31,6 +34,9 @@ Règles :
     remet pas à zéro.
   - La copie peut être rendue après la fin du chrono : elle est marquée
     « rendue en retard » (minutes de retard), sans être refusée.
+  - L'étudiant écrit sa copie dans NAVIRE, sur un écran blanc : quitter la
+    page abandonne l'épreuve (POST …/abandonner, envoyé par l'embed). Une
+    épreuve abandonnée ne se reprend plus et ne se rend plus.
   - Entraînement libre : l'étudiant choisit le type, la matière (une de ses
     matières, pour que la copie parte au bon professeur) et son sujet.
 """
@@ -411,7 +417,32 @@ def ma_session(session_id: int, db: Session = Depends(get_db), user: User = Depe
     row = session_row(s)
     e = db.get(PrepaEpreuve, s.epreuve_id) if s.epreuve_id else None
     row["sujet_pdf"] = bool(e and e.sujet_path)
+    row["brouillon"] = s.brouillon if not s.rendu_le and not s.abandonnee else None
     return row
+
+
+def _modifiable(s: PrepaEpreuveSession) -> None:
+    if s.rendu_le:
+        raise HTTPException(400, detail="Copie déjà rendue.")
+    if s.abandonnee:
+        raise HTTPException(400, detail="Épreuve abandonnée : tu as quitté l'écran d'épreuve.")
+
+
+class BrouillonIn(BaseModel):
+    blocs: list = Field(default_factory=list, max_length=3000)
+    notes: str = Field("", max_length=SUJET_MAX)
+
+
+@eleve_router.put("/sessions/{session_id}/brouillon")
+def enregistrer_brouillon(session_id: int, payload: BrouillonIn, db: Session = Depends(get_db),
+                          user: User = Depends(get_current_user)):
+    """La copie en cours de saisie, enregistrée au fil de l'eau (un incident
+    réseau ou une panne ne fait pas perdre le travail)."""
+    s = _ma_session(db, user, session_id)
+    _modifiable(s)
+    s.brouillon = {"blocs": payload.blocs, "notes": payload.notes, "saved_at": iso(utcnow())}
+    db.commit()
+    return {"ok": True, "saved_at": s.brouillon["saved_at"]}
 
 
 @eleve_router.get("/sessions/{session_id}/sujet")
@@ -425,6 +456,8 @@ def abandonner(session_id: int, db: Session = Depends(get_db), user: User = Depe
     s = _ma_session(db, user, session_id)
     if s.rendu_le:
         raise HTTPException(400, detail="Copie déjà rendue.")
+    if s.abandonnee:
+        return session_row(s)
     s.abandonnee = True
     db.commit()
     return session_row(s)
@@ -442,18 +475,52 @@ async def rendre(
     from app.routers.lib_prepa import deposer_devoir
 
     s = _ma_session(db, user, session_id)
-    if s.rendu_le:
-        raise HTTPException(400, detail="Copie déjà rendue.")
+    _modifiable(s)
     now = utcnow()
-    duree = int((min(now, fin_session(s)) - aware(s.started_at)).total_seconds() // 60)
-    mot = (f"Épreuve chronométrée · {TYPES.get(s.type, (s.type,))[0]} · {duree} min sur {s.duree_minutes}"
-           + (f" · rendue {int((now - fin_session(s)).total_seconds() // 60)} min après la fin" if now > fin_session(s) else ""))
+    mot = _mot(s, now)
     row = await deposer_devoir(
         background=background, file=file, matiere_key=s.matiere_key, titre=s.titre,
         message=(mot + ("\n\n" + message.strip() if message.strip() else ""))[:4000], db=db, user=user,
     )
     s = db.get(PrepaEpreuveSession, session_id)
-    s.rendu_le, s.devoir_id, s.abandonnee = now, row["id"], False
+    s.rendu_le, s.devoir_id, s.brouillon = now, row["id"], None
+    db.commit()
+    return {"session": session_row(s, avec_sujet=False), "devoir": row}
+
+
+def _mot(s: PrepaEpreuveSession, now: datetime, sorties: int = 0) -> str:
+    """Mot joint à la copie pour le correcteur : temps passé, retard, sorties de l'écran."""
+    duree = int((min(now, fin_session(s)) - aware(s.started_at)).total_seconds() // 60)
+    mot = f"Épreuve chronométrée · {TYPES.get(s.type, (s.type,))[0]} · {duree} min sur {s.duree_minutes}"
+    if now > fin_session(s):
+        mot += f" · rendue {int((now - fin_session(s)).total_seconds() // 60)} min après la fin"
+    if sorties:
+        mot += f" · {sorties} sortie{'s' if sorties > 1 else ''} de l'écran d'épreuve"
+    return mot
+
+
+class RenduTexteIn(BaseModel):
+    blocs: list = Field(default_factory=list, max_length=3000)
+    message: str = Field("", max_length=3000)
+    sorties: int = Field(0, ge=0, le=10000)
+
+
+@eleve_router.post("/sessions/{session_id}/rendre-texte")
+def rendre_texte(session_id: int, payload: RenduTexteIn, background: BackgroundTasks,
+                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """La copie saisie dans NAVIRE : elle devient un devoir, comme un fichier déposé."""
+    from app.routers.lib_prepa import creer_devoir, ecrire_saisie
+
+    s = _ma_session(db, user, session_id)
+    _modifiable(s)
+    now = utcnow()
+    meta, contenu = ecrire_saisie(user, s.titre, payload.blocs)
+    mot = _mot(s, now, payload.sorties)
+    row = creer_devoir(db, user, background, matiere_key=s.matiere_key, titre=s.titre,
+                       message=(mot + ("\n\n" + payload.message.strip() if payload.message.strip() else ""))[:4000],
+                       meta=meta, contenu=contenu)
+    s = db.get(PrepaEpreuveSession, session_id)
+    s.rendu_le, s.devoir_id, s.brouillon = now, row["id"], None
     db.commit()
     return {"session": session_row(s, avec_sujet=False), "devoir": row}
 

@@ -2435,6 +2435,9 @@ class PrepaEpreuveSession(Base):
         ForeignKey("prepa_adjuris_devoirs.id", ondelete="SET NULL"), nullable=True
     )
     abandonnee: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Copie en cours de saisie dans NAVIRE (écran d'épreuve) : {"blocs": [...],
+    # "notes": "…", "saved_at": iso}, enregistrée au fil de l'eau.
+    brouillon: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

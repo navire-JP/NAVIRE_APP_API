@@ -143,6 +143,74 @@ def mettre_en_forme(data: bytes, filename: str) -> dict:
     return {"blocs": b.blocks, "mots": sum(len(x["text"].split()) for x in b.blocks)}
 
 
+# Copie saisie dans NAVIRE (écran blanc de l'étudiant) : des blocs envoyés par
+# l'embed, {"t": "p|h|quote", "runs": [[texte, gras, italique]]}.
+SAISIE_TYPES = ("titre", "h", "p", "quote")
+SAISIE_BLOCS_MAX = 3000
+SAISIE_CARACTERES_MAX = 400_000
+
+
+def blocs_saisis(blocs) -> dict:
+    """Blocs saisis → {"blocs": [...], "mots": n}, au même format que la
+    mise en forme d'un fichier (ids c0, c1…, `text` = concaténation des runs).
+    ValueError si la copie est vide ou trop longue."""
+    if not isinstance(blocs, list):
+        raise ValueError("Copie illisible.")
+    if len(blocs) > SAISIE_BLOCS_MAX:
+        raise ValueError("Copie trop longue.")
+    out: list[dict] = []
+    total = 0
+    for b in blocs:
+        if not isinstance(b, dict):
+            continue
+        t = b.get("t") if b.get("t") in SAISIE_TYPES else "p"
+        runs = []
+        for r in b.get("runs") or []:
+            if isinstance(r, (list, tuple)) and r and isinstance(r[0], str):
+                runs.append([r[0], bool(r[1]) if len(r) > 1 else False, bool(r[2]) if len(r) > 2 else False])
+        rs = _runs_propres(runs)
+        if not rs:
+            continue
+        text = "".join(r[0] for r in rs)
+        total += len(text)
+        if total > SAISIE_CARACTERES_MAX:
+            raise ValueError("Copie trop longue.")
+        out.append({"id": f"c{len(out)}", "t": t, "runs": rs, "text": text})
+    if not out:
+        raise ValueError("La copie est vide.")
+    return {"blocs": out, "mots": sum(len(x["text"].split()) for x in out)}
+
+
+def docx_saisie(titre: str, c: dict) -> bytes:
+    """La copie saisie, en .docx : c'est le « fichier original » du devoir
+    (téléchargement, Mes fichiers), comme pour une copie déposée."""
+    import docx
+    from docx.shared import Pt
+
+    doc = docx.Document()
+    st = doc.styles["Normal"]
+    st.font.name = "Georgia"
+    st.font.size = Pt(11.5)
+    if titre:
+        doc.add_heading(titre, level=0)
+    for b in c.get("blocs") or []:
+        if b["t"] == "titre":
+            p = doc.add_heading("", level=1)
+        elif b["t"] == "h":
+            p = doc.add_heading("", level=2)
+        else:
+            p = doc.add_paragraph()
+            if b["t"] == "quote":
+                p.paragraph_format.left_indent = Pt(28)
+        for texte, gras, ital in b["runs"]:
+            r = p.add_run(texte)
+            r.bold = gras or None
+            r.italic = (ital or b["t"] == "quote") or None
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
 def contenu(db: Session, d: PrepaAdjurisDevoir) -> dict:
     """La copie mise en forme ; lue au premier besoin pour les copies déposées
     avant la mise en forme (ou dont la lecture a échoué)."""
@@ -258,6 +326,46 @@ def ajouter(db: Session, d: PrepaAdjurisDevoir, auteur: User, *, type: str, bloc
     db.commit()
     db.refresh(a)
     return a
+
+
+def remplacer_corrections(db: Session, d: PrepaAdjurisDevoir, auteur: User, bloc: str,
+                          corrections: list[dict]) -> list[PrepaAdjurisAnnotation]:
+    """Mode suggestion (le professeur écrit directement dans la copie) : les
+    corrections d'un paragraphe sont remplacées d'un coup par celles de
+    l'éditeur. Commentaires et surlignés ne bougent pas."""
+    b = _bloc(contenu(db, d), bloc)
+    if b is None or b.get("t") == "table":
+        raise HTTPException(400, detail="Passage introuvable dans la copie.")
+    n = len(b["text"])
+    propres: list[tuple[int, int, str]] = []
+    for c in corrections:
+        debut, fin, texte = int(c.get("debut", -1)), int(c.get("fin", -1)), (c.get("texte") or "")
+        if not (0 <= debut <= fin <= n):
+            raise HTTPException(400, detail="Positions hors du passage.")
+        if len(texte) > TEXTE_MAX:
+            raise HTTPException(400, detail=f"Texte trop long ({TEXTE_MAX} caractères au plus).")
+        if debut == fin and not texte:
+            continue                                  # insertion vide : rien à garder
+        for (d2, f2, _) in propres:
+            if _chevauche((debut, fin), (d2, f2)):
+                raise HTTPException(409, detail="Deux corrections se chevauchent dans ce passage.")
+        propres.append((debut, fin, texte))
+    for a in list(d.annotations):
+        if a.type == "correction" and a.bloc == bloc:
+            d.annotations.remove(a)
+            db.delete(a)
+    nouvelles = []
+    for debut, fin, texte in sorted(propres):
+        a = PrepaAdjurisAnnotation(
+            devoir_id=d.id, auteur_id=auteur.id, type="correction", bloc=bloc, debut=debut, fin=fin,
+            citation=b["text"][debut:fin], texte=texte,
+        )
+        db.add(a)
+        nouvelles.append(a)
+    db.commit()
+    for a in nouvelles:
+        db.refresh(a)
+    return nouvelles
 
 
 # ============================================================

@@ -21,6 +21,7 @@ Professeur (auth NAVIRE, attaché par un admin) :
   PATCH  /professeurs/devoirs/{id}               → commentaire, note (copie « corrigée »)
   POST   /professeurs/devoirs/{id}/correction    → joindre une copie corrigée (PDF)
   GET    /professeurs/devoirs/{id}/correction
+  PUT    /professeurs/devoirs/{id}/corrections   → mode suggestion : corrections d'un paragraphe
   DELETE /professeurs/devoirs/{id}/correction
   GET    /professeurs/embed                      → page d'embed servie par l'API
 
@@ -474,6 +475,29 @@ def annoter(devoir_id: int, payload: AnnotationIn, db: Session = Depends(get_db)
     a = csvc.ajouter(db, d, acces[0], type=payload.type, bloc=payload.bloc, debut=payload.debut,
                      fin=payload.fin, texte=payload.texte)
     return csvc.annotation_row(db, a)
+
+
+class SuggestionIn(BaseModel):
+    debut: int = Field(..., ge=0)
+    fin: int = Field(..., ge=0)
+    texte: str = Field("", max_length=csvc.TEXTE_MAX)
+
+
+class CorrectionsBlocIn(BaseModel):
+    bloc: str = Field(..., max_length=16)
+    corrections: list[SuggestionIn] = Field(default_factory=list, max_length=500)
+
+
+@router.put("/devoirs/{devoir_id}/corrections")
+def remplacer_corrections(devoir_id: int, payload: CorrectionsBlocIn, db: Session = Depends(get_db),
+                          acces=Depends(require_correcteur)):
+    """Mode suggestion : le professeur écrit dans la copie comme dans un
+    traitement de texte ; l'embed renvoie, paragraphe par paragraphe, toutes
+    ses corrections (passages barrés, remplacés, ajouts)."""
+    d = _devoir_a_corriger(db, acces, devoir_id)
+    nouvelles = csvc.remplacer_corrections(db, d, acces[0], payload.bloc, [c.model_dump() for c in payload.corrections])
+    noms: dict = {}
+    return {"bloc": payload.bloc, "corrections": [csvc.annotation_row(db, a, noms) for a in nouvelles]}
 
 
 @router.patch("/annotations/{annotation_id}")

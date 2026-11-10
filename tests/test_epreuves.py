@@ -91,3 +91,29 @@ def test_entrainement_libre(monde):
     assert c.post(f"/lib/prepa/epreuves/sessions/{s['id']}/abandonner", headers=alice).json()["statut"] == "abandonnee"
     assert c.get(f"/lib/prepa/epreuves/sessions/{s['id']}", headers=_headers(monde["zoe"])).status_code == 404
     _nettoyer_epreuves()
+
+
+def test_epreuve_saisie_dans_navire(monde):
+    """L'étudiant écrit sa copie dans NAVIRE : brouillon enregistré, copie
+    rendue en texte ; quitter l'écran abandonne l'épreuve."""
+    _nettoyer_epreuves()
+    c, alice = monde["c"], _headers(monde["alice"])
+    s = c.post("/lib/prepa/epreuves/sessions", headers=alice, json={"type": "fiche_arret", "matiere_key": MATIERE}).json()
+    blocs = [{"t": "p", "runs": [["Faits : un vendeur…", False, False]]}]
+    r = c.put(f"/lib/prepa/epreuves/sessions/{s['id']}/brouillon", headers=alice, json={"blocs": blocs, "notes": "plan"})
+    assert r.status_code == 200 and r.json()["saved_at"]
+    g = c.get(f"/lib/prepa/epreuves/sessions/{s['id']}", headers=alice).json()
+    assert g["brouillon"]["blocs"] == blocs and g["brouillon"]["notes"] == "plan"
+    r = c.post(f"/lib/prepa/epreuves/sessions/{s['id']}/rendre-texte", headers=alice, json={"blocs": blocs, "sorties": 2})
+    assert r.status_code == 200, r.text
+    assert r.json()["session"]["statut"] == "rendue"
+    assert "2 sorties de l'écran" in r.json()["devoir"]["message"]
+    assert c.get(f"/lib/prepa/epreuves/sessions/{s['id']}", headers=alice).json()["brouillon"] is None
+
+    # Quitter la page = abandon : plus de brouillon ni de rendu
+    s2 = c.post("/lib/prepa/epreuves/sessions", headers=alice, json={"type": "commentaire", "matiere_key": MATIERE}).json()
+    assert c.post(f"/lib/prepa/epreuves/sessions/{s2['id']}/abandonner", headers=alice).json()["statut"] == "abandonnee"
+    assert c.post(f"/lib/prepa/epreuves/sessions/{s2['id']}/abandonner", headers=alice).status_code == 200
+    assert c.put(f"/lib/prepa/epreuves/sessions/{s2['id']}/brouillon", headers=alice, json={"blocs": blocs}).status_code == 400
+    assert c.post(f"/lib/prepa/epreuves/sessions/{s2['id']}/rendre-texte", headers=alice, json={"blocs": blocs}).status_code == 400
+    _nettoyer_epreuves()

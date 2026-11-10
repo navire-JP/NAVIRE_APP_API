@@ -141,3 +141,55 @@ def test_cours_suivis_et_seance_deplacee(monde):
     seance = next(x for x in c.get("/lib/prepa", headers=alice).json()["seances"] if x["id"] == sid)
     assert seance["date_initiale"] is None
     assert v["facturation"][0]["matiere_key"] == MATIERE
+
+
+def test_copie_saisie_et_mode_suggestion(monde):
+    """Copie rédigée dans NAVIRE (sans fichier), corrigée en mode suggestion
+    (le professeur écrit dans la copie), visible dans Mes copies (Fichiers)."""
+    c, P, alice = monde["c"], _headers(monde["prof"]), _headers(monde["alice"])
+    blocs = [
+        {"t": "h", "runs": [["Introduction", True, False]]},
+        {"t": "p", "runs": [["La coutume  est ", False, False], ["une source", False, True], [" du droit.", False, False]]},
+        {"t": "p", "runs": [["   ", False, False]]},
+    ]
+    assert c.post("/lib/prepa/devoirs/texte", headers=alice, json={"matiere_key": MATIERE, "blocs": []}).status_code == 422
+    assert c.post("/lib/prepa/devoirs/texte", headers=alice,
+                  json={"matiere_key": "L1_droit_constit", "blocs": blocs}).status_code == 403
+    r = c.post("/lib/prepa/devoirs/texte", headers=alice, json={"matiere_key": MATIERE, "titre": "Galop", "blocs": blocs})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["titre"] == "Galop" and d["filename_original"].endswith(".docx")
+
+    v = c.get(f"/professeurs/devoirs/{d['id']}/copie", headers=P).json()
+    assert [b["t"] for b in v["blocs"]] == ["h", "p"]
+    p = v["blocs"][1]
+    assert p["text"] == "La coutume est une source du droit."
+    # Le fichier original (.docx) se télécharge comme une copie déposée
+    assert c.get(f"/professeurs/devoirs/{d['id']}/download", headers=P).status_code == 200
+
+    # Mode suggestion : les corrections d'un paragraphe remplacées d'un coup
+    i = p["text"].index("une source")
+    put = lambda corr: c.put(f"/professeurs/devoirs/{d['id']}/corrections", headers=P,  # noqa: E731
+                             json={"bloc": p["id"], "corrections": corr})
+    assert put([{"debut": 0, "fin": 5, "texte": ""}, {"debut": 3, "fin": 8, "texte": ""}]).status_code == 409
+    r = put([{"debut": i, "fin": i + 3, "texte": "la"}, {"debut": len(p["text"]), "fin": len(p["text"]), "texte": " Toujours ?"}])
+    assert r.status_code == 200, r.text
+    assert [(x["citation"], x["texte"]) for x in r.json()["corrections"]] == [("une", "la"), ("", " Toujours ?")]
+    # Un commentaire n'est pas touché par le remplacement des corrections
+    assert c.post(f"/professeurs/devoirs/{d['id']}/annotations", headers=P,
+                  json={"type": "commentaire", "bloc": p["id"], "debut": 0, "fin": 10, "texte": "Définis."}).status_code == 200
+    assert put([{"debut": i, "fin": i + 3, "texte": "la"}]).status_code == 200
+    anns = c.get(f"/professeurs/devoirs/{d['id']}/copie", headers=P).json()["annotations"]
+    assert sorted(a["type"] for a in anns) == ["commentaire", "correction"]
+
+    # Rien pour l'étudiant avant la correction rendue ; ensuite, la copie
+    # corrigée est dans Mes copies (Fichiers), en PDF avec les révisions.
+    assert c.get(f"/lib/prepa/devoirs/{d['id']}/copie", headers=alice).json()["annotations"] == []
+    assert c.patch(f"/professeurs/devoirs/{d['id']}", headers=P, json={"statut": "corrige", "note": "13/20"}).status_code == 200
+    assert len(c.get(f"/lib/prepa/devoirs/{d['id']}/copie", headers=alice).json()["annotations"]) == 2
+    secs = {s["id"]: s for s in c.get("/files/explorer", headers=alice).json()["sections"]}
+    items = [x for f in secs["devoirs"]["items"] for x in f["children"]]
+    item = next(x for x in items if x["id"] == f"d-{d['id']}")
+    assert item["label"] == "Galop (corrigée)" and item["src"].endswith("/export?format=pdf")
+    pdf = c.get(item["src"], headers=alice)
+    assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF"

@@ -172,6 +172,8 @@ _STATEMENTS: list[str] = [
     # create_all.
     "ALTER TABLE prepa_adjuris_seances ADD COLUMN IF NOT EXISTS date_initiale TIMESTAMPTZ",
     "ALTER TABLE prepa_adjuris_devoirs ADD COLUMN IF NOT EXISTS contenu JSON",
+    # ── Copies saisies dans NAVIRE (écran d'épreuve) : brouillon enregistré.
+    "ALTER TABLE prepa_epreuve_sessions ADD COLUMN IF NOT EXISTS brouillon JSON",
 ]
 
 

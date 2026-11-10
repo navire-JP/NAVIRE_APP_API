@@ -10,6 +10,7 @@ Prép'AdJuris : elle n'apparaît que pour les étudiants inscrits à Prép'AdJur
                                                temps, cours Lib de la classe,
                                                devoirs rendus
   POST   /lib/prepa/devoirs                  → dépôt d'une copie (PDF)
+  POST   /lib/prepa/devoirs/texte            → copie saisie dans NAVIRE (écran blanc)
   GET    /lib/prepa/devoirs/{id}/fichier     → sa copie
   GET    /lib/prepa/devoirs/{id}/correction  → la copie corrigée par le professeur
   DELETE /lib/prepa/devoirs/{id}             → retrait (tant qu'elle n'est pas corrigée)
@@ -53,6 +54,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File as FastAPIFile, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -491,12 +493,21 @@ async def deposer_devoir(
         delete_prepa_file(meta["path"])
         raise HTTPException(422, detail=str(e) if isinstance(e, ValueError) else
                             "Ce fichier n'a pas pu être lu : dépose un .docx ou un PDF texte.")
+    return creer_devoir(db, user, background, matiere_key=matiere_key,
+                        titre=(titre.strip() or Path(meta["filename_original"]).stem or "Copie"),
+                        message=message, meta=meta, contenu=contenu)
+
+
+def creer_devoir(db: Session, user: User, background: BackgroundTasks, *, matiere_key: str, titre: str,
+                 message: str, meta: dict, contenu: dict) -> dict:
+    """Enregistre la copie (fichier déjà écrit, contenu mis en forme) et
+    prévient les professeurs du groupe."""
     d = PrepaAdjurisDevoir(
         user_id=user.id,
         matiere_key=matiere_key,
         classe_id=dsvc.groupe_pour(db, user.id, matiere_key),
-        titre=(titre.strip() or Path(meta["filename_original"]).stem or "Copie")[:200],
-        message=message.strip()[:4000],
+        titre=(titre.strip() or "Copie")[:200],
+        message=(message or "").strip()[:4000],
         filename_original=meta["filename_original"][:255],
         filename_stored=meta["filename_stored"],
         path=meta["path"],
@@ -513,6 +524,43 @@ async def deposer_devoir(
             PREPA_MATIERE_NAMES.get(matiere_key, matiere_key), d.titre,
         )
     return dsvc.devoir_row(db, d)
+
+
+def ecrire_saisie(user: User, titre: str, blocs) -> tuple[dict, dict]:
+    """Copie saisie dans NAVIRE → (meta du .docx écrit sur le disque, contenu)."""
+    from uuid import uuid4
+
+    try:
+        contenu = csvc.blocs_saisis(blocs)
+    except ValueError as e:
+        raise HTTPException(422, detail=str(e))
+    data = csvc.docx_saisie(titre, contenu)
+    dest = DEVOIRS_DIR / str(user.id)
+    dest.mkdir(parents=True, exist_ok=True)
+    nom = f"{uuid4().hex}.docx"
+    (dest / nom).write_bytes(data)
+    base = "".join(ch for ch in (titre or "copie") if ch.isalnum() or ch in " -_").strip()[:80] or "copie"
+    return {"filename_original": f"{base}.docx", "filename_stored": nom, "path": str(dest / nom),
+            "size_bytes": len(data)}, contenu
+
+
+class CopieSaisieIn(BaseModel):
+    matiere_key: str = Field(..., max_length=64)
+    titre: str = Field("", max_length=200)
+    message: str = Field("", max_length=4000)
+    blocs: list = Field(default_factory=list)
+
+
+@router.post("/devoirs/texte")
+def deposer_copie_saisie(payload: CopieSaisieIn, background: BackgroundTasks,
+                         db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Copie rédigée directement dans NAVIRE (écran blanc, sans fichier)."""
+    if payload.matiere_key not in matieres_actives(db, user):
+        raise HTTPException(403, detail="Tu n'es pas inscrit à cette matière.")
+    titre = payload.titre.strip() or "Copie"
+    meta, contenu = ecrire_saisie(user, titre, payload.blocs)
+    return creer_devoir(db, user, background, matiere_key=payload.matiere_key, titre=titre,
+                        message=payload.message, meta=meta, contenu=contenu)
 
 
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
