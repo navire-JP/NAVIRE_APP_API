@@ -29,16 +29,23 @@ TIERS: dict[str, dict] = {
         "emoji": "🧠",
         "description": "Explications de cours, cas pratiques",
         "cost": 1,
-        "model": os.getenv("OPENAI_MODEL_NAVIRE_AVANCE", "gpt-4.1"),
+        "model": os.getenv("OPENAI_MODEL_NAVIRE_AVANCE", "gpt-5-mini"),
         "max_tokens": 2000,
+        # Modèle à raisonnement : le raisonnement consomme aussi ce budget.
+        "reasoning_tokens": 6000,
+        # Si le modèle choisi est retiré ou indisponible sur le compte OpenAI,
+        # on essaie ceux-ci, dans l'ordre (voir candidates()).
+        "fallbacks": ["gpt-5-mini", "gpt-4.1", "gpt-4o"],
     },
     "expert": {
         "label": "Expert",
         "emoji": "🎓",
         "description": "Plans de dissertation, commentaires, raisonnements longs",
         "cost": 4,
-        "model": os.getenv("OPENAI_MODEL_NAVIRE_EXPERT", "o4-mini"),
+        "model": os.getenv("OPENAI_MODEL_NAVIRE_EXPERT", "gpt-5"),
         "max_tokens": 6000,
+        "reasoning_tokens": 12000,
+        "fallbacks": ["gpt-5", "gpt-5-mini", "gpt-4.1", "gpt-4o"],
     },
 }
 
@@ -48,6 +55,50 @@ def get_tier(tier_id: str | None) -> tuple[str, dict]:
     if tid not in TIERS:
         tid = DEFAULT_TIER
     return tid, TIERS[tid]
+
+
+# Modèle qui a répondu pour chaque niveau : évite de retenter à chaque
+# question un modèle retiré (remis à zéro au redémarrage du serveur).
+_WORKING: dict[str, str] = {}
+_DEAD: set[str] = set()
+
+
+def candidates(tier_id: str) -> list[str]:
+    """
+    Modèles à essayer pour un niveau, dans l'ordre : celui qui a déjà marché,
+    celui de la variable d'environnement, les replis du niveau. Le modèle
+    Rapide n'est PAS dans la liste : un niveau payant ne se dégrade pas en
+    silence (la route signale l'erreur, sans débit).
+    """
+    tid, conf = get_tier(tier_id)
+    out: list[str] = []
+    for m in [_WORKING.get(tid), conf["model"], *conf.get("fallbacks", [])]:
+        if m and m not in out and m not in _DEAD:
+            out.append(m)
+    return out or [conf["model"]]
+
+
+def mark_working(tier_id: str, model: str) -> None:
+    _WORKING[tier_id] = model
+
+
+def mark_dead(model: str) -> None:
+    _DEAD.add(model)
+
+
+def is_model_unavailable(exc: Exception) -> bool:
+    """Erreur OpenAI « modèle retiré / inconnu / non autorisé pour ce compte »."""
+    text = str(exc).lower()
+    code = getattr(exc, "code", None) or ""
+    status = getattr(exc, "status_code", None)
+    return (
+        code in ("model_not_found",)
+        or "model_not_found" in text
+        or "has been deprecated" in text
+        or "does not exist" in text
+        or "do not have access to the model" in text
+        or (status == 404 and "model" in text)
+    )
 
 
 def is_reasoning_model(model: str) -> bool:

@@ -90,11 +90,13 @@ def test_avance_debite_un_credit_sans_toucher_au_quota(env, fake_openai):
 
 def test_expert_modele_a_raisonnement(env, fake_openai, monkeypatch):
     from app.core import navire_models
-    monkeypatch.setitem(navire_models.TIERS["expert"], "model", "o4-mini")
+    monkeypatch.setitem(navire_models.TIERS["expert"], "model", "gpt-5")
+    monkeypatch.setattr(navire_models, "_WORKING", {})
     r = env.c.post("/navire/chat", headers=env.auth, json={"message": "Plan de dissertation", "tier": "expert"})
     assert r.status_code == 200
     p = fake_openai[-1]
-    assert "temperature" not in p and p["max_completion_tokens"] == navire_models.TIERS["expert"]["max_tokens"]
+    assert p["model"] == "gpt-5"
+    assert "temperature" not in p and p["max_completion_tokens"] == navire_models.TIERS["expert"]["reasoning_tokens"]
     assert r.json()["credits"]["balance"] == 5
 
 
@@ -125,6 +127,32 @@ def test_bonus_admin(env):
     assert r.status_code == 200 and r.json()["bonus"] == 20
     d = env.c.get(f"/admin/users/{env.free}/credits", headers=env.admin).json()
     assert d["events"][0]["kind"] == "bonus" and d["balance"] == r.json()["balance"]
+
+
+def test_modele_retire_repli_automatique(env, monkeypatch):
+    """(Après le bonus admin : il reste des crédits.) o4-mini retiré par OpenAI : NAVIRE passe au modèle suivant du niveau."""
+    import app.services.navire_chat as nc
+    from app.core import navire_models
+
+    monkeypatch.setitem(navire_models.TIERS["avance"], "model", "o4-mini")
+    monkeypatch.setattr(navire_models, "_WORKING", {})
+    monkeypatch.setattr(navire_models, "_DEAD", set())
+    tried = []
+
+    def create(**params):
+        tried.append(params["model"])
+        if params["model"] == "o4-mini":
+            raise RuntimeError("Error code: 404 - The model o4-mini has been deprecated (model_not_found)")
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Réponse.", tool_calls=None))])
+
+    monkeypatch.setattr(nc._client.chat.completions, "create", create)
+    r = env.c.post("/navire/chat", headers=env.auth, json={"message": "Préjudice extrapatrimonial ?", "tier": "avance"})
+    assert r.status_code == 200, r.text
+    assert tried[:2] == ["o4-mini", "gpt-5-mini"]
+    assert r.json()["credits_spent"] == 1
+    # La question suivante va directement au modèle qui marche
+    env.c.post("/navire/chat", headers=env.auth, json={"message": "Encore", "tier": "avance"})
+    assert tried[-1] == "gpt-5-mini" and tried.count("o4-mini") == 1
 
 
 def test_modele_inconnu(env):
