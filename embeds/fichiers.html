@@ -470,10 +470,18 @@
     size = size || 15;
     return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 20 20" fill="none" stroke="' + (color || "currentColor") + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + (P[name] || "") + "</svg>";
   }
+  // Article NAVIRE (violet) plutôt qu'actu (diamant orange). Plusieurs indices,
+  // pour reconnaître aussi les articles servis par une API plus ancienne.
+  function isArticle(n) {
+    var m = n && n.type === "actu" && n.meta;
+    if (!m) return false;
+    return m.kind === "article" || /\/actus\/NA\d+/i.test(m.url || m.source_url || "") ||
+      m.source_name === "NAVIRE Articles" || /^Publié par /.test(m.source_name || "");
+  }
   // Icône d'un élément : son visuel NAVIRE (PDF et copies : cristal ; enregistrés : diamant).
   function nodeIcon(n, size) {
     size = size || 15;
-    var k = n.type === "actu" && n.meta && n.meta.kind === "article" ? "article" : n.type === "folder" || n.type === "actu" || n.type === "lib" ? n.type : "pdf";
+    var k = isArticle(n) ? "article" : n.type === "folder" || n.type === "actu" || n.type === "lib" ? n.type : "pdf";
     return '<span class="fx-art" aria-hidden="true" style="width:' + size + 'px;height:' + size + 'px;background-image:url(&quot;' + CONFIG.API + '/assets/' + ART[k] + '&quot;)"></span>';
   }
   function hydrateIcons(scope) {
@@ -924,7 +932,7 @@
         }).catch(function (er) { toast(er.message, "err"); });
         break;
       case "study": go(CONFIG.SITE + IDX[id].node.study); break;
-      case "actus": var an = IDX[id].node, num = String(an.link || an.id).match(/(\d+)$/); go(an.meta && an.meta.kind === "article" && an.meta.url ? an.meta.url : CONFIG.ACTUS_URL + (num ? "?actu=" + num[1] : "")); break;
+      case "actus": var an = IDX[id].node, num = String(an.link || an.id).match(/(\d+)$/); go(isArticle(an) ? (an.meta.url || an.meta.source_url) : CONFIG.ACTUS_URL + (num ? "?actu=" + num[1] : "")); break;
       case "go": go(CONFIG.SITE + t.getAttribute("data-link")); break;
       case "login": go(CONFIG.LOGIN_URL); break;
       case "retry": fetchAll(); break;

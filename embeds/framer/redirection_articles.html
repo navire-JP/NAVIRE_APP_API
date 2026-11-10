@@ -1,0 +1,24 @@
+<!--
+  NAVIRE — liens d'articles navire-ai.com/actus/NA<id>
+  ====================================================
+  Framer ne connaît pas les adresses /actus/NA12 : sans ce script, elles
+  tombent sur la page 404. Ce script les renvoie aussitôt vers la page Actus,
+  qui ouvre l'article (/actus?actu=NA12).
+
+  Où le coller : Framer → Site Settings → General → Custom Code →
+  « End of <body> tag » (il s'exécute alors sur toutes les pages, y compris
+  la page 404, et ne fait rien ailleurs).
+  Variante : un composant Embed (HTML) posé sur la page 404.
+-->
+<script>
+(function () {
+  try {
+    var w = window.top || window;
+    var m = w.location.pathname.match(/^\/actus\/(NA\d+)\/?$/i);
+    if (m) w.location.replace('/actus?actu=' + m[1].toUpperCase() + w.location.hash);
+  } catch (e) {
+    var m2 = window.location.pathname.match(/^\/actus\/(NA\d+)\/?$/i);
+    if (m2) window.location.replace('/actus?actu=' + m2[1].toUpperCase());
+  }
+})();
+</script>

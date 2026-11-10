@@ -24,6 +24,7 @@
 | `framer/Navire_Professeurs.tsx` | `/console` | Section « Prof. » importée par la console (professeurs, groupes, rémunération) |
 | `framer/Navire_Mails.tsx` | `/console` | Section « Mails » importée par la console : rédaction, destinataires par catégorie, PJ, aperçu signé, test, envoi Brevo |
 | `framer/Navire_Categories.tsx` | `/console` | Section « Catég. » importée par la console : universités et niveaux d'études de l'inscription, niveaux « à vérifier » (badge Doctorant), file des demandes de statut |
+| `framer/redirection_articles.html` | Site Settings → Custom Code | Renvoie les liens d'articles `/actus/NA<id>` (sinon en 404) vers `/actus?actu=NA<id>` |
 | `framer/FlashcardsApp.tsx` | page Flashcards | Decks, cartes, révision, génération depuis un PDF ; charte bleu et blanc. Code File `FlashcardsApp`, le composant remplit son cadre |
 
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
@@ -54,9 +55,15 @@ dans la console, onglet Catég. → Vérifs) et aux **admins**. Icône :
   listes, citation, emojis ; l'auteur ou un admin peut modifier ou supprimer.
   Chaque article montre qui l'a publié (photo, pseudo, rôle : Doctorant,
   Équipe NAVIRE…), avec un lien vers son profil.
-- **Adresse** : `navire-ai.com/actus/NA<id>`. Dans Framer, la page `/actus`
-  doit aussi répondre aux adresses `/actus/NA…` (l'embed lit le `NA<id>` en
-  fin d'adresse ; `?actu=NA<id>` marche aussi).
+- **Adresse** : `navire-ai.com/actus/NA<id>`. Framer ne connaît pas ces
+  adresses : coller `framer/redirection_articles.html` dans Site Settings →
+  Custom Code → « End of <body> tag ». Sur la page 404, il renvoie
+  `/actus/NA12` vers `/actus?actu=NA12`, que l'embed Actus ouvre.
+- **Écrire** : bouton violet « Écrire » dans la barre du haut d'Actus et
+  carte « Écrire un article » sur « À la une » et « Articles », visibles de
+  tous. Doctorant vérifié ou admin : l'éditeur s'ouvre. Sinon : demande du
+  statut Doctorant sur place (texte + attestation facultative), validée dans
+  la console ; l'élève voit ensuite « demande en cours ».
 - **Lib (`lib.html`)** : format « Articles » dans la bibliothèque (auteur,
   rubrique, durée de lecture) ; un clic ouvre l'article dans Actus.
 - **Profil (`profil.html`)** : les articles arrivent dans « Posts et
