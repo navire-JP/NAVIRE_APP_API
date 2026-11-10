@@ -452,24 +452,24 @@
 #nv-home .nv-send:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; }
 #nv-home .nv-disclaimer { text-align: center; font-size: 10.5px; color: var(--text-4); margin-top: 8px; }
 
-/* Sélecteur de modèle */
+/* Sélecteur de modèle : petite pastille, menu compact */
 #nv-home .nv-tier { position: relative; }
-#nv-home .nv-tier-btn { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px; border-radius: 99px; border: 1px solid var(--line); background: transparent; font: inherit; font-size: 12px; color: var(--text-2); cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+#nv-home .nv-tier-btn { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: 99px; border: none; background: transparent; font: inherit; font-size: 11.5px; color: var(--text-3); cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
 #nv-home .nv-tier-btn:hover, #nv-home .nv-tier.is-open .nv-tier-btn { background: var(--panel-2); color: #fff; }
-#nv-home .nv-tier-btn.is-paid { color: #fff; background: rgba(155,111,255,0.16); border-color: transparent; }
-#nv-home .nv-tier-btn svg { width: 11px; height: 11px; opacity: .7; }
-#nv-home .nv-tier-menu { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 60; width: 280px; max-width: calc(100vw - 32px); padding: 6px; border-radius: 16px; background: rgba(16,16,26,0.98); box-shadow: 0 18px 50px rgba(0,0,0,0.5); display: none; }
-#nv-home .nv-tier.is-open .nv-tier-menu { display: block; animation: nv-rise .2s var(--ease) both; }
-#nv-home .nv-tier-opt { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 9px 10px; border: none; border-radius: 11px; background: transparent; color: #fff; font: inherit; text-align: left; cursor: pointer; }
+#nv-home .nv-tier-btn.is-paid { color: #D9CCFF; }
+#nv-home .nv-tier-btn .nv-tier-emoji { font-size: 12px; }
+#nv-home .nv-tier-btn svg { width: 9px; height: 9px; opacity: .6; }
+#nv-home .nv-tier-menu { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 60; width: 214px; max-width: calc(100vw - 24px); padding: 4px; border-radius: 12px; background: rgba(16,16,26,0.98); box-shadow: 0 14px 40px rgba(0,0,0,0.5); display: none; }
+#nv-home .nv-tier.is-open .nv-tier-menu { display: block; animation: nv-rise .18s var(--ease) both; }
+#nv-home .nv-tier-opt { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: none; border-radius: 8px; background: transparent; color: #fff; font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
 #nv-home .nv-tier-opt:hover { background: var(--panel-2); }
 #nv-home .nv-tier-opt.is-on { background: var(--panel-3); }
-#nv-home .nv-tier-opt[disabled] { opacity: .45; cursor: not-allowed; }
-#nv-home .nv-tier-opt .e { font-size: 17px; line-height: 1.2; }
-#nv-home .nv-tier-opt b { display: block; font-size: 13px; font-weight: 600; }
-#nv-home .nv-tier-opt small { display: block; margin-top: 1px; font-size: 11.5px; color: var(--text-3); line-height: 1.35; }
-#nv-home .nv-tier-opt .c { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--text-2); white-space: nowrap; padding-top: 2px; }
-#nv-home .nv-tier-foot { margin: 4px 4px 2px; padding: 8px 6px 2px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--text-3); line-height: 1.45; }
-#nv-home .nv-tier-foot b { color: #fff; }
+#nv-home .nv-tier-opt[disabled] { opacity: .4; cursor: not-allowed; }
+#nv-home .nv-tier-opt .e { font-size: 13px; width: 16px; text-align: center; }
+#nv-home .nv-tier-opt .c { margin-left: auto; font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+#nv-home .nv-tier-foot { margin: 3px 4px 1px; padding: 6px 4px 2px; border-top: 1px solid var(--line); font-size: 10.5px; color: var(--text-3); line-height: 1.4; }
+#nv-home .nv-tier-foot b { color: #fff; font-weight: 600; }
+#nv-home .nv-tier-foot a { color: var(--blue); font-weight: 600; text-decoration: none; }
 #nv-home.is-compact .nv-tier-btn .nv-tier-name { display: none; }
 #nv-home .nv-tier-note { margin-top: 6px; font-size: 11px; color: var(--text-4); }
 
@@ -829,8 +829,8 @@
             </button>
             <div class="nv-tier" data-el="tier">
               <button class="nv-tier-btn" type="button" data-act="tier-menu" title="Choisir le modèle" aria-haspopup="menu">
-                <span data-el="tier-emoji">⚡</span><span class="nv-tier-name" data-el="tier-name">Rapide</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+                <span class="nv-tier-emoji" data-el="tier-emoji">⚡</span><span class="nv-tier-name" data-el="tier-name">Rapide</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
               </button>
               <div class="nv-tier-menu" data-el="tier-menu" role="menu"></div>
             </div>
@@ -940,6 +940,7 @@
   // Photo de profil de NAVIRE à côté de ses messages
   var BOT_AVATAR = 'https://i.pinimg.com/736x/e9/22/11/e92211e3d595e6bdf16279169175a231.jpg';
   var UPGRADE_URL = 'https://navire-ai.com/subscribe';
+  var LOGIN_URL = 'https://navire-ai.com/login';      // lien « Se connecter » du sélecteur de modèle
 
   // Les trois accès sous la barre de recherche. url : page ouverte (dans
   // l'onglet du site). url vide pour « fichiers » : ouvre la vue
@@ -1593,21 +1594,27 @@
     return 'le ' + (d.getDate() === 1 ? '1er' : d.getDate()) + ' ' + ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'][d.getMonth()];
   }
   function renderTier() {
+    var logged = !!token;
+    if (!logged && state.tier !== 'rapide') state.tier = 'rapide';
     var t = tierInfo(state.tier);
     el('tier-emoji').textContent = t.emoji;
     el('tier-name').textContent = t.label;
     var btn = el('tier').querySelector('.nv-tier-btn');
     btn.classList.toggle('is-paid', t.cost > 0);
-    btn.title = t.cost > 0 ? t.label + ' · ' + creditsWord(t.cost) + ' par question' : 'Choisir le modèle';
-    var bal = state.credits ? state.credits.balance : null;
+    btn.title = !logged ? 'Modèle Rapide · connecte-toi pour choisir un modèle plus puissant'
+      : t.cost > 0 ? t.label + ' · ' + creditsWord(t.cost) + ' par question' : 'Choisir le modèle';
+    var bal = logged && state.credits ? state.credits.balance : null;
     el('tier-menu').innerHTML = state.tiers.map(function (x) {
-      var off = x.cost > 0 && bal != null && bal < x.cost;
-      return '<button type="button" class="nv-tier-opt' + (x.id === state.tier ? ' is-on' : '') + '" data-tier="' + x.id + '"' + (off ? ' disabled' : '') + ' role="menuitemradio" aria-checked="' + (x.id === state.tier) + '">' +
-        '<span class="e">' + x.emoji + '</span><span><b>' + esc(x.label) + '</b><small>' + esc(x.description) + '</small></span>' +
-        '<span class="c">' + (x.cost ? creditsWord(x.cost) : 'Gratuit') + '</span></button>';
+      var off = x.cost > 0 && (!logged || (bal != null && bal < x.cost));
+      return '<button type="button" class="nv-tier-opt' + (x.id === state.tier ? ' is-on' : '') + '" data-tier="' + x.id + '"' + (off ? ' disabled' : '') +
+        ' role="menuitemradio" aria-checked="' + (x.id === state.tier) + '" title="' + esc(x.description || '') + '">' +
+        '<span class="e">' + x.emoji + '</span><span>' + esc(x.label) + '</span>' +
+        '<span class="c">' + (x.cost ? (logged ? creditsWord(x.cost) : '🔒') : 'Gratuit') + '</span></button>';
     }).join('') +
-      '<div class="nv-tier-foot">' + (bal == null ? 'Connecte-toi pour utiliser les modèles Avancé et Expert.' :
-        'Il te reste <b>' + creditsWord(bal) + '</b> ce mois-ci' + (state.credits.allowance ? ' sur ' + (state.credits.allowance + (state.credits.bonus || 0)) : '') + '. Recharge ' + resetLabel() + '.') + '</div>';
+      '<div class="nv-tier-foot">' + (!logged
+        ? '<a href="' + LOGIN_URL + '" target="_top">Connecte-toi</a> pour les modèles Avancé et Expert.'
+        : bal == null ? 'Chargement de tes crédits…'
+        : '<b>' + creditsWord(bal) + '</b> ce mois-ci · recharge ' + resetLabel()) + '</div>';
   }
   function setTier(id) {
     state.tier = tierInfo(id).id;
@@ -2064,7 +2071,7 @@
     el('banner').classList.add('is-visible');
   }
   function loadQuota() {
-    if (!token) return;
+    if (!token) { state.credits = null; renderTier(); return; }
     api('/navire/quota').then(function (q) {
       if (q.tiers && q.tiers.length) state.tiers = q.tiers;
       if (q.credits) state.credits = q.credits;
@@ -2076,8 +2083,29 @@
       el('quota-text').innerHTML = '<b style="color:#fff;font-size:15px;font-weight:800">' + q.remaining + '</b> question' + (q.remaining > 1 ? 's' : '') + ' restante' + (q.remaining > 1 ? 's' : '') + " aujourd'hui · <a href=\"" + UPGRADE_URL + '" target="_top">Illimité →</a>';
       el('quota-bar').style.width = Math.min(100, q.used / q.limit * 100) + '%';
       if (q.remaining <= 0) showLimit(q.limit); else el('banner').classList.remove('is-visible');
-    }).catch(function () {});
+    }).catch(function (err) {
+      // Jeton expiré ou invalide : on se comporte comme un visiteur.
+      if (err && err.status === 401) { token = ''; state.credits = null; renderTier(); }
+    });
   }
+
+  // Connexion / déconnexion depuis une autre page ou un autre embed du site :
+  // le sélecteur de modèle suit sans recharger la page.
+  function syncAuth() {
+    var now = '';
+    try { now = localStorage.getItem('navire_token') || ''; } catch (e) {}
+    if (now === token) return;
+    token = now;
+    state.credits = null;
+    // Déconnecté : modèle Rapide (le choix enregistré revient à la reconnexion).
+    state.tier = token ? LS.get('tier', 'rapide') : 'rapide';
+    renderTier();
+    loadQuota();
+  }
+  window.addEventListener('storage', function (e) { if (!e.key || e.key === 'navire_token') syncAuth(); });
+  window.addEventListener('focus', syncAuth);
+  window.addEventListener('navire-auth-updated', syncAuth);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) syncAuth(); });
 
   // Question passée dans l'adresse de la page : /home?q=...
   function initialQuery() {

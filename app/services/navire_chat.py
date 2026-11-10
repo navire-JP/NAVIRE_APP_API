@@ -408,10 +408,13 @@ def send_message(
     tier : niveau de modèle choisi (rapide | avance | expert), voir
     app/core/navire_models.py. Le débit des crédits est fait par la route.
     """
-    from app.core.navire_models import get_tier, is_reasoning_model
+    from app.core.navire_models import (
+        candidates, get_tier, is_model_unavailable, is_reasoning_model, mark_dead, mark_working,
+    )
 
     tier_id, tier_conf = get_tier(tier)
-    model = tier_conf["model"]
+    model_queue = candidates(tier_id)   # replis si un modèle est retiré
+    model = model_queue[0]
     conv = get_or_create_conversation(db, user, conversation_id, mode)
     search_opts = {
         "use_navire_docs": use_navire_docs,
@@ -453,14 +456,27 @@ def send_message(
     assistant_reply = ""
     completed = False   # vraie réponse du modèle (sinon : pas de débit de crédits)
     for _round in range(MAX_TOOL_ROUNDS + 1):
-        params = {"model": model, "messages": messages, "tools": TOOLS, "tool_choice": "auto"}
-        if is_reasoning_model(model):
-            # Modèle à raisonnement : pas de température, longueur via max_completion_tokens
-            params["max_completion_tokens"] = tier_conf["max_tokens"]
-        else:
-            params["temperature"] = 0.3
-            params["max_tokens"] = tier_conf["max_tokens"]
-        rep = _client.chat.completions.create(**params)
+        while True:
+            params = {"model": model, "messages": messages, "tools": TOOLS, "tool_choice": "auto"}
+            if is_reasoning_model(model):
+                # Modèle à raisonnement : pas de température ; le budget couvre
+                # aussi le raisonnement, d'où une marge plus large.
+                params["max_completion_tokens"] = tier_conf.get("reasoning_tokens", tier_conf["max_tokens"])
+            else:
+                params["temperature"] = 0.3
+                params["max_tokens"] = tier_conf["max_tokens"]
+            try:
+                rep = _client.chat.completions.create(**params)
+                mark_working(tier_id, model)
+                break
+            except Exception as e:
+                # Modèle retiré ou absent du compte OpenAI : on passe au suivant.
+                if not is_model_unavailable(e) or len(model_queue) <= 1:
+                    raise
+                print(f"⚠️ NAVIRE : modèle {model} indisponible ({tier_id}), repli. {str(e)[:160]}")
+                mark_dead(model)
+                model_queue.pop(0)
+                model = model_queue[0]
         msg = rep.choices[0].message
 
         if not msg.tool_calls:

@@ -3,7 +3,8 @@
 // Communication via localStorage("navire_admin_selected_user") + CustomEvent
 //
 // Terminal : ajout de /mails (liste des emails de l'app) et
-// /mails test <clé|all> [email] (envoi de test, données fictives).
+// /mails test <clé|all> [email] (envoi de test, données fictives),
+// /credits <id> et /credits <id> add <n> [motif] (crédits NAVIRE AI).
 //
 // AdJuris : onglet « Agenda » (calendrier des cours, séries, glisser-déposer,
 // annulation avec aperçu de l'impact sur la facturation) et onglet
@@ -1720,6 +1721,8 @@ async function runCmd(cmd: string): Promise<string> {
             "  /mails                 ← liste les emails de l'app",
             "  /mails diag            ← clé Brevo + expéditeur validé ?",
             "  /mails test <clé|all> [email]",
+            "  /credits <id>             ← crédits NAVIRE AI du mois",
+            "  /credits <id> add <n> [motif]  ← offre n crédits (jusqu'à la fin du mois)",
         ].join("\n")
     // ── Emails : catalogue et envoi de test ──
     // /mails                          liste ce que l'API sait envoyer
@@ -1865,6 +1868,44 @@ async function runCmd(cmd: string): Promise<string> {
         }
         throw new Error("Action invalide: add | set")
     }
+    // ── Crédits NAVIRE AI (modèles Avancé / Expert) ──
+    // /credits <id>                 solde du mois et derniers mouvements
+    // /credits <id> add <n> [motif] crédits offerts, valables jusqu'à la fin du mois
+    if (head === "/credits") {
+        const id = Number((parts[1] || "").replace(/^@/, ""))
+        if (!Number.isFinite(id) || id <= 0)
+            throw new Error("Syntaxe: /credits <id> [add <n> [motif]]")
+        const ligne = (d: any) =>
+            `${d.balance} restant(s) · ${d.used} utilisé(s) · plan ${d.allowance}` +
+            (d.bonus ? ` + ${d.bonus} offert(s)` : "") +
+            ` · recharge le ${new Date(d.resets_at).toLocaleDateString("fr-FR")}`
+        if (parts[2] === "add") {
+            const n = Number(parts[3])
+            if (!Number.isInteger(n) || n < 1 || n > 10000)
+                throw new Error("Nombre de crédits invalide (1 à 10 000).")
+            const reason = parts.slice(4).join(" ") || "terminal"
+            const d = await apiFetch(`/admin/users/${id}/credits`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ amount: n, reason }),
+            })
+            return `OK: +${n} crédit(s) → #${id}\n${ligne(d)}`
+        }
+        if (parts[2]) throw new Error("Syntaxe: /credits <id> [add <n> [motif]]")
+        const d = await apiFetch(`/admin/users/${id}/credits`)
+        const lines = [`── Crédits NAVIRE AI #${id} (${d.period}) ──`, ligne(d)]
+        const ev = (d.events || []).slice(0, 8)
+        if (ev.length) {
+            lines.push("", "Derniers mouvements :")
+            ev.forEach((e: any) =>
+                lines.push(
+                    `  ${e.delta > 0 ? "+" : ""}${e.delta}  ${e.kind === "bonus" ? "offert" + (e.reason ? ` (${e.reason})` : "") : e.tier || "usage"}  ${e.created_at ? new Date(e.created_at).toLocaleString("fr-FR") : ""}`
+                )
+            )
+        }
+        return lines.join("\n")
+    }
+
     if (head === "/user" && parts[2] === "delete") {
         const id = Number(parts[1])
         await apiFetch(`/admin/users/${id}`, { method: "DELETE" })
@@ -2101,7 +2142,7 @@ function TerminalSection() {
                     placeholder={
                         pendingPrepa
                             ? "1 = L1 · 2 = L2 · 3 = L3 · annuler"
-                            : "/help · /stats 12 · /mails"
+                            : "/help · /stats 12 · /credits 12"
                     }
                     disabled={busy}
                     style={{
