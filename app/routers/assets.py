@@ -38,6 +38,9 @@ BRAND_FILES: dict[str, str] = {
     "profil-rang.png": "profil-rang.png",
     "profil-qcm.png": "profil-qcm.png",
     "profil-deepwork.png": "profil-deepwork.png",
+    # Icône des articles (format publié par les doctorants et l'équipe), 256 px
+    # sur fond transparent, depuis « NAVIRE_Articles_icon (source).png ».
+    "NAVIRE_Articles_icon.png": "NAVIRE_Articles_icon.png",
 }
 
 # Une semaine : ces fichiers ne changent qu'à un changement d'identité visuelle,

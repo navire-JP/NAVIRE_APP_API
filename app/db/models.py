@@ -718,6 +718,16 @@ class VeilleItem(Base):
         index=True,
     )
 
+    # Format : "actu" (résumé essentiel + impact, souvent importé) ou "article"
+    # (texte rédigé sur NAVIRE par un doctorant vérifié ou l'équipe). Un
+    # article garde un extrait en texte brut dans `essentiel` (listes, profil,
+    # recherche) et son texte mis en forme dans `body_html`, nettoyé à
+    # l'enregistrement (app/services/articles.py). Adresse publique :
+    # navire-ai.com/actus/NA<id>.
+    kind: Mapped[str] = mapped_column(String(16), default="actu", nullable=False, index=True)
+    body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Relation
     source: Mapped["VeilleSource | None"] = relationship("VeilleSource")
     author: Mapped["User | None"] = relationship("User", foreign_keys=[author_id])

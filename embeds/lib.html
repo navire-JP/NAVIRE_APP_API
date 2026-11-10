@@ -38,6 +38,12 @@
   s'ouvre en aperçu (le début du document), la suite floutée sous une carte
   « Crée ton compte ». Lib+, la vue Prépa et Mes fichiers demandent un compte.
 
+  Articles : les articles NAVIRE (rédigés par les doctorants vérifiés et
+  l'équipe, GET /veille/actus?kind=article) apparaissent dans la
+  bibliothèque comme un format à part (« Articles », icône
+  NAVIRE_Articles_icon) ; un article s'ouvre dans Actus,
+  navire-ai.com/actus/NA<id>.
+
   Un lien vers un cours précis : /lib?doc=12 (et &mode=lib pour forcer Lib)
   Anciens liens /lib?prepa=edt|cours|devoirs : redirigés vers /prepa.
   Réglages : bloc CONFIG du script (liens QCM, NAVIRE AI, actus, offres).
@@ -257,6 +263,13 @@
 #nv-lib .nl-book:hover { background: var(--panel-2); border-color: var(--line-2); transform: translateY(-2px); }
 #nv-lib .nl-book::after { content: ''; position: absolute; right: -40px; top: -40px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(122,167,255,0.16), transparent 70%); pointer-events: none; }
 #nv-lib .nl-book.is-plus { border-color: rgba(122,167,255,0.2); }
+#nv-lib a.nl-book { color: inherit; text-decoration: none; }
+#nv-lib .nl-book.is-article::after { background: radial-gradient(circle, rgba(155,111,255,0.2), transparent 70%); }
+#nv-lib .nl-art-ic { width: 15px; height: 15px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 2px 5px rgba(120,70,255,0.35)); }
+#nv-lib .nl-art-by { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-3); }
+#nv-lib .nl-art-by b { color: #fff; font-weight: 600; }
+#nv-lib .nl-art-av { width: 22px; height: 22px; border-radius: 50%; background: var(--panel-3) center/cover no-repeat; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+#nv-lib .nv-tag.art { background: rgba(155,111,255,0.16); color: #CDB8FF; display: inline-flex; align-items: center; gap: 5px; }
 #nv-lib .nl-book-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 #nv-lib .nl-book h3 { margin: 2px 0 0; font-size: 16px; font-weight: 700; letter-spacing: -.3px; line-height: 1.3; }
 #nv-lib .nl-book p { margin: 0; font-size: 12px; color: var(--text-3); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -744,8 +757,10 @@
   var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
   // perso : les PDF de « Mes fichiers » de l'élève (visibles par lui seul).
   // prepa : les documents de l'espace Prép'AdJuris, lus comme des cours (inscrits seulement).
-  var KINDS = { perso: "Mes fichiers", prepa: "Prépa", cours: "Cours", fiche: "Fiche", fiche_arret: "Fiche d'arrêt", commentaire: "Commentaire", dissertation: "Dissertation", cas_pratique: "Cas pratique" };
-  var KINDS_PL = { perso: "Mes fichiers", prepa: "Documents Prépa", cours: "Cours", fiche: "Fiches", fiche_arret: "Fiches d'arrêt", commentaire: "Commentaires", dissertation: "Dissertations", cas_pratique: "Cas pratiques" };
+  var KINDS = { perso: "Mes fichiers", prepa: "Prépa", cours: "Cours", fiche: "Fiche", fiche_arret: "Fiche d'arrêt", commentaire: "Commentaire", dissertation: "Dissertation", cas_pratique: "Cas pratique", article: "Article" };
+  var KINDS_PL = { perso: "Mes fichiers", prepa: "Documents Prépa", cours: "Cours", fiche: "Fiches", fiche_arret: "Fiches d'arrêt", commentaire: "Commentaires", dissertation: "Dissertations", cas_pratique: "Cas pratiques", article: "Articles" };
+  var ART_ICON = CONFIG.API + "/assets/NAVIRE_Articles_icon.png";
+  var ARTICLE_URL = "https://navire-ai.com/actus/NA";   // + id : un article s'ouvre dans Actus
 
   var root = document.getElementById("nv-lib");
   var S = {
@@ -1066,13 +1081,27 @@
   // ================= BIBLIOTHÈQUE =================
   function visibleItems() {
     var items = (S.cat && S.cat.items) || [];
-    return plus() ? items : items.filter(function (d) { return !d.plus; });
+    return (plus() ? items : items.filter(function (d) { return !d.plus; })).concat(S.articles || []);
+  }
+  // Articles NAVIRE : chargés depuis Actus, affichés comme un format de la bibliothèque.
+  function loadArticles() {
+    return api("GET", "/veille/actus?kind=article&limit=50").then(function (d) {
+      S.articles = (d.items || []).map(function (it) {
+        return {
+          id: "NA" + it.id, kind: "article", article: true, titre: it.title,
+          description: it.essentiel, matiere: it.category_label, minutes: it.reading_minutes,
+          url: it.url || ARTICLE_URL + it.id, auteur: it.author || null,
+          valides: 0, nb_points_passage: 0
+        };
+      });
+      if (S.view === "library") viewLibrary();
+    }).catch(function () { S.articles = []; });
   }
   function sideLibrary() {
     var items = visibleItems();
     var counts = { all: items.length };
     items.forEach(function (d) { counts[d.kind] = (counts[d.kind] || 0) + 1; });
-    var nav = [["all", "Toute la bibliothèque", ICON.grid]].concat(Object.keys(KINDS).filter(function (k) { return counts[k]; }).map(function (k) { return [k, KINDS_PL[k], k === "perso" ? ICON.file : k === "prepa" ? ICON.cap : ICON.book]; }));
+    var nav = [["all", "Toute la bibliothèque", ICON.grid]].concat(Object.keys(KINDS).filter(function (k) { return counts[k]; }).map(function (k) { return [k, KINDS_PL[k], k === "perso" ? ICON.file : k === "prepa" ? ICON.cap : k === "article" ? '<img class="nl-art-ic" src="' + ART_ICON + '" alt="" aria-hidden="true">' : ICON.book]; }));
     var lib = S.view === "library";
     el("side").innerHTML =
       nav.map(function (n) {
@@ -1106,13 +1135,14 @@
     });
     var html;
     if (plus()) {
-      var done = items.filter(function (d) { return d.nb_points_passage && d.valides === d.nb_points_passage; }).length;
-      var cps = items.reduce(function (a, d) { return a + d.valides; }, 0);
+      var docs = items.filter(function (d) { return !d.article; });
+      var done = docs.filter(function (d) { return d.nb_points_passage && d.valides === d.nb_points_passage; }).length;
+      var cps = docs.reduce(function (a, d) { return a + (d.valides || 0); }, 0);
       html = '<div class="nv-page-head"><h2>Bibliothèque Lib+</h2><p>Lis, réponds à chaque point de passage, débloque la suite.</p></div>' +
         '<div class="nl-stats">' +
           '<div class="nl-stat"><small>Elo</small><b>' + (S.user ? S.user.elo : 0) + '</b></div>' +
           '<div class="nl-stat"><small>Points de passage</small><b>' + cps + '</b></div>' +
-          '<div class="nl-stat"><small>Terminés</small><b>' + done + ' / ' + items.length + '</b></div>' +
+          '<div class="nl-stat"><small>Terminés</small><b>' + done + ' / ' + docs.length + '</b></div>' +
         '</div>';
     } else {
       html = visitor()
@@ -1150,7 +1180,18 @@
       return '<button type="button" data-mtab="' + t[0] + '" class="' + (S.filter === t[0] ? "is-on" : "") + '">' + t[1] + (t[0] !== "all" && n[t[0]] ? '<b>' + n[t[0]] + '</b>' : "") + '</button>';
     }).join("") + '</div>';
   }
+  function articleCard(d, i) {
+    return '<a class="nl-book is-article" href="' + esc(d.url) + '" data-go style="animation-delay:' + (i * 0.04) + 's">' +
+      '<div class="nl-book-top"><span class="nv-tag art"><img class="nl-art-ic" src="' + ART_ICON + '" alt="" aria-hidden="true">Article</span>' + (d.matiere ? '<span class="nv-tag blue">' + esc(d.matiere) + '</span>' : "") + '</div>' +
+      '<h3>' + esc(d.titre) + '</h3>' +
+      '<p>' + esc(d.description || "") + '</p>' +
+      (d.auteur ? '<div class="nl-art-by">' + (d.auteur.avatar_url ? '<span class="nl-art-av" style="background-image:url(&quot;' + esc(d.auteur.avatar_url) + '&quot;)"></span>' : '<span class="nl-art-av">' + esc((d.auteur.name || "?").charAt(0).toUpperCase()) + '</span>') +
+        '<span>Publié par <b>' + esc(d.auteur.name || "") + '</b></span>' + (d.auteur.role ? '<span class="nv-tag">' + esc(d.auteur.role) + '</span>' : "") + '</div>' : "") +
+      '<div class="nl-book-foot"><span>' + (d.minutes || 1) + ' min de lecture</span></div>' +
+    '</a>';
+  }
   function bookCard(d, i) {
+    if (d.article) return articleCard(d, i);
     var p = plus();
     var lock = p && d.verrouille ? '<span class="nv-tag white nl-lockbadge">' + ico("lock", 11) + d.elo_requis + ' Elo</span>' : "";
     var state = !p ? "" : d.nb_points_passage && d.valides === d.nb_points_passage ? '<span class="nv-tag solid">Terminé</span>' : d.valides ? '<span class="nv-tag blue">En cours</span>' : "";
@@ -1863,6 +1904,7 @@
   }
   function boot() {
     setPage('<div class="nv-skel" style="margin-top:20px"></div><div class="nv-skel"></div><div class="nv-skel"></div>', true);
+    loadArticles();
     refreshCatalogue().then(function () {
       // Sans compte (ou jeton expiré) : visiteur, aperçu de chaque document.
       if (!S.cat.user) { if (S.token) { S.token = null; store(CONFIG.TOKEN_KEY, null); } S.user = null; S.prepa = null; }

@@ -66,6 +66,26 @@ def _user_dict(u: User) -> dict:
     }
 
 
+def _article_fields(db: Session, u: User) -> dict:
+    """
+    Statut vérifié et articles : le profil d'un doctorant affiche le nombre
+    d'articles publiés sous ses statistiques.
+    """
+    from app.services import articles as articles_svc
+
+    badges = user_categories.user_badges(db, u)
+    count = db.execute(
+        select(func.count(VeilleItem.id)).where(
+            VeilleItem.author_id == u.id, VeilleItem.kind == articles_svc.ARTICLE_KIND,
+        )
+    ).scalar_one()
+    return {
+        "badges": badges,
+        "is_doctorant": "Doctorant" in badges,
+        "articles_count": int(count or 0),
+    }
+
+
 def _profile_fields(u: User) -> dict:
     """Champs de la page profil façon X, communs à toutes les sérialisations."""
     return {
@@ -712,6 +732,7 @@ def get_profile_summary(
             "has_password": bool(u.password_hash),
             "oauth_provider": u.oauth_provider,
             **_profile_fields(u),
+            **_article_fields(db, u),
         },
         "posts": _posts_page(db, u.id, viewer=u, offset=0, limit=POSTS_PAGE),
         "deepwork": deepwork_stats,
@@ -921,7 +942,7 @@ def get_user_profile(
             "avatar_url": resolve_avatar_url(u.avatar_url),
             "plan": u.plan,
             "discord_linked": bool(u.discord_id),
-            "badges": user_categories.user_badges(db, u),
+            **_article_fields(db, u),
             **_profile_fields(u),
         },
         "elo": {"value": int(u.elo or 0)},

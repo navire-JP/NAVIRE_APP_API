@@ -395,8 +395,12 @@ def _section_veille(db: Session, user: User) -> dict | None:
             "id": f"{prefixe}-{it.id}", "type": "actu", "label": h["title"], "date": h["published_at"],
             "meta": {
                 "essentiel": h["essentiel"], "impact": h["impact"], "rubrique": h["category_label"],
-                "source_name": h["source_name"], "source_url": h["source_url"],
+                # Article : on montre qui l'a publié plutôt qu'une source
+                "source_name": (f"Publié par {h['author']['name']}" if h.get("kind") == "article" and h.get("author") else h["source_name"]),
+                "source_url": h["source_url"],
                 "minutes": h["reading_minutes"], "lu": h["is_read"],
+                # "article" : icône des articles, lien navire-ai.com/actus/NA<id>
+                "kind": h.get("kind", "actu"), "url": h.get("url"),
             },
         }
 
