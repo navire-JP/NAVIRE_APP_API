@@ -34,6 +34,7 @@ import { AmbassadeursSection } from "./Navire_Ambassadeurs.tsx"
 import { LibSection } from "./Navire_Lib.tsx"
 import { ProfesseursSection } from "./Navire_Professeurs.tsx"
 import { MailsSection } from "./Navire_Mails.tsx"
+import { CategoriesSection } from "./Navire_Categories.tsx"
 
 // ── Hide all scrollbars globally ──
 if (typeof document !== "undefined") {
@@ -172,6 +173,7 @@ type Section =
     | "lib"
     | "professeurs"
     | "mails"
+    | "categories"
 
 type Onglet =
     | "etudiants"
@@ -7173,6 +7175,7 @@ const SECTIONS: { id: Section; label: string }[] = [
     { id: "lib", label: "Lib" },
     { id: "professeurs", label: "Prof." },
     { id: "mails", label: "Mails" },
+    { id: "categories", label: "Catég." },
     { id: "terminal", label: "Terminal" },
 ]
 
@@ -7289,6 +7292,7 @@ function ConsoleUI() {
                 {section === "lib" && <LibSection />}
                 {section === "professeurs" && <ProfesseursSection />}
                 {section === "mails" && <MailsSection />}
+                {section === "categories" && <CategoriesSection />}
             </div>
         </div>
     )

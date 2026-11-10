@@ -1,6 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pathlib import Path
-import json
+
+from sqlalchemy.orm import Session
+
+from app.db.database import get_db
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -83,19 +86,20 @@ DEFAULT_OPTIONS = {
 }
 
 
-def ensure_options_file():
-    # crée le dossier app/data si inexistant
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-    # crée le fichier options.json s'il n'existe pas
-    if not OPTIONS_PATH.exists():
-        with open(OPTIONS_PATH, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_OPTIONS, f, indent=2, ensure_ascii=False)
+# Préréglages historiques : ils ne servent plus qu'à remplir la table
+# meta_options au premier démarrage (app/services/user_categories.py). Les
+# listes se gèrent ensuite depuis la console (/admin/options).
 
 
 @router.get("/options")
-def get_options():
-    ensure_options_file()
+def get_options(db: Session = Depends(get_db)):
+    """
+    Listes de l'inscription et du profil.
 
-    with open(OPTIONS_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    `universities` et `study_levels` restent des listes de libellés pour les
+    embeds existants ; `study_level_options` précise quels niveaux demandent
+    une vérification (ex. Doctorant) et ce qu'il faut fournir.
+    """
+    from app.services.user_categories import public_options
+
+    return public_options(db)

@@ -45,6 +45,7 @@ html, body { margin: 0; background: transparent; }
 .hp-role-admin { background: #EF476F; color: #fff; }
 .hp-role-td    { background: #06D6A0; color: #0a1628; }
 .hp-role-amb   { background: #8E7DFF; color: #fff; }
+.hp-role-doc   { background: #FFD166; color: #0a1628; }
 
 .hp-spacer { flex: 1; min-width: 0; }
 .hp-rank { flex-shrink: 0; text-align: center; }
@@ -83,6 +84,7 @@ html, body { margin: 0; background: transparent; }
     <span class="hp-role hp-role-admin" id="role-admin">Admin</span>
     <span class="hp-role hp-role-td" id="role-td">Chargé TD</span>
     <span class="hp-role hp-role-amb" id="role-amb">Ambassadeur</span>
+      <span class="hp-role hp-role-doc" id="role-doc">Doctorant</span>
   </div>
   <div class="hp-spacer"></div>
   <div class="hp-rank">
@@ -115,7 +117,8 @@ html, body { margin: 0; background: transparent; }
     var any = false;
     [['role-admin', !!me.is_admin],
      ['role-td', !!me.is_charge_td || me.grade === 'ChargéTD'],
-     ['role-amb', !!me.is_ambassador]].forEach(function (r) {
+     ['role-amb', !!me.is_ambassador],
+     ['role-doc', !!me.is_doctorant]].forEach(function (r) {
       if (r[1]) { document.getElementById(r[0]).classList.add('on'); any = true; }
     });
     if (any) document.getElementById('roles').classList.add('has-roles');

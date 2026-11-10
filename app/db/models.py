@@ -218,6 +218,12 @@ class User(Base):
     )
     # ─────────────────────────────────────────────────────────────────────────
 
+    # Fin du parcours d'accueil (présentation, photo, Discord, Prép'AdJuris)
+    # qui suit l'inscription. NULL tant qu'il n'est ni terminé ni passé.
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # ============================================================
     # Relations
     # ============================================================
@@ -2496,3 +2502,97 @@ class MailCampaign(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+# ============================================================
+# Catégories de profil (universités, niveaux d'études)
+# ============================================================
+
+class MetaOption(Base):
+    """
+    Une entrée des listes déroulantes de l'inscription et du profil :
+    université (kind="university") ou niveau d'études (kind="study_level").
+
+    Gérées depuis la console (/admin/options). La table est remplie au premier
+    accès avec les préréglages historiques (app/routers/meta.py), puis la
+    console en devient la seule source.
+
+    requires_verification : le niveau n'est pas déclaratif (ex. « Doctorant »).
+    Le choisir ouvre une demande (StatusVerification) ; le niveau et son badge
+    ne sont appliqués au compte qu'après validation dans la console.
+    """
+
+    __tablename__ = "meta_options"
+    __table_args__ = (UniqueConstraint("kind", "label", name="uq_meta_options_kind_label"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Une option désactivée disparaît des listes, sans toucher aux comptes
+    # qui l'ont déjà.
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    requires_verification: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Pastille affichée sur le profil une fois la demande validée (ex. « Doctorant »).
+    badge: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Ce que l'élève doit fournir pour être validé (affiché dans le formulaire).
+    verification_hint: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class StatusVerification(Base):
+    """
+    Demande de statut vérifié (ex. doctorant), validée à la main dans la console.
+
+    Cycle de vie de `status` :
+      pending   — envoyée, en attente de la console
+      approved  — validée : study_level et badge appliqués au compte
+      rejected  — refusée (rejection_reason) ; l'élève peut redemander
+      revoked   — retirée après coup par un admin
+    """
+
+    __tablename__ = "status_verifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    option_id: Mapped[int | None] = mapped_column(
+        ForeignKey("meta_options.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Copie du libellé et du badge au moment de la demande : l'option peut
+    # être renommée ou supprimée ensuite.
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    badge: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False, index=True)
+
+    # Justificatif libre (établissement, école doctorale, directeur de thèse…)
+    message: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    # Pièce jointe facultative (carte étudiante, attestation), sur Cloudinary.
+    proof_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    rejection_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    reviewed_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])

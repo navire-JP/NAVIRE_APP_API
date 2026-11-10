@@ -1,0 +1,2522 @@
+<!--
+  NAVIRE : inscription + accueil (embed unique)
+  =============================================
+  À coller dans un composant "Embed" Framer. Dessiné pour 440 x 577, fluide
+  jusqu'au format téléphone. Aucun fond : le bleu de la page reste visible.
+
+  Inscription (6 étapes) :
+    1. Prénom / pseudo
+    2. Email + mot de passe, ou connexion Google / Facebook
+    3. Code à 6 chiffres reçu par email (sautée si Google/Facebook)
+    4. Université + niveau d'études. Les listes viennent de GET /meta/options
+       (gérées dans la console, onglet « Catég. »). Un niveau « à vérifier »
+       (ex. Doctorant) demande un justificatif : le badge n'est posé qu'après
+       validation dans la console (onglet Catég. → Vérifs).
+    5. Premier fichier PDF (facultatif)
+    6. Récapitulatif, PDF offert, création du compte
+
+  Accueil (4 étapes, juste après la création du compte) :
+    7. Tour rapide des fonctionnalités
+    8. Personnaliser son profil : photo, bio
+    9. Lier son compte Discord (code de liaison, comme sur la page profil)
+   10. Prép'AdJuris, puis redirection
+  L'accueil est marqué terminé (POST /users/me/onboarding) à la fin ou dès
+  que la personne le passe. Un compte existant qui se reconnecte via
+  Google/Facebook ne le revoit pas (GET /auth/me → onboarding_done).
+
+  Le compte n'est créé qu'à l'étape 6 :
+    - par mot de passe : POST /auth/register, avec le jeton rendu par
+      /auth/verify-code qui prouve que l'adresse appartient bien à la personne ;
+    - par Google/Facebook : POST /auth/oauth, où le serveur revalide le jeton
+      du fournisseur et récupère lui-même l'adresse.
+  Ensuite, avec le nouveau jeton : fichier de l'étape 5 sur /files/upload,
+  justificatif éventuel sur /users/me/verifications.
+-->
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  #nv-root {
+    /* L'embed vit dans une iframe : elle n'hérite pas des polices de la page
+       Framer, la pile est donc déclarée explicitement. */
+    --nv-font: Arial, Helvetica, sans-serif;
+
+    /* Dégradé bleu vers blanc : mots accentués, progression, bouton final. */
+    --nv-grad: linear-gradient(100deg, #4C93FF 0%, #A8CCFF 45%, #FFFFFF 100%);
+
+    --nv-txt: #FFFFFF;
+    --nv-txt-soft: rgba(255,255,255,0.62);
+    --nv-txt-dim: rgba(255,255,255,0.40);
+    --nv-line: rgba(255,255,255,0.22);
+    --nv-line-soft: rgba(255,255,255,0.12);
+    --nv-ok: #7FE3A3;
+    --nv-warn: #FFD86B;
+    --nv-bad: #FF9B8A;
+    --nv-discord: #5865F2;
+
+    width: 100%;
+    max-width: 440px;
+    height: 100%;
+    margin: 0 auto;
+    font-family: var(--nv-font);
+    color: var(--nv-txt);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #nv-root * { font-family: var(--nv-font); }
+
+  #nv-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 4px 4px 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* ── Progression ───────────────────────────────────────── */
+  #nv-progress {
+    position: relative;
+    display: flex;
+    gap: 6px;
+    flex: 0 0 auto;
+  }
+
+  .nv-seg {
+    flex: 1;
+    height: 2px;
+    border-radius: 99px;
+    background: rgba(255,255,255,0.16);
+    overflow: hidden;
+  }
+
+  .nv-seg i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    border-radius: 99px;
+    background: rgba(255,255,255,0.75);
+    transition: width 0.45s cubic-bezier(0.22,1,0.36,1);
+  }
+
+  .nv-seg.done i { width: 100%; }
+  .nv-seg.current i { width: 100%; background: var(--nv-grad); }
+
+  /* ── Zone étapes ───────────────────────────────────────── */
+  #nv-body {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .nv-step {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    gap: 14px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.32s ease, transform 0.32s cubic-bezier(0.22,1,0.36,1);
+  }
+
+  .nv-step.active { display: flex; }
+  .nv-step.shown  { opacity: 1; transform: none; }
+
+  .nv-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: none;
+  }
+
+  .nv-scroll::-webkit-scrollbar { width: 0; height: 0; }
+
+  /* Réservé aux étapes courtes : centrer un contenu susceptible de déborder
+     couperait le haut de la zone scrollable. */
+  .nv-scroll.center { justify-content: center; }
+
+  /* ── Typo ──────────────────────────────────────────────── */
+  .nv-eyebrow {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nv-txt-soft);
+  }
+
+  .nv-title {
+    font-size: 26px;
+    line-height: 1.16;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: #FFFFFF;
+    margin: 0;
+  }
+
+  .nv-title.sm { font-size: 22px; }
+
+  /* Préfixé par #nv-root, sinon la règle "#nv-root *" l'emporterait. */
+  #nv-root .nv-title em {
+    font-style: normal;
+    background: var(--nv-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .nv-sub {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--nv-txt-dim);
+  }
+
+  .nv-sub strong { color: var(--nv-txt-soft); font-weight: 700; }
+
+  /* ── Champs : soulignés, sans cadre ────────────────────── */
+  .nv-field { display: flex; flex-direction: column; gap: 4px; }
+
+  .nv-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--nv-txt-soft);
+  }
+
+  .nv-input-wrap { position: relative; display: flex; }
+
+  .nv-input, .nv-select {
+    width: 100%;
+    height: 40px;
+    padding: 0 0 6px;
+    font-size: 15px;
+    font-weight: 400;
+    color: #FFFFFF;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--nv-line);
+    border-radius: 0;
+    outline: none;
+    transition: border-color 0.18s;
+  }
+
+  .nv-input::placeholder { color: rgba(255,255,255,0.30); }
+
+  .nv-input:focus, .nv-select:focus { border-bottom-color: #FFFFFF; }
+
+  .nv-input.has-eye { padding-right: 36px; }
+
+  textarea.nv-input {
+    height: auto;
+    min-height: 64px;
+    padding: 8px 0 6px;
+    line-height: 1.45;
+    resize: none;
+  }
+
+  .nv-input-wrap.err .nv-input,
+  .nv-input-wrap.err .nv-select { border-bottom-color: var(--nv-bad); }
+
+  .nv-count {
+    font-size: 11px;
+    color: var(--nv-txt-dim);
+    text-align: right;
+  }
+
+  /* Champ du code à 6 chiffres */
+  #nv-code {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 14px;
+    text-align: center;
+    height: 54px;
+    padding-bottom: 8px;
+  }
+
+  #nv-code::placeholder { letter-spacing: 14px; font-size: 22px; }
+
+  .nv-select {
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    padding-right: 26px;
+  }
+
+  .nv-select option { background: #0B1B3A; color: #fff; }
+
+  .nv-chevron {
+    position: absolute;
+    right: 2px;
+    top: 42%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    opacity: 0.55;
+  }
+
+  .nv-eye {
+    position: absolute;
+    right: 0;
+    top: 42%;
+    transform: translateY(-50%);
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: rgba(255,255,255,0.55);
+    transition: color 0.15s;
+  }
+
+  .nv-eye:hover { color: #FFFFFF; }
+
+  .nv-err {
+    font-size: 12px;
+    color: var(--nv-bad);
+    display: none;
+    line-height: 1.35;
+  }
+
+  .nv-err.show { display: block; }
+
+  /* ── Statut à vérifier (ex. Doctorant) ─────────────────── */
+  #nv-verif {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 0 2px;
+    border-top: 1px solid var(--nv-line-soft);
+  }
+
+  #nv-verif.show { display: flex; }
+
+  .nv-note {
+    display: flex;
+    gap: 10px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--nv-txt-soft);
+  }
+
+  .nv-note b { color: #FFFFFF; }
+  .nv-note-icon { font-size: 18px; line-height: 1.2; flex: 0 0 auto; }
+
+  #nv-proof-name { font-size: 12px; color: var(--nv-txt-soft); }
+
+  /* ── Force du mot de passe ─────────────────────────────── */
+  #nv-strength { display: flex; flex-direction: column; gap: 5px; }
+
+  #nv-strength-bars { display: flex; gap: 6px; }
+
+  #nv-strength-bars span {
+    flex: 1;
+    height: 2px;
+    border-radius: 99px;
+    background: rgba(255,255,255,0.16);
+    transition: background 0.25s;
+  }
+
+  #nv-strength-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--nv-txt-dim);
+    min-height: 14px;
+  }
+
+  /* ── Google / Facebook ─────────────────────────────────── */
+  #nv-social { display: flex; gap: 10px; }
+
+  .nv-social-btn {
+    flex: 1;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #FFFFFF;
+    background: transparent;
+    border: 1px solid var(--nv-line);
+    border-radius: 99px;
+    cursor: pointer;
+    transition: border-color 0.18s, background 0.18s, transform 0.12s;
+  }
+
+  .nv-social-btn:hover {
+    border-color: rgba(255,255,255,0.75);
+    background: rgba(255,255,255,0.06);
+  }
+
+  .nv-logo {
+    width: 16px;
+    height: 16px;
+    display: block;
+    flex: 0 0 auto;
+    object-fit: contain;
+  }
+
+  .nv-logo.lg { width: 22px; height: 22px; }
+
+  .nv-social-btn:active { transform: scale(0.985); }
+  .nv-social-btn[disabled] { opacity: 0.55; cursor: progress; }
+
+  .nv-or {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--nv-txt-dim);
+  }
+
+  .nv-or::before, .nv-or::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--nv-line-soft);
+  }
+
+  #nv-linked {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--nv-line-soft);
+    border-bottom: 1px solid var(--nv-line-soft);
+  }
+
+  #nv-linked-icon {
+    width: 34px; height: 34px;
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  #nv-linked-text { flex: 1 1 auto; min-width: 0; }
+
+  #nv-linked-name {
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #nv-linked-meta { font-size: 12px; color: var(--nv-txt-dim); }
+
+  /* ── Actions ───────────────────────────────────────────── */
+  .nv-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 14px;
+  }
+
+  .nv-btn {
+    height: 46px;
+    padding: 0 22px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    border-radius: 99px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.18s, border-color 0.18s, transform 0.12s, opacity 0.18s;
+  }
+
+  .nv-btn:active { transform: scale(0.985); }
+  .nv-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  .nv-btn-back {
+    flex: 0 0 auto;
+    color: var(--nv-txt-soft);
+    background: transparent;
+    border-color: transparent;
+    padding: 0 8px;
+  }
+
+  .nv-btn-back:hover { color: #FFFFFF; }
+
+  .nv-btn-next {
+    flex: 1 1 auto;
+    color: #FFFFFF;
+    background: transparent;
+    border-color: rgba(255,255,255,0.65);
+  }
+
+  .nv-btn-next:hover:not([disabled]) { background: rgba(255,255,255,0.10); border-color: #FFFFFF; }
+
+  .nv-btn-primary {
+    flex: 1 1 auto;
+    color: #0A1A33;
+    background: var(--nv-grad);
+    border-color: transparent;
+  }
+
+  .nv-btn-primary:hover:not([disabled]) { opacity: 0.92; }
+
+  .nv-btn-discord {
+    color: #FFFFFF;
+    background: var(--nv-discord);
+    border-color: var(--nv-discord);
+    height: 42px;
+    padding: 0 18px;
+    font-size: 13px;
+  }
+
+  .nv-btn-discord:hover:not([disabled]) { opacity: 0.9; }
+
+  .nv-btn-ghost {
+    color: #FFFFFF;
+    background: transparent;
+    border-color: var(--nv-line);
+    height: 42px;
+    padding: 0 16px;
+    font-size: 13px;
+  }
+
+  .nv-btn-ghost:hover:not([disabled]) { border-color: rgba(255,255,255,0.75); }
+
+  /* ── Dépôt de fichier ──────────────────────────────────── */
+  #nv-drop {
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--nv-line);
+    border-radius: 14px;
+    padding: 26px 18px 22px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    text-align: center;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  #nv-drop:hover, #nv-drop.drag {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.6);
+  }
+
+  #nv-drop-emoji { font-size: 26px; margin-bottom: 4px; transition: transform 0.2s; }
+  #nv-drop:hover #nv-drop-emoji { transform: translateY(-3px); }
+
+  #nv-drop-title { font-size: 15px; font-weight: 700; color: #FFFFFF; }
+  #nv-drop-sub { font-size: 13px; color: var(--nv-txt-soft); }
+
+  #nv-drop-cta {
+    margin-top: 10px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #FFFFFF;
+    border: 1px solid var(--nv-line);
+    border-radius: 99px;
+    padding: 6px 16px;
+  }
+
+  #nv-hint {
+    font-size: 12px;
+    color: var(--nv-txt-dim);
+    line-height: 1.55;
+    text-align: center;
+  }
+
+  #nv-hint strong { color: var(--nv-txt-soft); font-weight: 700; }
+
+  .nv-filecard {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--nv-line-soft);
+    border-bottom: 1px solid var(--nv-line-soft);
+  }
+
+  .nv-filecard-icon {
+    width: 34px; height: 34px;
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+
+  .nv-filecard-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+  .nv-filecard-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #FFFFFF;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nv-filecard-meta { font-size: 12px; color: var(--nv-txt-dim); line-height: 1.4; }
+
+  .nv-filecard-badge {
+    flex: 0 0 auto;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--nv-txt-soft);
+  }
+
+  .nv-linkbtn {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 12px;
+    color: var(--nv-txt-dim);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    align-self: center;
+    transition: color 0.15s;
+  }
+
+  .nv-linkbtn.left { align-self: flex-start; }
+  .nv-linkbtn:hover { color: #FFFFFF; }
+  .nv-linkbtn[disabled] { opacity: 0.45; cursor: default; text-decoration: none; }
+
+  /* ── Récapitulatif ─────────────────────────────────────── */
+  #nv-pdf {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: inherit;
+    padding: 12px 0;
+    border-top: 1px solid var(--nv-line-soft);
+    border-bottom: 1px solid var(--nv-line-soft);
+    transition: opacity 0.18s;
+  }
+
+  #nv-pdf:hover { opacity: 0.75; }
+
+  #nv-recap { display: flex; flex-direction: column; }
+
+  .nv-recap-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--nv-line-soft);
+  }
+
+  .nv-recap-row:last-child { border-bottom: none; }
+  .nv-recap-row span:first-child { color: var(--nv-txt-dim); }
+
+  .nv-recap-row span:last-child {
+    color: #FFFFFF;
+    font-weight: 700;
+    max-width: 62%;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Accueil : tour des fonctionnalités ────────────────── */
+  .nv-features { display: flex; flex-direction: column; }
+
+  .nv-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--nv-line-soft);
+  }
+
+  .nv-feature:last-child { border-bottom: none; }
+
+  .nv-feature-icon {
+    width: 32px; height: 32px;
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 19px;
+  }
+
+  .nv-feature-title { font-size: 14px; font-weight: 700; color: #FFFFFF; }
+  .nv-feature-text { font-size: 12.5px; line-height: 1.45; color: var(--nv-txt-dim); margin-top: 2px; }
+
+  /* ── Accueil : profil ──────────────────────────────────── */
+  #nv-avatar-row { display: flex; align-items: center; gap: 16px; }
+
+  #nv-avatar {
+    position: relative;
+    width: 76px; height: 76px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    border: 1px solid var(--nv-line);
+    background: rgba(255,255,255,0.06) center/cover no-repeat;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    font-weight: 700;
+    color: #FFFFFF;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.18s;
+  }
+
+  #nv-avatar:hover { border-color: rgba(255,255,255,0.75); }
+
+  #nv-avatar.busy::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(6,14,32,0.55);
+  }
+
+  #nv-avatar-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  #nv-avatar-name { font-size: 16px; font-weight: 700; }
+  #nv-avatar-meta { font-size: 12px; color: var(--nv-txt-dim); line-height: 1.4; }
+
+  /* ── Accueil : Discord ─────────────────────────────────── */
+  .nv-bullets { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }
+
+  .nv-bullets li {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--nv-txt-soft);
+    padding-left: 18px;
+    position: relative;
+  }
+
+  .nv-bullets li::before {
+    content: "";
+    position: absolute;
+    left: 2px; top: 7px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--nv-grad);
+  }
+
+  #nv-dc-box {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 0;
+    border-top: 1px solid var(--nv-line-soft);
+    border-bottom: 1px solid var(--nv-line-soft);
+  }
+
+  #nv-dc-box.show { display: flex; }
+
+  #nv-dc-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+  #nv-dc-code {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: #FFFFFF;
+  }
+
+  #nv-dc-timer { font-size: 12px; color: var(--nv-txt-dim); }
+  #nv-dc-timer.urgent { color: var(--nv-warn); }
+
+  #nv-dc-help { font-size: 12px; line-height: 1.5; color: var(--nv-txt-dim); }
+  #nv-dc-help b { color: var(--nv-txt-soft); }
+
+  .nv-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  #nv-dc-done {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nv-ok);
+    padding: 12px 0;
+    border-top: 1px solid var(--nv-line-soft);
+    border-bottom: 1px solid var(--nv-line-soft);
+  }
+
+  #nv-dc-done.show { display: flex; }
+
+  /* ── Message flottant ──────────────────────────────────── */
+  #nv-toast {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 68px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    /* seul élément avec un fond : il doit rester lisible par-dessus le contenu */
+    background: rgba(6,14,32,0.92);
+    border: 1px solid var(--nv-line);
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #FFFFFF;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 20;
+  }
+
+  #nv-toast.show { opacity: 1; transform: none; }
+
+  /* ── Attente ───────────────────────────────────────────── */
+  .nv-spin {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(10,26,51,0.35);
+    border-top-color: #0A1A33;
+    animation: nv-rot 0.7s linear infinite;
+    display: inline-block;
+    vertical-align: -2px;
+    margin-right: 7px;
+  }
+
+  .nv-btn-next .nv-spin, .nv-btn-discord .nv-spin, .nv-btn-ghost .nv-spin, #nv-avatar .nv-spin {
+    border-color: rgba(255,255,255,0.35);
+    border-top-color: #FFFFFF;
+  }
+
+  #nv-avatar .nv-spin { position: absolute; z-index: 2; margin: 0; width: 20px; height: 20px; }
+
+  @keyframes nv-rot { to { transform: rotate(360deg); } }
+
+  @keyframes nv-shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-3px); }
+    40%, 60% { transform: translateX(3px); }
+  }
+
+  .nv-shake { animation: nv-shake 0.4s; }
+
+  /* ============================================================
+     Téléphone : l'embed suit la largeur donnée par Framer.
+     16px sur les champs, en dessous iOS zoome à la mise au point.
+     ============================================================ */
+  @media (max-width: 430px) {
+    #nv-card { gap: 14px; padding: 4px 2px 2px; }
+
+    .nv-title { font-size: 23px; }
+    .nv-title.sm { font-size: 20px; }
+
+    .nv-input, .nv-select { font-size: 16px; height: 42px; }
+    textarea.nv-input { height: auto; }
+    #nv-code { font-size: 24px; letter-spacing: 10px; }
+
+    .nv-btn { height: 48px; padding: 0 18px; font-size: 15px; }
+    .nv-btn-discord, .nv-btn-ghost { height: 44px; font-size: 14px; }
+    .nv-social-btn { height: 44px; }
+
+    #nv-drop { padding: 22px 14px 18px; }
+    .nv-scroll { gap: 12px; }
+  }
+
+  /* Hauteur réduite (téléphone en paysage) */
+  @media (max-height: 520px) {
+    .nv-title { font-size: 20px; }
+    .nv-title.sm { font-size: 18px; }
+    .nv-scroll.center { justify-content: flex-start; }
+    .nv-actions { padding-top: 10px; }
+  }
+</style>
+
+<div id="nv-root">
+  <div id="nv-card">
+
+    <!-- Segments générés par le script : 6 pour l'inscription, 4 pour l'accueil -->
+    <div id="nv-progress"></div>
+
+    <div id="nv-body">
+
+      <!-- ÉTAPE 1 : prénom / pseudo -->
+      <section class="nv-step" data-step="1">
+        <div class="nv-scroll center">
+          <h2 class="nv-title">Navire a pour objectif de former les <em>juristes</em> de demain.</h2>
+          <div class="nv-sub">Deux minutes pour créer ton compte et rejoindre l'équipage.</div>
+          <div class="nv-field" style="margin-top:6px;">
+            <label class="nv-label" for="nv-username">Prénom / Pseudo</label>
+            <div class="nv-input-wrap">
+              <input id="nv-username" class="nv-input" type="text" autocomplete="given-name"
+                     placeholder="Prénom/Pseudo" maxlength="64" />
+            </div>
+            <div class="nv-err" data-err="username"></div>
+          </div>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-next" data-next="1">Continuer</button>
+        </div>
+      </section>
+
+      <!-- ÉTAPE 2 : email + mot de passe, ou fournisseur -->
+      <section class="nv-step" data-step="2">
+        <div class="nv-scroll">
+          <div class="nv-eyebrow" id="nv-hello">Ton compte</div>
+          <h2 class="nv-title sm">Ton compte <em>centralise</em> toute ta progression.</h2>
+
+          <div id="nv-social">
+            <button class="nv-social-btn" id="nv-google" type="button">
+              <img class="nv-logo" data-logo="google" alt="" />
+              Google
+            </button>
+            <button class="nv-social-btn" id="nv-facebook" type="button">
+              <img class="nv-logo" data-logo="facebook" alt="" />
+              Facebook
+            </button>
+          </div>
+
+          <div id="nv-linked">
+            <div id="nv-linked-icon"></div>
+            <div id="nv-linked-text">
+              <div id="nv-linked-name">.</div>
+              <div id="nv-linked-meta">Adresse confirmée par le fournisseur</div>
+            </div>
+            <button class="nv-linkbtn" id="nv-unlink" type="button">Changer</button>
+          </div>
+
+          <div class="nv-or" id="nv-or">ou</div>
+
+          <div id="nv-pwd-block">
+            <div class="nv-field">
+              <label class="nv-label" for="nv-email">Email</label>
+              <div class="nv-input-wrap">
+                <input id="nv-email" class="nv-input" type="email" autocomplete="email"
+                       placeholder="tonmail@exemple.com" />
+              </div>
+              <div class="nv-err" data-err="email"></div>
+            </div>
+
+            <div class="nv-field" style="margin-top:14px;">
+              <label class="nv-label" for="nv-password">Mot de passe</label>
+              <div class="nv-input-wrap">
+                <input id="nv-password" class="nv-input has-eye" type="password"
+                       autocomplete="new-password" placeholder="Mot de passe" maxlength="72" />
+                <button class="nv-eye" type="button" data-eye="nv-password" aria-label="Afficher le mot de passe"></button>
+              </div>
+              <div class="nv-err" data-err="password"></div>
+            </div>
+
+            <div id="nv-strength" style="margin-top:10px;">
+              <div id="nv-strength-bars"><span></span><span></span><span></span><span></span></div>
+              <div id="nv-strength-label"></div>
+            </div>
+
+            <div class="nv-field" style="margin-top:10px;">
+              <label class="nv-label" for="nv-password2">Confirmer le mot de passe</label>
+              <div class="nv-input-wrap">
+                <input id="nv-password2" class="nv-input has-eye" type="password"
+                       autocomplete="new-password" placeholder="Confirmer le mot de passe" maxlength="72" />
+                <button class="nv-eye" type="button" data-eye="nv-password2" aria-label="Afficher le mot de passe"></button>
+              </div>
+              <div class="nv-err" data-err="password2"></div>
+            </div>
+          </div>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-back" data-back="2">Retour</button>
+          <button class="nv-btn nv-btn-next" data-next="2">Continuer</button>
+        </div>
+      </section>
+
+      <!-- ÉTAPE 3 : code reçu par email -->
+      <section class="nv-step" data-step="3">
+        <div class="nv-scroll">
+          <h2 class="nv-title sm">Confirme ton <em>adresse</em></h2>
+          <div class="nv-sub">
+            Un code à 6 chiffres vient de partir vers <strong id="nv-code-target">ton adresse</strong>.
+            Il est valable 15 minutes. Pense à regarder dans les indésirables.
+          </div>
+
+          <div class="nv-field" style="margin-top:6px;">
+            <div class="nv-input-wrap">
+              <input id="nv-code" class="nv-input" type="text" inputmode="numeric"
+                     autocomplete="one-time-code" placeholder="000000" maxlength="6" />
+            </div>
+            <div class="nv-err" data-err="code"></div>
+          </div>
+
+          <button class="nv-linkbtn" id="nv-resend" type="button">Renvoyer le code</button>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-back" data-back="3">Retour</button>
+          <button class="nv-btn nv-btn-next" data-next="3">Confirmer</button>
+        </div>
+      </section>
+
+      <!-- ÉTAPE 4 : université et niveau -->
+      <section class="nv-step" data-step="4">
+        <div class="nv-scroll">
+          <h2 class="nv-title">Renseigne ta <em>faculté</em> et hisse-la en <em>haut du classement</em></h2>
+          <div class="nv-sub">Ton université gagne des points à chaque révision que tu fais.</div>
+
+          <div class="nv-field" style="margin-top:4px;">
+            <label class="nv-label" for="nv-university">Université</label>
+            <div class="nv-input-wrap">
+              <select id="nv-university" class="nv-select">
+                <option value="">Chargement...</option>
+              </select>
+              <svg class="nv-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+            <div class="nv-err" data-err="university"></div>
+          </div>
+
+          <div class="nv-field">
+            <label class="nv-label" for="nv-level">Ton niveau d'études</label>
+            <div class="nv-input-wrap">
+              <select id="nv-level" class="nv-select">
+                <option value="">Chargement...</option>
+              </select>
+              <svg class="nv-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+            <div class="nv-err" data-err="level"></div>
+          </div>
+
+          <!-- Affiché pour un niveau à vérifier (ex. Doctorant) -->
+          <div id="nv-verif">
+            <div class="nv-note">
+              <span class="nv-note-icon">🎓</span>
+              <span>Le statut <b id="nv-verif-label">Doctorant</b> est vérifié par l'équipe NAVIRE.
+              Ton badge apparaîtra sur ton profil une fois ta demande validée.</span>
+            </div>
+            <div class="nv-field">
+              <label class="nv-label" for="nv-verif-msg">Justificatif</label>
+              <div class="nv-input-wrap">
+                <textarea id="nv-verif-msg" class="nv-input" maxlength="1000" rows="3"
+                          placeholder="École doctorale, sujet de thèse, directeur de thèse..."></textarea>
+              </div>
+              <div class="nv-err" data-err="verif"></div>
+            </div>
+            <button class="nv-linkbtn left" id="nv-proof-btn" type="button">Joindre une attestation (facultatif)</button>
+            <div id="nv-proof-name"></div>
+            <input id="nv-proof-input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" style="display:none;" />
+          </div>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-back" data-back="4">Retour</button>
+          <button class="nv-btn nv-btn-next" data-next="4">Continuer</button>
+        </div>
+      </section>
+
+      <!-- ÉTAPE 5 : premier fichier -->
+      <section class="nv-step" data-step="5">
+        <div class="nv-scroll">
+          <h2 class="nv-title sm">Dépose ton <em>premier</em> document</h2>
+
+          <div id="nv-drop">
+            <div id="nv-drop-emoji">☁️</div>
+            <div id="nv-drop-title">Dépose ton premier fichier</div>
+            <div id="nv-drop-sub">PDF uniquement · max 10 Mo</div>
+            <div id="nv-drop-cta">Parcourir mes fichiers</div>
+            <input id="nv-file-input" type="file" accept="application/pdf" style="display:none;" />
+          </div>
+
+          <div id="nv-hint">
+            📌 En version gratuite, tes fichiers sont conservés <strong>24h</strong>.<br>
+            Passe à Membre pour un accès permanent.
+          </div>
+
+          <div class="nv-filecard" id="nv-filecard" style="display:none;">
+            <div class="nv-filecard-icon">📄</div>
+            <div class="nv-filecard-text">
+              <div class="nv-filecard-name" id="nv-filename">.</div>
+              <div class="nv-filecard-meta" id="nv-filemeta">.</div>
+            </div>
+            <div class="nv-filecard-badge">✓ Prêt</div>
+          </div>
+
+          <button class="nv-linkbtn" id="nv-filereset" type="button" style="display:none;">Choisir un autre fichier</button>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-back" data-back="5">Retour</button>
+          <button class="nv-btn nv-btn-next" data-next="5">Continuer</button>
+        </div>
+      </section>
+
+      <!-- ÉTAPE 6 : récapitulatif et création -->
+      <section class="nv-step" data-step="6">
+        <div class="nv-scroll">
+          <h2 class="nv-title sm">Bienvenue au sein de la <em>communauté</em> Navire</h2>
+          <div class="nv-sub" id="nv-end-sub">Vérifie tes informations puis valide ton inscription.</div>
+
+          <div id="nv-recap">
+            <div class="nv-recap-row"><span>Pseudo</span><span id="nv-recap-username">.</span></div>
+            <div class="nv-recap-row"><span>Email</span><span id="nv-recap-email">.</span></div>
+            <div class="nv-recap-row"><span>Connexion</span><span id="nv-recap-mode">.</span></div>
+            <div class="nv-recap-row"><span>Université</span><span id="nv-recap-university">.</span></div>
+            <div class="nv-recap-row"><span>Niveau</span><span id="nv-recap-level">.</span></div>
+            <div class="nv-recap-row"><span>Premier fichier</span><span id="nv-recap-file">Aucun</span></div>
+          </div>
+
+          <a id="nv-pdf" href="#" target="_blank" rel="noopener">
+            <div class="nv-filecard-icon">📕</div>
+            <div class="nv-filecard-text">
+              <div class="nv-filecard-name">La fiche d'arrêt, le guide NAVIRE</div>
+              <div class="nv-filecard-meta">PDF offert · télécharge-le maintenant</div>
+            </div>
+            <div class="nv-filecard-badge">↓</div>
+          </a>
+
+          <div class="nv-err" data-err="submit"></div>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-back" data-back="6">Retour</button>
+          <button class="nv-btn nv-btn-primary" id="nv-submit">S'enregistrer</button>
+        </div>
+      </section>
+
+      <!-- ACCUEIL 1/4 : tour rapide -->
+      <section class="nv-step" data-step="7">
+        <div class="nv-scroll">
+          <div class="nv-eyebrow" id="nv-welcome">Bienvenue à bord</div>
+          <h2 class="nv-title sm">Ce que <em>NAVIRE</em> fait pour toi</h2>
+          <div class="nv-features">
+            <div class="nv-feature">
+              <div class="nv-feature-icon">🧭</div>
+              <div>
+                <div class="nv-feature-title">NAVIRE AI</div>
+                <div class="nv-feature-text">Pose tes questions de droit, l'IA répond en s'appuyant sur tes cours.</div>
+              </div>
+            </div>
+            <div class="nv-feature">
+              <div class="nv-feature-icon">📚</div>
+              <div>
+                <div class="nv-feature-title">NAVIRE Lib</div>
+                <div class="nv-feature-text">Des cours structurés, avec des points de passage pour vérifier que tu as compris.</div>
+              </div>
+            </div>
+            <div class="nv-feature">
+              <div class="nv-feature-icon">⚡</div>
+              <div>
+                <div class="nv-feature-title">QCM et flashcards</div>
+                <div class="nv-feature-text">Générés depuis tes propres PDF, pour réviser en quelques minutes.</div>
+              </div>
+            </div>
+            <div class="nv-feature">
+              <div class="nv-feature-icon">🏆</div>
+              <div>
+                <div class="nv-feature-title">Veille et classement</div>
+                <div class="nv-feature-text">L'actu juridique du jour, et chaque révision fait monter ta fac au classement.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-back" data-skip-onboarding>Passer</button>
+          <button class="nv-btn nv-btn-next" data-next="7">C'est parti</button>
+        </div>
+      </section>
+
+      <!-- ACCUEIL 2/4 : profil -->
+      <section class="nv-step" data-step="8">
+        <div class="nv-scroll">
+          <h2 class="nv-title sm">Personnalise ton <em>profil</em></h2>
+          <div class="nv-sub">C'est ce que verront les autres élèves dans le classement et sur ta page profil.</div>
+
+          <div id="nv-avatar-row">
+            <div id="nv-avatar" role="button" tabindex="0" aria-label="Choisir une photo de profil">?</div>
+            <div id="nv-avatar-text">
+              <div id="nv-avatar-name">.</div>
+              <div id="nv-avatar-meta">JPG, PNG ou WEBP · max 8 Mo</div>
+              <button class="nv-linkbtn left" id="nv-avatar-btn" type="button">Choisir une photo</button>
+            </div>
+            <input id="nv-avatar-input" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" />
+          </div>
+
+          <div class="nv-field">
+            <label class="nv-label" for="nv-bio">Bio</label>
+            <div class="nv-input-wrap">
+              <textarea id="nv-bio" class="nv-input" maxlength="160" rows="2"
+                        placeholder="Ex. L2 droit à Bordeaux, passionné de pénal"></textarea>
+            </div>
+            <div class="nv-count" id="nv-bio-count">0 / 160</div>
+            <div class="nv-err" data-err="bio"></div>
+          </div>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-back" data-back="8">Retour</button>
+          <button class="nv-btn nv-btn-next" data-next="8">Continuer</button>
+        </div>
+      </section>
+
+      <!-- ACCUEIL 3/4 : Discord -->
+      <section class="nv-step" data-step="9">
+        <div class="nv-scroll">
+          <h2 class="nv-title sm">Rejoins l'équipage sur <em>Discord</em></h2>
+          <ul class="nv-bullets">
+            <li>Entraide entre étudiants, salons par matière</li>
+            <li>Sessions deep work : ton temps de travail s'affiche sur ton profil</li>
+            <li>Tes rôles suivent automatiquement ton abonnement</li>
+          </ul>
+
+          <div class="nv-row" id="nv-dc-start">
+            <button class="nv-btn nv-btn-discord" id="nv-dc-gen" type="button">Lier mon compte Discord</button>
+          </div>
+
+          <div id="nv-dc-box">
+            <div id="nv-dc-top">
+              <span id="nv-dc-code">------</span>
+              <span id="nv-dc-timer"></span>
+            </div>
+            <div id="nv-dc-help">.</div>
+            <div class="nv-row">
+              <button class="nv-btn nv-btn-ghost" id="nv-dc-copy" type="button">Copier le code</button>
+              <a class="nv-btn nv-btn-discord" id="nv-dc-open" href="#" target="_blank" rel="noopener">Ouvrir Discord</a>
+            </div>
+          </div>
+
+          <div id="nv-dc-done">✓ Ton compte Discord est lié</div>
+          <div class="nv-err" data-err="discord"></div>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-back" data-back="9">Retour</button>
+          <button class="nv-btn nv-btn-next" data-next="9" id="nv-dc-next">Plus tard</button>
+        </div>
+      </section>
+
+      <!-- ACCUEIL 4/4 : Prép'AdJuris -->
+      <section class="nv-step" data-step="10">
+        <div class="nv-scroll center">
+          <h2 class="nv-title sm">Va plus loin avec <em>Prép'AdJuris</em></h2>
+          <div class="nv-sub">Le soutien NAVIRE de la L1 à la L3, matière par matière.</div>
+          <ul class="nv-bullets">
+            <li>Séances en petit groupe avec un chargé de TD</li>
+            <li>Copies corrigées et commentées, dans ton espace Prépa</li>
+            <li>Cours suivis dans la Lib et salons dédiés sur Discord</li>
+          </ul>
+          <div class="nv-err" data-err="end"></div>
+        </div>
+        <div class="nv-actions">
+          <button class="nv-btn nv-btn-back" id="nv-go-home">Mon espace</button>
+          <button class="nv-btn nv-btn-primary" id="nv-go-prepa">Découvrir Prép'AdJuris</button>
+        </div>
+      </section>
+
+    </div>
+
+    <div id="nv-toast"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  const API_BASE = "https://navire-app-api.onrender.com";
+
+  // Destination une fois l'accueil terminé ou passé. Le nouvel inscrit y
+  // arrive connecté, son jeton est en mémoire.
+  const REDIRECT_AFTER_REGISTER = "https://navire-ai.com/";
+
+  // Bouton « Découvrir Prép'AdJuris » de la dernière étape d'accueil.
+  const PREPA_ADJURIS_URL = "https://navire-ai.com/adjuris";
+
+  // PDF offert de l'étape 6 (URL publique du fichier).
+  const WELCOME_PDF_URL = "";
+
+  // Google et Facebook ne se configurent plus ici : Framer isole l'embed dans
+  // une iframe dont l'origine vaut "null", ce que les fournisseurs refusent
+  // (erreur 400 invalid_request, origin=null). Le bouton ouvre donc une vraie
+  // fenêtre sur l'API, qui mène l'échange sur son propre domaine et renvoie un
+  // ticket. Les identifiants vivent côté serveur, sur Render.
+
+  const MAX_FILE_BYTES = 10 * 1024 * 1024;
+  const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+  const LOGO_GOOGLE = "data:image/png;base64,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";
+  const LOGO_FACEBOOK = "data:image/png;base64,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";
+
+  // ============================================================
+  // État
+  // ============================================================
+  const state = {
+    step: 1,
+    mode: "password",      // "password" | "google" | "facebook"
+    username: "",
+    email: "",
+    password: "",
+    emailToken: "",        // preuve de vérification, rendue par /auth/verify-code
+    providerTicket: "",    // ticket signé rendu par /auth/{provider}/callback
+    university: "",
+    study_level: "",
+    verifMessage: "",      // justificatif d'un niveau à vérifier (ex. Doctorant)
+    proof: null,           // attestation jointe (facultative)
+    file: null,
+    submitting: false,
+    done: false,
+    token: "",
+    user: null,
+    bioSaved: "",
+  };
+
+  const SIGNUP_STEPS = 6;
+  const ONBOARDING_FIRST = 7;
+  const ONBOARDING_LAST = 10;
+  const STEP_CODE = 3;     // sautée quand on passe par un fournisseur
+
+  // Détails des niveaux venus de /meta/options : { label: {requires_verification, badge, verification_hint} }
+  let levelInfo = {};
+
+  const $  = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const els = {
+    steps: $$(".nv-step"),
+    progress: $("#nv-progress"),
+    toast: $("#nv-toast"),
+    username: $("#nv-username"),
+    hello: $("#nv-hello"),
+    email: $("#nv-email"),
+    password: $("#nv-password"),
+    password2: $("#nv-password2"),
+    pwdBlock: $("#nv-pwd-block"),
+    strengthBars: $$("#nv-strength-bars span"),
+    strengthLabel: $("#nv-strength-label"),
+    social: $("#nv-social"),
+    or: $("#nv-or"),
+    linked: $("#nv-linked"),
+    linkedIcon: $("#nv-linked-icon"),
+    linkedName: $("#nv-linked-name"),
+    unlink: $("#nv-unlink"),
+    code: $("#nv-code"),
+    codeTarget: $("#nv-code-target"),
+    resend: $("#nv-resend"),
+    university: $("#nv-university"),
+    level: $("#nv-level"),
+    verif: $("#nv-verif"),
+    verifLabel: $("#nv-verif-label"),
+    verifMsg: $("#nv-verif-msg"),
+    proofBtn: $("#nv-proof-btn"),
+    proofInput: $("#nv-proof-input"),
+    proofName: $("#nv-proof-name"),
+    drop: $("#nv-drop"),
+    fileInput: $("#nv-file-input"),
+    fileCard: $("#nv-filecard"),
+    fileName: $("#nv-filename"),
+    fileMeta: $("#nv-filemeta"),
+    fileReset: $("#nv-filereset"),
+    hint: $("#nv-hint"),
+    submit: $("#nv-submit"),
+    pdf: $("#nv-pdf"),
+    endSub: $("#nv-end-sub"),
+    recap: {
+      username: $("#nv-recap-username"),
+      email: $("#nv-recap-email"),
+      mode: $("#nv-recap-mode"),
+      university: $("#nv-recap-university"),
+      level: $("#nv-recap-level"),
+      file: $("#nv-recap-file"),
+    },
+    welcome: $("#nv-welcome"),
+    avatar: $("#nv-avatar"),
+    avatarBtn: $("#nv-avatar-btn"),
+    avatarInput: $("#nv-avatar-input"),
+    avatarName: $("#nv-avatar-name"),
+    bio: $("#nv-bio"),
+    bioCount: $("#nv-bio-count"),
+    dcStart: $("#nv-dc-start"),
+    dcGen: $("#nv-dc-gen"),
+    dcBox: $("#nv-dc-box"),
+    dcCode: $("#nv-dc-code"),
+    dcTimer: $("#nv-dc-timer"),
+    dcHelp: $("#nv-dc-help"),
+    dcCopy: $("#nv-dc-copy"),
+    dcOpen: $("#nv-dc-open"),
+    dcDone: $("#nv-dc-done"),
+    dcNext: $("#nv-dc-next"),
+    goHome: $("#nv-go-home"),
+    goPrepa: $("#nv-go-prepa"),
+  };
+
+  $$("img[data-logo]").forEach((img) => {
+    img.src = img.dataset.logo === "google" ? LOGO_GOOGLE : LOGO_FACEBOOK;
+  });
+
+  // ============================================================
+  // Utilitaires
+  // ============================================================
+  function fmtSize(bytes) {
+    if (bytes < 1024) return bytes + " o";
+    if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + " Ko";
+    return (bytes / 1024 / 1024).toFixed(1) + " Mo";
+  }
+
+  let toastTimer = null;
+  function toast(msg, ms) {
+    els.toast.textContent = msg;
+    els.toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => els.toast.classList.remove("show"), ms || 4200);
+  }
+
+  function setError(key, msg) {
+    const el = document.querySelector('[data-err="' + key + '"]');
+    if (!el) return;
+    el.textContent = msg || "";
+    el.classList.toggle("show", !!msg);
+    const wrap = el.previousElementSibling;
+    if (wrap && wrap.classList.contains("nv-input-wrap")) {
+      wrap.classList.toggle("err", !!msg);
+      if (msg) {
+        wrap.classList.remove("nv-shake");
+        void wrap.offsetWidth;
+        wrap.classList.add("nv-shake");
+      }
+    }
+  }
+
+  function clearErrors() {
+    $$(".nv-err").forEach((el) => { el.textContent = ""; el.classList.remove("show"); });
+    $$(".nv-input-wrap").forEach((el) => el.classList.remove("err"));
+  }
+
+  function broadcast(msg) {
+    try { window.postMessage(msg, "*"); } catch (e) {}
+    try { window.parent && window.parent.postMessage(msg, "*"); } catch (e) {}
+    try { window.top && window.top.postMessage(msg, "*"); } catch (e) {}
+  }
+
+  async function readError(res) {
+    try {
+      const err = await res.json();
+      if (typeof err.detail === "string") return err.detail;
+      if (Array.isArray(err.detail) && err.detail[0] && err.detail[0].msg) return err.detail[0].msg;
+    } catch (e) {}
+    return "";
+  }
+
+  function busy(btn, label) {
+    btn.dataset.label = btn.dataset.label || btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="nv-spin"></span>' + label;
+  }
+
+  function unbusy(btn) {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.label || btn.textContent;
+  }
+
+  // Appel authentifié avec le jeton du compte tout juste créé.
+  async function authed(path, opts) {
+    opts = opts || {};
+    const headers = Object.assign({ "Authorization": "Bearer " + state.token }, opts.headers || {});
+    let body = opts.body;
+    if (body && !(body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+      body = JSON.stringify(body);
+    }
+    const res = await fetch(API_BASE + path, { method: opts.method || "GET", headers: headers, body: body });
+    if (!res.ok) throw new Error((await readError(res)) || ("Erreur " + res.status));
+    return res.json();
+  }
+
+  // ============================================================
+  // Navigation
+  // ============================================================
+  function usesProvider() {
+    return state.mode !== "password";
+  }
+
+  function inOnboarding(step) {
+    return step >= ONBOARDING_FIRST;
+  }
+
+  function nextOf(step) {
+    // L'étape du code n'a pas lieu d'être quand Google ou Facebook a déjà
+    // prouvé l'adresse.
+    if (step + 1 === STEP_CODE && usesProvider()) return STEP_CODE + 1;
+    return step + 1;
+  }
+
+  function prevOf(step) {
+    if (step - 1 === STEP_CODE && usesProvider()) return STEP_CODE - 1;
+    return step - 1;
+  }
+
+  // Une barre par phase : 6 segments pour l'inscription, 4 pour l'accueil.
+  function renderProgress(step) {
+    const onboarding = inOnboarding(step);
+    const first = onboarding ? ONBOARDING_FIRST : 1;
+    const count = onboarding ? ONBOARDING_LAST - ONBOARDING_FIRST + 1 : SIGNUP_STEPS;
+    if (els.progress.dataset.phase !== String(onboarding)) {
+      els.progress.dataset.phase = String(onboarding);
+      els.progress.innerHTML = "";
+      for (let i = 0; i < count; i++) {
+        const seg = document.createElement("div");
+        seg.className = "nv-seg";
+        seg.dataset.seg = String(first + i);
+        seg.appendChild(document.createElement("i"));
+        els.progress.appendChild(seg);
+      }
+    }
+    $$(".nv-seg").forEach((seg) => {
+      const n = Number(seg.dataset.seg);
+      seg.classList.toggle("done", n < step);
+      seg.classList.toggle("current", n === step);
+    });
+  }
+
+  function goTo(step) {
+    if (step < 1 || step > ONBOARDING_LAST) return;
+    // Une fois le compte créé, plus de retour vers l'inscription.
+    if (state.done && step < ONBOARDING_FIRST) return;
+    const previous = state.step;
+    state.step = step;
+
+    els.steps.forEach((sec) => {
+      const n = Number(sec.dataset.step);
+      if (n === step) {
+        sec.classList.add("active");
+        requestAnimationFrame(() => sec.classList.add("shown"));
+      } else {
+        sec.classList.remove("shown");
+        if (n === previous) {
+          setTimeout(() => { if (Number(sec.dataset.step) !== state.step) sec.classList.remove("active"); }, 240);
+        } else {
+          sec.classList.remove("active");
+        }
+      }
+      const scroller = sec.querySelector(".nv-scroll");
+      if (scroller) scroller.scrollTop = 0;
+    });
+
+    renderProgress(step);
+
+    if (step === 2) {
+      els.hello.textContent = state.username ? state.username + "," : "Ton compte";
+    }
+    if (step === STEP_CODE) {
+      els.codeTarget.textContent = state.email;
+      setTimeout(() => els.code.focus(), 320);
+    }
+    if (step === SIGNUP_STEPS) refreshRecap();
+    if (step === 8) renderAvatar();
+    if (step === 9) enterDiscordStep();
+    if (step !== 9) stopDiscordPolling();
+
+    broadcast({ type: "NAVIRE_ONBOARDING_STEP", step: step });
+  }
+
+  // ============================================================
+  // Validation
+  // ============================================================
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+  // Aligné sur app/schemas/auth.py : 8 à 72 caractères, 1 majuscule,
+  // et au moins 1 chiffre ou 1 symbole.
+  const PWD_RE = /^(?=.*[A-Z])(?=.*(\d|[^\w\s])).{8,72}$/;
+
+  function scorePassword(pw) {
+    if (!pw) return 0;
+    let score = 0;
+    if (pw.length >= 8) score++;
+    if (pw.length >= 12) score++;
+    if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+    if (/\d/.test(pw) && /[^\w\s]/.test(pw)) score++;
+    else if (/\d/.test(pw) || /[^\w\s]/.test(pw)) score += 0.5;
+    return Math.min(4, Math.round(score));
+  }
+
+  function renderStrength() {
+    const pw = els.password.value;
+    const score = scorePassword(pw);
+    const valid = PWD_RE.test(pw);
+
+    let color = "rgba(255,255,255,0.16)";
+    let label = "";
+
+    if (pw) {
+      if (!valid || score <= 1) { color = "var(--nv-bad)";  label = "Faible"; }
+      else if (score === 2 || score === 3) { color = "var(--nv-warn)"; label = "Moyen"; }
+      else { color = "var(--nv-ok)"; label = "Fort"; }
+    }
+
+    const filled = pw ? Math.max(1, score) : 0;
+    els.strengthBars.forEach((bar, i) => {
+      bar.style.background = i < filled ? color : "rgba(255,255,255,0.16)";
+    });
+
+    els.strengthLabel.textContent = label
+      ? (valid ? label : label + " · 8 caractères, 1 majuscule et 1 chiffre ou symbole")
+      : "";
+    els.strengthLabel.style.color = pw
+      ? (valid ? "rgba(255,255,255,0.55)" : "rgba(255,155,138,0.9)")
+      : "var(--nv-txt-dim)";
+  }
+
+  async function emailAlreadyUsed(email) {
+    try {
+      const res = await fetch(API_BASE + "/auth/email-exists?email=" + encodeURIComponent(email));
+      if (!res.ok) return false;
+      const data = await res.json();
+      return !!data.exists;
+    } catch (e) {
+      return false; // hors ligne : la création tranchera
+    }
+  }
+
+  // ============================================================
+  // Étape 2 vers 3 : demande du code
+  // ============================================================
+  async function requestCode(btn) {
+    busy(btn, "Envoi du code...");
+    try {
+      const res = await fetch(API_BASE + "/auth/request-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: state.email, username: state.username }),
+      });
+
+      if (!res.ok) {
+        const detail = await readError(res);
+        // 429 : un code est déjà parti il y a quelques secondes. Inutile de
+        // bloquer, l'utilisateur a le code dans sa boîte.
+        if (res.status === 429) {
+          toast(detail || "Un code vient déjà de t'être envoyé.");
+          return true;
+        }
+        setError("email", detail || "Envoi impossible pour le moment.");
+        return false;
+      }
+
+      startResendCooldown();
+      return true;
+
+    } catch (e) {
+      setError("email", "Erreur réseau : " + e.message);
+      return false;
+    } finally {
+      unbusy(btn);
+    }
+  }
+
+  let cooldownTimer = null;
+  function startResendCooldown(seconds) {
+    let left = seconds || 60;
+    clearInterval(cooldownTimer);
+    els.resend.disabled = true;
+    const tick = () => {
+      els.resend.textContent = left > 0
+        ? "Renvoyer le code (" + left + "s)"
+        : "Renvoyer le code";
+      if (left <= 0) {
+        clearInterval(cooldownTimer);
+        els.resend.disabled = false;
+      }
+      left -= 1;
+    };
+    tick();
+    cooldownTimer = setInterval(tick, 1000);
+  }
+
+  els.resend.addEventListener("click", async () => {
+    if (els.resend.disabled) return;
+    clearErrors();
+    const ok = await requestCode(els.resend);
+    if (ok) toast("Nouveau code envoyé à " + state.email);
+  });
+
+  async function verifyCode(btn) {
+    const code = (els.code.value || "").trim();
+    if (!/^\d{6}$/.test(code)) {
+      setError("code", "Entre les 6 chiffres reçus par email.");
+      els.code.focus();
+      return false;
+    }
+
+    busy(btn, "Vérification...");
+    try {
+      const res = await fetch(API_BASE + "/auth/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: state.email, code: code }),
+      });
+
+      if (!res.ok) {
+        setError("code", (await readError(res)) || "Code refusé.");
+        return false;
+      }
+
+      const data = await res.json();
+      state.emailToken = data.email_token || "";
+      return true;
+
+    } catch (e) {
+      setError("code", "Erreur réseau : " + e.message);
+      return false;
+    } finally {
+      unbusy(btn);
+    }
+  }
+
+  // ============================================================
+  // Validation par étape
+  // ============================================================
+  async function validateStep(step, btn) {
+    clearErrors();
+
+    if (step === 1) {
+      const v = els.username.value.trim();
+      if (v.length < 3) {
+        setError("username", "Choisis un prénom ou pseudo d'au moins 3 caractères.");
+        els.username.focus();
+        return false;
+      }
+      state.username = v;
+      return true;
+    }
+
+    if (step === 2) {
+      // Compte Google/Facebook : l'adresse est déjà prouvée, rien à saisir.
+      if (usesProvider()) return true;
+
+      const email = els.email.value.trim();
+      const pw = els.password.value;
+      const pw2 = els.password2.value;
+
+      if (!EMAIL_RE.test(email)) {
+        setError("email", "Entre une adresse email valide.");
+        els.email.focus();
+        return false;
+      }
+      if (!PWD_RE.test(pw)) {
+        setError("password", "8 à 72 caractères, au moins 1 majuscule et 1 chiffre ou symbole.");
+        els.password.focus();
+        return false;
+      }
+      if (pw !== pw2) {
+        setError("password2", "Les deux mots de passe ne correspondent pas.");
+        els.password2.focus();
+        return false;
+      }
+      if (await emailAlreadyUsed(email)) {
+        setError("email", "Un compte existe déjà avec cet email.");
+        els.email.focus();
+        return false;
+      }
+
+      state.email = email;
+      state.password = pw;
+
+      // Un code part maintenant : l'étape suivante le demande.
+      return await requestCode(btn);
+    }
+
+    if (step === STEP_CODE) {
+      return await verifyCode(btn);
+    }
+
+    if (step === 4) {
+      const uni = els.university.value;
+      const lvl = els.level.value;
+      if (!uni) { setError("university", "Sélectionne ton université."); return false; }
+      if (!lvl) { setError("level", "Sélectionne ton niveau d'études."); return false; }
+      if (needsVerification(lvl)) {
+        const msg = els.verifMsg.value.trim();
+        if (msg.length < 10 && !state.proof) {
+          setError("verif", "Quelques mots pour que l'équipe puisse vérifier ton statut.");
+          els.verifMsg.focus();
+          return false;
+        }
+        state.verifMessage = msg;
+      } else {
+        state.verifMessage = "";
+      }
+      state.university = uni;
+      state.study_level = lvl;
+      return true;
+    }
+
+    return true; // étape 5 : le fichier est facultatif
+  }
+
+  // ============================================================
+  // Université et niveau
+  // ============================================================
+  const FALLBACK_OPTIONS = {
+    universities: [
+      "Université Paris 1 Panthéon-Sorbonne",
+      "Université Paris-Panthéon-Assas",
+      "Université Paris Cité",
+      "Université Paris Nanterre",
+      "Université Paris-Saclay",
+      "Université de Bordeaux",
+      "Université de Lille",
+      "Université de Montpellier",
+      "Université de Rennes",
+      "Université de Strasbourg",
+      "Université Jean Moulin Lyon 3",
+      "Université Toulouse 1 Capitole",
+      "Aix-Marseille Université",
+    ],
+    study_levels: ["L1", "L2", "L3", "M1", "M2", "CRFPA"],
+  };
+
+  function fillSelect(select, values, placeholder) {
+    select.innerHTML = "";
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = placeholder;
+    ph.disabled = true;
+    ph.selected = true;
+    select.appendChild(ph);
+    values.forEach((v) => {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = levelInfo[v] && levelInfo[v].requires_verification ? v + " (vérifié)" : v;
+      select.appendChild(opt);
+    });
+  }
+
+  async function loadOptions() {
+    let data = null;
+    try {
+      const res = await fetch(API_BASE + "/meta/options");
+      if (res.ok) data = await res.json();
+    } catch (e) {}
+
+    const universities = (data && data.universities && data.universities.length)
+      ? data.universities : FALLBACK_OPTIONS.universities;
+    const levels = (data && data.study_levels && data.study_levels.length)
+      ? data.study_levels : FALLBACK_OPTIONS.study_levels;
+
+    levelInfo = {};
+    ((data && data.study_level_options) || []).forEach((o) => { levelInfo[o.label] = o; });
+
+    fillSelect(els.university, universities, "Choisis ton université");
+    fillSelect(els.level, levels, "Choisis ton niveau");
+  }
+
+  function needsVerification(level) {
+    return !!(levelInfo[level] && levelInfo[level].requires_verification);
+  }
+
+  function renderVerif() {
+    const lvl = els.level.value;
+    const show = needsVerification(lvl);
+    els.verif.classList.toggle("show", show);
+    if (!show) return;
+    const info = levelInfo[lvl];
+    els.verifLabel.textContent = info.badge || lvl;
+    if (info.verification_hint) els.verifMsg.placeholder = info.verification_hint;
+  }
+
+  els.level.addEventListener("change", () => { setError("level", ""); renderVerif(); });
+  els.verifMsg.addEventListener("input", () => setError("verif", ""));
+  els.proofBtn.addEventListener("click", () => els.proofInput.click());
+  els.proofInput.addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    els.proofInput.value = "";
+    if (!f) return;
+    if (f.size > MAX_IMAGE_BYTES) { toast("Attestation trop volumineuse (max 8 Mo)."); return; }
+    state.proof = f;
+    els.proofName.textContent = "📎 " + f.name + " · " + fmtSize(f.size);
+    els.proofBtn.textContent = "Changer d'attestation";
+    setError("verif", "");
+  });
+
+  // ============================================================
+  // Fichier, gardé en mémoire jusqu'à la création du compte
+  // ============================================================
+  function showFile(file) {
+    state.file = file;
+    els.fileName.textContent = file.name;
+    els.fileMeta.textContent = fmtSize(file.size) + " · déposé juste après ton inscription";
+    els.fileCard.style.display = "flex";
+    els.fileReset.style.display = "block";
+    els.drop.style.display = "none";
+    els.hint.style.display = "none";
+    broadcast({ type: "NAVIRE_ONBOARDING_FILE", name: file.name, size: file.size });
+  }
+
+  function resetFile() {
+    state.file = null;
+    els.fileCard.style.display = "none";
+    els.fileReset.style.display = "none";
+    els.drop.style.display = "flex";
+    els.hint.style.display = "block";
+  }
+
+  function acceptFile(file) {
+    if (!file) return;
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) { toast("PDF uniquement pour l'instant."); return; }
+    if (file.size > MAX_FILE_BYTES) { toast("Fichier trop volumineux (max 10 Mo)."); return; }
+    showFile(file);
+  }
+
+  els.drop.addEventListener("click", () => els.fileInput.click());
+  els.fileInput.addEventListener("change", (e) => {
+    acceptFile(e.target.files && e.target.files[0]);
+    els.fileInput.value = "";
+  });
+  els.drop.addEventListener("dragover", (e) => { e.preventDefault(); els.drop.classList.add("drag"); });
+  els.drop.addEventListener("dragleave", () => els.drop.classList.remove("drag"));
+  els.drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    els.drop.classList.remove("drag");
+    acceptFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+  });
+  els.fileReset.addEventListener("click", resetFile);
+
+  // ============================================================
+  // Récapitulatif
+  // ============================================================
+  function refreshRecap() {
+    els.recap.username.textContent = state.username || ".";
+    els.recap.email.textContent = state.email || ".";
+    els.recap.mode.textContent = state.mode === "google" ? "Google"
+      : state.mode === "facebook" ? "Facebook"
+      : "Email vérifié";
+    els.recap.university.textContent = state.university || ".";
+    els.recap.level.textContent = state.study_level
+      ? state.study_level + (needsVerification(state.study_level) ? " (à vérifier)" : "")
+      : ".";
+    els.recap.file.textContent = state.file ? state.file.name : "Aucun";
+  }
+
+  if (WELCOME_PDF_URL) {
+    els.pdf.href = WELCOME_PDF_URL;
+    els.pdf.setAttribute("download", "");
+  } else {
+    els.pdf.addEventListener("click", (e) => {
+      e.preventDefault();
+      toast("Le PDF arrive très vite. Ton compte, lui, est déjà prêt à être créé.");
+    });
+    console.warn("[NAVIRE] WELCOME_PDF_URL vide : le PDF de bienvenue n'est pas téléchargeable.");
+  }
+
+  // ============================================================
+  // Création du compte
+  // ============================================================
+  async function uploadPendingFile() {
+    if (!state.file) return;
+    const fd = new FormData();
+    fd.append("file", state.file);
+    try {
+      await authed("/files/upload", { method: "POST", body: fd });
+      try { window.dispatchEvent(new CustomEvent("navire-files-updated")); } catch (e) {}
+      try { localStorage.setItem("navire_files_refresh", String(Date.now())); } catch (e) {}
+    } catch (e) {
+      toast("Compte créé. Le dépôt du fichier a échoué, tu pourras le redéposer dans ton espace.");
+    }
+  }
+
+  // Niveau à vérifier : le compte est créé sans ce niveau, avec une demande
+  // en attente. On y joint ici le justificatif saisi à l'étape 4.
+  async function sendVerification() {
+    if (!needsVerification(state.study_level)) return;
+    if (!state.verifMessage && !state.proof) return;
+    const fd = new FormData();
+    fd.append("label", state.study_level);
+    fd.append("message", state.verifMessage);
+    if (state.proof) fd.append("proof", state.proof);
+    try {
+      await authed("/users/me/verifications", { method: "POST", body: fd });
+      toast("Demande de statut " + state.study_level + " envoyée : l'équipe la valide sous peu.");
+    } catch (e) {
+      toast("Compte créé. La demande de statut n'est pas partie : refais-la depuis ton profil.");
+    }
+  }
+
+  function goTo_url(url) {
+    if (!url) return;
+    // L'embed est dans une iframe : c'est la page entière qui doit changer.
+    try {
+      if (window.top && window.top !== window) { window.top.location.href = url; return; }
+    } catch (e) {
+      // Navigation inter-origines refusée : on tente depuis l'iframe.
+    }
+    window.location.href = url;
+  }
+
+  async function finish(data) {
+    const token = data.access_token;
+    state.token = token;
+    state.user = data.user || null;
+
+    try {
+      localStorage.setItem("navire_token", token);
+      localStorage.setItem("navire_user", JSON.stringify(data.user || {}));
+    } catch (e) {}
+
+    els.submit.innerHTML = '<span class="nv-spin"></span>Finalisation...';
+    await uploadPendingFile();
+    await sendVerification();
+
+    state.done = true;
+    state.submitting = false;
+
+    broadcast({ type: "NAVIRE_REGISTERED", token: token, user: data.user || null });
+    try { window.dispatchEvent(new CustomEvent("navire-auth-updated")); } catch (e) {}
+
+    // Un compte qui a déjà fait l'accueil (connexion d'un compte existant via
+    // Google/Facebook) part directement chez lui.
+    let me = null;
+    try { me = await authed("/auth/me"); } catch (e) {}
+    if (me) {
+      state.user = Object.assign({}, state.user || {}, me);
+      if (me.onboarding_done) { goTo_url(REDIRECT_AFTER_REGISTER); return; }
+    }
+    startOnboarding();
+  }
+
+  async function register() {
+    if (state.submitting || state.done) return;
+
+    // Filet de sécurité si un champ a été modifié après coup.
+    for (const step of [1, 4]) {
+      if (!(await validateStep(step, els.submit))) { goTo(step); return; }
+    }
+
+    state.submitting = true;
+    els.submit.dataset.label = "S'enregistrer";
+    busy(els.submit, "Création du compte...");
+    setError("submit", "");
+
+    const useProvider = usesProvider();
+
+    const url = API_BASE + (useProvider ? "/auth/oauth" : "/auth/register");
+    const body = useProvider
+      ? {
+          provider: state.mode,
+          ticket: state.providerTicket,
+          username: state.username,
+          university: state.university,
+          study_level: state.study_level,
+          newsletter_opt_in: false,
+        }
+      : {
+          username: state.username,
+          email: state.email,
+          password: state.password,
+          newsletter_opt_in: false,
+          university: state.university,
+          study_level: state.study_level,
+          email_token: state.emailToken,
+        };
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const detail = await readError(res);
+        state.submitting = false;
+        unbusy(els.submit);
+
+        if (/already registered/i.test(detail) || /existe déjà/i.test(detail)) {
+          setError("submit", "Un compte existe déjà avec cet email.");
+          goTo(2);
+          setError("email", "Un compte existe déjà avec cet email.");
+          return;
+        }
+        if (useProvider && (res.status === 401 || res.status === 503)) {
+          // Jeton périmé ou fournisseur mal configuré : on repart de l'étape 2.
+          setError("submit", detail || "Connexion au fournisseur expirée, recommence.");
+          resetProvider();
+          goTo(2);
+          return;
+        }
+        if (/non vérifiée/i.test(detail)) {
+          setError("submit", detail);
+          goTo(STEP_CODE);
+          return;
+        }
+        setError("submit", detail || ("Inscription impossible (" + res.status + ")."));
+        return;
+      }
+
+      await finish(await res.json());
+
+    } catch (e) {
+      state.submitting = false;
+      unbusy(els.submit);
+      setError("submit", "Erreur réseau : " + e.message);
+    }
+  }
+
+  els.submit.addEventListener("click", register);
+
+  // ============================================================
+  // Accueil : présentation, profil, Discord, Prép'AdJuris
+  // ============================================================
+  function startOnboarding() {
+    const name = (state.user && state.user.username) || state.username;
+    els.welcome.textContent = name ? "Bienvenue à bord, " + name : "Bienvenue à bord";
+    goTo(ONBOARDING_FIRST);
+  }
+
+  let onboardingClosing = false;
+  async function endOnboarding(url, btn) {
+    if (onboardingClosing) return;
+    onboardingClosing = true;
+    if (btn) busy(btn, "Un instant...");
+    stopDiscordPolling();
+    try { await authed("/users/me/onboarding", { method: "POST", body: { done: true } }); } catch (e) {}
+    broadcast({ type: "NAVIRE_ONBOARDING_DONE" });
+    goTo_url(url || REDIRECT_AFTER_REGISTER);
+  }
+
+  $$("[data-skip-onboarding]").forEach((btn) => {
+    btn.addEventListener("click", () => endOnboarding(REDIRECT_AFTER_REGISTER, btn));
+  });
+  els.goHome.addEventListener("click", () => endOnboarding(REDIRECT_AFTER_REGISTER, els.goHome));
+  els.goPrepa.addEventListener("click", () => endOnboarding(PREPA_ADJURIS_URL, els.goPrepa));
+
+  // ── Profil ────────────────────────────────────────────────
+  function renderAvatar() {
+    const u = state.user || {};
+    const name = u.username || state.username || "";
+    els.avatarName.textContent = name || "Ton profil";
+    // L'API renvoie un avatar par défaut quand aucune photo n'a été choisie :
+    // on n'affiche que les photos envoyées depuis ce formulaire ou Cloudinary.
+    const url = u.avatar_url && /res\.cloudinary\.com/.test(u.avatar_url) ? u.avatar_url : "";
+    if (url) {
+      els.avatar.style.backgroundImage = 'url("' + url.replace(/"/g, "") + '")';
+      els.avatar.textContent = "";
+      els.avatarBtn.textContent = "Changer de photo";
+    } else {
+      els.avatar.style.backgroundImage = "";
+      els.avatar.textContent = (name.trim()[0] || "?").toUpperCase();
+    }
+  }
+
+  async function uploadAvatar(file) {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { toast("Photo : JPG, PNG ou WEBP."); return; }
+    if (file.size > MAX_IMAGE_BYTES) { toast("Photo trop volumineuse (max 8 Mo)."); return; }
+
+    els.avatar.classList.add("busy");
+    els.avatar.insertAdjacentHTML("beforeend", '<span class="nv-spin"></span>');
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const u = await authed("/users/me/avatar", { method: "POST", body: fd });
+      state.user = Object.assign({}, state.user || {}, u);
+      try { localStorage.setItem("navire_user", JSON.stringify(state.user)); } catch (e) {}
+      try { window.dispatchEvent(new CustomEvent("navire-auth-updated")); } catch (e) {}
+      toast("Photo de profil enregistrée.");
+    } catch (e) {
+      toast(e.message || "Envoi de la photo impossible.");
+    } finally {
+      els.avatar.classList.remove("busy");
+      const sp = els.avatar.querySelector(".nv-spin");
+      if (sp) sp.remove();
+      renderAvatar();
+    }
+  }
+
+  els.avatar.addEventListener("click", () => els.avatarInput.click());
+  els.avatar.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") els.avatarInput.click(); });
+  els.avatarBtn.addEventListener("click", () => els.avatarInput.click());
+  els.avatarInput.addEventListener("change", (e) => {
+    uploadAvatar(e.target.files && e.target.files[0]);
+    els.avatarInput.value = "";
+  });
+
+  els.bio.addEventListener("input", () => {
+    els.bioCount.textContent = els.bio.value.length + " / 160";
+    setError("bio", "");
+  });
+
+  async function saveBio(btn) {
+    const bio = els.bio.value.trim();
+    if (bio === state.bioSaved) return true;
+    busy(btn, "Enregistrement...");
+    try {
+      await authed("/users/me", { method: "PATCH", body: { bio: bio } });
+      state.bioSaved = bio;
+      return true;
+    } catch (e) {
+      setError("bio", e.message || "Enregistrement impossible.");
+      return false;
+    } finally {
+      unbusy(btn);
+    }
+  }
+
+  // ── Discord ───────────────────────────────────────────────
+  let dcTicker = null;
+  let dcPoller = null;
+  let dcLinked = false;
+
+  function fmtLeft(sec) {
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function showDiscordLinked() {
+    dcLinked = true;
+    clearInterval(dcTicker);
+    stopDiscordPolling();
+    els.dcBox.classList.remove("show");
+    els.dcStart.style.display = "none";
+    els.dcDone.classList.add("show");
+    els.dcNext.textContent = "Continuer";
+    els.dcNext.dataset.label = "Continuer";
+  }
+
+  function enterDiscordStep() {
+    const linked = state.user && (state.user.discord_linked || state.user.discord_id);
+    if (linked || dcLinked) { showDiscordLinked(); return; }
+    if (els.dcBox.classList.contains("show")) startDiscordPolling();
+  }
+
+  // Le bot lie le compte de son côté : on regarde /auth/me de temps en temps
+  // pour passer l'étape en « lié » sans que la personne ait à revenir.
+  function startDiscordPolling() {
+    stopDiscordPolling();
+    dcPoller = setInterval(async () => {
+      try {
+        const me = await authed("/auth/me");
+        if (me && me.discord_linked) {
+          state.user = Object.assign({}, state.user || {}, me);
+          showDiscordLinked();
+          toast("Discord lié. Bienvenue sur le serveur !");
+        }
+      } catch (e) {}
+    }, 5000);
+  }
+
+  function stopDiscordPolling() {
+    clearInterval(dcPoller);
+    dcPoller = null;
+  }
+
+  async function requestDiscordCode() {
+    setError("discord", "");
+    busy(els.dcGen, "Génération...");
+    try {
+      const d = await authed("/users/me/discord-code", { method: "POST" });
+      if (d.already_linked) { showDiscordLinked(); return; }
+
+      els.dcCode.textContent = d.code || "------";
+      els.dcHelp.innerHTML = "";
+      els.dcHelp.append(
+        "Dans le salon de liaison du serveur, saisis ce code avec ton identifiant ",
+        Object.assign(document.createElement("b"), { textContent: String(d.user_id) }),
+        " et ton email ",
+        Object.assign(document.createElement("b"), { textContent: d.email || state.email || "" }),
+        "."
+      );
+      if (d.discord_url) {
+        els.dcOpen.href = d.discord_url;
+        els.dcOpen.style.display = "";
+      } else {
+        els.dcOpen.style.display = "none";
+      }
+      els.dcBox.classList.add("show");
+      els.dcStart.style.display = "none";
+
+      const deadline = Date.now() + Math.max(0, d.expires_in != null ? d.expires_in : 300) * 1000;
+      clearInterval(dcTicker);
+      const tick = () => {
+        const left = Math.round((deadline - Date.now()) / 1000);
+        if (left <= 0) {
+          clearInterval(dcTicker);
+          stopDiscordPolling();
+          els.dcBox.classList.remove("show");
+          els.dcStart.style.display = "";
+          els.dcGen.dataset.label = "Générer un nouveau code";
+          els.dcGen.textContent = "Générer un nouveau code";
+          return;
+        }
+        els.dcTimer.textContent = "expire dans " + fmtLeft(left);
+        els.dcTimer.classList.toggle("urgent", left <= 60);
+      };
+      tick();
+      dcTicker = setInterval(tick, 1000);
+      startDiscordPolling();
+    } catch (e) {
+      setError("discord", e.message || "Génération du code impossible, réessaie.");
+    } finally {
+      unbusy(els.dcGen);
+    }
+  }
+
+  els.dcGen.addEventListener("click", requestDiscordCode);
+  els.dcCopy.addEventListener("click", async () => {
+    const code = els.dcCode.textContent;
+    try {
+      await navigator.clipboard.writeText(code);
+      toast("Code copié.");
+    } catch (e) {
+      toast("Copie impossible : recopie le code " + code);
+    }
+  });
+
+  // ============================================================
+  // Google et Facebook
+  // ============================================================
+  function providerIcon(provider) {
+    const img = document.createElement("img");
+    img.className = "nv-logo lg";
+    img.alt = "";
+    img.src = provider === "google" ? LOGO_GOOGLE : LOGO_FACEBOOK;
+    return img;
+  }
+
+  function setProvider(provider, ticket, profile) {
+    state.mode = provider;
+    state.providerTicket = ticket;
+    state.email = (profile.email || "").trim().toLowerCase();
+
+    const given = (profile.given_name || (profile.name || "").split(" ")[0] || "").trim();
+    if (given && !els.username.value.trim()) {
+      els.username.value = given.slice(0, 64);
+      state.username = given.slice(0, 64);
+      els.hello.textContent = state.username + ",";
+    }
+
+    els.linkedIcon.innerHTML = "";
+    els.linkedIcon.appendChild(providerIcon(provider));
+    els.linkedName.textContent = state.email || (provider === "google" ? "Compte Google" : "Compte Facebook");
+    els.linked.style.display = "flex";
+    els.social.style.display = "none";
+    els.or.style.display = "none";
+    els.pwdBlock.style.display = "none";
+    clearErrors();
+  }
+
+  function resetProvider() {
+    state.mode = "password";
+    state.providerTicket = "";
+    els.linked.style.display = "none";
+    els.social.style.display = "flex";
+    els.or.style.display = "flex";
+    els.pwdBlock.style.display = "block";
+  }
+
+  els.unlink.addEventListener("click", resetProvider);
+
+  // Une seule fenêtre à la fois.
+  let popup = null;
+  let pending = null;   // { provider, resolve, reject, timer }
+
+  function closePending(err) {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    const p = pending;
+    pending = null;
+    if (err) p.reject(err); else p.resolve();
+  }
+
+  // Le message vient de la page de retour servie par l'API, dans la fenêtre
+  // que nous avons ouverte. Son contenu n'est pas cru sur parole : le ticket
+  // est un jeton que le serveur a signé lui-même et qu'il revérifiera.
+  window.addEventListener("message", (event) => {
+    const data = event && event.data;
+    if (!data || typeof data !== "object") return;
+
+    if (data.type === "NAVIRE_OAUTH_TICKET") {
+      closePending(null);
+      handleTicket(data);
+      return;
+    }
+
+    if (data.type === "NAVIRE_OAUTH_ERROR") {
+      closePending(new Error(data.message || "Connexion impossible."));
+    }
+  });
+
+  // Adresse déjà connue : il s'agit d'une connexion, pas d'une inscription.
+  async function handleTicket(data) {
+    const dejaInscrit = await emailAlreadyUsed((data.email || "").trim());
+
+    if (dejaInscrit) {
+      toast("Tu as déjà un compte avec cette adresse. On te connecte.");
+      await loginWithTicket(data.provider, data.ticket);
+      return;
+    }
+
+    setProvider(data.provider, data.ticket, {
+      email: data.email,
+      name: data.name,
+      given_name: data.given_name,
+    });
+    toast(data.provider === "google"
+      ? "Compte Google confirmé. Continue ton inscription."
+      : "Compte Facebook confirmé. Continue ton inscription.");
+  }
+
+  async function loginWithTicket(provider, ticket) {
+    try {
+      const res = await fetch(API_BASE + "/auth/oauth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: provider, ticket: ticket }),
+      });
+
+      if (!res.ok) {
+        toast((await readError(res)) || "Connexion impossible pour le moment.");
+        return;
+      }
+
+      await finish(await res.json());
+
+    } catch (e) {
+      toast("Erreur réseau : " + e.message);
+    }
+  }
+
+  function openProviderWindow(provider) {
+    return new Promise((resolve, reject) => {
+      const w = 480, h = 640;
+      const y = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+      const x = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+
+      popup = window.open(
+        API_BASE + "/auth/" + provider + "/start",
+        "navire_oauth",
+        "width=" + w + ",height=" + h + ",left=" + x + ",top=" + y
+      );
+
+      if (!popup) {
+        reject(new Error("Ton navigateur a bloqué la fenêtre. Autorise-la puis réessaie."));
+        return;
+      }
+
+      // Si la fenêtre est refermée à la main, la promesse ne doit pas rester
+      // en suspens et bloquer le bouton.
+      const watcher = setInterval(() => {
+        if (popup && popup.closed) {
+          clearInterval(watcher);
+          if (pending) closePending(new Error("Connexion interrompue."));
+        }
+      }, 500);
+
+      pending = {
+        provider: provider,
+        resolve: () => { clearInterval(watcher); resolve(); },
+        reject: (e) => { clearInterval(watcher); reject(e); },
+        timer: setTimeout(() => {
+          clearInterval(watcher);
+          closePending(new Error("Connexion trop longue, réessaie."));
+        }, 120000),
+      };
+    });
+  }
+
+  function withBusy(btn, fn) {
+    return async function () {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try { await fn(); }
+      catch (e) { toast(e && e.message ? e.message : "Connexion impossible."); }
+      finally { btn.disabled = false; }
+    };
+  }
+
+  const btnGoogle = document.getElementById("nv-google");
+  const btnFacebook = document.getElementById("nv-facebook");
+
+  btnGoogle.addEventListener("click", withBusy(btnGoogle, () => openProviderWindow("google")));
+  btnFacebook.addEventListener("click", withBusy(btnFacebook, () => openProviderWindow("facebook")));
+
+  // ============================================================
+  // Voir le mot de passe
+  // ============================================================
+  const EYE_OPEN = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+  const EYE_OFF  = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+  $$(".nv-eye").forEach((btn) => {
+    btn.innerHTML = EYE_OPEN;
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(btn.dataset.eye);
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.innerHTML = show ? EYE_OFF : EYE_OPEN;
+      btn.setAttribute("aria-label", show ? "Masquer le mot de passe" : "Afficher le mot de passe");
+      input.focus();
+    });
+  });
+
+  // ============================================================
+  // Écouteurs génériques
+  // ============================================================
+  $$("[data-next]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const from = Number(btn.dataset.next);
+      btn.dataset.label = btn.dataset.label || btn.textContent;
+      let ok;
+      if (from === 8) ok = await saveBio(btn);
+      else if (inOnboarding(from)) ok = true;
+      else ok = await validateStep(from, btn);
+      unbusy(btn);
+      if (ok) goTo(nextOf(from));
+    });
+  });
+
+  $$("[data-back]").forEach((btn) => {
+    btn.addEventListener("click", () => goTo(prevOf(Number(btn.dataset.back))));
+  });
+
+  els.password.addEventListener("input", () => { renderStrength(); setError("password", ""); });
+  els.password2.addEventListener("input", () => setError("password2", ""));
+  els.email.addEventListener("input", () => setError("email", ""));
+  els.username.addEventListener("input", () => setError("username", ""));
+  els.university.addEventListener("change", () => setError("university", ""));
+
+  els.code.addEventListener("input", () => {
+    // Chiffres uniquement, et validation directe une fois les 6 saisis.
+    const cleaned = els.code.value.replace(/\D/g, "").slice(0, 6);
+    if (cleaned !== els.code.value) els.code.value = cleaned;
+    setError("code", "");
+    if (cleaned.length === 6) {
+      const btn = document.querySelector('[data-next="' + STEP_CODE + '"]');
+      if (btn && !btn.disabled) btn.click();
+    }
+  });
+
+  // Entrée passe à l'étape suivante (sauf dans les zones de texte).
+  $$("input.nv-input").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const section = input.closest(".nv-step");
+      const btn = section.querySelector("[data-next], #nv-submit");
+      if (btn) btn.click();
+    });
+  });
+
+  // ============================================================
+  // Démarrage
+  // ============================================================
+  loadOptions();
+  renderStrength();
+  goTo(1);
+  setTimeout(() => els.username.focus(), 120);
+})();
+</script>

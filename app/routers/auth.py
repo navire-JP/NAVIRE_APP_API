@@ -196,6 +196,15 @@ def activate_pending_prepa_adjuris(db: Session, user: User) -> int:
     return len(orphelines)
 
 
+def _apply_level(db: Session, user: User, level: str | None) -> None:
+    """Pose le niveau d'études d'un compte tout juste créé (voir user_categories)."""
+    from app.services.user_categories import apply_study_level
+
+    if apply_study_level(db, user, level) != "unchanged":
+        db.commit()
+        db.refresh(user)
+
+
 def attach_ambassador_referral(db: Session, user: User, code: str | None, source: str) -> None:
     """
     Programme ambassadeur : rattache le compte au code du lien /rejoindre, ou
@@ -267,7 +276,6 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         grade="Primo",
         newsletter_opt_in=payload.newsletter_opt_in,
         university=payload.university,
-        study_level=payload.study_level,
         email_verified=verified,
         email_verified_at=datetime.now(timezone.utc) if verified else None,
     )
@@ -276,6 +284,10 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Niveau d'études : un niveau à vérifier (ex. Doctorant) ouvre une demande
+    # pour la console au lieu d'être appliqué d'office.
+    _apply_level(db, user, payload.study_level)
 
     # Activer un abonnement en attente si l'email correspond à un paiement Stripe
     activate_pending_subscription(db, user)
@@ -341,6 +353,11 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
         )
     ).first() is not None
 
+    from app.services.user_categories import user_badges, user_verifications
+
+    badges = user_badges(db, current_user)
+    pending = [v.label for v in user_verifications(db, current_user) if v.status == "pending"]
+
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -361,6 +378,14 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
         "is_admin": current_user.is_admin,
         "is_ambassador": is_ambassador,
         "is_charge_td": is_charge_td,
+        # Statuts validés dans la console (ex. ["Doctorant"]) et demandes en attente
+        "badges": badges,
+        "is_doctorant": "Doctorant" in badges,
+        "pending_verifications": pending,
+
+        # Parcours d'accueil après l'inscription
+        "onboarding_done": current_user.onboarding_completed_at is not None,
+        "discord_linked": bool(current_user.discord_id),
 
         # Limites du plan courant (source : limits.py)
         "files_limit": limits["files_total"],
@@ -499,7 +524,6 @@ def oauth_login(payload: OAuthIn, db: Session = Depends(get_db)):
             grade="Primo",
             newsletter_opt_in=payload.newsletter_opt_in,
             university=payload.university,
-            study_level=payload.study_level,
             email_verified=True,
             email_verified_at=datetime.now(timezone.utc),
             oauth_provider=provider,
@@ -508,6 +532,7 @@ def oauth_login(payload: OAuthIn, db: Session = Depends(get_db)):
         db.add(user)
         db.commit()
         db.refresh(user)
+        _apply_level(db, user, payload.study_level)
 
         # Mêmes rattrapages que l'inscription classique : un paiement fait
         # avant la création du compte doit être appliqué ici aussi.
@@ -520,7 +545,8 @@ def oauth_login(payload: OAuthIn, db: Session = Depends(get_db)):
         if payload.university and not user.university:
             user.university = payload.university
         if payload.study_level and not user.study_level:
-            user.study_level = payload.study_level
+            from app.services.user_categories import apply_study_level
+            apply_study_level(db, user, payload.study_level)
         user.last_login_at = datetime.now(timezone.utc)
         db.commit()
 

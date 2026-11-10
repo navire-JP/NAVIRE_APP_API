@@ -106,3 +106,26 @@ def upload_banner(file_bytes: bytes, user_id: int) -> str:
         ],
     )
     return result["secure_url"]
+
+
+VERIFICATION_FOLDER = "navire/verifications"
+PROOF_CONTENT_TYPES = ALLOWED_CONTENT_TYPES | {"application/pdf"}
+
+
+def is_allowed_proof(content_type: str | None) -> bool:
+    return (content_type or "").lower() in PROOF_CONTENT_TYPES
+
+
+def upload_proof(file_bytes: bytes, user_id: int, request_id: int) -> str:
+    """
+    Justificatif d'une demande de statut (attestation de doctorat, carte…),
+    image ou PDF. Lu uniquement depuis la console admin.
+    """
+    result = cloudinary.uploader.upload(
+        file_bytes,
+        folder=VERIFICATION_FOLDER,
+        public_id=f"proof_user_{user_id}_{request_id}",
+        overwrite=True,
+        resource_type="auto",
+    )
+    return result["secure_url"]
