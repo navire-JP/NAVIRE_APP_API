@@ -11,10 +11,17 @@ Deux recherches combinées :
     (« article 1240 », un numéro de pourvoi « 21-12.345 », une loi
     « 2016-131 ») sont cherchées telles quelles dans le texte.
 Les extraits trouvés par mots exacts passent en tête, sans doublon.
+
+Pertinence : la recherche par le sens renvoie toujours ses top_k extraits,
+même hors sujet. On ne garde que ceux assez proches de la question (distance
+cosinus ≤ NAVIRE_MAX_DISTANCE) et pas trop loin du meilleur
+(≤ meilleur + NAVIRE_DISTANCE_MARGIN) : une question de dommage corporel ne
+remonte plus le droit des sûretés.
 """
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Optional
 
@@ -22,6 +29,9 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.db.models import NavireChunk
+
+MAX_DISTANCE = float(os.getenv("NAVIRE_MAX_DISTANCE", "0.62"))
+DISTANCE_MARGIN = float(os.getenv("NAVIRE_DISTANCE_MARGIN", "0.12"))
 
 
 def _visible(
@@ -67,6 +77,19 @@ _REF_RE = re.compile(
 )
 
 
+def keep_relevant(rows: list[tuple], max_distance: float | None = None, margin: float | None = None) -> list:
+    """
+    rows : [(extrait, distance)] triés du plus proche au plus loin. Garde ceux
+    assez proches de la question et pas trop loin du meilleur.
+    """
+    max_distance = MAX_DISTANCE if max_distance is None else max_distance
+    margin = DISTANCE_MARGIN if margin is None else margin
+    if not rows:
+        return []
+    best = rows[0][1]
+    return [c for c, d in rows if d <= max_distance and d <= best + margin]
+
+
 def exact_terms(query: str) -> list[str]:
     """Termes de la question qu'un embedding retrouve mal : on les cherche tels quels."""
     terms: list[str] = []
@@ -106,12 +129,15 @@ def search_chunks(
         pattern = re.compile(r"(?<![\d\w])(" + "|".join(re.escape(t) for t in terms) + r")(?![\d])", re.IGNORECASE)
         exact = [c for c in candidates if pattern.search(c.content.replace(" ", " "))][: max(2, top_k // 2)]
 
-    semantic = (
+    distance = NavireChunk.embedding.cosine_distance(query_embedding)
+    rows = (
         base()
-        .order_by(NavireChunk.embedding.cosine_distance(query_embedding))
+        .add_columns(distance.label("distance"))
+        .order_by(distance)
         .limit(top_k)
         .all()
     )
+    semantic = keep_relevant([(chunk, float(dist)) for chunk, dist in rows])
 
     seen: set[int] = set()
     results: list[NavireChunk] = []
