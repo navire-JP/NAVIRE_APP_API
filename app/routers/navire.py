@@ -41,12 +41,17 @@ class ChatRequest(BaseModel):
     use_navire_docs: bool = True          # cours + actus de la base NAVIRE
     use_my_docs: bool = True              # PDF perso de l'utilisateur
     file_ids: list[int] | None = Field(default=None, max_length=200)  # None = tous les PDF perso
+    # Niveau de modèle : rapide (gratuit, quota du jour) | avance | expert (crédits)
+    tier: str = "rapide"
 
 
 class ChatResponse(BaseModel):
     conversation_id: int
     reply: str
     sources: list[dict]
+    tier: str = "rapide"
+    credits_spent: int = 0
+    credits: dict | None = None
 
 
 # ============================================================
@@ -59,7 +64,33 @@ def chat(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    check_navire_daily_limit(user, db)
+    from app.core.navire_models import TIERS, get_tier
+    from app.services import navire_credits
+
+    if (payload.tier or "rapide").lower() not in TIERS:
+        raise HTTPException(status_code=400, detail="Modèle inconnu.")
+    tier_id, tier_conf = get_tier(payload.tier)
+    cost = int(tier_conf["cost"])
+
+    if cost > 0:
+        # Modèles Avancé / Expert : payés en crédits, hors quota quotidien.
+        solde = navire_credits.summary(db, user)
+        if solde["balance"] < cost:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "code": "NAVIRE_CREDITS_EXHAUSTED",
+                    "message": (
+                        f"Il te faut {cost} crédit{'s' if cost > 1 else ''} pour le modèle "
+                        f"{tier_conf['label']} : il t'en reste {solde['balance']}. "
+                        "Tes crédits se rechargent le 1er du mois ; le modèle Rapide reste disponible."
+                    ),
+                    "credits": solde,
+                    "cost": cost,
+                },
+            )
+    else:
+        check_navire_daily_limit(user, db)
 
     if payload.mode not in ("chat", "cas_pratique", "note_synthese"):
         raise HTTPException(status_code=400, detail="Mode invalide.")
@@ -77,6 +108,7 @@ def chat(
             use_navire_docs=payload.use_navire_docs,
             use_my_docs=payload.use_my_docs,
             file_ids=payload.file_ids,
+            tier=tier_id,
         )
     except HTTPException:
         raise
@@ -91,6 +123,14 @@ def chat(
             status_code=502,
             detail={"code": "NAVIRE_ERROR", "message": message},
         )
+
+    # Débit seulement si le modèle a vraiment répondu.
+    spent = 0
+    if cost > 0 and result.get("completed"):
+        navire_credits.debit(db, user, cost, tier_id, result.get("model") or "", result.get("conversation_id"))
+        spent = cost
+    result["credits_spent"] = spent
+    result["credits"] = navire_credits.summary(db, user)
     return result
 
 
@@ -99,13 +139,22 @@ def get_quota(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Questions NAVIRE utilisées aujourd'hui (limit None = illimité)."""
+    """
+    Questions NAVIRE (modèle Rapide) utilisées aujourd'hui (limit None =
+    illimité), crédits du mois pour les modèles Avancé / Expert, et la liste
+    des niveaux pour le sélecteur.
+    """
+    from app.core.navire_models import public_tiers
+    from app.services import navire_credits
+
     used, limit = navire_daily_usage(user, db)
     return {
         "plan": user.plan,
         "used": used,
         "limit": limit,
         "remaining": None if limit is None else max(0, limit - used),
+        "credits": navire_credits.summary(db, user),
+        "tiers": public_tiers(),
     }
 
 

@@ -850,3 +850,57 @@ def admin_verification_revoke(
 ):
     """Retire un statut déjà validé (le niveau d'études du compte est vidé)."""
     return _decide(verification_id, "revoke", body.reason, db, admin)
+
+
+
+# =========================================================
+# CRÉDITS NAVIRE AI
+# =========================================================
+
+class CreditsGrantIn(BaseModel):
+    amount: int = Field(..., ge=1, le=10000)
+    reason: str = Field(default="", max_length=200)
+
+
+@router.get("/users/{user_id}/credits")
+def admin_user_credits(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Solde de crédits NAVIRE AI du mois, et derniers mouvements."""
+    from app.db.models import NavireCreditEvent
+    from app.services import navire_credits
+
+    u = get_user_or_404(db, user_id)
+    events = db.execute(
+        select(NavireCreditEvent)
+        .where(NavireCreditEvent.user_id == u.id)
+        .order_by(desc(NavireCreditEvent.created_at))
+        .limit(20)
+    ).scalars().all()
+    return {
+        **navire_credits.summary(db, u),
+        "events": [
+            {
+                "delta": e.delta, "kind": e.kind, "tier": e.tier, "model": e.model,
+                "reason": e.reason, "created_at": e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in events
+        ],
+    }
+
+
+@router.post("/users/{user_id}/credits")
+def admin_user_credits_grant(
+    user_id: int,
+    body: CreditsGrantIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Offre des crédits NAVIRE AI, valables jusqu'à la fin du mois en cours."""
+    from app.services import navire_credits
+
+    u = get_user_or_404(db, user_id)
+    navire_credits.grant(db, u, body.amount, admin, body.reason)
+    return navire_credits.summary(db, u)

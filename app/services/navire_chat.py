@@ -350,6 +350,7 @@ def send_message(
     use_my_docs: bool = True,
     file_ids: list[int] | None = None,
     context: str | None = None,
+    tier: str | None = None,
 ) -> dict:
     """
     context : texte ajouté au prompt système (non enregistré dans la
@@ -357,7 +358,13 @@ def send_message(
     use_navire_docs / use_my_docs : sources que search_legal_base a le droit
     d'interroger (réglées par l'utilisateur dans l'onglet Sources).
     file_ids : sous-ensemble des PDF perso à utiliser (None = tous).
+    tier : niveau de modèle choisi (rapide | avance | expert), voir
+    app/core/navire_models.py. Le débit des crédits est fait par la route.
     """
+    from app.core.navire_models import get_tier, is_reasoning_model
+
+    tier_id, tier_conf = get_tier(tier)
+    model = tier_conf["model"]
     conv = get_or_create_conversation(db, user, conversation_id, mode)
     search_opts = {
         "use_navire_docs": use_navire_docs,
@@ -397,19 +404,21 @@ def send_message(
 
     # Boucle de function-calling : le modèle peut enchaîner plusieurs outils.
     assistant_reply = ""
+    completed = False   # vraie réponse du modèle (sinon : pas de débit de crédits)
     for _round in range(MAX_TOOL_ROUNDS + 1):
-        rep = _client.chat.completions.create(
-            model=OPENAI_MODEL_NAVIRE,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-            temperature=0.3,
-            max_tokens=1100,
-        )
+        params = {"model": model, "messages": messages, "tools": TOOLS, "tool_choice": "auto"}
+        if is_reasoning_model(model):
+            # Modèle à raisonnement : pas de température, longueur via max_completion_tokens
+            params["max_completion_tokens"] = tier_conf["max_tokens"]
+        else:
+            params["temperature"] = 0.3
+            params["max_tokens"] = tier_conf["max_tokens"]
+        rep = _client.chat.completions.create(**params)
         msg = rep.choices[0].message
 
         if not msg.tool_calls:
             assistant_reply = (msg.content or "").strip()
+            completed = bool(assistant_reply)
             break
 
         # Le modèle demande des outils : on les exécute tous, on répond, on reboucle.
@@ -464,12 +473,13 @@ def send_message(
     # Sauvegarde de la conversation (les sources sont gardées pour que
     # l'historique les réaffiche sous chaque réponse)
     conv.messages = (conv.messages or []) + [
-        {"role": "user", "content": user_message, "at": now_iso},
+        {"role": "user", "content": user_message, "at": now_iso, "tier": tier_id},
         {
             "role": "assistant",
             "content": assistant_reply,
             "at": datetime.now(timezone.utc).isoformat(),
             "sources": unique_sources,
+            "tier": tier_id,
         },
     ]
     if not conv.title:
@@ -484,4 +494,7 @@ def send_message(
         "conversation_id": conv.id,
         "reply": assistant_reply,
         "sources": unique_sources,
+        "tier": tier_id,
+        "model": model,
+        "completed": completed,
     }

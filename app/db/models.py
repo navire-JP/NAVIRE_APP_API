@@ -2606,3 +2606,38 @@ class StatusVerification(Base):
     )
 
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+
+
+# ============================================================
+# Crédits NAVIRE AI (modèles Avancé / Expert)
+# ============================================================
+
+class NavireCreditEvent(Base):
+    """
+    Mouvement de crédits NAVIRE AI. Le solde du mois se calcule :
+      crédits du plan (limits.py) + bonus du mois − dépenses du mois.
+
+    delta < 0 : question posée à un modèle payant (tier, model, conversation)
+    delta > 0 : crédits offerts par un admin (valables le mois en cours)
+    period    : mois concerné, "AAAA-MM" (UTC) : le solde repart chaque mois.
+    """
+
+    __tablename__ = "navire_credit_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    period: Mapped[str] = mapped_column(String(7), index=True, nullable=False)
+    delta: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # usage | bonus
+    tier: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    conversation_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    granted_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )

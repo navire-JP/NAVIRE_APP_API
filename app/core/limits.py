@@ -32,6 +32,7 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "files_total":      1,      # nombre de fichiers hébergés simultanément
         "file_ttl_hours":   24,     # durée de vie des fichiers en heures (None = infini)
         "navire_per_day":   3,      # NAVIRE : questions/jour (non abonnes)
+        "navire_credits_month": 10,   # crédits NAVIRE AI (modèles Avancé / Expert), rechargés chaque mois
     },
     "membre": {
         "qcm_per_day":      None,
@@ -39,6 +40,7 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "files_total":      7,
         "file_ttl_hours":   None,
         "navire_per_day":   None,   # NAVIRE illimite
+        "navire_credits_month": 100,   # crédits NAVIRE AI (modèles Avancé / Expert), rechargés chaque mois
     },
     "membre+": {
         "qcm_per_day":      None,
@@ -46,6 +48,7 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "files_total":      24,
         "file_ttl_hours":   None,
         "navire_per_day":   None,   # NAVIRE illimite
+        "navire_credits_month": 300,   # crédits NAVIRE AI (modèles Avancé / Expert), rechargés chaque mois
     },
     "prepa": {
         # Programme d'été. L'élève a un accès large à NAVIRE pendant sa
@@ -59,6 +62,7 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "files_total":      7,      # host perso de l'élève (PDF à lui)
         "file_ttl_hours":   None,   # pas d'expiration pendant la période
         "navire_per_day":   None,   # NAVIRE illimite
+        "navire_credits_month": 300,   # crédits NAVIRE AI (modèles Avancé / Expert), rechargés chaque mois
     },
     "beta": {
         "qcm_per_day":      None,
@@ -66,6 +70,7 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "files_total":      7,
         "file_ttl_hours":   None,
         "navire_per_day":   None,   # NAVIRE illimite
+        "navire_credits_month": 100,   # crédits NAVIRE AI (modèles Avancé / Expert), rechargés chaque mois
     },
 }
 
@@ -168,6 +173,10 @@ def navire_daily_usage(user: User, db: Session) -> tuple[int, int | None]:
     used = 0
     for conv in conversations_today:
         for msg in (conv.messages or []):
+            # Les questions aux modèles Avancé / Expert se paient en crédits :
+            # elles ne comptent pas dans le quota quotidien du modèle Rapide.
+            if msg.get("tier") not in (None, "rapide"):
+                continue
             if msg.get("role") == "user" and msg.get("at", "") >= today_start.isoformat():
                 used += 1
     return used, limit

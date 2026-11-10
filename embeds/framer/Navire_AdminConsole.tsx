@@ -24,6 +24,9 @@
 // liens, pilotage des rémunérations). Le code de la section est dans
 // Navire_Professeurs.tsx.
 //
+// Crédits NAVIRE AI : bloc dans le panneau d'un élève (solde du mois,
+// crédits offerts). Routes /admin/users/{id}/credits.
+//
 // Mails : onglet « Mails » (rédiger un mail, choisir les destinataires par
 // catégorie, pièces jointes, aperçu signé, test puis envoi par Brevo). Le
 // code de la section est dans Navire_Mails.tsx.
@@ -7324,6 +7327,115 @@ export function AdminConsoleFrame(): Override {
 
 type PanelTab = "info" | "qcm" | "fichiers"
 
+// ── Crédits NAVIRE AI (modèles Avancé / Expert) d'un élève ──
+// Solde du mois, et crédits offerts (valables jusqu'à la fin du mois).
+function NavireCreditsBlock({ userId }: { userId: number }) {
+    const [data, setData] = React.useState<any>(null)
+    const [amount, setAmount] = React.useState(20)
+    const [busy, setBusy] = React.useState(false)
+    const [msg, setMsg] = React.useState("")
+
+    React.useEffect(() => {
+        setData(null)
+        setMsg("")
+        apiFetch(`/admin/users/${userId}/credits`)
+            .then(setData)
+            .catch(() => setData(null))
+    }, [userId])
+
+    async function grant() {
+        setBusy(true)
+        setMsg("")
+        try {
+            const d = await apiFetch(`/admin/users/${userId}/credits`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ amount, reason: "console" }),
+            })
+            setData((prev: any) => ({ ...(prev || {}), ...d }))
+            setMsg(`✓ +${amount} crédits ce mois-ci`)
+        } catch (e: any) {
+            setMsg(`ERR: ${e.message}`)
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    return (
+        <div>
+            <div
+                style={{
+                    fontSize: 8,
+                    fontFamily: mono,
+                    color: t2,
+                    textTransform: "uppercase" as const,
+                    letterSpacing: 0.8,
+                    marginBottom: 4,
+                }}
+            >
+                Crédits NAVIRE AI
+            </div>
+            <div style={{ fontSize: 9, fontFamily: mono, color: t1, marginBottom: 4 }}>
+                {data
+                    ? `${data.balance} restant(s) · ${data.used} utilisé(s) · plan ${data.allowance}${data.bonus ? ` + ${data.bonus} offerts` : ""}`
+                    : "…"}
+            </div>
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <input
+                    type="number"
+                    min={1}
+                    max={10000}
+                    value={amount}
+                    onChange={(e) => setAmount(Number(e.target.value))}
+                    disabled={busy}
+                    style={{
+                        width: 52,
+                        height: 24,
+                        borderRadius: 99,
+                        border: `1px solid ${b0}`,
+                        background: s0,
+                        color: t0,
+                        fontSize: 9,
+                        fontFamily: mono,
+                        textAlign: "center" as const,
+                    }}
+                />
+                <button
+                    onClick={grant}
+                    disabled={busy || !(amount > 0)}
+                    style={{
+                        flex: 1,
+                        height: 24,
+                        borderRadius: 99,
+                        border: `1px solid ${b1}`,
+                        background: s0,
+                        color: t0,
+                        fontSize: 9,
+                        fontFamily: mono,
+                        fontWeight: 700,
+                        cursor: busy ? "not-allowed" : "pointer",
+                        opacity: busy ? 0.5 : 1,
+                    }}
+                >
+                    Offrir des crédits (ce mois-ci)
+                </button>
+            </div>
+            {msg && (
+                <div
+                    style={{
+                        fontSize: 9,
+                        fontFamily: mono,
+                        color: msg.startsWith("ERR") ? BAD : OK,
+                        marginTop: 4,
+                    }}
+                >
+                    {msg}
+                </div>
+            )}
+        </div>
+    )
+}
+
 function UserPanelUI() {
     const [user, setUser] = React.useState<User | null>(readSelectedUser)
     const [stats, setStats] = React.useState<UserStats | null>(null)
@@ -7899,6 +8011,7 @@ function UserPanelUI() {
                         </div>
                     )}
                 </div>
+                <NavireCreditsBlock userId={user.id} />
                 <div>
                     <div
                         style={{
