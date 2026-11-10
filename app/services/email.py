@@ -643,7 +643,7 @@ def mail_discord_linked(
     return subject, html
 
 
-def mail_password_changed(username: str, was_set: bool = False) -> tuple[str, str]:
+def mail_password_changed(username: str, was_set: bool = False, via_code: bool = False) -> tuple[str, str]:
     """
     (subject, html) de l'alerte envoyée après un changement de mot de passe
     depuis la page profil.
@@ -662,7 +662,7 @@ def mail_password_changed(username: str, was_set: bool = False) -> tuple[str, st
     <p style="margin-top:0;">Bonjour {username},</p>
     <p>
       Le mot de passe de ton compte NAVIRE vient d'être <strong>{action}</strong>
-      depuis ta page profil.
+      {"avec un code reçu par email (mot de passe oublié)" if via_code else "depuis ta page profil"}.
     </p>
     <p>
       Tu peux désormais te connecter sur {FRONTEND_URL} avec ton adresse email
@@ -697,6 +697,28 @@ def mail_verification_code(code: str, username: str, ttl_minutes: int) -> tuple[
     <p style="font-size: 0.85em; color: #888;">
       Tu n'es pas à l'origine de cette inscription ? Ignore ce message :
       sans ce code, aucun compte ne sera créé avec ton adresse.
+    </p>
+""", preheader=f"{code} — valable {ttl_minutes} minutes.")
+    return subject, html
+
+
+def mail_password_reset_code(code: str, username: str, ttl_minutes: int) -> tuple[str, str]:
+    """(subject, html) du code à 6 chiffres de « Mot de passe oublié »."""
+    hello = f"Bonjour {username}," if username else "Bonjour,"
+    subject = f"{code} est ton code pour changer ton mot de passe NAVIRE"
+    html = layout(f"""
+    <p style="margin-top:0;">{hello}</p>
+    <p>Tu as demandé à changer le mot de passe de ton compte NAVIRE. Voici ton code :</p>
+    <p style="font-size: 2em; letter-spacing: 10px; font-weight: bold; text-align: center;
+              background: #1f1f1f; border-radius: 8px; padding: 20px; margin: 20px 0;">
+      {code}
+    </p>
+    <p style="font-size: 0.85em; color: #888;">
+      Ce code est valable {ttl_minutes} minutes et ne sert qu'une fois.
+    </p>
+    <p style="font-size: 0.85em; color: #888;">
+      Tu n'as rien demandé ? Ignore ce message : sans ce code, ton mot de passe
+      ne change pas.
     </p>
 """, preheader=f"{code} — valable {ttl_minutes} minutes.")
     return subject, html
