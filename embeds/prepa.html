@@ -521,6 +521,10 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 /* PC : seul le menu latéral reste fixe (sous le header du site) ; la barre du
    haut et le bandeau admin défilent avec la page, rien ne passe dessous. */
 #nv-prepa.is-flow .nv-topbar, #nv-prepa.is-flow .np-apercu, #nv-prepa.is-flow .nv-apercu { position: static !important; top: auto !important; }
+
+/* Menu latéral fixe (PC) : collé par le navigateur quand c'est possible */
+#nv-prepa.is-flow.is-sticky:not(.is-compact) .nv-side { position: sticky; top: var(--head-h, 0px); height: calc(100vh - var(--head-h, 0px)); }
+#nv-prepa.is-flow:not(.is-compact) .nv-side { will-change: top; transition: margin-left .3s var(--ease), visibility 0s; }
 </style>
 
 <div id="nv-prepa">
@@ -765,6 +769,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         var visTop = Math.max(0, Math.min(hd - rt, rh - visH));
         root.style.setProperty("--vis-top", Math.round(visTop) + "px");
         root.style.setProperty("--vis-h", Math.round(visH) + "px");
+        root.style.setProperty("--head-h", hd + "px");
       },
       size: function () {
         if (IMM.on) return;   // écran blanc ouvert : l'embed ne bouge plus
@@ -787,10 +792,13 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         F.layout();
       }
     };
+    // Recalage immédiat à chaque défilement (pas d'image de retard : le menu
+    // ne « descend » pas), le reste à l'image suivante.
     function tick() {
+      F.layout();
       if (ticking) return;
       ticking = true;
-      requestAnimationFrame(function () { ticking = false; F.layout(); subs.forEach(function (fn) { try { fn(); } catch (e) {} }); });
+      requestAnimationFrame(function () { ticking = false; subs.forEach(function (fn) { try { fn(); } catch (e) {} }); });
     }
     if (BOXED) setTimeout(function () { page().addEventListener("scroll", tick, { passive: true }); }, 0);
     else win().addEventListener("scroll", tick, { passive: true });
@@ -815,7 +823,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function setSide(on) { root.classList.toggle("is-side-off", !on); store("navire_prepa_side", on ? null : "off"); }
   root.classList.toggle("is-side-off", load("navire_prepa_side") === "off");
 
-  // Flèche « remonter » (téléphone), posée sur la page du site.
+  // Flèche « remonter » (comme l'accueil) : posée sur la page du site, quand
+  // c'est la page qui défile et qu'on est descendu d'un écran.
   var upBtn = null;
   if (!FLOW.boxed) {
     var upDoc = (HOST || window).document;
@@ -831,11 +840,23 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function paintUp() {
     if (!upBtn) return;
     var vh = (HOST || window).innerHeight || 800;
-    var on = root.classList.contains("is-compact") && FLOW.y() > vh * 0.8 && !root.classList.contains("is-drawer") && !IMM.on;
+    var on = FLOW.y() > vh * 0.8 && !root.classList.contains("is-drawer") && !IMM.on;
     upBtn.style.opacity = on ? "1" : "0";
     upBtn.style.transform = on ? "none" : "translateY(10px) scale(.9)";
     upBtn.style.pointerEvents = on ? "auto" : "none";
   }
+
+  // Embed posé directement dans la page (pas d'iframe) et aucun parent qui
+  // rogne : le menu est collé par le navigateur (position: sticky), parfaitement
+  // fixe. Sinon il est recalé par le script à chaque défilement.
+  (function () {
+    if (FRAMED) return;
+    for (var e = root.parentElement; e && e !== document.body; e = e.parentElement) {
+      var cs = getComputedStyle(e);
+      if (/(hidden|auto|scroll)/.test(cs.overflow + cs.overflowY) || cs.transform !== "none") return;
+    }
+    root.classList.add("is-sticky");
+  })();
   updateCompact();
 
   // Téléphone : les rubriques en onglets en haut de page (pas besoin du menu).
