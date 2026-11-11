@@ -757,6 +757,15 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 /* PC : seul le menu latéral reste fixe (sous le header du site) ; la barre du
    haut et le bandeau admin défilent avec la page, rien ne passe dessous. */
 #nv-prof.is-flow .nv-topbar, #nv-prof.is-flow .np-apercu, #nv-prof.is-flow .nv-apercu { position: static !important; top: auto !important; }
+
+/* Accueil : trois cartes, puis « Déposer un document » sur toute la largeur */
+#nv-prof .nv-cards.is-home { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#nv-prof .nv-hcard.is-wide { grid-column: 1 / -1; min-height: 0; flex-direction: row; align-items: center; gap: 14px; padding: 14px 16px; }
+#nv-prof .nv-hcard.is-wide .nv-hcard-top { flex-shrink: 0; }
+#nv-prof .nv-hcard.is-wide .nv-hcard-text { margin-top: 0; }
+#nv-prof .nv-hcard.is-wide .nv-hcard-art { width: 32px; height: 32px; }
+#nv-prof.is-compact .nv-cards.is-home { grid-template-columns: 1fr 1fr; }
+#nv-prof.is-compact .nv-cards.is-home .nv-hcard:first-child { grid-column: 1 / -1; }
 </style>
 
 <div id="nv-prof" class="is-solo">
@@ -1387,11 +1396,11 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     var ouvertes = ((S.eps && S.eps.items) || []).filter(function (x) { return x.etat === "ouverte"; });
     var html = head("Bonjour" + (nom ? " " + esc(nom) : ""), 'Tu es <span class="nv-grade">' + esc(p.grade) + "</span>");
     if (!d.classes.length) return setPage(html + empty("Aucun groupe pour l'instant", "L'équipe NAVIRE t'ajoutera bientôt à un groupe."));
-    html += '<div class="nv-cards">' +
+    html += '<div class="nv-cards is-home">' +
       hcard({ cls: todo.length ? "is-hero" : "", attrs: 'data-view="copies"', art: "files-cristal", big: todo.length || "0", titre: "copie" + (todo.length > 1 ? "s" : "") + " à corriger", sous: todo.length ? "La plus ancienne : " + esc(date(todo[todo.length - 1].created_at)) : "Tout est corrigé." }) +
       hcard({ attrs: 'data-act="ep-new"', art: "profil-qcm", big: ouvertes.length ? String(ouvertes.length) : "", titre: ouvertes.length ? "épreuve" + (ouvertes.length > 1 ? "s" : "") + " en cours" : "Nouvelle épreuve", sous: ouvertes.length ? "Planifier une autre épreuve" : "Un contrôle chronométré pour un groupe." }) +
       hcard({ attrs: 'data-view="earnings"', art: "profil-rang", big: eur(m ? m.montant_cents : 0), titre: m ? "prévus en " + esc(mois(m.mois).split(" ")[0]) : "ce mois-ci", sous: eur(t.realise_cents) + " déjà gagnés" }) +
-      hcard({ attrs: 'data-act="doc-new"', art: "home-fichiers", titre: "Déposer un document", sous: "Un PDF pour un groupe, publié sur NAVIRE Lib." }) + "</div>";
+      hcard({ cls: "is-wide", attrs: 'data-act="doc-new"', art: "home-fichiers", titre: "Déposer un document", sous: "Un PDF pour un groupe, publié tout de suite sur NAVIRE Lib." }) + "</div>";
     if (todo.length) {
       html += '<div class="nv-group-label">À corriger</div>' + todo.slice(0, 5).map(copieRow).join("");
       if (todo.length > 5) html += '<button class="nv-chip" data-view="copies" style="margin-top:4px">Voir les ' + todo.length + " copies</button>";
