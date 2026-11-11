@@ -525,6 +525,32 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 /* Menu latéral fixe (PC) : collé par le navigateur quand c'est possible */
 #nv-prepa.is-flow.is-sticky:not(.is-compact) .nv-side { position: sticky; top: var(--head-h, 0px); height: calc(100vh - var(--head-h, 0px)); }
 #nv-prepa.is-flow:not(.is-compact) .nv-side { will-change: top; transition: margin-left .3s var(--ease), visibility 0s; }
+
+/* ================= PASTILLES ET MENU EN OVERLAY ================= */
+.nv-choix { display: flex; flex-wrap: wrap; gap: 6px; }
+.nv-choix button { height: 34px; padding: 0 13px; border-radius: 99px; border: 0; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.75); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.nv-choix button:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.nv-choix button.is-on { background: #7AA7FF; color: #0a0a12; }
+.nv-choix.is-light button { background: #f1f3f8; color: #4a4e5e; }
+.nv-choix.is-light button.is-on { background: #15161c; color: #fff; }
+#nv-prepa .nv-menu-scrim { position: absolute; inset: 0; z-index: 1590; display: none; background: transparent; }
+#nv-prepa .nv-menu-scrim.is-on { display: block; }
+#nv-prepa .nv-menu { position: absolute; z-index: 1600; display: none; min-width: 230px; max-width: calc(100% - 16px); max-height: 60vh; overflow-y: auto; padding: 6px; border-radius: 16px; background: #181a26; box-shadow: 0 24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07); animation: nv-rise .18s var(--ease) both; }
+#nv-prepa .nv-menu.is-on { display: block; }
+#nv-prepa .nv-menu button { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: rgba(255,255,255,0.8); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+#nv-prepa .nv-menu button:hover { background: rgba(255,255,255,0.06); color: #fff; }
+#nv-prepa .nv-menu button.is-on { background: rgba(255,255,255,0.1); color: #fff; }
+#nv-prepa .nv-menu button small { display: block; font-size: 11.5px; font-weight: 400; color: rgba(255,255,255,0.45); margin-top: 2px; }
+#nv-prepa .nv-menu .nv-badge { margin-left: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 0 6px; border-radius: 99px; background: #7AA7FF; color: #0a0a12; }
+#nv-prepa .nv-pick, #nv-prepa .nv-esp { display: none; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 99px; border: 0; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; white-space: nowrap; max-width: 52%; overflow: hidden; text-overflow: ellipsis; }
+#nv-prepa .nv-pick { background: #fff; color: #0a0a12; }
+#nv-prepa .nv-esp { background: rgba(255,255,255,0.08); color: #fff; font-weight: 600; }
+#nv-prepa.is-compact:not(.is-solo) .nv-pick { display: inline-flex; }
+#nv-prepa.is-compact:not(.is-solo) .nv-esp.is-on { display: inline-flex; }
+#nv-prepa.is-compact .nv-topbar-title { display: none; }
+#nv-prepa.is-compact .nv-topbar { gap: 6px; padding: 6px 2px 6px 0; }
+#nv-prepa .np-tabs, #nv-prepa .nv-tabs { display: none !important; }
+#nv-prepa .nv-apercu .nv-esp-inline, #nv-prepa .np-apercu .nv-esp-inline { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: 99px; background: rgba(255,255,255,0.08); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 </style>
 
 <div id="nv-prepa">
@@ -547,6 +573,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       <button class="nv-icon-btn nv-menu-btn" data-act="side-open" aria-label="Afficher le menu" title="Afficher le menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
       </button>
+      <button class="nv-pick" data-act="tabs-open" data-el="pick"></button>
+      <button class="nv-esp" data-act="esp-open" data-el="esp"></button>
       <div class="nv-topbar-title" data-el="title">Prépa</div>
     </div>
     <div class="np-apercu" data-el="apercu"></div>
@@ -554,6 +582,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     <div class="nv-toasts" data-el="toasts"></div>
   </main>
 
+  <div class="nv-menu-scrim" data-el="menu-scrim" data-act="menu-close"></div>
+  <div class="nv-menu" data-el="menu"></div>
   <div class="np-pop" data-el="pop" data-act="pop-close"><div class="np-pop-card" data-el="pop-card"></div></div>
 </div>
 
@@ -581,6 +611,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   // Écran d'écriture (WR) et lecture d'une copie (RD), posés par-dessus la page.
   var WR = { node: null, mode: null, sess: null, tick: null, srv: null, local: null, dirty: false, sorties: 0, guard: false, key: null, panel: null, file: null };
   var RD = { node: null, id: null, data: null };
+  WR.mat = null;
   var VIEWS = ["semaine", "epreuves", "copies", "cours", "factu"];
   var TITRES = { semaine: "Calendrier", epreuves: "Épreuves", copies: "Mes copies", cours: "Cours", factu: "Facturation" };
 
@@ -635,6 +666,32 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function lienSur(u) { u = String(u || "").trim(); return /^https?:\/\//i.test(u) ? u : ""; }
   function ico(name, size) { return ICON[name].replace("<svg", '<svg style="width:' + (size || 15) + 'px;height:' + (size || 15) + 'px"'); }
   function art(k, cls) { return '<span class="' + (cls || "nv-art") + '" aria-hidden="true" style="background-image:url(&quot;' + ART(k) + '&quot;)"></span>'; }
+
+  // ================= PASTILLES (à la place des listes déroulantes natives) =================
+  var CHOIX = {};
+  function choix(key, opts, cur, cb, light) {
+    CHOIX[key] = cb;
+    return '<div class="nv-choix' + (light ? " is-light" : "") + '">' + opts.map(function (o) {
+      return '<button type="button"' + (String(o[0]) === String(cur) ? ' class="is-on"' : "") + ' data-choix="' + key + '" data-v="' + esc(o[0]) + '">' + esc(o[1]) + "</button>";
+    }).join("") + "</div>";
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-choix]");
+    if (!b || !CHOIX[b.getAttribute("data-choix")]) return;
+    b.parentNode.querySelectorAll("[data-choix]").forEach(function (x) { x.classList.toggle("is-on", x === b); });
+    CHOIX[b.getAttribute("data-choix")](b.getAttribute("data-v"));
+  });
+
+  // ================= MENU EN OVERLAY (rubriques, espace) : aucun fond derrière =================
+  var CHEV = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  function openMenu(anchor, items) {
+    var m = el("menu"), rr = root.getBoundingClientRect(), ar = anchor.getBoundingClientRect();
+    m.innerHTML = items.map(function (it) { return '<button' + (it.on ? ' class="is-on"' : "") + " " + it.attrs + ">" + it.label + (it.sub ? "<small>" + it.sub + "</small>" : "") + "</button>"; }).join("");
+    m.classList.add("is-on"); el("menu-scrim").classList.add("is-on");
+    m.style.top = (ar.bottom - rr.top + 6) + "px";
+    m.style.left = Math.max(8, Math.min(ar.left - rr.left, root.clientWidth - m.offsetWidth - 8)) + "px";
+  }
+  function closeMenu() { el("menu").classList.remove("is-on"); el("menu-scrim").classList.remove("is-on"); }
   function duree(min) { return min >= 60 ? Math.floor(min / 60) + " h" + (min % 60 ? " " + (min % 60 < 10 ? "0" : "") + (min % 60) : "") : min + " min"; }
   function hms(sec) {
     sec = Math.max(0, Math.round(sec));
@@ -861,7 +918,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 
   // Téléphone : les rubriques en onglets en haut de page (pas besoin du menu).
   function tabs() {
-    if (!S.p || !S.p.prepa) return "";
+    return "";
     var n = nonLues().length, ep = epOuvertes().length;
     return '<div class="np-tabs">' + VIEWS.map(function (v) {
       var b = v === "copies" && n ? n : v === "epreuves" && ep ? ep : 0;
@@ -874,7 +931,15 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     FLOW.top();
     sizeApp();
   }
-  function setTitle(t) { el("title").textContent = t; }
+  function setTitle(t) { el("title").textContent = t; paintPick(); }
+  function paintPick() {
+    var ok = S.p && S.p.prepa;
+    el("pick").style.visibility = ok ? "" : "hidden";
+    el("pick").innerHTML = esc(ok ? TITRES[S.view] : "Prépa") + CHEV;
+    var e = el("esp"), adm = S.me && S.me.is_admin;
+    e.classList.toggle("is-on", !!adm);
+    e.innerHTML = esc(S.voir ? "Vue étudiant " + S.voir : "Mon espace") + CHEV;
+  }
   function head(t, sub) { return '<div class="nv-page-head"><h2>' + t + "</h2>" + (sub ? "<p>" + sub + "</p>" : "") + "</div>"; }
   function card(o) {
     // o : { act, attrs, art, tag, titre, sous, cls }
@@ -1088,9 +1153,9 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function popDeposer() {
     var mats = matieresOuvertes();
     if (!mats.length) return toast("Aucune matière ouverte.", true);
-    DEP = { file: null, busy: false };
+    DEP = { file: null, busy: false, mat: mats[0].matiere_key };
     pop("<small>Nouvelle copie</small><h4>Déposer un fichier</h4><p>NAVIRE met ta copie en forme ; ton correcteur la corrige directement dessus.</p>" +
-      (mats.length > 1 ? '<label class="nv-field"><span>Matière</span><select class="nv-input" data-el="dep-mat">' + mats.map(function (m) { return '<option value="' + esc(m.matiere_key) + '">' + esc(m.label) + "</option>"; }).join("") + "</select></label>" : "") +
+      (mats.length > 1 ? '<div class="nv-field"><span>Matière</span>' + choix("dep-mat", mats.map(function (m) { return [m.matiere_key, m.label]; }), DEP.mat, function (v) { DEP.mat = v; }) + "</div>" : "") +
       '<label class="nv-field"><span>Titre</span><input class="nv-input" data-el="dep-titre" maxlength="200" placeholder="Ex. Dissertation n° 2, la coutume"></label>' +
       '<label class="np-drop" data-el="dep-drop"><input type="file" accept=".docx,.pdf" data-el="dep-file"><span class="np-row-ico">' + ico("up", 17) + '</span><div><b data-el="dep-name">Choisir ma copie</b><span>.docx ou .pdf · ' + taille(S.p.devoir_max_bytes) + " max</span></div></label>" +
       '<div class="nv-err" data-el="dep-err"></div>' +
@@ -1110,7 +1175,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   }
   function depEnvoyer(b) {
     if (DEP.busy || !DEP.file) return;
-    var mats = matieresOuvertes(), m = el("dep-mat") ? el("dep-mat").value : mats[0].matiere_key;
+    var mats = matieresOuvertes(), m = DEP.mat || mats[0].matiere_key;
     var fd = new FormData();
     fd.append("file", DEP.file); fd.append("matiere_key", m); fd.append("titre", el("dep-titre").value || ""); fd.append("message", "");
     DEP.busy = true; b.disabled = true; b.textContent = "Mise en forme…";
@@ -1234,7 +1299,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     S.libre.type = type;
     if (!S.libre.matiere && mats.length) S.libre.matiere = mats[0].matiere_key;
     pop("<small>Entraînement</small><h4>" + esc(E.label) + "</h4><p>" + duree(E.ref) + ", étapes de la méthode guidées. Ta copie part au correcteur de la matière choisie.</p>" +
-      (mats.length > 1 ? '<label class="nv-field"><span>Matière</span><select class="nv-input" data-libre="matiere">' + mats.map(function (m) { return '<option value="' + esc(m.matiere_key) + '"' + (m.matiere_key === S.libre.matiere ? " selected" : "") + ">" + esc(m.label) + "</option>"; }).join("") + "</select></label>" : "") +
+      (mats.length > 1 ? '<div class="nv-field"><span>Matière</span>' + choix("libre-mat", mats.map(function (m) { return [m.matiere_key, m.label]; }), S.libre.matiere, function (v) { S.libre.matiere = v; }) + "</div>" : "") +
       '<label class="nv-field"><span>Sujet (facultatif)</span><textarea class="nv-input" data-libre="sujet" placeholder="Colle ton sujet ou l\'arrêt : tu le reliras pendant l\'épreuve.">' + esc(S.libre.sujet) + "</textarea></label>" + REGLES +
       '<div class="np-pop-btns"><button class="nv-chip" data-act="pop-close">Annuler</button><button class="nv-btn is-blue" data-act="ep-libre-go">Commencer</button></div>');
   }
@@ -1488,7 +1553,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     if (!blocs.length && !ep) return wrToast("Ta copie est vide.", true);
     if (ep && !WR.sess) return;
     var html = "<h4>Rendre ma copie</h4><p>" + (ep ? "Elle part au correcteur de ton groupe, avec le temps passé." : "Elle part au chargé de TD de ton groupe.") + "</p>";
-    if (!ep && mats.length > 1) html += '<label><span>Matière</span><select class="nvx-field" data-w-el="r-mat">' + mats.map(function (m) { return '<option value="' + esc(m.matiere_key) + '">' + esc(m.label) + "</option>"; }).join("") + "</select></label>";
+    if (!ep && mats.length && !WR.mat) WR.mat = mats[0].matiere_key;
+    if (!ep && mats.length > 1) html += '<label><span>Matière</span>' + choix("r-mat", mats.map(function (m) { return [m.matiere_key, m.label]; }), WR.mat, function (v) { WR.mat = v; }, true) + "</label>";
     if (!ep && !wrQ('[data-w-el="titre"]').value.trim()) html += '<label><span>Titre</span><input class="nvx-field" data-w-el="r-titre" maxlength="200" placeholder="Ex. Dissertation n° 2"></label>';
     html += '<label><span>Un mot pour ton correcteur (facultatif)</span><textarea class="nvx-field" data-w-el="r-msg" maxlength="3000"></textarea></label>';
     if (ep && !blocs.length) html += '<p style="margin:12px 0 0">Tu n\'as rien écrit ici. Tu peux <button class="nvx-link" data-w="r-file">déposer un fichier (.docx ou .pdf)</button> à la place.</p>';
@@ -1510,7 +1576,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     } else if (ep) {
       p = api("POST", "/lib/prepa/epreuves/sessions/" + WR.sess.id + "/rendre-texte", { blocs: blocs, message: msg, sorties: WR.sorties }).then(function (r) { return r.devoir; });
     } else {
-      var mats = matieresOuvertes(), m = wrQ('[data-w-el="r-mat"]') ? wrQ('[data-w-el="r-mat"]').value : (mats[0] || {}).matiere_key;
+      var mats = matieresOuvertes(), m = WR.mat || (mats[0] || {}).matiere_key;
       var titre = wrQ('[data-w-el="titre"]').value.trim() || ((wrQ('[data-w-el="r-titre"]') || {}).value || "").trim();
       if (!m) { err.textContent = "Aucune matière ouverte."; b.disabled = false; b.textContent = "Envoyer"; return; }
       p = api("POST", "/lib/prepa/devoirs/texte", { matiere_key: m, titre: titre, message: msg, blocs: blocs });
@@ -1716,6 +1782,20 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 
   // ================= ÉVÉNEMENTS =================
   root.addEventListener("click", function (e) {
+    if (e.target.closest(".nv-menu")) closeMenu();
+    var mt = e.target.closest('[data-act="tabs-open"],[data-act="esp-open"],[data-act="menu-close"],[data-act="vue-off"]');
+    if (mt && root.contains(mt)) {
+      var ma = mt.getAttribute("data-act");
+      if (ma === "menu-close") return closeMenu();
+      if (ma === "vue-off") { S.voir = null; store("navire_prepa_voir", null); return charger(); }
+      if (ma === "tabs-open") {
+        var n0 = nonLues().length, e0 = epOuvertes().length;
+        return openMenu(mt, VIEWS.map(function (v) { var bd = v === "copies" ? n0 : v === "epreuves" ? e0 : 0; return { label: esc(TITRES[v]) + (bd ? '<span class="nv-badge">' + bd + "</span>" : ""), attrs: 'data-view="' + v + '"', on: S.view === v }; }));
+      }
+      return openMenu(mt, [{ label: "Mon espace", sub: "Mon onglet Prépa", attrs: 'data-act="vue-off"', on: !S.voir }].concat(["L1", "L2", "L3", "M1"].map(function (n) {
+        return { label: "Vue étudiant " + n, sub: "L'onglet d'un étudiant de " + n + ", lecture seule", attrs: 'data-voir="' + n + '"', on: S.voir === n };
+      })));
+    }
     var t = e.target.closest("[data-unfollow],[data-ep-start],[data-ep-go],[data-ep-type],[data-ep-reprendre],[data-act],[data-view],[data-voir],[data-cal],[data-calmode],[data-seance],[data-copie],[data-doc],[data-href]");
     if (!t || !root.contains(t)) return;
     if (t.hasAttribute("data-unfollow")) { e.stopPropagation(); return unfollow(t.getAttribute("data-unfollow")); }

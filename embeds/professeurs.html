@@ -770,6 +770,32 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 /* Menu latéral fixe (PC) : collé par le navigateur quand c'est possible */
 #nv-prof.is-flow.is-sticky:not(.is-compact) .nv-side { position: sticky; top: var(--head-h, 0px); height: calc(100vh - var(--head-h, 0px)); }
 #nv-prof.is-flow:not(.is-compact) .nv-side { will-change: top; transition: margin-left .3s var(--ease), visibility 0s; }
+
+/* ================= PASTILLES ET MENU EN OVERLAY ================= */
+.nv-choix { display: flex; flex-wrap: wrap; gap: 6px; }
+.nv-choix button { height: 34px; padding: 0 13px; border-radius: 99px; border: 0; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.75); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.nv-choix button:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.nv-choix button.is-on { background: #7AA7FF; color: #0a0a12; }
+.nv-choix.is-light button { background: #f1f3f8; color: #4a4e5e; }
+.nv-choix.is-light button.is-on { background: #15161c; color: #fff; }
+#nv-prof .nv-menu-scrim { position: absolute; inset: 0; z-index: 1590; display: none; background: transparent; }
+#nv-prof .nv-menu-scrim.is-on { display: block; }
+#nv-prof .nv-menu { position: absolute; z-index: 1600; display: none; min-width: 230px; max-width: calc(100% - 16px); max-height: 60vh; overflow-y: auto; padding: 6px; border-radius: 16px; background: #181a26; box-shadow: 0 24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07); animation: nv-rise .18s var(--ease) both; }
+#nv-prof .nv-menu.is-on { display: block; }
+#nv-prof .nv-menu button { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: rgba(255,255,255,0.8); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+#nv-prof .nv-menu button:hover { background: rgba(255,255,255,0.06); color: #fff; }
+#nv-prof .nv-menu button.is-on { background: rgba(255,255,255,0.1); color: #fff; }
+#nv-prof .nv-menu button small { display: block; font-size: 11.5px; font-weight: 400; color: rgba(255,255,255,0.45); margin-top: 2px; }
+#nv-prof .nv-menu .nv-badge { margin-left: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 0 6px; border-radius: 99px; background: #7AA7FF; color: #0a0a12; }
+#nv-prof .nv-pick, #nv-prof .nv-esp { display: none; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 99px; border: 0; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; white-space: nowrap; max-width: 52%; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-pick { background: #fff; color: #0a0a12; }
+#nv-prof .nv-esp { background: rgba(255,255,255,0.08); color: #fff; font-weight: 600; }
+#nv-prof.is-compact:not(.is-solo) .nv-pick { display: inline-flex; }
+#nv-prof.is-compact:not(.is-solo) .nv-esp.is-on { display: inline-flex; }
+#nv-prof.is-compact .nv-topbar-title { display: none; }
+#nv-prof.is-compact .nv-topbar { gap: 6px; padding: 6px 2px 6px 0; }
+#nv-prof .np-tabs, #nv-prof .nv-tabs { display: none !important; }
+#nv-prof .nv-apercu .nv-esp-inline, #nv-prof .np-apercu .nv-esp-inline { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: 99px; background: rgba(255,255,255,0.08); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 </style>
 
 <div id="nv-prof" class="is-solo">
@@ -795,6 +821,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       <button class="nv-icon-btn nv-menu-btn" data-act="side-open" aria-label="Afficher le menu" title="Afficher le menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
       </button>
+      <button class="nv-pick" data-act="tabs-open" data-el="pick"></button>
+      <button class="nv-esp" data-act="esp-open" data-el="esp"></button>
       <div class="nv-topbar-title" data-el="title">Accueil</div>
       <button class="nv-icon-btn" data-act="refresh" aria-label="Actualiser" title="Actualiser">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
@@ -803,6 +831,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     <div class="nv-page nv-scroll" data-el="page"></div>
     <div class="nv-toasts" data-el="toasts"></div>
   </main>
+  <div class="nv-menu-scrim" data-el="menu-scrim" data-act="menu-close"></div>
+  <div class="nv-menu" data-el="menu"></div>
   <div class="nv-pop" data-el="pop" data-act="pop-close"><div class="nv-pop-card" data-el="pop-card"></div></div>
   <input type="file" accept="application/pdf,.pdf" data-el="file" style="display:none">
   <input type="file" accept="application/pdf,.pdf" data-el="ep-file" style="display:none">
@@ -879,6 +909,32 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       '<span class="nv-hcard-text">' + (o.big ? '<span class="nv-big">' + o.big + "</span>" : "") + "<b>" + o.titre + "</b>" + (o.sous ? "<small>" + o.sous + "</small>" : "") + "</span></button>";
   }
   function pop(html) { el("pop-card").innerHTML = html; el("pop").classList.add("is-on"); }
+
+  // ================= PASTILLES (à la place des listes déroulantes natives) =================
+  var CHOIX = {};
+  function choix(key, opts, cur, cb, light) {
+    CHOIX[key] = cb;
+    return '<div class="nv-choix' + (light ? " is-light" : "") + '">' + opts.map(function (o) {
+      return '<button type="button"' + (String(o[0]) === String(cur) ? ' class="is-on"' : "") + ' data-choix="' + key + '" data-v="' + esc(o[0]) + '">' + esc(o[1]) + "</button>";
+    }).join("") + "</div>";
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-choix]");
+    if (!b || !CHOIX[b.getAttribute("data-choix")]) return;
+    b.parentNode.querySelectorAll("[data-choix]").forEach(function (x) { x.classList.toggle("is-on", x === b); });
+    CHOIX[b.getAttribute("data-choix")](b.getAttribute("data-v"));
+  });
+
+  // ================= MENU EN OVERLAY (rubriques, espace) : aucun fond derrière =================
+  var CHEV = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  function openMenu(anchor, items) {
+    var m = el("menu"), rr = root.getBoundingClientRect(), ar = anchor.getBoundingClientRect();
+    m.innerHTML = items.map(function (it) { return '<button' + (it.on ? ' class="is-on"' : "") + " " + it.attrs + ">" + it.label + (it.sub ? "<small>" + it.sub + "</small>" : "") + "</button>"; }).join("");
+    m.classList.add("is-on"); el("menu-scrim").classList.add("is-on");
+    m.style.top = (ar.bottom - rr.top + 6) + "px";
+    m.style.left = Math.max(8, Math.min(ar.left - rr.left, root.clientWidth - m.offsetWidth - 8)) + "px";
+  }
+  function closeMenu() { el("menu").classList.remove("is-on"); el("menu-scrim").classList.remove("is-on"); }
   function popClose() { el("pop").classList.remove("is-on"); }
 
   var ICON = {
@@ -1102,6 +1158,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   // ================= RENDU =================
   // Téléphone : les rubriques en onglets en haut de page.
   function tabs() {
+    return "";
     var todo = aCorriger().length;
     return '<div class="nv-tabs">' + Object.keys(TITLES).map(function (v) {
       return '<button data-view="' + v + '"' + (S.view === v ? ' class="is-on"' : "") + ">" + TITLES[v] + (v === "copies" && todo ? '<span class="nv-badge">' + todo + "</span>" : "") + "</button>";
@@ -1175,8 +1232,9 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     b.innerHTML = '<span>' + (S.voir && S.me.apercu
       ? 'Aperçu admin · tu vois l\'espace de ' + esc(S.me.apercu.nom || "ce professeur") + (S.me.apercu.status !== "active" ? ' (suspendu)' : '') + ', en lecture seule'
       : 'Aperçu admin · voir l\'espace d\'un professeur') + '</span>' +
-      '<select data-el="voir" aria-label="Voir comme">' + opts + '</select>';
-    if (moi) el("voir").value = "";
+      '<button class="nv-esp-inline" data-act="esp-open">' + esc(S.voir ? (S.me.apercu && S.me.apercu.nom) || "Aperçu" : "Mon espace") + CHEV + "</button>";
+    void opts; void moi;
+    paintPick();
   }
   function voirComme(id) {
     S.voir = id || null;
@@ -1521,7 +1579,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     if (!cs.length) return toast("Aucun groupe.", true);
     pop("<h4>Nouvelle épreuve</h4><p>Le sujet n'est visible par l'étudiant qu'au lancement.</p>" +
       '<div class="ep-types" style="margin-top:12px">' + EP_TYPES.map(function (t) { return '<button class="ep-type' + (f.type === t[0] ? " is-on" : "") + '" data-act="ep-type" data-t="' + t[0] + '"><b>' + esc(t[1]) + "</b><span>" + epDuree(t[2]) + "</span></button>"; }).join("") + "</div>" +
-      (cs.length > 1 ? field("Groupe", '<select class="nv-input" data-ep="classe">' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.classe ? " selected" : "") + ">" + esc(c.nom) + "</option>"; }).join("") + "</select>") : "") +
+      (cs.length > 1 ? '<div class="nv-field"><span>Groupe</span>' + choix("ep-classe", cs.map(function (c) { return [c.id, c.nom]; }), f.classe, function (v) { S.epf.classe = +v; }) + "</div>" : "") +
       field("Titre", '<input class="nv-input" data-ep="titre" maxlength="200" placeholder="Ex. Galop n° 1 : la coutume" value="' + esc(f.titre) + '">', true) +
       field("Sujet", '<textarea class="nv-input" data-ep="sujet" style="min-height:110px" placeholder="L\'énoncé, la question ou l\'arrêt à commenter.">' + esc(f.sujet) + "</textarea>") +
       '<div class="nv-actions" style="margin-top:8px"><button class="nv-chip" data-act="ep-pdf">' + ICON.upload + (f.file ? esc(f.file.name) : "Sujet en PDF (facultatif)") + "</button>" + (f.file ? '<button class="nv-chip" data-act="ep-pdf-x">Retirer</button>' : "") + "</div>" +
@@ -1579,7 +1637,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     if (!cs.length) return toast("Aucun groupe.", true);
     S.uploadClass = cid || S.uploadClass || cs[0].id; S.uploadFile = null;
     pop("<h4>Déposer un document</h4><p>Publié tout de suite pour les étudiants du groupe.</p>" +
-      (cs.length > 1 ? field("Groupe", '<select class="nv-input" id="u-classe">' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === S.uploadClass ? " selected" : "") + ">" + esc(c.nom) + "</option>"; }).join("") + "</select>") : "") +
+      (cs.length > 1 ? '<div class="nv-field"><span>Groupe</span>' + choix("u-classe", cs.map(function (c) { return [c.id, c.nom]; }), S.uploadClass, function (v) { S.uploadClass = +v; }) + "</div>" : "") +
       field("Titre", input("u-titre", "", 'maxlength="200" placeholder="Ex. TD 3 — la responsabilité du fait d\'autrui"')) +
       field("Description", '<textarea class="nv-input" id="u-desc" maxlength="2000" style="min-height:64px"></textarea>', true) +
       '<div class="nv-drop" data-act="pick" data-el="drop" style="margin-top:12px">' + ICON.upload + '<b data-el="drop-name">Choisir un PDF</b><span>ou le glisser ici · 50 Mo max.</span></div>' +
@@ -1599,7 +1657,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   }
   function docUpload(b) {
     if (!S.uploadFile) return err("Choisis un PDF.");
-    var cid = val("u-classe") ? +val("u-classe") : S.uploadClass;
+    var cid = S.uploadClass;
     var fd = new FormData();
     fd.append("file", S.uploadFile); fd.append("titre", val("u-titre")); fd.append("description", val("u-desc"));
     b.disabled = true; b.textContent = "Envoi…";
@@ -1626,12 +1684,19 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       '<div style="margin-top:6px">' + eur(t.verse_cents) + ' versés · ' + eur(t.total_cents) + ' prévus</div>';
     setView(S.view);
   }
+  function paintPick() {
+    el("pick").innerHTML = esc(TITLES[S.view] || "Accueil") + CHEV;
+    var e = el("esp"), on = S.admin && S.profs && S.profs.length;
+    e.classList.toggle("is-on", !!on);
+    e.innerHTML = esc(S.voir ? (S.me && S.me.apercu && S.me.apercu.nom) || "Aperçu" : "Mon espace") + CHEV;
+  }
   function setView(v) {
     if (!VIEWS[v]) v = "home";
     S.view = v;
     root.classList.remove("is-still", "is-drawer");
     renderNav();
     el("title").textContent = TITLES[v];
+    paintPick();
     VIEWS[v]();
   }
 
@@ -2224,6 +2289,19 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 
   // ================= ACTIONS =================
   root.addEventListener("click", function (e) {
+    if (e.target.closest(".nv-menu")) closeMenu();
+    var mt = e.target.closest('[data-act="tabs-open"],[data-act="esp-open"],[data-act="menu-close"]');
+    if (mt && root.contains(mt)) {
+      var ma = mt.getAttribute("data-act");
+      if (ma === "menu-close") return closeMenu();
+      if (ma === "tabs-open") {
+        var td = aCorriger().length;
+        return openMenu(mt, Object.keys(TITLES).map(function (k) { return { label: esc(TITLES[k]) + (k === "copies" && td ? '<span class="nv-badge">' + td + "</span>" : ""), attrs: 'data-view="' + k + '"', on: S.view === k }; }));
+      }
+      return openMenu(mt, [{ label: "Mon espace", sub: S.me && S.me.status === "active" ? "Mon espace professeur" : "Quitter l'aperçu", attrs: 'data-act="voir" data-id="0"', on: !S.voir }].concat((S.profs || []).map(function (p) {
+        return { label: esc(nomProf(p)), sub: esc(p.email || "") + (p.status !== "active" ? " · suspendu" : ""), attrs: 'data-act="voir" data-id="' + p.id + '"', on: p.id === S.voir };
+      })));
+    }
     var v = e.target.closest("[data-view]");
     if (v && root.contains(v) && S.dash) { setView(v.getAttribute("data-view")); return; }
     var a = e.target.closest("[data-act]");
@@ -2286,7 +2364,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     if (CX.node) { if (CX.draft) return cxDraftClose(); if (CX.mark || cxQ('[data-cx-el="tool"]').classList.contains("is-on")) return cxHideTool(); return; }
-    root.classList.remove("is-drawer"); popClose();
+    root.classList.remove("is-drawer"); popClose(); closeMenu();
   });
   document.addEventListener("selectionchange", function () { if (CX.node && !CX.draft) { clearTimeout(CX.selT); CX.selT = setTimeout(cxUpdateTool, 120); } });
   window.addEventListener("beforeunload", function (e) { if (CX.node && Object.keys(CX.pending).length) { cxFlush(); e.preventDefault(); e.returnValue = ""; } });
