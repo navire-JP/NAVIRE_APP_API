@@ -398,6 +398,15 @@
 #nv-profil.is-narrow .pf-post-av { width: 32px; height: 32px; }
 #nv-profil.is-narrow .pf-stage { padding: 0; align-items: stretch; }
 #nv-profil.is-narrow .pf-panel { max-width: none; max-height: none; height: 100%; border-radius: 0; }
+/* Téléphone : la croix en bas à gauche, « Enregistrer » en bas à droite, à portée de pouce */
+#nv-profil.is-narrow .pf-panel { position: relative; }
+#nv-profil.is-narrow .pf-panel-head { padding: 16px 16px 4px; }
+#nv-profil.is-narrow .pf-panel-head .pf-close,
+#nv-profil.is-narrow .pf-panel-head [data-act="save"] { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 3; height: 44px; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+#nv-profil.is-narrow .pf-panel-head .pf-close { left: 16px; width: 44px; border-radius: 50%; background: rgba(40,42,60,0.95); color: #fff; }
+#nv-profil.is-narrow .pf-panel-head .pf-close svg { width: 17px; height: 17px; }
+#nv-profil.is-narrow .pf-panel-head [data-act="save"] { right: 16px; padding: 0 22px; font-size: 14px; }
+#nv-profil.is-narrow .pf-panel-body { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 #nv-profil.is-narrow .pf-grid2 { grid-template-columns: 1fr; }
 #nv-profil.is-narrow .pf-alert { flex-wrap: wrap; }
 
