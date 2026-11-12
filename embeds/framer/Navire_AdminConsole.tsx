@@ -7275,12 +7275,15 @@ function ConsoleUI() {
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
-                    padding: "0 12px",
-                    height: 48,
+                    padding: "8px 12px",
+                    minHeight: 48,
                     borderBottom: `1px solid ${b0}`,
                     flexShrink: 0,
-                    // La barre défile plutôt que de déborder si elle manque de place.
-                    overflowX: "auto",
+                    // Les onglets passent à la ligne s'ils manquent de place :
+                    // les barres de défilement sont masquées dans la console,
+                    // un onglet hors cadre serait introuvable.
+                    flexWrap: "wrap",
+                    rowGap: 4,
                 }}
             >
                 <span
