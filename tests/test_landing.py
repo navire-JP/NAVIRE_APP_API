@@ -113,4 +113,8 @@ def test_embeds(client):
 def test_captures_absentes(client):
     # Capture prévue mais pas encore déposée : 404 propre, l'embed affiche un visuel provisoire.
     assert client.get("/assets/screen-actus.png").status_code in (200, 404)
+    # Captures fournies : servies telles quelles
+    for n in ("lib", "lib-lecture", "fichiers", "prepa", "copie"):
+        r = client.get(f"/assets/screen-{n}.png")
+        assert r.status_code == 200 and r.headers["content-type"] == "image/png"
     assert client.get("/assets/screen-inconnue.png").status_code == 404
