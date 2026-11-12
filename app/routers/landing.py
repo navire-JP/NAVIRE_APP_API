@@ -4,9 +4,11 @@ Page d'accueil publique (landing) : données des embeds hero et avis.
 Public (sans compte) :
   GET /landing/hero          → 4 premiers du classement (pseudo, photo) et nombre de membres
   GET /landing/avis          → avis affichés, dans l'ordre de la console
+  GET /landing/professeurs   → professeurs actifs : prénom + initiale, photo, grade, matières, bio
   GET /landing/embed/hero    → embeds/landing_hero.html servi par l'API
   GET /landing/embed/avis    → embeds/landing_avis.html servi par l'API
   GET /landing/embed/features → embeds/landing_features.html servi par l'API
+  GET /landing/embed/professeurs → embeds/landing_professeurs.html servi par l'API
 
 Console (admin, onglet « Avis ») :
   GET    /admin/avis         → tous les avis, masqués compris
@@ -31,7 +33,8 @@ from sqlalchemy.orm import Session
 
 from app.core.cloudinary_client import resolve_avatar_url
 from app.db.database import get_db
-from app.db.models import LandingAvis, User
+from app.core.prepa_adjuris_config import PREPA_MATIERE_NAMES, PREPA_PRICES, matiere_niveau
+from app.db.models import LandingAvis, PrepaAdjurisProfesseur, User
 from app.routers.admin_console import require_admin
 
 router = APIRouter(tags=["landing"])
@@ -127,6 +130,47 @@ def landing_avis(db: Session = Depends(get_db)):
     return {"items": [_avis_public(a) for a in rows if a.user]}
 
 
+# Grades techniques → libellé affiché. Un grade libre (« Avocate », « Juriste »)
+# s'affiche tel quel.
+GRADES_AFFICHES = {"ChargéTD": "Chargé de TD", "ChargeeTD": "Chargée de TD", "ChargéeTD": "Chargée de TD"}
+
+
+@router.get("/landing/professeurs")
+def landing_professeurs(db: Session = Depends(get_db)):
+    """
+    Professeurs actifs de la Prép'AdJuris, pour la page d'accueil. Nom réduit
+    au prénom et à l'initiale ; ni email, ni rémunération, ni groupe.
+    Matières : celles des groupes actifs où le professeur est affecté.
+    """
+    ordre = {k: i for i, k in enumerate(PREPA_PRICES)}
+    profs = db.execute(
+        select(PrepaAdjurisProfesseur)
+        .where(PrepaAdjurisProfesseur.status == "active")
+        .order_by(PrepaAdjurisProfesseur.created_at, PrepaAdjurisProfesseur.id)
+    ).scalars().all()
+    items = []
+    for p in profs:
+        u = p.user
+        if not u:
+            continue
+        cles = sorted(
+            {a.classe.matiere_key for a in p.affectations if a.classe and a.classe.is_active},
+            key=lambda k: ordre.get(k, 99),
+        )
+        prenom = (p.prenom or "").strip() or (u.username or "").strip()
+        initiale = (p.nom or "").strip()[:1].upper()
+        items.append({
+            "nom": f"{prenom} {initiale}." if initiale else prenom,
+            "avatar_url": resolve_avatar_url(u.avatar_url),
+            "grade": GRADES_AFFICHES.get(p.grade, p.grade or ""),
+            "bio": (u.bio or "").strip(),
+            "matieres": [
+                {"niveau": matiere_niveau(k), "nom": PREPA_MATIERE_NAMES.get(k, k)} for k in cles
+            ],
+        })
+    return {"items": items}
+
+
 @router.get("/landing/embed/hero", response_class=HTMLResponse, include_in_schema=False)
 def embed_hero():
     return _embed("landing_hero.html", "NAVIRE")
@@ -140,6 +184,11 @@ def embed_avis():
 @router.get("/landing/embed/features", response_class=HTMLResponse, include_in_schema=False)
 def embed_features():
     return _embed("landing_features.html", "Fonctionnalités NAVIRE", fond="#f6f7fb")
+
+
+@router.get("/landing/embed/professeurs", response_class=HTMLResponse, include_in_schema=False)
+def embed_professeurs():
+    return _embed("landing_professeurs.html", "Professeurs NAVIRE", fond="#ffffff")
 
 
 # ============================================================

@@ -10,7 +10,8 @@
 | `inscription.html` | page d'inscription | Inscription en 6 étapes (pseudo, email ou Google/Facebook, code, fac et niveau, premier PDF, récap), puis accueil en 4 étapes : tour des fonctionnalités, photo et bio, liaison Discord, Prép'AdJuris. Un niveau « à vérifier » (Doctorant) demande un justificatif. Réglages : bloc CONFIG |
 | `landing_hero.html` | page d'accueil (`/`), section sombre | Hero : pastille « Une communauté de + 250 membres » avec les photos des 4 premiers du classement (`GET /landing/hero`), titre avec dégradé bleu, trois atouts (icônes `/assets`), boutons « Se connecter » et « Commencer » ; connecté : « Accéder à mon espace ». Fond transparent, hauteur du contenu. Réglages : bloc CONFIG |
 | `landing_avis.html` | page d'accueil (`/`), section sombre | Avis saisis dans la console (onglet « Avis »), reliés à de vrais comptes (pseudo et photo du compte) : pile de 3 cartes côte à côte, sur ordinateur comme sur téléphone, qui tourne au-delà de 3 avis (`GET /landing/avis`). Aucun avis : rien ne s'affiche |
-| `landing_features.html` | page d'accueil (`/`), section claire | Fonctionnalités : sélecteur en gemmes sur un anneau (une gemme au premier plan, les autres derrière), choisir une gemme fait tourner l'anneau et glisser la capture. Six fonctionnalités : Lib, NAVIRE AI et fichiers, Veille, Articles, Prépa, QCM et classement. Une ou plusieurs captures par fonctionnalité (`/assets/screen-*.png`, fichiers dans `assets/screens/`) ; capture absente : visuel provisoire. Réglages : bloc CONFIG |
+| `landing_features.html` | page d'accueil (`/`), section claire | Fonctionnalités : sélecteur en gemmes sur un anneau (une gemme au premier plan, les autres derrière ; vertical entre le texte et la capture sur ordinateur, horizontal au-dessus du texte sur téléphone), choisir une gemme fait tourner l'anneau et glisser la capture. Six fonctionnalités : Lib, NAVIRE AI et fichiers, Veille, Articles, Prépa, QCM et classement. Une ou plusieurs captures par fonctionnalité (`/assets/screen-*.png`, fichiers dans `assets/screens/`) ; capture absente : visuel provisoire. Réglages : bloc CONFIG |
+| `landing_professeurs.html` | page d'accueil (`/`), section blanche | Professeurs actifs de la console (`GET /landing/professeurs` : prénom + initiale, photo et bio du compte, grade, matières des groupes actifs) en rangée de cartes qui défile ; puis « Comment on recrute nos professeurs » en 4 étapes (2 × 2 sur téléphone). Aucun professeur : seule la partie recrutement. Thème clair par défaut (`THEME`), lien de candidature facultatif. Réglages : bloc CONFIG |
 | `adjuris.html` | page d'accueil (`/`) | Formulaire Prép'AdJuris en thème clair : même parcours que le bloc AdJuris de `subscribe.html` (niveau L1–M1, matières, compte, code promo vérifié en direct, échéancier, paiement Stripe), médaille `/assets/certification.png`. Sur ordinateur (≥ 960 px) : présentation, prix et accès donnés par l'inscription à gauche (cours hebdo, copies corrigées, espace Prépa, Lib+, Discord), formulaire à droite dans une carte, colonnes centrées l'une par rapport à l'autre ; sur téléphone, une colonne, accès en tuiles. « Encadrement certifié » toujours juste au-dessus de l'encart d'inscription. Connecté : compte reconnu, matières déjà suivies grisées. Reprend `?ref=CODE` |
 | `subscribe.html` | page `/subscribe` | Page d'offres tout-en-un : Prép'AdJuris en premier avec le formulaire intégré (niveau L1–M1, matières, compte, code promo, échéancier `GET /prepa/adjuris/echeancier`, paiement Stripe), puis Free / Membre / Membre+ (mensuel / annuel) avec compte et code promo ouverts sur place. Connecté : compte reconnu, matières déjà suivies grisées, offre en cours marquée. Reprend `?ref=CODE`. Contenu des offres aligné sur `app/core/limits.py` |
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
@@ -21,7 +22,7 @@
 | `professeurs.html` | page `/professeurs` | Espace des chargés de TD, DA de Lib : groupes (Discord, liens), étudiants, dépôt de PDF, **À corriger** avec le mode correction plein écran (fond blanc, révisions et commentaires), rémunération prévisionnelle |
 | `profil_badge.html` | header du site | Badge profil : photo, pseudo, pastilles (Elo, offre, rôles admin / chargé de TD / ambassadeur), rang, petit « v » « Aller au profil » ; tout le badge mène au profil. Le texte tient dans la hauteur du rond de la photo ; plus grand sur téléphone ; une pastille qui ne tient pas est masquée, jamais coupée |
 | `profil_badge_compact.html` | header (sans photo) | Même badge sans photo ni pseudo : pastilles Elo et offre, rôles, rang, « v » ; plus grand sur téléphone |
-| `classement.html` | page `/classement` | Classement : podium, joueurs (général, 30 jours, 7 jours, ma fac), facs, fiche joueur avec ses stats, curseur « Mes stats visibles » |
+| `classement.html` | page `/classement` | Classement en cartes profil : bannière, photo qui la chevauche, place, nom, fac, Elo et gain sur 7 jours ; top 3 en grandes cartes, puis 5 cartes par ligne sur PC (4 puis 3 sur téléphone) ; Général / 30 jours / 7 jours, Tous / Ma fac ; ta place rappelée en haut ; « Voir plus ». Un clic ouvre le profil (`PROFIL_URL?u=<id>`). Données : `GET /leaderboard/classement` (bannière comprise) |
 | `fichiers.html` | onglet Fichiers | Tous les fichiers de l'élève dans un seul embed : panneau latéral rabattable, vue Lecture (arborescence + lecteur à onglets) ou vue Classeur (dossiers en grille). Ajout / suppression de PDF uniquement |
 | `framer/Navire_AdjurisBanner.tsx` | au-dessus du header (tout le site) | Bannière fine Prép'AdJuris : prochaine séance et Espace Prépa pour les inscrits, « Rejoindre la séance » juste avant le début, paiement en échec en rouge, « S'abonner » pour les autres. Code File `Navire_AdjurisBanner`, largeur Fill, hauteur Fit content |
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
@@ -348,21 +349,20 @@ fichier en gardant points de passage et progression des élèves.
 
 **Embed HTML, comme NAVIRE AI.** Coller `classement.html` dans un Embed HTML
 de la page `/classement` (servi aussi par l'API : `GET /leaderboard/embed`).
-Charte bleu et blanc, comme NAVIRE Lib.
+Même DA que l'accueil, Lib et le profil : bleu et blanc, aucun fond de page.
 
-- **Joueurs** : podium du top 3 puis la liste, à l'Elo (Général) ou à l'Elo
-  gagné sur 30 ou 7 jours. Ex aequo au même rang. **Ma fac** filtre sur la fac
-  du joueur connecté. Une barre « Ta place » reste en bas, avec l'écart avec la
-  place du dessus.
-- **Facs** : somme de l'Elo des étudiants de chaque fac, et la moyenne.
-- **Fiche joueur** (clic sur un joueur) : Elo, place, palier, gains sur 7 et
-  30 jours, séries, courbe d'Elo sur 30 jours, taux de réussite aux QCM,
-  origine de l'Elo (QCM, Lib…), points de passage Lib.
-- **Curseur « Mes stats visibles »** (activé par défaut) : masqué, les autres
-  ne voient plus que le nom, l'Elo, la place et la fac du joueur, avec un
-  cadenas dans la liste. Le joueur voit toujours ses propres stats.
+- **Cartes profil** : bannière du profil, photo qui la chevauche, place, nom,
+  fac, Elo (ou Elo gagné sur 30 / 7 jours) et gain sur 7 jours. Le top 3 en
+  grandes cartes, puis 5 cartes par ligne sur PC, 4 puis 3 sur téléphone
+  (selon la largeur de l'embed). Ex aequo au même rang.
+- **Filtres** : Général / 30 jours / 7 jours ; Tous / Ma fac (connecté).
+- **Ta place** rappelée en haut quand ta carte n'est pas affichée.
+- **Voir plus** : 25 cartes de plus à chaque clic (200 joueurs chargés).
+- Un clic sur une carte ouvre le profil (`PROFIL_URL?u=<id>`).
 
-Sans connexion, le classement reste visible, avec un bouton « Rejoindre ».
+Données : `GET /leaderboard/classement?periode=general|30j|7j&limit=…[&fac=…]`,
+qui renvoie pour chaque joueur la photo et la bannière (`banner_url`, vide
+sans bannière). Sans connexion, le classement reste visible, sans « Ma fac ».
 
 ## Côté Stripe
 

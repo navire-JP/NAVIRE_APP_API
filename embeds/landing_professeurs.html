@@ -1,0 +1,278 @@
+<!--
+  NAVIRE, embed professeurs de la page d'accueil
+  ==============================================
+  Fond transparent : la couleur de la section (blanche) est posée dans
+  Framer. Thème clair par défaut, sombre avec CONFIG.THEME = "dark".
+
+  Professeurs → GET /landing/professeurs : professeurs actifs de la console
+                (onglet « Prof. ») : prénom + initiale, photo et bio du compte,
+                grade, matières des groupes actifs. Rangée de cartes qui défile
+                sur le côté (glisser sur téléphone, flèches sur ordinateur).
+                Aucun professeur : seule la partie recrutement s'affiche.
+  Recrutement → étapes du bloc CONFIG (RECRUTEMENT), en 4 colonnes sur
+                ordinateur, 2 × 2 sur téléphone. Lien de candidature
+                facultatif (CANDIDATURE_URL).
+
+  Réglages : bloc CONFIG du script.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+#nv-profs {
+  --ink: #fff;
+  --ink-2: rgba(255,255,255,0.7);
+  --ink-3: rgba(255,255,255,0.46);
+  --line: rgba(255,255,255,0.1);
+  --card: linear-gradient(180deg, #121827 0%, #0c111c 100%);
+  --chip: rgba(255,255,255,0.07);
+  --accent: #7AA7FF;
+  --accent-soft: rgba(122,167,255,0.12);
+  --shadow: 0 24px 60px rgba(0,0,0,0.4);
+  --ease: cubic-bezier(.2,.8,.2,1);
+
+  position: relative;
+  width: 100%;
+  padding: 72px 24px 80px;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--ink);
+  background: transparent;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+#nv-profs[data-theme="light"] {
+  --ink: #0A0E1F;
+  --ink-2: rgba(10,14,31,0.66);
+  --ink-3: rgba(10,14,31,0.44);
+  --line: rgba(10,14,31,0.1);
+  --card: #fff;
+  --chip: rgba(10,14,31,0.05);
+  --accent: #5B6FFF;
+  --accent-soft: rgba(91,111,255,0.1);
+  --shadow: 0 8px 24px rgba(10,14,31,0.06);
+}
+#nv-profs *, #nv-profs *::before, #nv-profs *::after { box-sizing: border-box; }
+
+#nv-profs .np-in { max-width: 1160px; margin: 0 auto; }
+#nv-profs .np-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-3);
+}
+#nv-profs .np-eyebrow i { width: 5px; height: 5px; border-radius: 99px; background: var(--accent); }
+#nv-profs .np-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+#nv-profs .np-title {
+  margin: 14px 0 0; max-width: 720px;
+  font-size: clamp(30px, 4.4vw, 50px); line-height: 1.06; font-weight: 800; letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+#nv-profs .np-sub { margin: 14px 0 0; max-width: 620px; font-size: 16px; line-height: 1.55; color: var(--ink-2); }
+#nv-profs .np-arrows { display: flex; gap: 8px; flex-shrink: 0; }
+#nv-profs .np-arrow {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--chip); color: var(--ink);
+  display: grid; place-items: center; cursor: pointer;
+  transition: background .2s, opacity .2s;
+}
+#nv-profs .np-arrow:hover { background: var(--accent-soft); }
+#nv-profs .np-arrow[disabled] { opacity: .35; cursor: default; }
+
+/* ── Cartes professeurs : rangée qui défile ── */
+#nv-profs .np-row {
+  /* Marge basse pour que l'ombre des cartes ne soit pas coupée par le défilement */
+  margin: 36px -24px -20px; padding: 4px 24px 44px;
+  display: flex; gap: 16px;
+  overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 24px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+#nv-profs .np-row::-webkit-scrollbar { display: none; }
+#nv-profs .np-row:empty { display: none; }
+#nv-profs .np-card {
+  flex: 0 0 280px; scroll-snap-align: start;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 22px;
+  border-radius: 22px; border: 1px solid var(--line);
+  background: var(--card); box-shadow: var(--shadow);
+}
+#nv-profs .np-top { display: flex; align-items: center; gap: 14px; min-width: 0; }
+#nv-profs .np-av {
+  width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accent-soft) center / cover no-repeat;
+  border: 2px solid var(--line);
+  display: grid; place-items: center;
+  font-size: 24px; font-weight: 800; color: var(--accent);
+}
+#nv-profs .np-name { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-profs .np-grade {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 6px;
+  font-size: 12px; font-weight: 700; color: var(--accent);
+  padding: 3px 10px; border-radius: 99px; background: var(--accent-soft);
+}
+#nv-profs .np-grade svg { flex-shrink: 0; }
+#nv-profs .np-bio { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-profs .np-mats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+#nv-profs .np-mat { font-size: 12px; font-weight: 600; color: var(--ink); padding: 5px 10px; border-radius: 99px; background: var(--chip); border: 1px solid var(--line); }
+#nv-profs .np-mat b { color: var(--accent); font-weight: 800; margin-right: 4px; }
+
+/* ── Recrutement ── */
+#nv-profs .np-rec { margin-top: 48px; }
+#nv-profs .np-row:empty + .np-rec { margin-top: 36px; }
+#nv-profs .np-rec-title { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+#nv-profs .np-rec-sub { margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); max-width: 640px; }
+#nv-profs .np-steps { list-style: none; margin: 22px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; counter-reset: np; }
+#nv-profs .np-step {
+  position: relative; padding: 20px; border-radius: 18px;
+  border: 1px solid var(--line); background: var(--chip);
+}
+#nv-profs .np-step::before {
+  counter-increment: np; content: counter(np, decimal-leading-zero);
+  display: block; font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--accent); margin-bottom: 10px;
+}
+#nv-profs .np-step b { display: block; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+#nv-profs .np-step span { display: block; margin-top: 6px; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+#nv-profs .np-cand {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 22px;
+  font-size: 14.5px; font-weight: 700; color: var(--ink); text-decoration: none;
+  border-bottom: 1.5px solid var(--ink); padding-bottom: 2px;
+}
+#nv-profs .np-cand:hover { color: var(--accent); border-color: var(--accent); }
+#nv-profs .np-cand[hidden] { display: none; }
+
+@media (max-width: 760px) {
+  #nv-profs { padding: 52px 16px 56px; }
+  #nv-profs .np-arrows { display: none; }
+  #nv-profs .np-sub { font-size: 15px; }
+  #nv-profs .np-row { margin: 28px -16px -20px; padding: 4px 16px 40px; scroll-padding: 0 16px; gap: 12px; }
+  #nv-profs .np-card { flex-basis: 78%; padding: 18px; }
+  #nv-profs .np-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  #nv-profs .np-step { padding: 16px; }
+  #nv-profs .np-step span { font-size: 12.5px; }
+}
+@media (prefers-reduced-motion: reduce) { #nv-profs .np-row { scroll-behavior: auto; } }
+</style>
+
+<section id="nv-profs" aria-label="Professeurs NAVIRE">
+  <div class="np-in">
+    <div class="np-head">
+      <div>
+        <div class="np-eyebrow"><i></i><span id="np-eyebrow"></span></div>
+        <h2 class="np-title" id="np-title"></h2>
+        <p class="np-sub" id="np-sub"></p>
+      </div>
+      <div class="np-arrows" id="np-arrows" hidden>
+        <button class="np-arrow" type="button" data-dir="-1" aria-label="Professeurs précédents">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
+        </button>
+        <button class="np-arrow" type="button" data-dir="1" aria-label="Professeurs suivants">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="np-row" id="np-row" aria-label="Nos professeurs"></div>
+
+    <div class="np-rec">
+      <h3 class="np-rec-title" id="np-rec-title"></h3>
+      <p class="np-rec-sub" id="np-rec-sub"></p>
+      <ol class="np-steps" id="np-steps"></ol>
+      <a class="np-cand" id="np-cand" target="_top" hidden></a>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  /* ═══ CONFIG ═══════════════════════════════════════════════ */
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    THEME: "light",                      // "light" (section blanche) ou "dark" (section sombre)
+    EYEBROW: "Nos professeurs",
+    TITLE: "Des chargés de TD et des juristes en exercice",
+    SUBTITLE: "Ceux qui animent tes cours et corrigent tes copies enseignent ou pratiquent le droit au quotidien.",
+    // Texte à valider : décrit le recrutement tel qu'annoncé sur le site
+    // (enseignant vérifié par NAVIRE). À ajuster à votre processus réel.
+    RECRUTEMENT_TITRE: "Comment on recrute nos professeurs",
+    RECRUTEMENT_SOUS_TITRE: "Chaque professeur est vérifié par NAVIRE avant d'animer un cours.",
+    RECRUTEMENT: [
+      { titre: "Un profil d'enseignant", texte: "Chargé de TD, doctorant ou professionnel du droit en exercice dans la matière enseignée." },
+      { titre: "Un parcours vérifié", texte: "Diplômes et poste vérifiés par l'équipe NAVIRE." },
+      { titre: "Un cours d'essai", texte: "Une séance test pour juger la pédagogie et la clarté." },
+      { titre: "Un suivi continu", texte: "Avis des étudiants et corrections relues tout au long de l'année." }
+    ],
+    CANDIDATURE_LABEL: "Tu enseignes le droit ? Rejoins l'équipe",
+    CANDIDATURE_URL: ""                  // vide : pas de lien de candidature
+  };
+  /* ══════════════════════════════════════════════════════════ */
+
+  var root = document.getElementById("nv-profs");
+  if (!root || root.getAttribute("data-ready")) return;
+  root.setAttribute("data-ready", "1");
+  root.setAttribute("data-theme", CONFIG.THEME === "dark" ? "dark" : "light");
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  $("np-eyebrow").textContent = CONFIG.EYEBROW;
+  $("np-title").textContent = CONFIG.TITLE;
+  $("np-sub").textContent = CONFIG.SUBTITLE;
+  $("np-rec-title").textContent = CONFIG.RECRUTEMENT_TITRE;
+  $("np-rec-sub").textContent = CONFIG.RECRUTEMENT_SOUS_TITRE;
+  $("np-steps").innerHTML = CONFIG.RECRUTEMENT.map(function (e) {
+    return '<li class="np-step"><b>' + esc(e.titre) + "</b><span>" + esc(e.texte) + "</span></li>";
+  }).join("");
+  var cand = $("np-cand");
+  if (CONFIG.CANDIDATURE_URL) {
+    cand.href = CONFIG.CANDIDATURE_URL;
+    cand.innerHTML = esc(CONFIG.CANDIDATURE_LABEL) + ' <span aria-hidden="true">→</span>';
+    cand.hidden = false;
+  }
+
+  var row = $("np-row"), arrows = $("np-arrows");
+  var CHECK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  function card(p) {
+    var nom = p.nom || "";
+    var av = p.avatar_url
+      ? '<span class="np-av" style="background-image:url(\'' + esc(p.avatar_url).replace(/'/g, "%27") + '\')"></span>'
+      : '<span class="np-av">' + esc(nom.charAt(0).toUpperCase()) + "</span>";
+    var mats = (p.matieres || []).map(function (m) {
+      return '<span class="np-mat"><b>' + esc(m.niveau) + "</b>" + esc(m.nom) + "</span>";
+    }).join("");
+    return '<article class="np-card">'
+      + '<div class="np-top">' + av + '<div style="min-width:0"><div class="np-name">' + esc(nom) + "</div>"
+      + (p.grade ? '<span class="np-grade">' + CHECK + esc(p.grade) + "</span>" : "")
+      + "</div></div>"
+      + (p.bio ? '<p class="np-bio">' + esc(p.bio) + "</p>" : "")
+      + (mats ? '<div class="np-mats">' + mats + "</div>" : "")
+      + "</article>";
+  }
+
+  function updateArrows() {
+    var max = row.scrollWidth - row.clientWidth;
+    arrows.hidden = max < 8;
+    var b = arrows.querySelectorAll(".np-arrow");
+    b[0].disabled = row.scrollLeft < 8;
+    b[1].disabled = row.scrollLeft > max - 8;
+  }
+  arrows.addEventListener("click", function (e) {
+    var b = e.target.closest(".np-arrow");
+    if (!b) return;
+    var c = row.querySelector(".np-card");
+    var step = c ? c.offsetWidth + 16 : 300;
+    row.scrollBy({ left: +b.getAttribute("data-dir") * step, behavior: "smooth" });
+  });
+  row.addEventListener("scroll", function () { window.requestAnimationFrame(updateArrows); }, { passive: true });
+  window.addEventListener("resize", updateArrows);
+
+  fetch(CONFIG.API + "/landing/professeurs")
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var items = (d && d.items) || [];
+      row.innerHTML = items.map(card).join("");
+      updateArrows();
+    })
+    .catch(function () {});
+})();
+</script>

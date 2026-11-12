@@ -105,7 +105,7 @@ def test_avis(client):
 
 
 def test_embeds(client):
-    for p in ("/landing/embed/hero", "/landing/embed/avis", "/landing/embed/features"):
+    for p in ("/landing/embed/hero", "/landing/embed/avis", "/landing/embed/features", "/landing/embed/professeurs"):
         r = client.get(p)
         assert r.status_code == 200 and 'API: ""' in r.text
 
@@ -118,3 +118,33 @@ def test_captures_absentes(client):
         r = client.get(f"/assets/screen-{n}.png")
         assert r.status_code == 200 and r.headers["content-type"] == "image/png"
     assert client.get("/assets/screen-inconnue.png").status_code == 404
+
+
+def test_professeurs(client):
+    from app.db.database import SessionLocal
+    from app.db.models import PrepaAdjurisAffectation, PrepaAdjurisClasse, PrepaAdjurisProfesseur
+
+    a = _compte("prof", bio="Doctorante en droit public")
+    b = _compte("suspendu")
+    with SessionLocal() as db:
+        c1 = PrepaAdjurisClasse(matiere_key="L2_droit_administratif", nom="L2 admin")
+        c2 = PrepaAdjurisClasse(matiere_key="L1_droit_constit", nom="L1 constit")
+        c3 = PrepaAdjurisClasse(matiere_key="L3_droit_des_societes", nom="vieux", is_active=False)
+        db.add_all([c1, c2, c3]); db.flush()
+        pa = PrepaAdjurisProfesseur(user_id=a[0], prenom="Julie", nom="martin", grade="ChargéTD")
+        pb = PrepaAdjurisProfesseur(user_id=b[0], prenom="Paul", nom="Durand", status="suspendu")
+        db.add_all([pa, pb]); db.flush()
+        for c in (c1, c2, c3):
+            db.add(PrepaAdjurisAffectation(professeur_id=pa.id, classe_id=c.id, remu_seance_cents=5000))
+        db.commit()
+
+    items = client.get("/landing/professeurs").json()["items"]
+    julie = next(i for i in items if i["nom"] == "Julie M.")
+    assert julie["grade"] == "Chargé de TD" and julie["bio"] == "Doctorante en droit public"
+    # Matières des groupes actifs seulement, dans l'ordre des niveaux
+    assert julie["matieres"] == [
+        {"niveau": "L1", "nom": "Droit constitutionnel"},
+        {"niveau": "L2", "nom": "Droit administratif"},
+    ]
+    assert set(julie) == {"nom", "avatar_url", "grade", "bio", "matieres"}   # ni email ni rémunération
+    assert not any(i["nom"].startswith("Paul") for i in items)               # suspendu : absent
