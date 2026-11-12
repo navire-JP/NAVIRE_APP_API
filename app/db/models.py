@@ -2644,3 +2644,37 @@ class NavireCreditEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
     )
+
+
+# ============================================================
+# Avis affichés sur la page d'accueil (embeds/landing_avis.html)
+# ============================================================
+
+class LandingAvis(Base):
+    """
+    Avis saisi à la main depuis la console (onglet « Avis ») et relié à un
+    vrai compte NAVIRE : le nom et la photo affichés sont ceux du compte, ils
+    suivent donc ses changements.
+
+    mention : sous-titre facultatif (ex. « L2 · Paris 1 ») ; vide, la page
+              reprend le niveau et la fac du compte.
+    active  : un avis masqué reste en base mais ne s'affiche plus.
+    position: ordre d'affichage (croissant).
+    """
+
+    __tablename__ = "landing_avis"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    texte: Mapped[str] = mapped_column(Text, nullable=False)
+    note: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    mention: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
