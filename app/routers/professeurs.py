@@ -176,7 +176,16 @@ def get_me(
     user: User = Depends(get_current_user),
 ):
     admin = bool(getattr(user, "is_admin", False))
-    vu = _prof_vu(db, user, voir_comme)
+    # Aperçu admin périmé (professeur supprimé depuis, id resté en mémoire
+    # dans le navigateur) : on l'ignore et on rend l'espace de l'admin, au
+    # lieu d'un 404 « Professeur introuvable » qui bloquait toute la page.
+    # `apercu` vaut alors None : l'embed oublie l'id mémorisé.
+    try:
+        vu = _prof_vu(db, user, voir_comme)
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+        vu = None
     prof = vu or svc.get_professeur(db, user.id)
     if prof is None:
         return {"status": "none", "admin": admin, "apercu": None}

@@ -434,6 +434,12 @@ def test_apercu_admin_lecture_seule(monde):
     assert c.get(f"/professeurs/me/remuneration/detail?mois={k}&voir_comme={pid}", headers=A).status_code == 200
     assert c.get(f"/professeurs/me/devoirs?voir_comme={pid}", headers=A).status_code == 200
     assert c.get("/professeurs/me/dashboard?voir_comme=999999", headers=A).status_code == 404
+    # Aperçu périmé (professeur supprimé, id resté dans le navigateur) : /me
+    # l'ignore au lieu de répondre 404 « Professeur introuvable ».
+    perime = c.get("/professeurs/me?voir_comme=999999", headers=A)
+    assert perime.status_code == 200
+    assert perime.json()["apercu"] is None and perime.json()["status"] == "none"
+    assert c.get("/professeurs/me?voir_comme=999999", headers=P).json()["status"] == "active"
 
     # Lecture seule : les écritures restent réservées au professeur.
     files = {"file": ("x.pdf", b"%PDF-1.4 test", "application/pdf")}
