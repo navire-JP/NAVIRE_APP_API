@@ -70,6 +70,8 @@ def test_classement(client):
     assert [i["rank"] for i in r["items"]] == [1, 1, 3] and r["total_joueurs"] == 3
     assert r["me"]["username"] == c[1] and r["me"]["rank"] == 3 and r["me"]["is_current_user"]
     alice = next(i for i in r["items"] if i["id"] == a[0])
+    # Bannière renvoyée pour les cartes du classement (vide si le joueur n'en a pas)
+    assert "banner_url" in alice and alice["banner_url"] is None
     assert alice["gain_7j"] == 20 and alice["tier"] == "partner" and "email" not in alice
 
     # 7 jours : à l'Elo gagné
@@ -111,3 +113,16 @@ def test_profil_et_visibilite(client):
 def test_embed(client):
     r = client.get("/leaderboard/embed")
     assert r.status_code == 200 and 'API: ""' in r.text
+
+
+def test_classement_banniere(client):
+    from app.db.database import SessionLocal
+    from app.db.models import User
+
+    fac = f"Fac {uuid.uuid4().hex[:6]}"
+    uid, _, _ = _joueur("banniere", 500, fac=fac)
+    with SessionLocal() as db:
+        db.get(User, uid).banner_url = "https://res.cloudinary.com/x/banner.jpg"
+        db.commit()
+    r = client.get("/leaderboard/classement", params={"fac": fac}).json()
+    assert r["items"][0]["banner_url"] == "https://res.cloudinary.com/x/banner.jpg"
