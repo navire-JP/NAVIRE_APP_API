@@ -6,6 +6,7 @@ Public (sans compte) :
   GET /landing/avis          → avis affichés, dans l'ordre de la console
   GET /landing/embed/hero    → embeds/landing_hero.html servi par l'API
   GET /landing/embed/avis    → embeds/landing_avis.html servi par l'API
+  GET /landing/embed/features → embeds/landing_features.html servi par l'API
 
 Console (admin, onglet « Avis ») :
   GET    /admin/avis         → tous les avis, masqués compris
@@ -88,14 +89,14 @@ def _avis_admin(a: LandingAvis) -> dict:
     }
 
 
-def _embed(fichier: str, titre: str) -> HTMLResponse:
+def _embed(fichier: str, titre: str, fond: str = "#05070d") -> HTMLResponse:
     contenu = (EMBEDS_DIR / fichier).read_text(encoding="utf-8")
     contenu = contenu.replace('API: "https://navire-app-api.onrender.com"', 'API: ""')
     return HTMLResponse(
         '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f'<title>{titre}</title></head>'
-        f'<body style="margin:0;background:#05070d">{contenu}</body></html>'
+        f'<body style="margin:0;background:{fond}">{contenu}</body></html>'
     )
 
 
@@ -134,6 +135,11 @@ def embed_hero():
 @router.get("/landing/embed/avis", response_class=HTMLResponse, include_in_schema=False)
 def embed_avis():
     return _embed("landing_avis.html", "Avis NAVIRE")
+
+
+@router.get("/landing/embed/features", response_class=HTMLResponse, include_in_schema=False)
+def embed_features():
+    return _embed("landing_features.html", "Fonctionnalités NAVIRE", fond="#f6f7fb")
 
 
 # ============================================================

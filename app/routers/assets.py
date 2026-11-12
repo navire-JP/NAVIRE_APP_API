@@ -47,6 +47,17 @@ BRAND_FILES: dict[str, str] = {
     # 256 px carré sur fond transparent, depuis
     # « NAVIRE_Certification_icon (source).png ».
     "certification.png": "certification.png",
+    # Captures de l'embed fonctionnalités de la page d'accueil
+    # (embeds/landing_features.html), dans assets/screens/. Fichier absent :
+    # 404, l'embed affiche alors un visuel provisoire.
+    "screen-lib.png": "screens/screen-lib.png",
+    "screen-lib-lecture.png": "screens/screen-lib-lecture.png",
+    "screen-fichiers.png": "screens/screen-fichiers.png",
+    "screen-actus.png": "screens/screen-actus.png",
+    "screen-articles.png": "screens/screen-articles.png",
+    "screen-prepa.png": "screens/screen-prepa.png",
+    "screen-copie.png": "screens/screen-copie.png",
+    "screen-classement.png": "screens/screen-classement.png",
     # Avatars prédéfinis attribués au hasard à la création d'un compte
     # (app/core/default_avatars.py), 512 px carré.
     **DEFAULT_AVATAR_FILES,
