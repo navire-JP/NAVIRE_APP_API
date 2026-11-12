@@ -8,8 +8,6 @@
 | `veille.html` | page `/actus` | Veille juridique : même DA que Lib et l'accueil (bleu et blanc, sans traits, menu à gauche replié par défaut). À la une, rubriques, recherche, non lues, à relire, sources officielles, références cliquables, « Réviser dans la Lib ». Chaque actu affiche qui l'a postée (`author` de l'API : photo, pseudo, rôle) ; lien direct `?actu=ID` |
 | `connexion.html` | page de connexion | Connexion simple, une colonne dans la charte de l'inscription : Google / Facebook, email et mot de passe, mention d'acceptation des CGU, lien vers l'inscription, « Mot de passe oublié ? » (code à 6 chiffres par email puis nouveau mot de passe, connecté dans la foulée : `POST /auth/password/forgot`, `POST /auth/password/reset`). Réglages : bloc CONFIG (`CGU_URL`, `REGISTER_URL`, `REDIRECT_AFTER_LOGIN`) |
 | `inscription.html` | page d'inscription | Inscription en 6 étapes (pseudo, email ou Google/Facebook, code, fac et niveau, premier PDF, récap), puis accueil en 4 étapes : tour des fonctionnalités, photo et bio, liaison Discord, Prép'AdJuris. Un niveau « à vérifier » (Doctorant) demande un justificatif. Réglages : bloc CONFIG |
-| `landing_hero.html` | page d'accueil (`/`), section sombre | Hero : pastille « Une communauté de + 250 membres » avec les photos des 4 premiers du classement (`GET /landing/hero`), titre avec dégradé bleu, trois atouts (icônes `/assets`), boutons « Se connecter » et « Commencer » ; connecté : « Accéder à mon espace ». Fond transparent, hauteur du contenu. Réglages : bloc CONFIG |
-| `landing_avis.html` | page d'accueil (`/`), section sombre | Avis saisis dans la console (onglet « Avis »), reliés à de vrais comptes (pseudo et photo du compte) : pile de 3 cartes côte à côte, sur ordinateur comme sur téléphone, qui tourne au-delà de 3 avis (`GET /landing/avis`). Aucun avis : rien ne s'affiche |
 | `adjuris.html` | page d'accueil (`/`) | Formulaire Prép'AdJuris en thème clair : même parcours que le bloc AdJuris de `subscribe.html` (niveau L1–M1, matières, compte, code promo vérifié en direct, échéancier, paiement Stripe), médaille `/assets/certification.png`. Connecté : compte reconnu, matières déjà suivies grisées. Reprend `?ref=CODE` |
 | `subscribe.html` | page `/subscribe` | Page d'offres tout-en-un : Prép'AdJuris en premier avec le formulaire intégré (niveau L1–M1, matières, compte, code promo, échéancier `GET /prepa/adjuris/echeancier`, paiement Stripe), puis Free / Membre / Membre+ (mensuel / annuel) avec compte et code promo ouverts sur place. Connecté : compte reconnu, matières déjà suivies grisées, offre en cours marquée. Reprend `?ref=CODE`. Contenu des offres aligné sur `app/core/limits.py` |
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
@@ -30,7 +28,6 @@
 | `framer/Navire_Professeurs.tsx` | `/console` | Section « Prof. » importée par la console (professeurs, groupes, rémunération) |
 | `framer/Navire_Mails.tsx` | `/console` | Section « Mails » importée par la console : rédaction, destinataires par catégorie, PJ, aperçu signé, test, envoi Brevo |
 | `framer/Navire_Categories.tsx` | `/console` | Section « Catég. » importée par la console : universités et niveaux d'études de l'inscription, niveaux « à vérifier » (badge Doctorant), file des demandes de statut |
-| `framer/Navire_Avis.tsx` | `/console` | Section « Avis » importée par la console : avis de la page d'accueil, chacun relié à un compte (recherche pseudo / email), note, sous-titre, ordre, masquer, supprimer. Routes `/admin/avis` |
 | `framer/redirection_articles.html` | Site Settings → Custom Code | Renvoie les liens d'articles `/actus/NA<id>` (sinon en 404) vers `/actus?actu=NA<id>` |
 | `framer/FlashcardsApp.tsx` | page Flashcards | Decks, cartes, révision, génération depuis un PDF ; charte bleu et blanc. Code File `FlashcardsApp`, le composant remplit son cadre |
 
@@ -135,13 +132,6 @@ Deux Code Files Framer, à coller tels quels :
    Routes : `/admin/options`, `/admin/verifications`. Côté élève :
    `POST /users/me/verifications` (label, message, proof), et `GET /auth/me`
    renvoie `badges`, `is_doctorant`, `pending_verifications`.
-
-7. `framer/Navire_Avis.tsx` → Code File nommé `Navire_Avis` (section
-   « Avis »), déjà importé par `Navire_AdminConsole`. Chaque avis est relié à
-   un vrai compte NAVIRE : le pseudo et la photo affichés sur la page
-   d'accueil sont ceux du compte. Sous-titre vide : niveau · fac du compte.
-   Routes : `GET/POST /admin/avis`, `PATCH/DELETE /admin/avis/{id}`. Côté
-   page : `GET /landing/avis`.
 
 ## Inscription et accueil (`inscription.html`)
 

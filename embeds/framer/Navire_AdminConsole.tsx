@@ -35,9 +35,6 @@
 // Catégories : onglet « Catég. » (universités et niveaux d'études de
 // l'inscription, niveaux à vérifier comme Doctorant, validation des demandes
 // de statut). Le code de la section est dans Navire_Categories.tsx.
-//
-// Avis : onglet « Avis » (avis de la page d'accueil, reliés à de vrais
-// comptes NAVIRE). Le code de la section est dans Navire_Avis.tsx.
 
 import type { Override } from "framer"
 import * as React from "react"
@@ -46,7 +43,6 @@ import { LibSection } from "./Navire_Lib.tsx"
 import { ProfesseursSection } from "./Navire_Professeurs.tsx"
 import { MailsSection } from "./Navire_Mails.tsx"
 import { CategoriesSection } from "./Navire_Categories.tsx"
-import { AvisSection } from "./Navire_Avis.tsx"
 
 // ── Hide all scrollbars globally ──
 if (typeof document !== "undefined") {
@@ -186,7 +182,6 @@ type Section =
     | "professeurs"
     | "mails"
     | "categories"
-    | "avis"
 
 type Onglet =
     | "etudiants"
@@ -7229,7 +7224,6 @@ const SECTIONS: { id: Section; label: string }[] = [
     { id: "professeurs", label: "Prof." },
     { id: "mails", label: "Mails" },
     { id: "categories", label: "Catég." },
-    { id: "avis", label: "Avis" },
     { id: "terminal", label: "Terminal" },
 ]
 
@@ -7275,15 +7269,12 @@ function ConsoleUI() {
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
-                    padding: "8px 12px",
-                    minHeight: 48,
+                    padding: "0 12px",
+                    height: 48,
                     borderBottom: `1px solid ${b0}`,
                     flexShrink: 0,
-                    // Les onglets passent à la ligne s'ils manquent de place :
-                    // les barres de défilement sont masquées dans la console,
-                    // un onglet hors cadre serait introuvable.
-                    flexWrap: "wrap",
-                    rowGap: 4,
+                    // La barre défile plutôt que de déborder si elle manque de place.
+                    overflowX: "auto",
                 }}
             >
                 <span
@@ -7350,7 +7341,6 @@ function ConsoleUI() {
                 {section === "professeurs" && <ProfesseursSection />}
                 {section === "mails" && <MailsSection />}
                 {section === "categories" && <CategoriesSection />}
-                {section === "avis" && <AvisSection />}
             </div>
         </div>
     )
