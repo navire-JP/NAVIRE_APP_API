@@ -9,6 +9,7 @@ Public (sans compte) :
 
 Console (admin, onglet « Avis ») :
   GET    /admin/avis         → tous les avis, masqués compris
+  GET    /admin/avis/comptes?q= → recherche du compte à relier (pseudo ou email)
   POST   /admin/avis         → ajoute un avis relié à un compte (user_id)
   PATCH  /admin/avis/{id}    → texte, note, mention, ordre, affiché / masqué
   DELETE /admin/avis/{id}
@@ -177,6 +178,32 @@ def admin_avis_list(db: Session = Depends(get_db), admin: User = Depends(require
         select(LandingAvis).order_by(LandingAvis.position, LandingAvis.id)
     ).scalars().all()
     return {"items": [_avis_admin(a) for a in rows if a.user]}
+
+
+@router.get("/admin/avis/comptes")
+def admin_avis_comptes(q: str = "", db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """
+    Comptes dont le pseudo ou l'email contient `q` (sans tenir compte des
+    majuscules), exacts d'abord. Route propre à l'onglet Avis : /admin/users
+    (app/routers/admin.py) ne filtre pas.
+    """
+    s = (q or "").strip()
+    if len(s) < 2:
+        return {"items": []}
+    like = f"%{s}%"
+    rows = db.execute(
+        select(User)
+        .where(User.email.ilike(like) | User.username.ilike(like))
+        .order_by(User.id)
+        .limit(50)
+    ).scalars().all()
+    low = s.lower()
+    rows.sort(key=lambda u: (
+        0 if low in ((u.email or "").lower(), (u.username or "").lower()) else 1,
+        0 if (u.username or "").lower().startswith(low) or (u.email or "").lower().startswith(low) else 1,
+        u.id,
+    ))
+    return {"items": [{**_auteur(u), "email": u.email} for u in rows[:8]]}
 
 
 @router.post("/admin/avis")

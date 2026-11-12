@@ -86,7 +86,7 @@ def admin_users(
         stmt = (
             select(User)
             .where(
-                (User.email.ilike(qq)) | (User.username.ilike(qq))
+                (User.email.like(qq)) | (User.username.like(qq))
             )
             .order_by(desc(User.created_at), User.id.asc())
             .limit(limit)

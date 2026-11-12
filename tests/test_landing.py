@@ -70,6 +70,14 @@ def test_avis(client):
     assert client.get("/admin/avis", headers=eleve[2]).status_code == 403
     assert client.post("/admin/avis", json={"user_id": eleve[0], "texte": "x"}, headers=eleve[2]).status_code == 403
 
+    # Recherche du compte à relier : pseudo ou email, sans tenir compte des majuscules
+    assert client.get("/admin/avis/comptes", params={"q": "x"}, headers=eleve[2]).status_code == 403
+    r = client.get("/admin/avis/comptes", params={"q": eleve[1].upper()}, headers=admin[2]).json()
+    assert r["items"][0]["id"] == eleve[0] and r["items"][0]["email"].startswith("eleve-")
+    r = client.get("/admin/avis/comptes", params={"q": r["items"][0]["email"].upper()}, headers=admin[2]).json()
+    assert [c["id"] for c in r["items"]] == [eleve[0]]
+    assert client.get("/admin/avis/comptes", params={"q": "e"}, headers=admin[2]).json()["items"] == []
+
     # Compte inexistant, avis vide
     assert client.post("/admin/avis", json={"user_id": 99_999_999, "texte": "Top"}, headers=admin[2]).status_code == 404
     assert client.post("/admin/avis", json={"user_id": eleve[0], "texte": "   "}, headers=admin[2]).status_code == 400

@@ -4,7 +4,7 @@
 // Avis affichés sur la page d'accueil (embeds/landing_avis.html). Chaque avis
 // est relié à un vrai compte NAVIRE : le pseudo et la photo affichés sont ceux
 // du compte. Routes : GET/POST /admin/avis, PATCH/DELETE /admin/avis/{id} ;
-// recherche de compte : GET /admin/users?q=.
+// recherche de compte : GET /admin/avis/comptes?q=.
 //
 // Ajouter (compte, texte, note, sous-titre facultatif), modifier, réordonner,
 // masquer, supprimer. Sans aucun avis affiché, la section de la page
@@ -306,7 +306,7 @@ function Label({ children }: any) {
     )
 }
 
-// ── Recherche d'un compte (GET /admin/users?q=) ──
+// ── Recherche d'un compte (GET /admin/avis/comptes?q=) ──
 function ComptePicker({ value, onPick }: { value: Compte | null; onPick: (c: Compte | null) => void }) {
     const [q, setQ] = React.useState("")
     const [res, setRes] = React.useState<Compte[]>([])
@@ -321,7 +321,7 @@ function ComptePicker({ value, onPick }: { value: Compte | null; onPick: (c: Com
             return
         }
         const t = setTimeout(() => {
-            api(`/admin/users?q=${encodeURIComponent(s)}&limit=8`)
+            api(`/admin/avis/comptes?q=${encodeURIComponent(s)}`)
                 .then((d) => {
                     const items: Compte[] = d?.items || []
                     setErr("")
