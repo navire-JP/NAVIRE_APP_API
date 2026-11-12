@@ -230,6 +230,7 @@ def _carte(u: User, rang: int, score: int, gain_7j: int, me: User | None) -> dic
         "id": u.id,
         "username": u.username,
         "avatar_url": resolve_avatar_url(u.avatar_url),
+        "banner_url": u.banner_url or None,   # cartes profil du classement
         "elo": int(u.elo or 0),
         "score": score,
         "tier": t["tier"],
