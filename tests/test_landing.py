@@ -105,6 +105,12 @@ def test_avis(client):
 
 
 def test_embeds(client):
-    for p in ("/landing/embed/hero", "/landing/embed/avis"):
+    for p in ("/landing/embed/hero", "/landing/embed/avis", "/landing/embed/features"):
         r = client.get(p)
         assert r.status_code == 200 and 'API: ""' in r.text
+
+
+def test_captures_absentes(client):
+    # Capture prévue mais pas encore déposée : 404 propre, l'embed affiche un visuel provisoire.
+    assert client.get("/assets/screen-actus.png").status_code in (200, 404)
+    assert client.get("/assets/screen-inconnue.png").status_code == 404
