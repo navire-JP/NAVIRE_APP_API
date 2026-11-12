@@ -2159,7 +2159,10 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     if (s !== "active") return viewNotProf(true);
     root.classList.remove("is-solo");
     el("page").innerHTML = '<div class="nv-page-inner"><div class="nv-cards"><div class="nv-skel" style="height:124px"></div><div class="nv-skel" style="height:124px"></div><div class="nv-skel" style="height:124px"></div></div><div class="nv-skel"></div></div>';
-    return loadDash().then(renderApp).catch(function (x) { setPage(empty("Espace indisponible", esc(x.message)), true); });
+    return loadDash().then(renderApp).catch(function (x) {
+      if (x.status === 404 && S.voir) { voirComme(null); return; }
+      setPage(empty("Espace indisponible", esc(x.message)), true);
+    });
   }
   function boot() {
     if (!S.token) { viewLoggedOut(); return; }
@@ -2171,7 +2174,12 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         return S.admin ? chargerProfs() : null;
       })
       .then(route)
-      .catch(function (x) { if (x.status === 401) { S.token = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); } else setPage(empty("Erreur", esc(x.message)), true); });
+      .catch(function (x) {
+        if (x.status === 401) { S.token = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); return; }
+        // Aperçu admin sur un professeur qui n'existe plus : on l'oublie et on recharge.
+        if (x.status === 404 && S.voir) { S.voir = null; store(VOIR_KEY, null); boot(); return; }
+        setPage(empty("Erreur", esc(x.message)), true);
+      });
   }
   S.token = load(CONFIG.TOKEN_KEY);
   S.voir = +load(VOIR_KEY) || null;
