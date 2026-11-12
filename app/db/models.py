@@ -20,6 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pgvector.sqlalchemy import Vector  # NAVIRE — colonne vectorielle RAG
 
+from app.core.default_avatars import random_default_avatar_url
 from app.db.database import Base
 
 
@@ -163,10 +164,12 @@ class User(Base):
     university: Mapped[str | None] = mapped_column(String(120), nullable=True)
     study_level: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
-    # Photo de profil — URL Cloudinary (secure_url). NULL si l'utilisateur n'a
-    # jamais uploadé d'avatar (le frontend doit alors afficher un fallback,
-    # ex: initiale du username).
-    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Photo de profil. À la création du compte, un des avatars prédéfinis
+    # NAVIRE est tiré au hasard et enregistré ici (comme Discord) ; il est
+    # remplacé par l'URL Cloudinary dès que l'utilisateur uploade sa photo.
+    avatar_url: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, default=random_default_avatar_url
+    )
 
     # Page profil (façon X) : bannière Cloudinary, courte bio et lien vers le
     # profil LinkedIn. NULL tant que l'élève ne les a pas renseignés.

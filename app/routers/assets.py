@@ -5,6 +5,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
+from app.core.default_avatars import DEFAULT_AVATAR_FILES
+
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -45,6 +47,9 @@ BRAND_FILES: dict[str, str] = {
     # 256 px carré sur fond transparent, depuis
     # « NAVIRE_Certification_icon (source).png ».
     "certification.png": "certification.png",
+    # Avatars prédéfinis attribués au hasard à la création d'un compte
+    # (app/core/default_avatars.py), 512 px carré.
+    **DEFAULT_AVATAR_FILES,
 }
 
 # Une semaine : ces fichiers ne changent qu'à un changement d'identité visuelle,
@@ -70,6 +75,6 @@ def get_brand_asset(name: str):
 
     return FileResponse(
         path,
-        media_type="image/png",
+        media_type="image/jpeg" if source.lower().endswith((".jpg", ".jpeg")) else "image/png",
         headers={"Cache-Control": CACHE_CONTROL},
     )

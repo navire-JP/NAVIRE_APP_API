@@ -17,6 +17,8 @@ from __future__ import annotations
 import cloudinary
 import cloudinary.uploader
 
+from app.core.default_avatars import DEFAULT_AVATAR_URLS
+
 # Le SDK lit automatiquement CLOUDINARY_URL depuis os.environ au moment de
 # l'import. Pas besoin d'appeler cloudinary.config() manuellement tant que
 # la variable d'env existe (c'est le cas sur Render désormais).
@@ -35,18 +37,17 @@ AVATAR_FOLDER = "navire/avatars"
 # ============================================================
 # AVATAR PAR DÉFAUT
 # ============================================================
-# Image affichée pour tout utilisateur n'ayant jamais uploadé de photo.
-# Centralisé ici : toute route qui renvoie avatar_url doit passer par
-# resolve_avatar_url() plutôt que de renvoyer user.avatar_url brut, pour que
-# le fallback soit cohérent sur tout le backend (auth, users, leaderboard…).
-DEFAULT_AVATAR_URL = "https://image.noelshack.com/fichiers/2026/25/7/1782078362-294f2b4fc8c430f7ff19c7afec00de5a.jpg"
+# Chaque compte reçoit à sa création un avatar prédéfini tiré au hasard
+# (app/core/default_avatars.py), enregistré dans users.avatar_url. Ce fallback
+# ne sert plus qu'en filet de sécurité, si une ligne n'a pas d'avatar.
+# Toute route qui renvoie avatar_url doit passer par resolve_avatar_url().
+DEFAULT_AVATAR_URL = DEFAULT_AVATAR_URLS[0]
 
 
 def resolve_avatar_url(avatar_url: str | None) -> str:
     """
     Retourne l'URL d'avatar à afficher : celle de l'utilisateur si définie,
-    sinon l'avatar par défaut. Ne retourne jamais None — toute route qui
-    expose un avatar à un client doit utiliser cette fonction.
+    sinon un avatar prédéfini. Ne retourne jamais None.
     """
     return avatar_url if avatar_url else DEFAULT_AVATAR_URL
 
