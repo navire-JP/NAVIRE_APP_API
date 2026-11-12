@@ -298,14 +298,24 @@ function Notes({ value, onChange }: { value: number; onChange: (n: number) => vo
     )
 }
 
+function Label({ children }: any) {
+    return (
+        <span style={{ fontSize: 10, fontFamily: code, fontWeight: 600, letterSpacing: 0.6, color: t2, textTransform: "uppercase" as const }}>
+            {children}
+        </span>
+    )
+}
+
 // ── Recherche d'un compte (GET /admin/users?q=) ──
 function ComptePicker({ value, onPick }: { value: Compte | null; onPick: (c: Compte | null) => void }) {
     const [q, setQ] = React.useState("")
     const [res, setRes] = React.useState<Compte[]>([])
     const [err, setErr] = React.useState("")
+    const [searched, setSearched] = React.useState(false)
 
     React.useEffect(() => {
         const s = q.trim()
+        setSearched(false)
         if (s.length < 2) {
             setRes([])
             return
@@ -313,8 +323,22 @@ function ComptePicker({ value, onPick }: { value: Compte | null; onPick: (c: Com
         const t = setTimeout(() => {
             api(`/admin/users?q=${encodeURIComponent(s)}&limit=8`)
                 .then((d) => {
-                    setRes(d?.items || [])
+                    const items: Compte[] = d?.items || []
                     setErr("")
+                    setSearched(true)
+                    // Email ou pseudo tapé en entier : le compte est choisi d'office.
+                    const exact = items.filter(
+                        (c) =>
+                            (c.email || "").toLowerCase() === s.toLowerCase() ||
+                            (c.username || "").toLowerCase() === s.toLowerCase()
+                    )
+                    if (exact.length === 1) {
+                        onPick(exact[0])
+                        setQ("")
+                        setRes([])
+                        return
+                    }
+                    setRes(items)
                 })
                 .catch((e) => setErr(e.message))
         }, 250)
@@ -337,6 +361,12 @@ function ComptePicker({ value, onPick }: { value: Compte | null; onPick: (c: Com
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <TI value={q} onChange={(e: any) => setQ(e.target.value)} placeholder="Compte NAVIRE : pseudo ou email" />
             {err && <span style={{ fontSize: 11, color: BAD, fontFamily: mono }}>{err}</span>}
+            {searched && !err && res.length === 0 && (
+                <span style={{ fontSize: 11, color: WARN, fontFamily: mono }}>Aucun compte trouvé.</span>
+            )}
+            {res.length > 0 && (
+                <span style={{ fontSize: 11, color: t1, fontFamily: mono }}>Clique sur le compte à relier :</span>
+            )}
             {res.length > 0 && (
                 <div style={{ border: `1px solid ${b0}`, borderRadius: 10, overflow: "hidden" }}>
                     {res.map((c) => (
@@ -392,7 +422,9 @@ function AvisForm({
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Label>Compte relié</Label>
             <ComptePicker value={compte} onPick={setCompte} />
+            <Label>Avis</Label>
             <textarea
                 value={texte}
                 onChange={(e) => setTexte(e.target.value)}
@@ -401,14 +433,21 @@ function AvisForm({
                 maxLength={600}
                 style={AREA}
             />
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" as const }}>
-                <Notes value={note} onChange={setNote} />
-                <TI
-                    value={mention}
-                    onChange={(e: any) => setMention(e.target.value)}
-                    placeholder="Sous-titre (vide : niveau · fac du compte)"
-                    style={{ flex: 1, minWidth: 180 }}
-                />
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-end", flexWrap: "wrap" as const }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label>Note</Label>
+                    <div style={{ height: 30, display: "flex", alignItems: "center" }}>
+                        <Notes value={note} onChange={setNote} />
+                    </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 180 }}>
+                    <Label>Sous-titre (facultatif)</Label>
+                    <TI
+                        value={mention}
+                        onChange={(e: any) => setMention(e.target.value)}
+                        placeholder="ex. L2 · Paris 1 (vide : niveau · fac du compte)"
+                    />
+                </div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
                 <Btn
@@ -419,6 +458,11 @@ function AvisForm({
                     {submitLabel}
                 </Btn>
                 {onCancel && <Btn onClick={onCancel}>Annuler</Btn>}
+                {(!compte || !texte.trim()) && (
+                    <span style={{ fontSize: 11, fontFamily: mono, color: t2, alignSelf: "center" }}>
+                        {!compte ? "Choisis d'abord le compte relié." : "Écris l'avis."}
+                    </span>
+                )}
                 <span style={{ marginLeft: "auto", fontSize: 10.5, fontFamily: code, color: t2, alignSelf: "center" }}>
                     {texte.length}/600
                 </span>
