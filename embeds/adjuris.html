@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<!--
+  embeds/adjuris.html — formulaire Prép'AdJuris de la page d'accueil (thème clair)
+  ================================================================================
+  Même parcours que le bloc AdJuris de embeds/subscribe.html, sur fond clair :
+  niveau (L1–M1), matières, compte (connexion ou création), code promo vérifié
+  en direct, échéancier (GET /prepa/adjuris/echeancier), paiement Stripe
+  (POST /prepa/adjuris/checkout-session).
+  Connecté (navire_token) : compte reconnu, matières déjà suivies grisées.
+  Lien d'ambassadeur ?ref=CODE repris. Matières : app/core/prepa_adjuris_config.py.
+-->
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prép'AdJuris — Inscription</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: transparent; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+  [hidden] { display: none !important; }
+
+  :root {
+    --ink: #0A0E1F;
+    --ink-soft: rgba(10,14,31,0.56);
+    --ink-faint: rgba(10,14,31,0.12);
+    --accent: #5B6FFF;
+    --danger: #C2384A;
+    --ok: #2E9E6B;
+    --warn: #C98A1F;
+  }
+
+  .aj-wrap { width: 100%; padding: 48px 24px; display: flex; justify-content: center; }
+  .aj-card { width: 100%; max-width: 560px; text-align: center; }
+
+  .aj-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--ink-soft); margin-bottom: 16px;
+  }
+  .aj-eyebrow-dot { width: 5px; height: 5px; border-radius: 99px; background: var(--accent); flex-shrink: 0; }
+  .aj-eyebrow strong { color: var(--ink); font-weight: 700; }
+  .aj-eyebrow-sep { color: var(--ink-faint); }
+
+  .aj-title {
+    font-size: clamp(22px, 3.3vw, 30px); font-weight: 700; color: var(--ink);
+    letter-spacing: -0.8px; line-height: 1.28; max-width: 480px; margin: 0 auto 28px;
+  }
+
+  .aj-cert {
+    display: flex; align-items: center; gap: 14px; text-align: left;
+    background: rgba(10,14,31,0.03); border: 1px solid var(--ink-faint); border-radius: 16px;
+    padding: 14px 18px; margin: 0 auto 28px; max-width: 420px;
+  }
+  .aj-cert-icon { width: 52px; height: 52px; flex-shrink: 0; object-fit: contain; }
+  .aj-cert-name { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+  .aj-cert-sub { font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+
+  .aj-form { text-align: left; max-width: 420px; margin: 0 auto; }
+  .aj-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 460px) { .aj-row { grid-template-columns: 1fr; gap: 0; } }
+
+  .aj-field { margin-bottom: 18px; border: 0; min-width: 0; }
+  .aj-label { display: block; font-size: 12px; font-weight: 600; color: var(--ink); letter-spacing: 0.2px; margin-bottom: 7px; padding: 0; }
+  .aj-label-optional { font-weight: 400; color: var(--ink-soft); }
+
+  .aj-input {
+    width: 100%; font-family: 'Inter', sans-serif; font-size: 14.5px; color: var(--ink);
+    background: rgba(10,14,31,0.02); border: 1px solid var(--ink-faint); border-radius: 12px; padding: 13px 15px;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .aj-input::placeholder { color: rgba(10,14,31,0.32); }
+  .aj-input:focus { outline: none; background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,111,255,0.14); }
+  .aj-input.is-invalid { border-color: var(--danger); }
+  .aj-input.is-applied { border-color: var(--ok); background: rgba(46,158,107,0.06); }
+
+  .aj-field-msg { font-size: 12px; font-weight: 500; margin-top: 7px; line-height: 1.4; display: none; }
+  .aj-field-msg.is-visible { display: block; }
+  .aj-field-msg.is-ok { color: var(--ok); }
+  .aj-field-msg.is-err { color: var(--danger); }
+
+  .aj-levels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .aj-level {
+    font-family: inherit; font-size: 14px; font-weight: 600; color: var(--ink-soft);
+    background: rgba(10,14,31,0.02); border: 1px solid var(--ink-faint); border-radius: 99px; padding: 11px 0;
+    cursor: pointer; transition: all .15s ease;
+  }
+  .aj-level:hover { border-color: rgba(10,14,31,0.24); color: var(--ink); }
+  .aj-level.is-active { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .aj-level:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,111,255,0.3); }
+
+  .aj-matieres { display: flex; flex-direction: column; gap: 8px; }
+  .aj-matiere {
+    display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+    font-family: inherit; font-size: 14px; font-weight: 500; color: var(--ink);
+    background: rgba(10,14,31,0.02); border: 1px solid var(--ink-faint); border-radius: 12px; padding: 12px 15px;
+    cursor: pointer; transition: all .15s ease;
+  }
+  .aj-matiere:hover { border-color: rgba(10,14,31,0.24); }
+  .aj-matiere:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,111,255,0.28); }
+  .aj-matiere.is-on { border-color: var(--accent); background: rgba(91,111,255,0.06); }
+  .aj-matiere[disabled] { cursor: default; opacity: .55; }
+  .aj-matiere-tag { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--ok); }
+  .aj-tick {
+    width: 18px; height: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid rgba(10,14,31,0.25); border-radius: 6px; transition: all .15s ease;
+  }
+  .aj-tick svg { opacity: 0; }
+  .aj-matiere.is-on .aj-tick { background: var(--accent); border-color: var(--accent); }
+  .aj-matiere.is-on .aj-tick svg { opacity: 1; }
+
+  .aj-hint { font-size: 11.5px; color: var(--ink-soft); margin-top: 8px; line-height: 1.5; }
+
+  .aj-logged {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--ink-soft);
+    background: rgba(46,158,107,0.06); border: 1px solid rgba(46,158,107,0.3); border-radius: 12px;
+    padding: 11px 14px; margin-bottom: 18px;
+  }
+  .aj-logged strong { color: var(--ink); font-weight: 600; }
+  .aj-link { font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .aj-link:hover { color: var(--ink); }
+
+  .aj-account-note { font-size: 12px; font-weight: 500; color: var(--ink-soft); margin-bottom: 9px; display: none; align-items: center; gap: 6px; }
+  .aj-account-note.is-visible { display: flex; }
+  .aj-account-note i { width: 6px; height: 6px; border-radius: 99px; flex-shrink: 0; background: var(--ok); }
+  .aj-account-note.is-known i { background: var(--accent); }
+
+  .aj-meter { display: none; gap: 4px; height: 4px; margin-top: 10px; }
+  .aj-meter.is-visible { display: flex; }
+  .aj-meter span { flex: 1; border-radius: 99px; background: var(--ink-faint); }
+  .aj-meter.s1 span:nth-child(1) { background: var(--danger); }
+  .aj-meter.s2 span:nth-child(-n+2) { background: var(--warn); }
+  .aj-meter.s3 span { background: var(--ok); }
+
+  .aj-recap {
+    background: rgba(10,14,31,0.03); border: 1px solid var(--ink-faint); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.5;
+  }
+  .aj-recap-row { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-soft); }
+  .aj-recap-row + .aj-recap-row { margin-top: 5px; }
+  .aj-recap-row strong { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .aj-recap-main { font-size: 14.5px; color: var(--ink); padding-bottom: 9px; margin-bottom: 9px; border-bottom: 1px solid var(--ink-faint); }
+  .aj-recap details { margin-top: 10px; }
+  .aj-recap summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--accent); }
+  .aj-recap-text { white-space: pre-line; font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+  .aj-recap-err { color: var(--danger); }
+
+  .aj-hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; opacity: 0; }
+
+  .aj-error {
+    display: none; font-size: 13px; font-weight: 500; color: var(--danger);
+    background: rgba(194,56,74,0.07); border: 1px solid rgba(194,56,74,0.2); border-radius: 10px;
+    padding: 11px 14px; margin-bottom: 16px; line-height: 1.45;
+  }
+  .aj-error.is-visible { display: block; }
+
+  .aj-cta {
+    display: block; width: 100%; background: var(--ink); color: #fff;
+    font-family: 'Inter', sans-serif; font-size: 14.5px; font-weight: 600; text-align: center; text-decoration: none;
+    border: 0; padding: 15px 38px; border-radius: 99px; letter-spacing: 0.2px; cursor: pointer;
+    transition: opacity .15s ease, transform .1s ease;
+  }
+  .aj-cta:hover { opacity: 0.88; }
+  .aj-cta:active { transform: scale(0.99); }
+  .aj-cta:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,111,255,0.4); }
+  .aj-cta[disabled] { opacity: 0.5; cursor: default; transform: none; }
+
+  .aj-note { font-size: 11.5px; color: var(--ink-soft); text-align: center; margin-top: 12px; line-height: 1.5; }
+
+  .aj-done-icon {
+    width: 52px; height: 52px; border-radius: 99px; background: rgba(91,111,255,0.1);
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 18px;
+  }
+  .aj-done-title { font-size: 19px; font-weight: 700; color: var(--ink); letter-spacing: -0.4px; margin-bottom: 9px; }
+  .aj-done-sub { font-size: 14px; color: var(--ink-soft); line-height: 1.55; max-width: 380px; margin: 0 auto; }
+  .aj-done-sub a { color: var(--ink); font-weight: 600; }
+
+  .aj-footer { margin-top: 22px; font-size: 11px; color: rgba(10,14,31,0.4); letter-spacing: 0.3px; text-align: center; }
+  .aj-footer strong { color: rgba(10,14,31,0.62); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="aj-wrap">
+  <div class="aj-card">
+
+    <div class="aj-eyebrow"><span class="aj-eyebrow-dot"></span><strong>NAVIRE</strong><span class="aj-eyebrow-sep">·</span>AdJuris</div>
+    <h2 class="aj-title">Rejoins la Prép'AdJuris et assiste à des cours une fois par semaine dans la matière de ton choix</h2>
+
+    <div class="aj-cert">
+      <img class="aj-cert-icon" src="https://navire-app-api.onrender.com/assets/certification.png" alt="" width="52" height="52" aria-hidden="true">
+      <div>
+        <div class="aj-cert-name">Encadrement certifié</div>
+        <div class="aj-cert-sub">Cours animés par des chargés de TD ou des professionnels du droit en exercice</div>
+      </div>
+    </div>
+
+    <form class="aj-form" id="aj-form" novalidate>
+      <fieldset class="aj-field">
+        <legend class="aj-label">Ton niveau</legend>
+        <div class="aj-levels" id="aj-levels"></div>
+      </fieldset>
+
+      <fieldset class="aj-field" id="aj-matieres-field" hidden>
+        <legend class="aj-label">Matières souhaitées</legend>
+        <div class="aj-matieres" id="aj-matieres"></div>
+        <p class="aj-hint">Tu peux en choisir plusieurs, 10 places par matière.</p>
+      </fieldset>
+
+      <div id="aj-account"></div>
+
+      <div class="aj-field">
+        <label class="aj-label" for="aj-promo">Code promo <span class="aj-label-optional">(optionnel)</span></label>
+        <input class="aj-input" id="aj-promo" type="text" maxlength="50" placeholder="Ex : ADJURIS5"
+               autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <p class="aj-field-msg" id="aj-promo-msg"></p>
+      </div>
+
+      <!-- Anti-bot : laissé vide par un humain -->
+      <div class="aj-hp" aria-hidden="true">
+        <label for="aj-website">Ne pas remplir</label>
+        <input id="aj-website" name="website" type="text" tabindex="-1" autocomplete="off">
+      </div>
+
+      <div class="aj-recap" id="aj-recap" hidden></div>
+      <div class="aj-error" id="aj-error" role="alert" aria-live="polite"></div>
+
+      <button class="aj-cta" id="aj-submit" type="submit">Choisis ton niveau</button>
+      <p class="aj-note">
+        20 € aujourd'hui par matière (ta prochaine séance), puis prélèvement en fin
+        de mois selon les séances du mois (20 € la séance).<br>Paiement sécurisé par Stripe
+      </p>
+    </form>
+
+    <div id="aj-done" role="status" aria-live="polite" hidden>
+      <div class="aj-done-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M5 12.5L10 17.5L19 7" stroke="#5B6FFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="aj-done-title">Presque terminé</div>
+      <p class="aj-done-sub" id="aj-done-sub">Redirection vers le paiement sécurisé…</p>
+    </div>
+
+    <div class="aj-footer">Un programme <strong>NAVIRE</strong></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ═══ CONFIG ═══════════════════════════════════════════════ */
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",   // jeton partagé avec les autres embeds
+    REF_KEY: "navire_ref"        // code ambassadeur mémorisé
+  };
+
+  /* Clés identiques à PREPA_PRICES (app/core/prepa_adjuris_config.py). */
+  var NIVEAUX = ["L1", "L2", "L3", "M1"];
+  var MATIERES = {
+    L1: [["L1_droit_constit", "Droit constitutionnel"], ["L1_intro_au_droit", "Introduction au droit"], ["L1_droit_ijae", "Droit IJAE"]],
+    L2: [["L2_droit_administratif", "Droit administratif"], ["L2_droit_des_obligations", "Droit des obligations"], ["L2_droit_penal", "Droit pénal"]],
+    L3: [["L3_droit_des_societes", "Droit des sociétés"], ["L3_droit_des_suretes", "Droit des sûretés"], ["L3_droit_des_contrats_speciaux", "Droit des contrats spéciaux"]],
+    M1: [["M1_distribution", "Distribution"]]
+  };
+  var PWD_REGEX = /^(?=.*[A-Z])(?=.*(\d|[^\w\s])).{8,72}$/;   // app/schemas/auth.py
+  var EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  var TICK = '<span class="aj-tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+
+  function $(id) { return document.getElementById(id); }
+  var form = $("aj-form"), errorBox = $("aj-error"), submitBtn = $("aj-submit");
+  var promoEl = $("aj-promo"), promoMsg = $("aj-promo-msg"), recapEl = $("aj-recap"), accountEl = $("aj-account");
+
+  var state = {
+    token: null, user: null, enrolled: [], ref: null,
+    niveau: null, matieres: [],
+    exists: null, checkedEmail: null,
+    recapSeq: 0, recapOk: false, totalCents: null, busy: false
+  };
+
+  /* ═══ Utilitaires ══════════════════════════════════════════ */
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function store(method, key, value) { try { return window.localStorage[method](key, value); } catch (e) { return null; } }
+  function euros(c) { var v = (c || 0) / 100; return (v % 1 === 0 ? String(v) : v.toFixed(2).replace(".", ",")) + " €"; }
+  function dateFr(iso) {
+    try { return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" }); }
+    catch (e) { return iso; }
+  }
+  function apiError(status, body) {
+    var d = body && body.detail, e = new Error();
+    e.status = status;
+    if (status >= 400 && status < 500 && status !== 404) {
+      if (typeof d === "string") e.message = d;
+      else if (d && typeof d.message === "string") { e.message = d.message; e.code = d.code; }
+      else if (Array.isArray(d)) e.message = "Vérifie les champs du formulaire.";
+    }
+    if (!e.message) {
+      console.error("[Prép'AdJuris] HTTP " + status, body);
+      e.message = "Le service d'inscription est momentanément indisponible. Réessaie dans quelques minutes.";
+    }
+    return e;
+  }
+  function api(method, path, body, token) {
+    var h = { "Content-Type": "application/json" };
+    if (token) h.Authorization = "Bearer " + token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw apiError(r.status, j); return j; });
+      }, function () { throw new Error("Connexion impossible. Vérifie ta connexion et réessaie."); });
+  }
+  /* Stripe Checkout refuse l'affichage en iframe : on navigue la fenêtre principale. */
+  function go(url) {
+    try { if (window.top && window.top !== window.self) { window.top.location.href = url; return true; } }
+    catch (e) { return !!window.open(url, "_blank", "noopener"); }
+    window.location.href = url;
+    return true;
+  }
+  function readRef() {
+    var sources = [];
+    try { sources.push(window.location.search); } catch (e) {}
+    try { sources.push(window.top.location.search); } catch (e) {}
+    for (var i = 0; i < sources.length; i++) {
+      var m = /[?&]ref=([^&#]+)/.exec(sources[i] || "");
+      if (m) { var c = decodeURIComponent(m[1]).trim().slice(0, 40); store("setItem", CONFIG.REF_KEY, c); return c; }
+    }
+    return store("getItem", CONFIG.REF_KEY) || null;
+  }
+  function showError(msg) { errorBox.textContent = msg; errorBox.classList.add("is-visible"); }
+  function hideError() { errorBox.textContent = ""; errorBox.classList.remove("is-visible"); }
+
+  /* ═══ Niveau et matières ═══════════════════════════════════ */
+  function renderLevels() {
+    $("aj-levels").innerHTML = NIVEAUX.map(function (n) {
+      var on = state.niveau === n;
+      return '<button type="button" class="aj-level' + (on ? " is-active" : "") + '" data-niveau="' + n + '" aria-pressed="' + on + '">' + n + '</button>';
+    }).join("");
+  }
+  function renderMatieres() {
+    var items = MATIERES[state.niveau] || [];
+    $("aj-matieres-field").hidden = !items.length;
+    $("aj-matieres").innerHTML = items.map(function (m) {
+      var done = state.enrolled.indexOf(m[0]) >= 0, on = state.matieres.indexOf(m[0]) >= 0;
+      return '<button type="button" class="aj-matiere' + (on ? " is-on" : "") + '" data-matiere="' + m[0] + '"' +
+             (done ? " disabled" : "") + ' aria-pressed="' + on + '">' + TICK + esc(m[1]) +
+             (done ? '<span class="aj-matiere-tag">Déjà inscrit</span>' : "") + '</button>';
+    }).join("");
+  }
+  function refreshButton() {
+    if (state.busy) return;
+    if (!state.niveau) submitBtn.textContent = "Choisis ton niveau";
+    else if (!state.matieres.length) submitBtn.textContent = "Choisis au moins une matière";
+    else if (state.recapOk && state.totalCents != null)
+      submitBtn.textContent = state.totalCents > 0 ? "Payer " + euros(state.totalCents) + " et réserver ma place" : "Réserver ma place";
+    else submitBtn.textContent = "S'inscrire";
+  }
+
+  $("aj-levels").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-niveau]"); if (!b) return;
+    var n = b.getAttribute("data-niveau");
+    if (state.niveau !== n) {
+      state.niveau = n;
+      var free = (MATIERES[n] || []).filter(function (m) { return state.enrolled.indexOf(m[0]) < 0; });
+      state.matieres = free.length === 1 ? [free[0][0]] : [];
+    }
+    hideError(); renderLevels(); renderMatieres(); updateRecap();
+  });
+  $("aj-matieres").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-matiere]"); if (!b || b.disabled) return;
+    var k = b.getAttribute("data-matiere"), i = state.matieres.indexOf(k);
+    if (i >= 0) state.matieres.splice(i, 1); else state.matieres.push(k);
+    hideError(); renderMatieres(); updateRecap();
+  });
+
+  /* ═══ Échéancier et code promo ═════════════════════════════ */
+  var promoTimer = null;
+  promoEl.addEventListener("input", function () {
+    promoEl.classList.remove("is-invalid", "is-applied");
+    promoMsg.className = "aj-field-msg";
+    clearTimeout(promoTimer);
+    promoTimer = setTimeout(updateRecap, 500);
+  });
+
+  function updateRecap(skipPromo) {
+    var keys = state.matieres.slice();
+    var promo = skipPromo ? "" : promoEl.value.trim().toUpperCase();
+    var seq = ++state.recapSeq;
+    state.recapOk = false; state.totalCents = null; refreshButton();
+    if (!keys.length) { recapEl.hidden = true; return; }
+    recapEl.hidden = false;
+    recapEl.innerHTML = '<div class="aj-recap-row">Calcul de ton échéancier…</div>';
+
+    var qs = "?matieres=" + encodeURIComponent(keys.join(",")) + (promo ? "&promo_code=" + encodeURIComponent(promo) : "");
+    api("GET", "/prepa/adjuris/echeancier" + qs).then(function (r) {
+      if (seq !== state.recapSeq) return;
+      state.recapOk = true;
+      state.totalCents = r.inscription ? r.inscription.total_cents : null;
+      if (promo) {
+        promoEl.classList.add("is-applied");
+        promoMsg.textContent = "Code appliqué : " + euros(r.inscription.par_matiere_cents) + " par matière à l'inscription.";
+        promoMsg.className = "aj-field-msg is-visible is-ok";
+      }
+      var html = '<div class="aj-recap-row aj-recap-main"><span>Aujourd\'hui</span><strong>' + euros(state.totalCents) + '</strong></div>';
+      (r.prelevements || []).forEach(function (p) {
+        if (!p.montant_cents) return;
+        html += '<div class="aj-recap-row"><span>Le ' + esc(dateFr(p.date)) + ' · ' + p.seances + ' séance' + (p.seances > 1 ? "s" : "") +
+                '</span><strong>' + euros(p.montant_cents) + '</strong></div>';
+      });
+      if (r.texte) html += '<details><summary>Voir le détail des séances</summary><p class="aj-recap-text">' + esc(r.texte.replace(/\*\*/g, "")) + '</p></details>';
+      recapEl.innerHTML = html;
+      refreshButton();
+    }).catch(function (err) {
+      if (seq !== state.recapSeq) return;
+      if (err.code && err.code.indexOf("PROMO_") === 0) {
+        promoEl.classList.add("is-invalid");
+        promoMsg.textContent = err.message;
+        promoMsg.className = "aj-field-msg is-visible is-err";
+        return updateRecap(true);   // récapitulatif sans le code
+      }
+      recapEl.innerHTML = '<div class="aj-recap-row aj-recap-err">' + esc(err.message) + '</div>';
+      refreshButton();
+    });
+  }
+
+  /* ═══ Compte ═══════════════════════════════════════════════ */
+  function renderAccount() {
+    if (state.token) {
+      var who = state.user ? (state.user.username || state.user.email) : "ton compte NAVIRE";
+      accountEl.innerHTML = '<div class="aj-logged"><span>Connecté : <strong>' + esc(who) + '</strong></span>' +
+                            '<button type="button" class="aj-link" id="aj-logout">Changer de compte</button></div>';
+      $("aj-logout").addEventListener("click", logout);
+      return;
+    }
+    accountEl.innerHTML =
+      '<div class="aj-row">' +
+        '<div class="aj-field"><label class="aj-label" for="aj-prenom">Prénom</label>' +
+        '<input class="aj-input" id="aj-prenom" type="text" autocomplete="given-name" maxlength="80" placeholder="Camille"></div>' +
+        '<div class="aj-field"><label class="aj-label" for="aj-nom">Nom</label>' +
+        '<input class="aj-input" id="aj-nom" type="text" autocomplete="family-name" maxlength="80" placeholder="Durand"></div>' +
+      '</div>' +
+      '<div class="aj-field"><label class="aj-label" for="aj-email">Email</label>' +
+      '<input class="aj-input" id="aj-email" type="email" autocomplete="email" maxlength="320" placeholder="camille.durand@etu.fr"></div>' +
+      '<div class="aj-field">' +
+        '<p class="aj-account-note" id="aj-note"><i></i><span></span></p>' +
+        '<label class="aj-label" for="aj-password">Mot de passe</label>' +
+        '<input class="aj-input" id="aj-password" type="password" autocomplete="new-password" maxlength="72" placeholder="••••••••">' +
+        '<div class="aj-meter" id="aj-meter"><span></span><span></span><span></span></div>' +
+        '<p class="aj-hint" id="aj-password-hint">8 caractères minimum, avec une majuscule et un chiffre ou un symbole.</p>' +
+        '<p class="aj-field-msg" id="aj-password-msg"></p>' +
+      '</div>' +
+      '<div class="aj-field" id="aj-confirm-field" hidden>' +
+        '<label class="aj-label" for="aj-confirm">Confirme le mot de passe</label>' +
+        '<input class="aj-input" id="aj-confirm" type="password" autocomplete="new-password" maxlength="72" placeholder="••••••••">' +
+        '<p class="aj-field-msg" id="aj-confirm-msg"></p>' +
+      '</div>';
+
+    $("aj-email").addEventListener("input", function () { state.exists = null; state.checkedEmail = null; updateAccountUI(); });
+    $("aj-email").addEventListener("blur", function () { var v = $("aj-email").value.trim(); if (EMAIL_REGEX.test(v)) checkEmail(v); });
+    $("aj-password").addEventListener("input", function () { clearField("password"); updateMeter(); });
+    $("aj-confirm").addEventListener("input", function () { clearField("confirm"); });
+    updateAccountUI();
+  }
+
+  function clearField(name) {
+    var i = $("aj-" + name), m = $("aj-" + name + "-msg");
+    if (i) i.classList.remove("is-invalid");
+    if (m) { m.textContent = ""; m.className = "aj-field-msg"; }
+  }
+  function fieldError(name, text) {
+    var i = $("aj-" + name), m = $("aj-" + name + "-msg");
+    if (i) { i.classList.add("is-invalid"); i.focus(); }
+    if (m) { m.textContent = text; m.className = "aj-field-msg is-visible is-err"; }
+  }
+
+  function checkEmail(email) {
+    if (state.exists !== null && state.checkedEmail === email) return Promise.resolve(state.exists);
+    return fetch(CONFIG.API + "/auth/email-exists?email=" + encodeURIComponent(email))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (b) { return b ? !!b.exists : null; })
+      .catch(function () { return null; })
+      .then(function (exists) {
+        var el = $("aj-email");
+        if (!el || el.value.trim() !== email) return exists;
+        state.exists = exists; state.checkedEmail = email; updateAccountUI();
+        return exists;
+      });
+  }
+
+  function updateAccountUI() {
+    var note = $("aj-note"); if (!note) return;
+    var hint = $("aj-password-hint"), pwd = $("aj-password");
+    note.classList.remove("is-visible", "is-known");
+    $("aj-confirm-field").hidden = state.exists !== false;
+    if (state.exists === true) {
+      note.querySelector("span").textContent = "Compte existant détecté : entre son mot de passe pour continuer.";
+      note.classList.add("is-visible", "is-known");
+      pwd.setAttribute("autocomplete", "current-password");
+      hint.textContent = "Indique le mot de passe de ce compte, on te reconnaîtra.";
+    } else {
+      if (state.exists === false) {
+        note.querySelector("span").textContent = "Aucun compte avec cet email : crée-en un pour continuer.";
+        note.classList.add("is-visible");
+      }
+      pwd.setAttribute("autocomplete", "new-password");
+      hint.textContent = "8 caractères minimum, avec une majuscule et un chiffre ou un symbole.";
+    }
+    updateMeter();
+  }
+
+  function updateMeter() {
+    var meter = $("aj-meter"); if (!meter) return;
+    var pw = $("aj-password").value;
+    meter.className = "aj-meter";
+    if (state.exists !== false || !pw) return;
+    var cats = (/[a-z]/.test(pw) ? 1 : 0) + (/[A-Z]/.test(pw) ? 1 : 0) + (/\d/.test(pw) ? 1 : 0) + (/[^\w\s]/.test(pw) ? 1 : 0);
+    var s = pw.length < 8 ? 1 : (pw.length >= 12 && cats >= 3) ? 3 : cats >= 2 ? 2 : 1;
+    meter.classList.add("is-visible", "s" + s);
+  }
+
+  function logout() {
+    store("removeItem", CONFIG.TOKEN_KEY);
+    state.token = null; state.user = null; state.enrolled = [];
+    renderAccount(); renderMatieres();
+  }
+
+  /* Connexion d'abord (un compte existant entre avec son mot de passe actuel,
+     quel qu'il soit), création sinon. Promise<token>. Le jeton reste en
+     mémoire : l'écrire dans le localStorage du site réveille le script qui
+     renvoie un utilisateur connecté vers /home, et cette redirection gagnerait
+     la course contre celle vers Stripe. */
+  function authenticate() {
+    if (state.token) return Promise.resolve(state.token);
+    var prenom = $("aj-prenom").value.trim(), nom = $("aj-nom").value.trim();
+    var email = $("aj-email").value.trim(), password = $("aj-password").value;
+
+    function register() {
+      var username = (prenom + " " + nom).replace(/\s+/g, " ").trim();
+      while (username.length < 3) username += "_";
+      return api("POST", "/auth/register", {
+        email: email, password: password, username: username.slice(0, 64),
+        newsletter_opt_in: false, referral_code: state.ref || null
+      }).catch(function (err) {
+        var e = new Error(err.message === "Email already registered"
+          ? "Un compte existe déjà avec cet email. Le mot de passe indiqué ne correspond pas : indique celui de ce compte pour continuer."
+          : err.message);
+        if (err.status === 400) e.field = "password";
+        throw e;
+      });
+    }
+
+    return checkEmail(email).then(function (exists) {
+      if (exists === false) {
+        if (!PWD_REGEX.test(password)) {
+          var weak = new Error("Mot de passe trop faible : ajoute une majuscule et un chiffre ou un symbole.");
+          weak.field = "password"; throw weak;
+        }
+        if ($("aj-confirm").value !== password) {
+          var mm = new Error("Les deux mots de passe ne correspondent pas.");
+          mm.field = "confirm"; throw mm;
+        }
+        return register();
+      }
+      return api("POST", "/auth/login", { email: email, password: password }).catch(function (err) {
+        if (exists === true) {
+          var w = new Error(err.status && err.status < 500
+            ? "Mot de passe incorrect pour ce compte." : err.message);
+          w.field = "password"; throw w;
+        }
+        return register();
+      });
+    }).then(function (r) {
+      if (!r || !r.access_token) throw new Error("Connexion impossible. Réessaie dans un instant.");
+      return r.access_token;
+    });
+  }
+
+  /* ═══ Soumission ═══════════════════════════════════════════ */
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    hideError();
+    if ($("aj-website").value) return;   // honeypot
+
+    if (!state.token) {
+      var prenom = $("aj-prenom"), nom = $("aj-nom"), email = $("aj-email");
+      [prenom, nom, email].forEach(function (el) { el.classList.remove("is-invalid"); });
+      function fail(el, msg) { el.classList.add("is-invalid"); el.focus(); showError(msg); }
+      if (!prenom.value.trim()) return fail(prenom, "Indique ton prénom.");
+      if (!nom.value.trim()) return fail(nom, "Indique ton nom.");
+      if (!EMAIL_REGEX.test(email.value.trim())) return fail(email, "Indique une adresse email valide.");
+      if ($("aj-password").value.length < 8) return fieldError("password", "Le mot de passe doit faire au moins 8 caractères.");
+    }
+    if (!state.niveau) return showError("Sélectionne ton niveau (L1, L2, L3 ou M1).");
+    if (!state.matieres.length) return showError("Sélectionne au moins une matière.");
+    if (promoEl.classList.contains("is-invalid")) { promoEl.focus(); return showError("Corrige ou retire le code promo."); }
+
+    var promo = promoEl.value.trim().toUpperCase();
+    state.busy = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = state.token ? "Redirection…" : "Vérification du compte…";
+
+    authenticate().then(function (token) {
+      submitBtn.textContent = "Redirection…";
+      return api("POST", "/prepa/adjuris/checkout-session",
+                 { matieres: state.matieres, promo_code: promo || null, ref: state.ref || null }, token);
+    }).then(function (r) {
+      if (!r || !r.checkout_url) throw new Error("Lien de paiement indisponible. Réessaie dans un instant.");
+      form.hidden = true;
+      $("aj-done").hidden = false;
+      if (!go(r.checkout_url)) {
+        $("aj-done-sub").innerHTML = 'Ton navigateur a bloqué la redirection. <a href="' + esc(r.checkout_url) + '" target="_top">Ouvrir la page de paiement</a>';
+      }
+    }).catch(function (err) {
+      state.busy = false;
+      submitBtn.disabled = false;
+      refreshButton();
+      if (err.code && err.code.indexOf("PROMO_") === 0) {
+        promoEl.classList.add("is-invalid");
+        promoMsg.textContent = err.message;
+        promoMsg.className = "aj-field-msg is-visible is-err";
+        return promoEl.focus();
+      }
+      if (err.code === "ALREADY_ENROLLED") return showError("Tu es déjà inscrit à ces matières. Retrouve-les dans ton espace Prépa.");
+      if (err.status === 401 && state.token) { logout(); return showError("Ta session a expiré : reconnecte-toi ci-dessus pour continuer."); }
+      if (err.field) return fieldError(err.field, err.message);
+      showError(err.message);
+    });
+  });
+
+  /* ═══ Initialisation ═══════════════════════════════════════ */
+  state.ref = readRef();
+  state.token = store("getItem", CONFIG.TOKEN_KEY);
+  renderLevels(); renderMatieres(); renderAccount(); refreshButton();
+
+  if (state.token) {
+    Promise.all([
+      api("GET", "/auth/me", null, state.token).catch(function (e) { return e; }),
+      api("GET", "/prepa/adjuris/me", null, state.token).catch(function () { return null; })
+    ]).then(function (res) {
+      if (res[0] instanceof Error) { if (res[0].status === 401) logout(); return; }
+      state.user = res[0];
+      if (res[1] && res[1].items) {
+        state.enrolled = res[1].items.map(function (i) { return i.matiere_key; });
+        if (!state.niveau && MATIERES[res[1].niveau]) state.niveau = res[1].niveau;
+      }
+      if (!state.niveau && MATIERES[state.user.study_level]) state.niveau = state.user.study_level;
+      state.matieres = state.matieres.filter(function (k) { return state.enrolled.indexOf(k) < 0; });
+      renderLevels(); renderMatieres(); renderAccount(); updateRecap();
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
