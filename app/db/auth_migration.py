@@ -4,7 +4,10 @@
 # Google/Facebook. Même principe que les autres migrations maison : du SQL
 # idempotent joué au démarrage, sans Alembic.
 
+import random
+
 from sqlalchemy import text
+from app.core.default_avatars import DEFAULT_AVATAR_URLS
 from app.db.database import engine
 
 _MIGRATIONS = [
@@ -51,4 +54,36 @@ def run_auth_migration() -> None:
             except Exception as e:
                 print(f"⚠️  migrate_auth [{e.__class__.__name__}]: {sql.strip()[:70]}")
 
+    _backfill_default_avatars()
+
     print("✅ auth_migration : OK")
+
+
+def _backfill_default_avatars() -> None:
+    """
+    Comptes créés avant les avatars prédéfinis (avatar_url vide) : chacun
+    reçoit un avatar tiré au hasard, enregistré une fois pour toutes. Les
+    démarrages suivants ne trouvent plus rien à faire.
+    """
+    try:
+        with engine.begin() as conn:
+            ids = [r[0] for r in conn.execute(text(
+                "SELECT id FROM users WHERE avatar_url IS NULL OR avatar_url = ''"
+            ))]
+            if not ids:
+                return
+            buckets: dict[str, list[int]] = {}
+            for uid in ids:
+                buckets.setdefault(random.choice(DEFAULT_AVATAR_URLS), []).append(uid)
+            for url, uids in buckets.items():
+                for i in range(0, len(uids), 500):
+                    chunk = uids[i:i + 500]
+                    params = {f"i{j}": v for j, v in enumerate(chunk)}
+                    placeholders = ", ".join(f":i{j}" for j in range(len(chunk)))
+                    conn.execute(
+                        text(f"UPDATE users SET avatar_url = :url WHERE id IN ({placeholders})"),
+                        {"url": url, **params},
+                    )
+        print(f"✅ avatars par défaut attribués à {len(ids)} compte(s)")
+    except Exception as e:
+        print(f"⚠️  backfill avatars [{e.__class__.__name__}]: {e}")

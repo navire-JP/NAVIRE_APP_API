@@ -25,6 +25,7 @@ from app.core.cloudinary_client import (
     upload_proof,
 )
 from app.core.config import DISCORD_INVITE_URL
+from app.core.default_avatars import random_default_avatar_url
 from app.core.limits import get_user_limit
 from app.services import deepwork as deepwork_service
 from app.services.discord_link import (
@@ -392,6 +393,21 @@ async def update_avatar(
         raise HTTPException(status_code=502, detail=f"Échec upload Cloudinary : {e}")
 
     current_user.avatar_url = secure_url
+    db.commit()
+    db.refresh(current_user)
+    return _user_dict(current_user)
+
+
+@router.delete("/me/avatar")
+def reset_avatar(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retire la photo uploadée et remet un avatar prédéfini tiré au hasard
+    (comme « Supprimer l'avatar » sur Discord).
+    """
+    current_user.avatar_url = random_default_avatar_url()
     db.commit()
     db.refresh(current_user)
     return _user_dict(current_user)
