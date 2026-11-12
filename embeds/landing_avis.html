@@ -1,0 +1,251 @@
+<!--
+  NAVIRE, embed avis de la page d'accueil (section sur fond sombre)
+  ================================================================
+  Fond transparent : la couleur sombre de la section est posée dans Framer.
+
+  Avis → GET /landing/avis : avis saisis dans la console (onglet « Avis »),
+         chacun relié à un vrai compte NAVIRE (pseudo et photo du compte).
+
+  Pile de 3 cartes côte à côte, sur ordinateur comme sur téléphone : une carte
+  au premier plan, une de chaque côté en retrait. Plus de 3 avis : la pile
+  tourne toute seule (pause au survol), flèches du clavier, glisser du doigt,
+  clic sur une carte de côté. Aucun avis : l'embed ne montre rien.
+
+  Réglages : bloc CONFIG du script.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+#nv-avis {
+  --text: #fff;
+  --text-2: rgba(255,255,255,0.78);
+  --text-3: rgba(255,255,255,0.5);
+  --line: rgba(255,255,255,0.1);
+  --blue: #7AA7FF;
+  --blue-hi: #B5CDFF;
+  --star: #FFD166;
+  --ease: cubic-bezier(.2,.8,.2,1);
+
+  position: relative;
+  width: 100%;
+  padding: 24px 16px 32px;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+  background: transparent;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+#nv-avis[hidden] { display: none !important; }
+#nv-avis *, #nv-avis *::before, #nv-avis *::after { box-sizing: border-box; }
+
+#nv-avis .na-stage {
+  position: relative;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  height: 280px;                 /* recalculé sur la carte la plus haute */
+  touch-action: pan-y;
+  outline: none;
+}
+
+#nv-avis .na-card {
+  position: absolute;
+  top: 0; left: 50%;
+  width: min(380px, 74vw);
+  margin-left: calc(min(380px, 74vw) / -2);
+  padding: 24px 24px 20px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(122,167,255,0.10), transparent 60%),
+    linear-gradient(180deg, #121827 0%, #0c111c 100%);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+  display: flex; flex-direction: column; gap: 16px;
+  transition: transform .7s var(--ease), opacity .7s var(--ease), filter .7s var(--ease);
+  will-change: transform, opacity;
+  user-select: none;
+}
+#nv-avis .na-card.is-side { cursor: pointer; }
+#nv-avis .na-card.is-side:hover { filter: brightness(1.12) !important; }
+
+#nv-avis .na-stars { display: flex; gap: 3px; color: var(--star); }
+#nv-avis .na-stars .off { color: rgba(255,255,255,0.18); }
+#nv-avis .na-text {
+  margin: 0;
+  font-size: 15px; line-height: 1.55; color: var(--text-2);
+  white-space: pre-line;
+  display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden;
+}
+#nv-avis .na-who { margin-top: auto; display: flex; align-items: center; gap: 11px; min-width: 0; }
+#nv-avis .na-av {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  background: #1a2133 center / cover no-repeat;
+  border: 1px solid rgba(255,255,255,0.14);
+  display: grid; place-items: center;
+  font-size: 15px; font-weight: 700; color: var(--blue-hi);
+}
+#nv-avis .na-name { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-avis .na-mention { font-size: 12.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+#nv-avis .na-id { min-width: 0; }
+
+#nv-avis .na-dots { display: flex; justify-content: center; gap: 7px; margin-top: 22px; }
+#nv-avis .na-dots:empty { display: none; }
+#nv-avis .na-dot {
+  width: 7px; height: 7px; border-radius: 99px; border: 0; padding: 0;
+  background: rgba(255,255,255,0.22); cursor: pointer;
+  transition: width .35s var(--ease), background .35s var(--ease);
+}
+#nv-avis .na-dot.on { width: 22px; background: #fff; }
+
+@media (max-width: 640px) {
+  #nv-avis { padding: 16px 0 24px; }
+  #nv-avis .na-card { padding: 20px 18px 16px; border-radius: 18px; gap: 13px; }
+  #nv-avis .na-text { font-size: 14px; -webkit-line-clamp: 8; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #nv-avis .na-card, #nv-avis .na-dot { transition: none; }
+}
+</style>
+
+<section id="nv-avis" aria-label="Avis des membres NAVIRE" hidden>
+  <div class="na-stage" id="na-stage" tabindex="0" aria-roledescription="carrousel"></div>
+  <div class="na-dots" id="na-dots"></div>
+</section>
+
+<script>
+(function () {
+  /* ═══ CONFIG ═══════════════════════════════════════════════ */
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    AUTOPLAY_MS: 5500        // rotation quand il y a plus de 3 avis (0 : jamais)
+  };
+  /* ══════════════════════════════════════════════════════════ */
+
+  var root = document.getElementById("nv-avis");
+  if (!root || root.getAttribute("data-ready")) return;
+  root.setAttribute("data-ready", "1");
+
+  var stage = document.getElementById("na-stage");
+  var dotsBox = document.getElementById("na-dots");
+  var items = [], cards = [], current = 0, timer = null, paused = false;
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  var STAR = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z"/></svg>';
+
+  function cardHtml(a) {
+    var n = Math.max(1, Math.min(5, a.note || 5)), stars = "";
+    for (var i = 1; i <= 5; i++) stars += '<span class="' + (i <= n ? "" : "off") + '">' + STAR + "</span>";
+    var u = a.user || {}, name = u.username || "";
+    var av = u.avatar_url
+      ? '<span class="na-av" style="background-image:url(\'' + esc(u.avatar_url).replace(/'/g, "%27") + '\')"></span>'
+      : '<span class="na-av">' + esc(name.charAt(0).toUpperCase()) + "</span>";
+    return '<div class="na-stars" aria-label="' + n + ' sur 5">' + stars + "</div>"
+      + '<p class="na-text">' + esc(a.texte) + "</p>"
+      + '<div class="na-who">' + av + '<div class="na-id"><div class="na-name">' + esc(name) + "</div>"
+      + (a.mention ? '<div class="na-mention">' + esc(a.mention) + "</div>" : "") + "</div></div>";
+  }
+
+  // Place de chaque carte par rapport à la carte du premier plan :
+  // 0 = devant, -1 / +1 = de côté, le reste caché derrière.
+  function offset(i) {
+    var n = items.length, d = i - current;
+    if (n === 2) return d === 0 ? 0 : 1;
+    if (d > n / 2) d -= n;
+    if (d < -n / 2) d += n;
+    return d;
+  }
+
+  function layout() {
+    var w = root.clientWidth, phone = w < 640;
+    var cw = cards[0] ? cards[0].offsetWidth : 380;
+    // Écart des cartes de côté : bien séparées sur ordinateur, qui dépassent sur téléphone.
+    var shift = phone ? cw * 0.56 : Math.min(cw * 0.92, (w - cw) / 2 + cw * 0.18);
+    cards.forEach(function (c, i) {
+      var o = offset(i), t, op, z, f;
+      if (o === 0) { t = "translateX(0) scale(1)"; op = 1; z = 3; f = "none"; }
+      else if (o === -1 || o === 1) {
+        t = "translateX(" + (o * shift) + "px) scale(" + (phone ? 0.86 : 0.9) + ") rotate(" + (o * (phone ? 3 : 2)) + "deg)";
+        op = phone ? 0.55 : 0.7; z = 2; f = "brightness(.8)";
+      } else { t = "translateX(0) scale(.8)"; op = 0; z = 1; f = "none"; }
+      c.style.transform = t; c.style.opacity = op; c.style.zIndex = z; c.style.filter = f;
+      c.style.pointerEvents = op ? "auto" : "none";
+      c.classList.toggle("is-side", o !== 0 && op > 0);
+      c.setAttribute("aria-hidden", o === 0 ? "false" : "true");
+    });
+    var h = 0;
+    cards.forEach(function (c) { h = Math.max(h, c.offsetHeight); });
+    stage.style.height = (h + 24) + "px";
+    Array.prototype.forEach.call(dotsBox.children, function (d, i) { d.classList.toggle("on", i === current); });
+  }
+
+  function go(i) {
+    var n = items.length;
+    current = ((i % n) + n) % n;
+    layout();
+    restart();
+  }
+
+  function restart() {
+    clearInterval(timer);
+    if (items.length > 3 && CONFIG.AUTOPLAY_MS > 0 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      timer = setInterval(function () { if (!paused && !document.hidden) { current = (current + 1) % items.length; layout(); } }, CONFIG.AUTOPLAY_MS);
+    }
+  }
+
+  function render(list) {
+    items = list;
+    if (!items.length) { root.hidden = true; return; }
+    root.hidden = false;
+    // Avec 3 avis, celui du milieu est devant.
+    current = items.length >= 3 ? 1 : 0;
+    stage.innerHTML = "";
+    cards = items.map(function (a, i) {
+      var c = document.createElement("article");
+      c.className = "na-card";
+      c.innerHTML = cardHtml(a);
+      c.addEventListener("click", function () { if (offset(i) !== 0) go(i); });
+      stage.appendChild(c);
+      return c;
+    });
+    dotsBox.innerHTML = items.length > 1 ? items.map(function (_, i) {
+      return '<button class="na-dot" type="button" aria-label="Avis ' + (i + 1) + '" data-i="' + i + '"></button>';
+    }).join("") : "";
+    layout();
+    restart();
+  }
+
+  dotsBox.addEventListener("click", function (e) {
+    var b = e.target.closest(".na-dot");
+    if (b) go(+b.getAttribute("data-i"));
+  });
+  stage.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") go(current - 1);
+    if (e.key === "ArrowRight") go(current + 1);
+  });
+  root.addEventListener("mouseenter", function () { paused = true; });
+  root.addEventListener("mouseleave", function () { paused = false; });
+
+  // Glisser du doigt
+  var x0 = null;
+  stage.addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; paused = true; }, { passive: true });
+  stage.addEventListener("touchend", function (e) {
+    paused = false;
+    if (x0 == null) return;
+    var dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 40 && items.length > 1) go(current + (dx < 0 ? 1 : -1));
+  });
+
+  var rz;
+  window.addEventListener("resize", function () { clearTimeout(rz); rz = setTimeout(function () { if (items.length) layout(); }, 120); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (items.length) layout(); });
+
+  fetch(CONFIG.API + "/landing/avis")
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { render((d && d.items) || []); })
+    .catch(function () { render([]); });
+})();
+</script>
