@@ -683,6 +683,119 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 .nvx.is-narrow .nvx-top { padding: 0 6px; gap: 2px; }
 @media (prefers-reduced-motion: reduce) { .nvx, .nvx * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
+
+/* Téléphone : barre resserrée, champs à 16 px (pas de zoom iOS), fenêtres en bas d'écran */
+.nvx.is-narrow .nvx-field, .nvx.is-narrow .nvx-bub textarea, .nvx.is-narrow .nvx-panel textarea { font-size: 16px; }
+.nvx.is-narrow .nvx-save { display: none; }
+.nvx.is-narrow .nvx-b { padding: 0 9px; }
+.nvx.is-narrow .nvx-b.is-main { padding: 0 12px; }
+.nvx.is-narrow .nvx-info { gap: 6px; }
+.nvx.is-narrow .nvx-panel { width: 100%; }
+.nvx.is-narrow .nvx-modal { align-items: flex-end; padding: 0; }
+.nvx.is-narrow .nvx-card { width: 100%; border-radius: 18px 18px 0 0; padding: 22px 18px calc(18px + env(safe-area-inset-bottom)); }
+.nvx.is-narrow .nvx-verdict { padding: 14px; gap: 10px; }
+.nvx.is-narrow .nvx-note { font-size: 15px; }
+.nvx.is-narrow .nvx-end { padding: 16px; margin-top: 32px; }
+.nvx.is-narrow .nvx-tool { max-width: calc(100vw - 16px); }
+
+/* ================= SANS FOND ================= */
+#nv-prof .nv-side { background: transparent; }
+#nv-prof.is-flow .nv-topbar, #nv-prof .nv-topbar { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+#nv-prof .nv-apercu { background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: none !important; }
+#nv-prof .nv-pop { background: transparent; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+#nv-prof .nv-pop-card { background: #161826; box-shadow: 0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06); }
+#nv-prof .nv-row, #nv-prof .nv-card, #nv-prof .nv-stat, #nv-prof .nv-solde, #nv-prof .nv-month, #nv-prof .ep-item, #nv-prof .nv-wallet { background: rgba(255,255,255,0.025); }
+#nv-prof .nv-tabs { display: none; }
+
+/* ================= TÉLÉPHONE ================= */
+#nv-prof.is-compact .nv-topbar { position: static !important; top: auto !important; min-height: 46px; padding: 4px 4px 0; }
+#nv-prof.is-compact .nv-topbar-title { text-align: left; font-size: 17px; font-weight: 700; color: #fff; padding-left: 2px; }
+#nv-prof.is-compact .nv-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 14px 12px; margin: 0 -14px; }
+#nv-prof.is-compact .nv-tabs::-webkit-scrollbar { display: none; }
+#nv-prof.is-compact .nv-tabs button { flex-shrink: 0; height: 34px; padding: 0 14px; border-radius: 99px; border: 0; background: rgba(255,255,255,0.06); color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+#nv-prof.is-compact .nv-tabs button.is-on { background: #fff; color: #0a0a12; }
+#nv-prof.is-compact .nv-tabs .nv-badge { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 0 5px; border-radius: 99px; background: var(--blue); color: #0a0a12; }
+#nv-prof.is-compact .nv-page-inner { padding-top: 0; padding-bottom: 80px; }
+#nv-prof.is-compact .nv-page-head { margin: 2px 0 14px; }
+#nv-prof.is-compact .nv-page-head h2 { font-size: 18px; }
+#nv-prof.is-compact .nv-page-head p { font-size: 12.5px; }
+#nv-prof.is-compact .nv-cards .nv-hcard:first-child { grid-column: 1 / -1; min-height: 96px; }
+#nv-prof.is-compact .nv-big { font-size: 22px; }
+#nv-prof.is-compact .nv-hcard-text small { font-size: 11.5px; }
+#nv-prof.is-compact .nv-row { padding: 11px 12px; gap: 10px; }
+#nv-prof.is-compact .nv-row-art { width: 28px; height: 28px; }
+#nv-prof.is-compact .nv-row-meta span:nth-child(n+3) { display: none; }
+#nv-prof.is-compact .nv-row .nv-btn.is-sm { height: 30px; padding: 0 12px; font-size: 12px; }
+#nv-prof.is-compact .nv-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+#nv-prof.is-compact .nv-filters .nv-chip { flex-shrink: 0; }
+#nv-prof.is-compact .nv-class-head .nv-discord { align-self: flex-start; }
+#nv-prof.is-compact .ep-item-top { flex-wrap: wrap; }
+#nv-prof.is-compact .nv-solde-grid { grid-template-columns: 1fr 1fr; }
+#nv-prof.is-compact .nv-month { padding: 10px 12px; gap: 8px; }
+#nv-prof.is-compact .nv-month-amount { width: auto; }
+#nv-prof.is-compact .nv-pop { align-items: flex-end; padding: 0; top: var(--vis-top, 0px) !important; height: var(--vis-h, 100%) !important; }
+#nv-prof.is-compact .nv-pop-card { width: 100%; max-height: calc(var(--vis-h, 100%) - 24px); border-radius: 20px 20px 0 0; padding: 20px 16px calc(16px + env(safe-area-inset-bottom)); }
+#nv-prof.is-compact .nv-pop-btns .nv-btn, #nv-prof.is-compact .nv-pop-btns .nv-chip { flex: 1; height: 42px; }
+#nv-prof.is-compact .ep-chips .nv-chip { flex: 1; justify-content: center; }
+#nv-prof.is-compact .nv-wallet { display: none; }
+
+/* Écrans rétractables de l'écran blanc : aucun fond derrière la fenêtre */
+.nvx .nvx-modal { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.nvx .nvx-card { box-shadow: 0 30px 80px rgba(20,24,40,0.22), 0 0 0 1px #e6e9f2; }
+.nvx.is-narrow .nvx-panel.is-on { box-shadow: 0 -10px 40px rgba(20,24,40,0.12); }
+
+/* Écrans rétractables (menu, fenêtres) : overlay seul, aucun fond derrière */
+#nv-prof .nv-pop, #nv-prof.is-compact .nv-scrim { background: transparent !important; opacity: 1 !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+#nv-prof.is-compact .nv-scrim { pointer-events: none; }
+#nv-prof.is-compact.is-drawer .nv-scrim { pointer-events: auto; }
+#nv-prof.is-compact .nv-side { background: #181a26; box-shadow: 0 24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07); }
+
+/* Téléphone : pas de titre en double (l'onglet actif suffit) */
+#nv-prof.is-compact:not(.is-solo) .nv-topbar-title { visibility: hidden; }
+#nv-prof.is-compact .nv-topbar { min-height: 44px; }
+
+/* PC : seul le menu latéral reste fixe (sous le header du site) ; la barre du
+   haut et le bandeau admin défilent avec la page, rien ne passe dessous. */
+#nv-prof.is-flow .nv-topbar, #nv-prof.is-flow .np-apercu, #nv-prof.is-flow .nv-apercu { position: static !important; top: auto !important; }
+
+/* Accueil : trois cartes, puis « Déposer un document » sur toute la largeur */
+#nv-prof .nv-cards.is-home { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#nv-prof .nv-hcard.is-wide { grid-column: 1 / -1; min-height: 0; flex-direction: row; align-items: center; gap: 14px; padding: 14px 16px; }
+#nv-prof .nv-hcard.is-wide .nv-hcard-top { flex-shrink: 0; }
+#nv-prof .nv-hcard.is-wide .nv-hcard-text { margin-top: 0; }
+#nv-prof .nv-hcard.is-wide .nv-hcard-art { width: 32px; height: 32px; }
+#nv-prof.is-compact .nv-cards.is-home { grid-template-columns: 1fr 1fr; }
+#nv-prof.is-compact .nv-cards.is-home .nv-hcard:first-child { grid-column: 1 / -1; }
+
+/* Menu latéral fixe (PC) : collé par le navigateur quand c'est possible */
+#nv-prof.is-flow.is-sticky:not(.is-compact) .nv-side { position: sticky; top: var(--head-h, 0px); height: calc(100vh - var(--head-h, 0px)); }
+#nv-prof.is-flow:not(.is-compact) .nv-side { will-change: top; transition: margin-left .3s var(--ease), visibility 0s; }
+
+/* ================= PASTILLES ET MENU EN OVERLAY ================= */
+.nv-choix { display: flex; flex-wrap: wrap; gap: 6px; }
+.nv-choix button { height: 34px; padding: 0 13px; border-radius: 99px; border: 0; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.75); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.nv-choix button:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.nv-choix button.is-on { background: #7AA7FF; color: #0a0a12; }
+.nv-choix.is-light button { background: #f1f3f8; color: #4a4e5e; }
+.nv-choix.is-light button.is-on { background: #15161c; color: #fff; }
+#nv-prof .nv-menu-scrim { position: absolute; inset: 0; z-index: 1590; display: none; background: transparent; }
+#nv-prof .nv-menu-scrim.is-on { display: block; }
+#nv-prof .nv-menu { position: absolute; z-index: 1600; display: none; min-width: 230px; max-width: calc(100% - 16px); max-height: 60vh; overflow-y: auto; padding: 6px; border-radius: 16px; background: #181a26; box-shadow: 0 24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07); animation: nv-rise .18s var(--ease) both; }
+#nv-prof .nv-menu.is-on { display: block; }
+#nv-prof .nv-menu button { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: rgba(255,255,255,0.8); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+#nv-prof .nv-menu button:hover { background: rgba(255,255,255,0.06); color: #fff; }
+#nv-prof .nv-menu button.is-on { background: rgba(255,255,255,0.1); color: #fff; }
+#nv-prof .nv-menu button small { display: block; font-size: 11.5px; font-weight: 400; color: rgba(255,255,255,0.45); margin-top: 2px; }
+#nv-prof .nv-menu .nv-badge { margin-left: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 0 6px; border-radius: 99px; background: #7AA7FF; color: #0a0a12; }
+#nv-prof .nv-pick, #nv-prof .nv-esp { display: none; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 99px; border: 0; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; white-space: nowrap; max-width: 52%; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-pick { background: #fff; color: #0a0a12; }
+#nv-prof .nv-esp { background: rgba(255,255,255,0.08); color: #fff; font-weight: 600; }
+#nv-prof.is-compact:not(.is-solo) .nv-pick { display: inline-flex; }
+#nv-prof.is-compact:not(.is-solo) .nv-esp.is-on { display: inline-flex; }
+#nv-prof.is-compact .nv-topbar-title { display: none; }
+#nv-prof.is-compact .nv-topbar { gap: 6px; padding: 6px 2px 6px 0; }
+#nv-prof .np-tabs, #nv-prof .nv-tabs { display: none !important; }
+#nv-prof .nv-apercu .nv-esp-inline, #nv-prof .np-apercu .nv-esp-inline { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: 99px; background: rgba(255,255,255,0.08); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 </style>
 
 <div id="nv-prof" class="is-solo">
@@ -708,6 +821,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       <button class="nv-icon-btn nv-menu-btn" data-act="side-open" aria-label="Afficher le menu" title="Afficher le menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
       </button>
+      <button class="nv-pick" data-act="tabs-open" data-el="pick"></button>
+      <button class="nv-esp" data-act="esp-open" data-el="esp"></button>
       <div class="nv-topbar-title" data-el="title">Accueil</div>
       <button class="nv-icon-btn" data-act="refresh" aria-label="Actualiser" title="Actualiser">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
@@ -716,6 +831,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     <div class="nv-page nv-scroll" data-el="page"></div>
     <div class="nv-toasts" data-el="toasts"></div>
   </main>
+  <div class="nv-menu-scrim" data-el="menu-scrim" data-act="menu-close"></div>
+  <div class="nv-menu" data-el="menu"></div>
   <div class="nv-pop" data-el="pop" data-act="pop-close"><div class="nv-pop-card" data-el="pop-card"></div></div>
   <input type="file" accept="application/pdf,.pdf" data-el="file" style="display:none">
   <input type="file" accept="application/pdf,.pdf" data-el="ep-file" style="display:none">
@@ -792,6 +909,32 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       '<span class="nv-hcard-text">' + (o.big ? '<span class="nv-big">' + o.big + "</span>" : "") + "<b>" + o.titre + "</b>" + (o.sous ? "<small>" + o.sous + "</small>" : "") + "</span></button>";
   }
   function pop(html) { el("pop-card").innerHTML = html; el("pop").classList.add("is-on"); }
+
+  // ================= PASTILLES (à la place des listes déroulantes natives) =================
+  var CHOIX = {};
+  function choix(key, opts, cur, cb, light) {
+    CHOIX[key] = cb;
+    return '<div class="nv-choix' + (light ? " is-light" : "") + '">' + opts.map(function (o) {
+      return '<button type="button"' + (String(o[0]) === String(cur) ? ' class="is-on"' : "") + ' data-choix="' + key + '" data-v="' + esc(o[0]) + '">' + esc(o[1]) + "</button>";
+    }).join("") + "</div>";
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-choix]");
+    if (!b || !CHOIX[b.getAttribute("data-choix")]) return;
+    b.parentNode.querySelectorAll("[data-choix]").forEach(function (x) { x.classList.toggle("is-on", x === b); });
+    CHOIX[b.getAttribute("data-choix")](b.getAttribute("data-v"));
+  });
+
+  // ================= MENU EN OVERLAY (rubriques, espace) : aucun fond derrière =================
+  var CHEV = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  function openMenu(anchor, items) {
+    var m = el("menu"), rr = root.getBoundingClientRect(), ar = anchor.getBoundingClientRect();
+    m.innerHTML = items.map(function (it) { return '<button' + (it.on ? ' class="is-on"' : "") + " " + it.attrs + ">" + it.label + (it.sub ? "<small>" + it.sub + "</small>" : "") + "</button>"; }).join("");
+    m.classList.add("is-on"); el("menu-scrim").classList.add("is-on");
+    m.style.top = (ar.bottom - rr.top + 6) + "px";
+    m.style.left = Math.max(8, Math.min(ar.left - rr.left, root.clientWidth - m.offsetWidth - 8)) + "px";
+  }
+  function closeMenu() { el("menu").classList.remove("is-on"); el("menu-scrim").classList.remove("is-on"); }
   function popClose() { el("pop").classList.remove("is-on"); }
 
   var ICON = {
@@ -873,6 +1016,20 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     // Haut de l'embed dans la fenêtre du site.
     function rootTop() { return (frameEl ? frameEl.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; }
     function barH() { var b = root.querySelector(".nv-topbar"); return b && b.offsetParent ? b.offsetHeight : 0; }
+    // Bas du header fixe ou collant du site, au-dessus de l'embed (0 sinon).
+    function siteHead() {
+      try {
+        var w = win(), d = w.document, x = w.innerWidth / 2, best = 0;
+        (d.elementsFromPoint ? d.elementsFromPoint(x, 4) : []).forEach(function (n) {
+          if (n === frameEl || root.contains(n) || (frameEl && n.contains(frameEl)) || n.contains(root)) return;
+          for (var e = n; e && e !== d.body; e = e.parentElement) {
+            var p = w.getComputedStyle(e).position;
+            if (p === "fixed" || p === "sticky") { var r = e.getBoundingClientRect(); if (r.top <= 4 && r.bottom < w.innerHeight / 2) best = Math.max(best, r.bottom); break; }
+          }
+        });
+        return Math.round(best);
+      } catch (e) { return 0; }
+    }
     var F = {
       boxed: BOXED,
       // Défilement lu depuis le haut de l'embed.
@@ -900,11 +1057,13 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       onScroll: function (fn) { subs.push(fn); },
       layout: function () {
         if (BOXED) { root.style.setProperty("--vis-top", "0px"); root.style.setProperty("--vis-h", root.offsetHeight + "px"); return; }
-        var rt = rootTop(), rh = root.offsetHeight, h = vh();
-        var visH = Math.max(200, Math.min(h, rt + rh) - Math.max(0, rt));
-        var visTop = Math.max(0, Math.min(-rt, rh - visH));
+        // Le header fixe du site (s'il y en a un) : la partie visible commence dessous.
+        var rt = rootTop(), rh = root.offsetHeight, h = vh(), hd = siteHead();
+        var visH = Math.max(200, Math.min(h, rt + rh) - Math.max(hd, rt));
+        var visTop = Math.max(0, Math.min(hd - rt, rh - visH));
         root.style.setProperty("--vis-top", Math.round(visTop) + "px");
         root.style.setProperty("--vis-h", Math.round(visH) + "px");
+        root.style.setProperty("--head-h", hd + "px");
       },
       size: function () {
         if (IMM.on) return;   // écran blanc ouvert : l'embed ne bouge plus
@@ -927,10 +1086,13 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         F.layout();
       }
     };
+    // Recalage immédiat à chaque défilement (pas d'image de retard : le menu
+    // ne « descend » pas), le reste à l'image suivante.
     function tick() {
+      F.layout();
       if (ticking) return;
       ticking = true;
-      requestAnimationFrame(function () { ticking = false; F.layout(); subs.forEach(function (fn) { try { fn(); } catch (e) {} }); });
+      requestAnimationFrame(function () { ticking = false; subs.forEach(function (fn) { try { fn(); } catch (e) {} }); });
     }
     if (BOXED) setTimeout(function () { page().addEventListener("scroll", tick, { passive: true }); }, 0);
     else win().addEventListener("scroll", tick, { passive: true });
@@ -942,6 +1104,41 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   })();
   function sizeApp() { FLOW.size(); }
   sizeApp();
+
+  // Flèche « remonter » (comme l'accueil) : posée sur la page du site, quand
+  // c'est la page qui défile et qu'on est descendu d'un écran.
+  var upBtn = null;
+  if (!FLOW.boxed) {
+    var upDoc = (HOST || window).document;
+    upBtn = upDoc.createElement("button");
+    upBtn.type = "button";
+    upBtn.setAttribute("aria-label", "Remonter en haut");
+    upBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+    upBtn.style.cssText = "position:fixed;right:16px;bottom:20px;z-index:2147482000;width:44px;height:44px;border:0;border-radius:50%;background:#fff;color:#0a0a12;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.45);opacity:0;transform:translateY(10px) scale(.9);pointer-events:none;transition:opacity .2s,transform .2s";
+    upBtn.addEventListener("click", function () { FLOW.to(0, true); });
+    upDoc.body.appendChild(upBtn);
+    FLOW.onScroll(paintUp);
+  }
+  function paintUp() {
+    if (!upBtn) return;
+    var vh = (HOST || window).innerHeight || 800;
+    var on = FLOW.y() > vh * 0.8 && !root.classList.contains("is-drawer") && !IMM.on;
+    upBtn.style.opacity = on ? "1" : "0";
+    upBtn.style.transform = on ? "none" : "translateY(10px) scale(.9)";
+    upBtn.style.pointerEvents = on ? "auto" : "none";
+  }
+
+  // Embed posé directement dans la page (pas d'iframe) et aucun parent qui
+  // rogne : le menu est collé par le navigateur (position: sticky), parfaitement
+  // fixe. Sinon il est recalé par le script à chaque défilement.
+  (function () {
+    if (FRAMED) return;
+    for (var e = root.parentElement; e && e !== document.body; e = e.parentElement) {
+      var cs = getComputedStyle(e);
+      if (/(hidden|auto|scroll)/.test(cs.overflow + cs.overflowY) || cs.transform !== "none") return;
+    }
+    root.classList.add("is-sticky");
+  })();
 
   // ================= RESPONSIVE (largeur du conteneur) =================
   function updateCompact() {
@@ -959,10 +1156,18 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   applyLogos();
 
   // ================= RENDU =================
+  // Téléphone : les rubriques en onglets en haut de page.
+  function tabs() {
+    return "";
+    var todo = aCorriger().length;
+    return '<div class="nv-tabs">' + Object.keys(TITLES).map(function (v) {
+      return '<button data-view="' + v + '"' + (S.view === v ? ' class="is-on"' : "") + ">" + TITLES[v] + (v === "copies" && todo ? '<span class="nv-badge">' + todo + "</span>" : "") + "</button>";
+    }).join("") + "</div>";
+  }
   function setPage(html, solo) {
     root.classList.toggle("is-solo", !!solo);
     var p = el("page");
-    p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
+    p.innerHTML = '<div class="nv-page-inner">' + (solo || !S.dash ? "" : tabs()) + html + '</div>';
     FLOW.top();
     sizeApp();
     applyLogos(p);
@@ -1027,8 +1232,9 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     b.innerHTML = '<span>' + (S.voir && S.me.apercu
       ? 'Aperçu admin · tu vois l\'espace de ' + esc(S.me.apercu.nom || "ce professeur") + (S.me.apercu.status !== "active" ? ' (suspendu)' : '') + ', en lecture seule'
       : 'Aperçu admin · voir l\'espace d\'un professeur') + '</span>' +
-      '<select data-el="voir" aria-label="Voir comme">' + opts + '</select>';
-    if (moi) el("voir").value = "";
+      '<button class="nv-esp-inline" data-act="esp-open">' + esc(S.voir ? (S.me.apercu && S.me.apercu.nom) || "Aperçu" : "Mon espace") + CHEV + "</button>";
+    void opts; void moi;
+    paintPick();
   }
   function voirComme(id) {
     S.voir = id || null;
@@ -1291,11 +1497,11 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     var ouvertes = ((S.eps && S.eps.items) || []).filter(function (x) { return x.etat === "ouverte"; });
     var html = head("Bonjour" + (nom ? " " + esc(nom) : ""), 'Tu es <span class="nv-grade">' + esc(p.grade) + "</span>");
     if (!d.classes.length) return setPage(html + empty("Aucun groupe pour l'instant", "L'équipe NAVIRE t'ajoutera bientôt à un groupe."));
-    html += '<div class="nv-cards">' +
+    html += '<div class="nv-cards is-home">' +
       hcard({ cls: todo.length ? "is-hero" : "", attrs: 'data-view="copies"', art: "files-cristal", big: todo.length || "0", titre: "copie" + (todo.length > 1 ? "s" : "") + " à corriger", sous: todo.length ? "La plus ancienne : " + esc(date(todo[todo.length - 1].created_at)) : "Tout est corrigé." }) +
       hcard({ attrs: 'data-act="ep-new"', art: "profil-qcm", big: ouvertes.length ? String(ouvertes.length) : "", titre: ouvertes.length ? "épreuve" + (ouvertes.length > 1 ? "s" : "") + " en cours" : "Nouvelle épreuve", sous: ouvertes.length ? "Planifier une autre épreuve" : "Un contrôle chronométré pour un groupe." }) +
       hcard({ attrs: 'data-view="earnings"', art: "profil-rang", big: eur(m ? m.montant_cents : 0), titre: m ? "prévus en " + esc(mois(m.mois).split(" ")[0]) : "ce mois-ci", sous: eur(t.realise_cents) + " déjà gagnés" }) +
-      hcard({ attrs: 'data-act="doc-new"', art: "home-fichiers", titre: "Déposer un document", sous: "Un PDF pour un groupe, publié sur NAVIRE Lib." }) + "</div>";
+      hcard({ cls: "is-wide", attrs: 'data-act="doc-new"', art: "home-fichiers", titre: "Déposer un document", sous: "Un PDF pour un groupe, publié tout de suite sur NAVIRE Lib." }) + "</div>";
     if (todo.length) {
       html += '<div class="nv-group-label">À corriger</div>' + todo.slice(0, 5).map(copieRow).join("");
       if (todo.length > 5) html += '<button class="nv-chip" data-view="copies" style="margin-top:4px">Voir les ' + todo.length + " copies</button>";
@@ -1373,7 +1579,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     if (!cs.length) return toast("Aucun groupe.", true);
     pop("<h4>Nouvelle épreuve</h4><p>Le sujet n'est visible par l'étudiant qu'au lancement.</p>" +
       '<div class="ep-types" style="margin-top:12px">' + EP_TYPES.map(function (t) { return '<button class="ep-type' + (f.type === t[0] ? " is-on" : "") + '" data-act="ep-type" data-t="' + t[0] + '"><b>' + esc(t[1]) + "</b><span>" + epDuree(t[2]) + "</span></button>"; }).join("") + "</div>" +
-      (cs.length > 1 ? field("Groupe", '<select class="nv-input" data-ep="classe">' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.classe ? " selected" : "") + ">" + esc(c.nom) + "</option>"; }).join("") + "</select>") : "") +
+      (cs.length > 1 ? '<div class="nv-field"><span>Groupe</span>' + choix("ep-classe", cs.map(function (c) { return [c.id, c.nom]; }), f.classe, function (v) { S.epf.classe = +v; }) + "</div>" : "") +
       field("Titre", '<input class="nv-input" data-ep="titre" maxlength="200" placeholder="Ex. Galop n° 1 : la coutume" value="' + esc(f.titre) + '">', true) +
       field("Sujet", '<textarea class="nv-input" data-ep="sujet" style="min-height:110px" placeholder="L\'énoncé, la question ou l\'arrêt à commenter.">' + esc(f.sujet) + "</textarea>") +
       '<div class="nv-actions" style="margin-top:8px"><button class="nv-chip" data-act="ep-pdf">' + ICON.upload + (f.file ? esc(f.file.name) : "Sujet en PDF (facultatif)") + "</button>" + (f.file ? '<button class="nv-chip" data-act="ep-pdf-x">Retirer</button>' : "") + "</div>" +
@@ -1431,7 +1637,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     if (!cs.length) return toast("Aucun groupe.", true);
     S.uploadClass = cid || S.uploadClass || cs[0].id; S.uploadFile = null;
     pop("<h4>Déposer un document</h4><p>Publié tout de suite pour les étudiants du groupe.</p>" +
-      (cs.length > 1 ? field("Groupe", '<select class="nv-input" id="u-classe">' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === S.uploadClass ? " selected" : "") + ">" + esc(c.nom) + "</option>"; }).join("") + "</select>") : "") +
+      (cs.length > 1 ? '<div class="nv-field"><span>Groupe</span>' + choix("u-classe", cs.map(function (c) { return [c.id, c.nom]; }), S.uploadClass, function (v) { S.uploadClass = +v; }) + "</div>" : "") +
       field("Titre", input("u-titre", "", 'maxlength="200" placeholder="Ex. TD 3 — la responsabilité du fait d\'autrui"')) +
       field("Description", '<textarea class="nv-input" id="u-desc" maxlength="2000" style="min-height:64px"></textarea>', true) +
       '<div class="nv-drop" data-act="pick" data-el="drop" style="margin-top:12px">' + ICON.upload + '<b data-el="drop-name">Choisir un PDF</b><span>ou le glisser ici · 50 Mo max.</span></div>' +
@@ -1451,7 +1657,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   }
   function docUpload(b) {
     if (!S.uploadFile) return err("Choisis un PDF.");
-    var cid = val("u-classe") ? +val("u-classe") : S.uploadClass;
+    var cid = S.uploadClass;
     var fd = new FormData();
     fd.append("file", S.uploadFile); fd.append("titre", val("u-titre")); fd.append("description", val("u-desc"));
     b.disabled = true; b.textContent = "Envoi…";
@@ -1478,12 +1684,19 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       '<div style="margin-top:6px">' + eur(t.verse_cents) + ' versés · ' + eur(t.total_cents) + ' prévus</div>';
     setView(S.view);
   }
+  function paintPick() {
+    el("pick").innerHTML = esc(TITLES[S.view] || "Accueil") + CHEV;
+    var e = el("esp"), on = S.admin && S.profs && S.profs.length;
+    e.classList.toggle("is-on", !!on);
+    e.innerHTML = esc(S.voir ? (S.me && S.me.apercu && S.me.apercu.nom) || "Aperçu" : "Mon espace") + CHEV;
+  }
   function setView(v) {
     if (!VIEWS[v]) v = "home";
     S.view = v;
     root.classList.remove("is-still", "is-drawer");
     renderNav();
     el("title").textContent = TITLES[v];
+    paintPick();
     VIEWS[v]();
   }
 
@@ -2076,6 +2289,19 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 
   // ================= ACTIONS =================
   root.addEventListener("click", function (e) {
+    if (e.target.closest(".nv-menu")) closeMenu();
+    var mt = e.target.closest('[data-act="tabs-open"],[data-act="esp-open"],[data-act="menu-close"]');
+    if (mt && root.contains(mt)) {
+      var ma = mt.getAttribute("data-act");
+      if (ma === "menu-close") return closeMenu();
+      if (ma === "tabs-open") {
+        var td = aCorriger().length;
+        return openMenu(mt, Object.keys(TITLES).map(function (k) { return { label: esc(TITLES[k]) + (k === "copies" && td ? '<span class="nv-badge">' + td + "</span>" : ""), attrs: 'data-view="' + k + '"', on: S.view === k }; }));
+      }
+      return openMenu(mt, [{ label: "Mon espace", sub: S.me && S.me.status === "active" ? "Mon espace professeur" : "Quitter l'aperçu", attrs: 'data-act="voir" data-id="0"', on: !S.voir }].concat((S.profs || []).map(function (p) {
+        return { label: esc(nomProf(p)), sub: esc(p.email || "") + (p.status !== "active" ? " · suspendu" : ""), attrs: 'data-act="voir" data-id="' + p.id + '"', on: p.id === S.voir };
+      })));
+    }
     var v = e.target.closest("[data-view]");
     if (v && root.contains(v) && S.dash) { setView(v.getAttribute("data-view")); return; }
     var a = e.target.closest("[data-act]");
@@ -2138,7 +2364,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     if (CX.node) { if (CX.draft) return cxDraftClose(); if (CX.mark || cxQ('[data-cx-el="tool"]').classList.contains("is-on")) return cxHideTool(); return; }
-    root.classList.remove("is-drawer"); popClose();
+    root.classList.remove("is-drawer"); popClose(); closeMenu();
   });
   document.addEventListener("selectionchange", function () { if (CX.node && !CX.draft) { clearTimeout(CX.selT); CX.selT = setTimeout(cxUpdateTool, 120); } });
   window.addEventListener("beforeunload", function (e) { if (CX.node && Object.keys(CX.pending).length) { cxFlush(); e.preventDefault(); e.returnValue = ""; } });

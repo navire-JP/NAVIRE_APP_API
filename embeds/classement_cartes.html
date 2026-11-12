@@ -1,0 +1,278 @@
+<!--
+  NAVIRE, embed du classement en cartes profil (page /classement)
+  ================================================================
+  Même DA que l'accueil, Lib et le profil : bleu et blanc, aucun trait, aucun
+  fond de page (le fond est celui du site), des voiles très légers.
+
+  Une grille de cartes profil, rangées par position : la bannière, la photo
+  qui la chevauche, la place (#1, #2…), le nom, la fac, l'Elo et l'Elo gagné
+  sur 7 jours. Un clic ouvre le profil (PROFIL_URL?u=<id>).
+    - 5 cartes par ligne sur PC, 4 puis 3 sur téléphone (selon la largeur de
+      l'embed, pas de l'écran) ;
+    - le top 3 en tête, en cartes plus grandes ;
+    - « Général / 30 jours / 7 jours », « Tous / Ma fac » ;
+    - ta carte rappelée en haut quand tu es hors de l'écran ;
+    - « Voir plus » charge les suivants.
+  L'embed prend la hauteur de son contenu : c'est la page du site qui défile,
+  une flèche blanche ramène en haut.
+
+  Données : GET /leaderboard/classement?periode=general|30j|7j&limit=…[&fac=…]
+  Réglages : bloc CONFIG du script.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+#nv-top {
+  --ring: #0b0b12;              /* liseré autour de la photo : la couleur du fond du site */
+  --panel: rgba(255,255,255,0.03);
+  --panel-2: rgba(255,255,255,0.06);
+  --panel-3: rgba(255,255,255,0.1);
+  --text: #fff;
+  --text-2: rgba(255,255,255,0.72);
+  --text-3: rgba(255,255,255,0.45);
+  --text-4: rgba(255,255,255,0.28);
+  --blue: #7AA7FF;
+  --blue-hi: #B5CDFF;
+  --blue-deep: #4F7DFF;
+  --blue-soft: rgba(122,167,255,0.1);
+  --mono: 'IBM Plex Mono', monospace;
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --cols: 5;
+
+  position: relative;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 12px 16px 40px;
+  box-sizing: border-box;
+  background: transparent;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+#nv-top *, #nv-top *::before, #nv-top *::after { box-sizing: border-box; }
+#nv-top button { font-family: inherit; color: inherit; }
+@keyframes nt-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes nt-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+/* En-tête : titre, filtres */
+#nv-top .nt-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 2px 18px; }
+#nv-top .nt-head h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.6px; }
+#nv-top .nt-head p { margin: 3px 0 0; font-size: 13px; color: var(--text-3); }
+#nv-top .nt-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+#nv-top .nt-seg { display: inline-flex; padding: 3px; border-radius: 99px; background: var(--panel-2); }
+#nv-top .nt-seg button { height: 30px; padding: 0 13px; border: 0; border-radius: 99px; background: transparent; color: var(--text-3); font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+#nv-top .nt-seg button:hover { color: #fff; }
+#nv-top .nt-seg button.is-on { background: #fff; color: #0a0a12; }
+
+/* Grille de cartes */
+#nv-top .nt-grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 12px; }
+#nv-top .nt-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+#nv-top .nt-card { position: relative; display: flex; flex-direction: column; min-width: 0; border: 0; padding: 0; border-radius: 16px; overflow: hidden; background: var(--panel); text-align: left; text-decoration: none; color: inherit; cursor: pointer; transition: background .2s, transform .25s var(--ease); animation: nt-rise .4s var(--ease) both; }
+#nv-top .nt-card:hover { background: var(--panel-2); transform: translateY(-3px); }
+#nv-top .nt-card.is-me { box-shadow: inset 0 0 0 1.5px var(--blue); }
+#nv-top .nt-ban { position: relative; aspect-ratio: 3 / 1.25; background:
+    radial-gradient(120% 140% at 85% 0%, rgba(122,167,255,0.3), transparent 55%),
+    radial-gradient(90% 120% at 10% 100%, rgba(79,125,255,0.2), transparent 60%),
+    var(--panel-2);
+  background-size: cover; background-position: center; }
+#nv-top .nt-ban::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.25)); }
+#nv-top .nt-rank { position: absolute; top: 8px; left: 8px; z-index: 1; min-width: 30px; height: 24px; padding: 0 8px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11.5px; font-weight: 600; background: rgba(10,10,18,0.62); color: #fff; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+#nv-top .nt-card[data-r="1"] .nt-rank { background: #fff; color: #0a0a12; }
+#nv-top .nt-card[data-r="2"] .nt-rank, #nv-top .nt-card[data-r="3"] .nt-rank { background: var(--blue); color: #0a0a12; }
+#nv-top .nt-av { position: relative; z-index: 1; width: 52px; height: 52px; margin: -26px 0 0 12px; border-radius: 50%; background: var(--panel-3) center/cover no-repeat; box-shadow: 0 0 0 3px var(--ring); display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; flex-shrink: 0; }
+#nv-top .nt-body { padding: 8px 12px 12px; min-width: 0; }
+#nv-top .nt-name { display: block; font-size: 14px; font-weight: 700; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-top .nt-uni { display: block; margin-top: 2px; font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-top .nt-foot { display: flex; align-items: center; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+#nv-top .nt-elo { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: #fff; white-space: nowrap; }
+#nv-top .nt-elo small { color: var(--text-3); font-weight: 400; }
+#nv-top .nt-gain { font-family: var(--mono); font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--blue-soft); color: var(--blue); white-space: nowrap; }
+#nv-top .nt-gain.is-zero { background: var(--panel-2); color: var(--text-4); }
+/* Podium : cartes plus grandes */
+#nv-top .nt-podium .nt-av { width: 72px; height: 72px; margin-top: -36px; font-size: 26px; }
+#nv-top .nt-podium .nt-name { font-size: 16px; }
+#nv-top .nt-podium .nt-rank { height: 28px; min-width: 38px; font-size: 13px; }
+#nv-top .nt-podium .nt-card[data-r="1"] { background: linear-gradient(160deg, rgba(122,167,255,0.12), rgba(255,255,255,0.02) 60%); }
+
+/* Ta place */
+#nv-top .nt-me { display: flex; align-items: center; gap: 12px; margin: 0 0 16px; padding: 10px 12px; border-radius: 14px; background: var(--blue-soft); cursor: pointer; text-decoration: none; color: inherit; border: 0; width: 100%; text-align: left; font: inherit; }
+#nv-top .nt-me .nt-av { width: 36px; height: 36px; margin: 0; font-size: 14px; box-shadow: none; }
+#nv-top .nt-me b { font-size: 13.5px; }
+#nv-top .nt-me span { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text-2); }
+#nv-top .nt-me .nt-pos { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--blue-hi); }
+
+#nv-top .nt-more { display: flex; justify-content: center; margin-top: 18px; }
+#nv-top .nt-btn { height: 38px; padding: 0 20px; border: 0; border-radius: 99px; background: var(--panel-2); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+#nv-top .nt-btn:hover { background: var(--panel-3); }
+#nv-top .nt-empty { padding: 50px 20px; text-align: center; color: var(--text-3); font-size: 13px; line-height: 1.6; }
+#nv-top .nt-empty b { display: block; color: var(--text-2); font-size: 15px; margin-bottom: 4px; }
+#nv-top .nt-skel { border-radius: 16px; aspect-ratio: 3 / 2.6; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nt-shimmer 1.4s linear infinite; }
+
+/* Téléphone (largeur de l'embed) : 4 puis 3 cartes par ligne */
+#nv-top.is-m { font-family: 'DM Sans', system-ui, sans-serif; padding: 8px 12px 32px; }
+#nv-top.is-m .nt-head h1 { font-size: 20px; }
+#nv-top.is-m .nt-head { margin-bottom: 14px; }
+#nv-top.is-m .nt-filters { width: 100%; justify-content: space-between; }
+#nv-top.is-m .nt-grid, #nv-top.is-m .nt-podium { gap: 8px; }
+#nv-top.is-m .nt-card { border-radius: 12px; }
+#nv-top.is-m .nt-rank { top: 5px; left: 5px; height: 20px; min-width: 24px; padding: 0 6px; font-size: 10px; }
+#nv-top.is-m .nt-av { width: 38px; height: 38px; margin: -19px auto 0; font-size: 14px; box-shadow: 0 0 0 2px var(--ring); }
+#nv-top.is-m .nt-body { padding: 5px 6px 9px; text-align: center; }
+#nv-top.is-m .nt-name { font-size: 12px; }
+#nv-top.is-m .nt-uni { display: none; }
+#nv-top.is-m .nt-foot { justify-content: center; margin-top: 4px; }
+#nv-top.is-m .nt-elo { font-size: 11px; }
+#nv-top.is-m .nt-elo small, #nv-top.is-m .nt-gain { display: none; }
+#nv-top.is-m .nt-podium .nt-av { width: 50px; height: 50px; margin-top: -25px; font-size: 18px; }
+#nv-top.is-m .nt-podium .nt-name { font-size: 13px; }
+#nv-top.is-m .nt-podium .nt-rank { height: 22px; min-width: 28px; font-size: 11px; }
+#nv-top.is-m .nt-podium .nt-gain { display: inline-flex; }
+@media (prefers-reduced-motion: reduce) { #nv-top * { animation: none !important; transition: none !important; } }
+</style>
+
+<div id="nv-top">
+  <div class="nt-head">
+    <div><h1>Classement</h1><p data-el="sub">Les meilleurs élèves de NAVIRE</p></div>
+    <div class="nt-filters">
+      <div class="nt-seg" data-el="periode">
+        <button data-periode="general" class="is-on">Général</button><button data-periode="30j">30 jours</button><button data-periode="7j">7 jours</button>
+      </div>
+      <div class="nt-seg" data-el="scope">
+        <button data-scope="all" class="is-on">Tous</button><button data-scope="fac">Ma fac</button>
+      </div>
+    </div>
+  </div>
+  <div data-el="me"></div>
+  <div data-el="list"></div>
+  <div class="nt-more" data-el="more" hidden><button class="nt-btn" data-act="more">Voir plus</button></div>
+</div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",
+    PROFIL_URL: "https://navire-ai.com/profile",   // ?u=<id> ouvre le profil
+    LIMIT: 200,                                      // joueurs chargés
+    PAGE: 25                                         // affichés, puis + PAGE à chaque « Voir plus »
+  };
+  var root = document.getElementById("nv-top");
+  var S = { periode: "general", scope: "all", data: null, shown: CONFIG.PAGE, seq: 0 };
+  var token = ""; try { token = localStorage.getItem(CONFIG.TOKEN_KEY) || ""; } catch (e) {}
+
+  function el(n) { return root.querySelector('[data-el="' + n + '"]'); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function bg(url) { return /^https?:\/\//i.test(url || "") ? "background-image:url(&quot;" + esc(url) + "&quot;)" : ""; }
+  function num(n) { return Number(n || 0).toLocaleString("fr-FR"); }
+  function initial(n) { return ((n || "?").trim().charAt(0) || "?").toUpperCase(); }
+  function profil(id) { return CONFIG.PROFIL_URL + (CONFIG.PROFIL_URL.indexOf("?") < 0 ? "?" : "&") + "u=" + encodeURIComponent(id); }
+  function api(path) {
+    var h = {}; if (token) h.Authorization = "Bearer " + token;
+    return fetch(CONFIG.API + path, { headers: h }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j && j.detail) || "Erreur"); return j; }); });
+  }
+
+  // Colonnes selon la largeur de l'embed : 5 (PC), 4, puis 3 (téléphone).
+  function cols() {
+    var w = root.clientWidth, c = w >= 900 ? 5 : w >= 700 ? 4 : w >= 440 ? 4 : 3;
+    root.style.setProperty("--cols", c);
+    root.classList.toggle("is-m", w < 700);
+  }
+  if (window.ResizeObserver) new ResizeObserver(cols).observe(root); else window.addEventListener("resize", cols);
+  cols();
+
+  function score(u) {
+    if (S.periode === "general") return '<span class="nt-elo">' + num(u.elo) + " <small>Elo</small></span>";
+    return '<span class="nt-elo">+' + num(u.score) + " <small>Elo</small></span>";
+  }
+  function card(u, i) {
+    var g = u.gain_7j || 0;
+    return '<a class="nt-card' + (u.is_current_user ? " is-me" : "") + '" data-r="' + u.rank + '" href="' + esc(profil(u.id)) + '" target="_top" style="animation-delay:' + Math.min(i, 15) * 0.025 + 's">' +
+      '<span class="nt-ban" style="' + bg(u.banner_url) + '"><span class="nt-rank">#' + u.rank + "</span></span>" +
+      '<span class="nt-av" style="' + bg(u.avatar_url) + '">' + (bg(u.avatar_url) ? "" : esc(initial(u.username))) + "</span>" +
+      '<span class="nt-body"><span class="nt-name">' + esc(u.username || "Élève") + (u.is_current_user ? " · toi" : "") + "</span>" +
+      '<span class="nt-uni">' + esc(u.university || "Étudiant NAVIRE") + "</span>" +
+      '<span class="nt-foot">' + score(u) + (S.periode === "general" ? '<span class="nt-gain' + (g > 0 ? "" : " is-zero") + '">' + (g > 0 ? "+" + num(g) : "0") + " · 7 j</span>" : "") + "</span></span></a>";
+  }
+  function render() {
+    var d = S.data, items = (d && d.items) || [];
+    el("sub").textContent = d ? num(d.total_joueurs) + " élève" + (d.total_joueurs > 1 ? "s" : "") + " classé" + (d.total_joueurs > 1 ? "s" : "") + (S.scope === "fac" && d.fac ? " · " + d.fac : "") : "Les meilleurs élèves de NAVIRE";
+    // Ta place, quand tu n'es pas dans ce qui est affiché
+    var me = d && d.me, vis = items.slice(0, S.shown).some(function (u) { return u.is_current_user; });
+    el("me").innerHTML = me && !vis ? '<a class="nt-me" href="' + esc(profil(me.id)) + '" target="_top"><span class="nt-av" style="' + bg(me.avatar_url) + '">' + (bg(me.avatar_url) ? "" : esc(initial(me.username))) + "</span>" +
+      "<span><b>Ta place</b> · " + num(S.periode === "general" ? me.elo : me.score) + " Elo" + (S.periode === "general" ? "" : " gagnés") + '</span><span class="nt-pos">#' + me.rank + "</span></a>" : "";
+    if (!items.length) {
+      el("list").innerHTML = '<div class="nt-empty"><b>Personne pour l\'instant</b>' + (S.periode === "general" ? "Les élèves apparaîtront ici dès leurs premiers points d'Elo." : "Aucun Elo gagné sur cette période.") + "</div>";
+      el("more").hidden = true;
+      return fit();
+    }
+    var top = items.slice(0, Math.min(3, items.length)), rest = items.slice(3, S.shown);
+    el("list").innerHTML = '<div class="nt-podium">' + top.map(card).join("") + "</div>" + (rest.length ? '<div class="nt-grid">' + rest.map(function (u, i) { return card(u, i + 3); }).join("") + "</div>" : "");
+    el("more").hidden = S.shown >= items.length;
+    fit();
+  }
+  function loadData() {
+    var seq = ++S.seq;
+    el("list").innerHTML = '<div class="nt-grid">' + new Array(10).join(".").split(".").map(function () { return '<div class="nt-skel"></div>'; }).join("") + "</div>";
+    var fac = S.scope === "fac" && S.data && S.data.moi && S.data.moi.university;
+    if (S.scope === "fac" && !fac && !S.facKnown) {
+      // Première demande « Ma fac » : on lit d'abord la fac du joueur connecté.
+      return api("/leaderboard/classement?limit=1&periode=" + S.periode).then(function (d) { S.facKnown = (d.moi && d.moi.university) || ""; return loadData(); });
+    }
+    fac = fac || S.facKnown;
+    if (S.scope === "fac" && !fac) { el("list").innerHTML = '<div class="nt-empty"><b>Pas de fac renseignée</b>Ajoute ton université dans ton profil pour voir le classement de ta fac.</div>'; el("me").innerHTML = ""; return fit(); }
+    api("/leaderboard/classement?limit=" + CONFIG.LIMIT + "&periode=" + S.periode + (S.scope === "fac" ? "&fac=" + encodeURIComponent(fac) : ""))
+      .then(function (d) { if (seq !== S.seq) return; S.data = d; S.shown = CONFIG.PAGE; render(); })
+      .catch(function () { if (seq !== S.seq) return; el("list").innerHTML = '<div class="nt-empty"><b>Classement indisponible</b>Réessaie dans un instant.</div>'; fit(); });
+  }
+
+  root.addEventListener("click", function (e) {
+    var p = e.target.closest("[data-periode]"), sc = e.target.closest("[data-scope]"), m = e.target.closest('[data-act="more"]');
+    if (p) { S.periode = p.getAttribute("data-periode"); el("periode").querySelectorAll("button").forEach(function (b) { b.classList.toggle("is-on", b === p); }); loadData(); }
+    if (sc) {
+      if (sc.getAttribute("data-scope") === "fac" && !token) return;
+      S.scope = sc.getAttribute("data-scope"); el("scope").querySelectorAll("button").forEach(function (b) { b.classList.toggle("is-on", b === sc); }); loadData();
+    }
+    if (m) { S.shown += CONFIG.PAGE; render(); }
+  });
+  if (!token) el("scope").style.display = "none";
+
+  // ================= Hauteur du contenu, la page du site défile =================
+  var framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
+  var host = null, frame = null, wraps = [];
+  if (framed) {
+    var st = document.createElement("style"); st.textContent = "html,body{margin:0;background:transparent;overflow:hidden}"; document.head.appendChild(st);
+    try { if (window.frameElement && window.parent.document) { host = window.parent; frame = window.frameElement; } } catch (e) {}
+    if (frame) for (var n = frame.parentElement, i = 0; n && i < 4 && n !== host.document.body; i++, n = n.parentElement) wraps.push(n);
+  }
+  var lastH = 0;
+  function fit() {
+    if (!framed) return;
+    var h = Math.ceil(root.getBoundingClientRect().height + root.offsetTop + 2);
+    if (Math.abs(h - lastH) < 2) return;
+    lastH = h;
+    if (frame) { frame.style.height = h + "px"; wraps.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; }); }
+    else { try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {} }
+  }
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(root);
+  window.addEventListener("load", fit);
+
+  // ================= Flèche « remonter » (comme les autres embeds) =================
+  (function () {
+    if (framed && !host) return;
+    var win = host || window, doc = win.document, up = doc.createElement("button");
+    up.type = "button"; up.setAttribute("aria-label", "Remonter en haut");
+    up.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+    up.style.cssText = "position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:2147482000;width:44px;height:44px;border:0;border-radius:50%;background:#fff;color:#0a0a12;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.45);opacity:0;transform:translateY(10px) scale(.9);pointer-events:none;transition:opacity .2s,transform .2s";
+    function top() { return (frame ? frame.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; }
+    up.addEventListener("click", function () { var y = Math.max(0, (win.scrollY || 0) + top() - 80); try { win.scrollTo({ top: y, behavior: "smooth" }); } catch (e) { win.scrollTo(0, y); } });
+    doc.body.appendChild(up);
+    var tk = false;
+    function paint() { tk = false; var on = top() < -win.innerHeight * 0.8; up.style.opacity = on ? "1" : "0"; up.style.transform = on ? "none" : "translateY(10px) scale(.9)"; up.style.pointerEvents = on ? "auto" : "none"; }
+    win.addEventListener("scroll", function () { if (!tk) { tk = true; requestAnimationFrame(paint); } }, { passive: true });
+  })();
+
+  loadData();
+})();
+</script>
