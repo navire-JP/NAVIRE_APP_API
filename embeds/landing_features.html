@@ -4,7 +4,8 @@
   Fond transparent : la couleur claire de la section est posée dans Framer.
 
   Sélecteur en gemmes : une gemme au premier plan, les autres en arrière-plan
-  sur un anneau. Choisir une gemme (clic, flèches, glisser, points) fait
+  sur un anneau. Sur ordinateur, l'anneau est vertical, entre le texte et la
+  capture ; sur téléphone, il est horizontal, au-dessus du texte. Choisir une gemme (clic, flèches, glisser, points) fait
   tourner l'anneau jusqu'à elle, et la capture de la fonctionnalité glisse
   dans le sens de la rotation. Rotation automatique tant que personne n'a
   touché au sélecteur.
@@ -98,9 +99,17 @@
 
 /* ── Fonctionnalité choisie ── */
 #nv-feat .nf-body {
-  max-width: 1120px; margin: 40px auto 0;
-  display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 56px; align-items: center;
+  max-width: 1200px; margin: 44px auto 0;
+  display: grid; grid-template-columns: minmax(0, 0.85fr) 150px minmax(0, 1.3fr); gap: 32px; align-items: center;
 }
+/* Ordinateur : la roue verticale se place entre le texte et la capture */
+#nv-feat .nf-picker { grid-column: 2; grid-row: 1; align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+#nv-feat .nf-text { grid-column: 1; grid-row: 1; }
+#nv-feat .nf-screen { grid-column: 3; grid-row: 1; }
+#nv-feat .nf-picker .nf-ring { height: 100%; min-height: 380px; max-width: none; margin: 0; }
+#nv-feat .nf-picker .nf-dots { display: none; }
+#nv-feat .nf-picker .nf-gem { width: 112px; height: 112px; margin: -56px 0 0 -56px; }
+#nv-feat .nf-picker .nf-halo { display: none; }
 #nv-feat .nf-text { min-height: 250px; }
 #nv-feat .nf-text > * { transition: opacity .35s var(--ease), transform .35s var(--ease); }
 #nv-feat .nf-text.is-out > * { opacity: 0; transform: translateY(8px); }
@@ -160,9 +169,13 @@
 
 @media (max-width: 860px) {
   #nv-feat { padding: 52px 16px 56px; }
-  #nv-feat .nf-ring { height: 230px; margin-top: 16px; }
-  #nv-feat .nf-gem { width: 120px; height: 120px; margin: -60px 0 0 -60px; }
-  #nv-feat .nf-body { grid-template-columns: 1fr; gap: 24px; margin-top: 26px; }
+  /* Téléphone : roue horizontale au-dessus du texte */
+  #nv-feat .nf-body { grid-template-columns: 1fr; gap: 24px; margin-top: 16px; }
+  #nv-feat .nf-picker, #nv-feat .nf-text, #nv-feat .nf-screen { grid-column: 1; grid-row: auto; }
+  #nv-feat .nf-picker .nf-ring { height: 230px; min-height: 0; }
+  #nv-feat .nf-picker .nf-dots { display: flex; }
+  #nv-feat .nf-picker .nf-halo { display: block; }
+  #nv-feat .nf-picker .nf-gem { width: 120px; height: 120px; margin: -60px 0 0 -60px; }
   #nv-feat .nf-text { min-height: 0; text-align: center; }
   #nv-feat .nf-name { font-size: 25px; }
   #nv-feat .nf-desc { font-size: 15px; }
@@ -182,12 +195,13 @@
     <h2 class="nf-title" id="nf-title"></h2>
   </div>
 
-  <div class="nf-ring" id="nf-ring" tabindex="0" role="tablist" aria-label="Choisir une fonctionnalité">
-    <div class="nf-halo" aria-hidden="true"></div>
-  </div>
-  <div class="nf-dots" id="nf-dots"></div>
-
   <div class="nf-body">
+    <div class="nf-picker">
+      <div class="nf-ring" id="nf-ring" tabindex="0" role="tablist" aria-label="Choisir une fonctionnalité">
+        <div class="nf-halo" aria-hidden="true"></div>
+      </div>
+      <div class="nf-dots" id="nf-dots"></div>
+    </div>
     <div class="nf-text" id="nf-text" role="tabpanel" aria-live="polite">
       <div class="nf-kicker" id="nf-kicker"></div>
       <h3 class="nf-name" id="nf-name"></h3>
@@ -309,18 +323,22 @@
 
   // Place les gemmes sur un anneau vu légèrement de dessus.
   function place() {
-    var w = ring.clientWidth, phone = w < 600;
-    var R = Math.min(w * (phone ? 0.4 : 0.36), 300);
-    // Anneau incliné : les gemmes de derrière remontent et restent visibles
-    // au-dessus de celle du premier plan ; le tout est recentré verticalement.
-    var lift = phone ? 70 : 96;
+    var w = ring.clientWidth, h = ring.clientHeight, phone = w < 600;
+    var vertical = h > w;                       // ordinateur : colonne étroite entre texte et capture
+    var R = vertical ? Math.min(h * 0.4, 230) : Math.min(w * (phone ? 0.4 : 0.36), 300);
+    // Anneau incliné : les gemmes de derrière se décalent (vers le haut, ou
+    // vers la droite en vertical) et restent visibles derrière celle du
+    // premier plan ; le tout est recentré.
+    var lift = vertical ? 44 : phone ? 70 : 96;
     for (var i = 0; i < N; i++) {
       var a = (i - rot) / N * Math.PI * 2;      // 0 = devant
-      var x = Math.sin(a) * R;
+      var along = Math.sin(a) * R;
       var z = Math.cos(a);                      // 1 devant, -1 derrière
       var depth = (z + 1) / 2;                  // 0..1
       var s = 0.42 + 0.58 * Math.pow(depth, 1.4);
-      var y = lift * 0.38 - (1 - depth) * lift;
+      var off = lift * 0.38 - (1 - depth) * lift;
+      var x = vertical ? -off : along;
+      var y = vertical ? along : off;
       var g = gems[i];
       g.style.transform = "translate3d(" + x.toFixed(1) + "px," + y.toFixed(1) + "px,0) scale(" + s.toFixed(3) + ")";
       g.style.zIndex = String(Math.round(depth * 100));
@@ -440,8 +458,8 @@
     if (b) { touch(); select(+b.getAttribute("data-i")); }
   });
   ring.addEventListener("keydown", function (e) {
-    if (e.key === "ArrowLeft") { e.preventDefault(); touch(); select(current - 1); gems[current].focus(); }
-    if (e.key === "ArrowRight") { e.preventDefault(); touch(); select(current + 1); gems[current].focus(); }
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); touch(); select(current - 1); gems[current].focus(); }
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); touch(); select(current + 1); gems[current].focus(); }
   });
 
   // Glisser du doigt, sur l'anneau ou sur la capture
