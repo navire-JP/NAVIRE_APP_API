@@ -41,6 +41,10 @@ BRAND_FILES: dict[str, str] = {
     # Icône des articles (format publié par les doctorants et l'équipe), 256 px
     # sur fond transparent, depuis « NAVIRE_Articles_icon (source).png ».
     "NAVIRE_Articles_icon.png": "NAVIRE_Articles_icon.png",
+    # Médaille « Encadrement certifié » (Prép'AdJuris, embeds/subscribe.html),
+    # 256 px carré sur fond transparent, depuis
+    # « NAVIRE_Certification_icon (source).png ».
+    "certification.png": "certification.png",
 }
 
 # Une semaine : ces fichiers ne changent qu'à un changement d'identité visuelle,

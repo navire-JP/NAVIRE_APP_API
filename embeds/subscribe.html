@@ -1,0 +1,1112 @@
+<!--
+  embeds/subscribe.html — page /subscribe (Embed HTML Framer)
+  ============================================================
+  Une seule page pour tout acheter sans la quitter :
+    1. Prép'AdJuris en premier, avec le formulaire d'inscription intégré
+       (niveau, matières, compte, code promo, récapitulatif, paiement Stripe).
+    2. Les abonnements NAVIRE AI (Free / Membre / Membre+), avec le même bloc
+       compte qui s'ouvre sur place pour un visiteur non connecté.
+
+  Connecté (navire_token du site) : le bloc compte disparaît, les matières déjà
+  suivies sont grisées, l'offre en cours est marquée.
+  Lien d'ambassadeur : /subscribe?ref=CODE est repris (inscription + paiement).
+
+  Les offres affichées suivent app/core/limits.py (PLAN_LIMITS),
+  app/core/navire_plans.py (prix) et app/core/prepa_adjuris_config.py
+  (matières, 20 € la séance). À mettre à jour ensemble.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<div id="navire-subscribe">
+  <div class="ns-sheet">
+
+    <!-- ══ Prép'AdJuris ════════════════════════════════════════ -->
+    <header class="ns-head">
+      <div class="ns-eyebrow"><span class="ns-dot"></span><strong>NAVIRE</strong><span class="ns-sep">·</span>AdJuris</div>
+      <h1 class="ns-title">Rejoins la Prép'AdJuris : un cours par semaine dans la matière de ton choix</h1>
+      <p class="ns-sub">Cours en petit groupe sur Discord, de la L1 au M1, avec des chargés de TD et des professionnels du droit. Tu t'inscris et tu paies ici, en deux minutes.</p>
+    </header>
+
+    <section class="ns-adjuris" id="ns-adjuris" aria-label="Inscription Prép'AdJuris">
+      <div class="ns-adj-pitch">
+        <div class="ns-price"><span class="ns-amount">20</span><span class="ns-unit">€ /séance, par matière</span></div>
+        <p class="ns-billing">20 € à l'inscription (ta prochaine séance), puis prélèvement en fin de mois selon les séances du mois.</p>
+        <ul class="ns-list">
+          <li><strong>1 séance</strong> d'une heure par semaine et par matière</li>
+          <li>Chargés de TD et professionnels du droit en exercice</li>
+          <li><strong>10 places</strong> par matière</li>
+          <li>Sujets, copies corrigées et fiches de méthode</li>
+          <li>Calendrier et espace Prépa sur NAVIRE</li>
+          <li><strong>NAVIRE Lib+</strong> inclus pendant ton inscription</li>
+        </ul>
+        <div class="ns-cert">
+          <img class="ns-cert-icon" src="https://navire-app-api.onrender.com/assets/certification.png" alt="" width="40" height="40" aria-hidden="true">
+          <div><strong>Encadrement certifié</strong><span>Chaque cours est animé par un enseignant vérifié par NAVIRE.</span></div>
+        </div>
+      </div>
+
+      <form class="ns-form" id="ns-adj-form" novalidate>
+        <fieldset class="ns-field">
+          <legend class="ns-label">Ton niveau</legend>
+          <div class="ns-levels" id="ns-levels"></div>
+        </fieldset>
+
+        <fieldset class="ns-field" id="ns-mat-field" hidden>
+          <legend class="ns-label">Matières</legend>
+          <div class="ns-matieres" id="ns-matieres"></div>
+          <p class="ns-hint">Tu peux en choisir plusieurs, elles seront payées ensemble.</p>
+        </fieldset>
+
+        <div class="ns-account" id="ns-adj-account"></div>
+
+        <div class="ns-field">
+          <label class="ns-label" for="ns-adj-promo">Code promo <span class="ns-opt">(optionnel)</span></label>
+          <input class="ns-input" id="ns-adj-promo" type="text" maxlength="50" placeholder="Ex : ADJURIS5"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <p class="ns-field-msg" id="ns-adj-promo-msg"></p>
+        </div>
+
+        <div class="ns-recap" id="ns-recap" hidden></div>
+
+        <div class="ns-error" id="ns-adj-error" role="alert"></div>
+        <button class="ns-btn" id="ns-adj-submit" type="submit">Choisis ton niveau</button>
+        <p class="ns-note">Paiement sécurisé par Stripe. Tu reçois ensuite ton accès Discord et ton espace Prépa.</p>
+      </form>
+
+      <div class="ns-done" id="ns-adj-done" role="status" aria-live="polite" hidden>
+        <div class="ns-done-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5L10 17.5L19 7" stroke="#A3AEFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <p class="ns-done-title">Presque terminé</p>
+        <p class="ns-done-sub" id="ns-adj-done-sub">Redirection vers le paiement sécurisé…</p>
+      </div>
+    </section>
+
+    <!-- ══ NAVIRE AI ═══════════════════════════════════════════ -->
+    <header class="ns-head ns-head-2">
+      <div class="ns-eyebrow"><span class="ns-dot"></span><strong>NAVIRE</strong><span class="ns-sep">·</span>NAVIRE AI</div>
+      <h2 class="ns-title ns-title-2">Ou révise en autonomie avec NAVIRE AI</h2>
+      <p class="ns-sub">QCM depuis tes PDF, flashcards, NAVIRE AI et NAVIRE Lib. Gratuit pour commencer, un abonnement pour lever les limites.</p>
+      <div class="ns-toggle" role="group" aria-label="Période de facturation">
+        <button type="button" class="ns-toggle-btn is-active" data-cycle="mensuel" aria-pressed="true">Mensuel</button>
+        <button type="button" class="ns-toggle-btn" data-cycle="annuel" aria-pressed="false">Annuel <span class="ns-save">-40 %</span></button>
+      </div>
+    </header>
+
+    <div class="ns-grid">
+      <article class="ns-card" data-plan="free">
+        <div class="ns-card-top"><h3 class="ns-name">Free</h3></div>
+        <div class="ns-price"><span class="ns-amount">0</span><span class="ns-unit">€ /mois</span></div>
+        <p class="ns-billing">Compte gratuit, sans carte bancaire</p>
+        <ul class="ns-list">
+          <li><strong>1 session</strong> de QCM par jour</li>
+          <li><strong>200</strong> flashcards</li>
+          <li><strong>1 PDF</strong> conservé 24 h</li>
+          <li>NAVIRE AI : <strong>3 questions</strong> par jour</li>
+          <li><strong>10 crédits</strong> par mois pour les modèles Avancé et Expert</li>
+          <li>NAVIRE Lib, ELO et classement</li>
+        </ul>
+        <button type="button" class="ns-btn ns-btn-ghost" data-action="free">Créer mon compte</button>
+        <p class="ns-msg" role="status"></p>
+      </article>
+
+      <article class="ns-card is-featured" data-plan="membre">
+        <div class="ns-card-top"><h3 class="ns-name">Membre</h3><span class="ns-tag">Populaire</span></div>
+        <div class="ns-price"><span class="ns-amount" data-m="9,99" data-a="5,99">9,99</span><span class="ns-unit">€ /mois</span></div>
+        <p class="ns-billing" data-m="Sans engagement, résiliable à tout moment" data-a="Soit 71,93 € facturés une fois par an">Sans engagement, résiliable à tout moment</p>
+        <ul class="ns-list">
+          <li>QCM <strong>illimités</strong></li>
+          <li><strong>500</strong> flashcards, générées depuis tes PDF</li>
+          <li><strong>7 PDF</strong> sans expiration</li>
+          <li>NAVIRE AI <strong>illimité</strong> (modèle Rapide)</li>
+          <li><strong>100 crédits</strong> par mois pour Avancé et Expert</li>
+          <li><strong>NAVIRE Lib+</strong> : tous les cours et le chat dans le cours</li>
+        </ul>
+        <button type="button" class="ns-btn" data-action="checkout">S'abonner</button>
+        <p class="ns-msg" role="status"></p>
+      </article>
+
+      <article class="ns-card" data-plan="membre+">
+        <div class="ns-card-top"><h3 class="ns-name">Membre+</h3><span class="ns-tag ns-tag-soft">Le plus complet</span></div>
+        <div class="ns-price"><span class="ns-amount" data-m="16,99" data-a="10,19">16,99</span><span class="ns-unit">€ /mois</span></div>
+        <p class="ns-billing" data-m="Sans engagement, résiliable à tout moment" data-a="Soit 122,33 € facturés une fois par an">Sans engagement, résiliable à tout moment</p>
+        <ul class="ns-list">
+          <li>QCM <strong>illimités</strong></li>
+          <li><strong>1 000</strong> flashcards, générées depuis tes PDF</li>
+          <li><strong>24 PDF</strong> sans expiration</li>
+          <li>NAVIRE AI <strong>illimité</strong> (modèle Rapide)</li>
+          <li><strong>300 crédits</strong> par mois pour Avancé et Expert</li>
+          <li><strong>NAVIRE Lib+</strong> et accès prioritaire aux nouveautés</li>
+        </ul>
+        <button type="button" class="ns-btn" data-action="checkout">S'abonner</button>
+        <p class="ns-msg" role="status"></p>
+      </article>
+    </div>
+
+    <!-- Panneau d'abonnement : compte + code promo, ouvert sur place -->
+    <section class="ns-plan-panel" id="ns-plan-panel" hidden aria-label="Abonnement NAVIRE AI">
+      <div class="ns-plan-head">
+        <p class="ns-plan-title" id="ns-plan-title"></p>
+        <button type="button" class="ns-link" id="ns-plan-close">Fermer</button>
+      </div>
+      <form class="ns-form ns-form-narrow" id="ns-plan-form" novalidate>
+        <div class="ns-account" id="ns-plan-account"></div>
+        <div class="ns-field">
+          <label class="ns-label" for="ns-plan-promo">Code promo <span class="ns-opt">(optionnel)</span></label>
+          <input class="ns-input" id="ns-plan-promo" type="text" maxlength="50" autocomplete="off"
+                 autocapitalize="characters" spellcheck="false">
+        </div>
+        <div class="ns-error" id="ns-plan-error" role="alert"></div>
+        <button class="ns-btn" id="ns-plan-submit" type="submit">Continuer vers le paiement</button>
+      </form>
+      <p class="ns-done-sub ns-plan-done" id="ns-plan-done" hidden></p>
+    </section>
+
+    <p class="ns-foot" id="ns-foot">Déjà un compte ? <a href="/login" target="_top">Se connecter</a></p>
+    <p class="ns-legal">Paiement sécurisé par Stripe · Un programme <strong>NAVIRE</strong></p>
+  </div>
+</div>
+
+<style>
+  #navire-subscribe {
+    --ink: #FFFFFF;
+    --on-ink: #0A0E1F;
+    --accent-text: #A3AEFF;
+    --ink-soft: rgba(255,255,255,0.62);
+    --ink-faint: rgba(255,255,255,0.14);
+    --accent: #5B6FFF;
+    --danger: #FF8A98;
+    --ok: #4ECDC4;
+    --warn: #FFD166;
+    container-type: inline-size;
+    width: 100%;
+    font-family: 'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--ink);
+    text-align: left;
+    box-sizing: border-box;
+  }
+  #navire-subscribe *, #navire-subscribe *::before, #navire-subscribe *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  #navire-subscribe [hidden] { display: none !important; }
+
+  #navire-subscribe .ns-sheet { width: 100%; padding: 24px 0; }
+  #navire-subscribe .ns-head { text-align: center; margin-bottom: 28px; }
+  #navire-subscribe .ns-head-2 { margin-top: 64px; }
+
+  #navire-subscribe .ns-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--ink-soft); margin-bottom: 16px;
+  }
+  #navire-subscribe .ns-eyebrow strong { color: var(--ink); font-weight: 700; }
+  #navire-subscribe .ns-dot { width: 5px; height: 5px; border-radius: 99px; background: var(--accent); flex-shrink: 0; }
+  #navire-subscribe .ns-sep { color: var(--ink-faint); }
+
+  #navire-subscribe .ns-title {
+    font-size: 30px; font-weight: 700; letter-spacing: -0.8px; line-height: 1.28;
+    max-width: 600px; margin: 0 auto 12px;
+  }
+  #navire-subscribe .ns-title-2 { font-size: 25px; }
+  #navire-subscribe .ns-sub {
+    font-size: 14.5px; line-height: 1.6; color: var(--ink-soft);
+    max-width: 520px; margin: 0 auto 24px;
+  }
+
+  /* ── Bloc AdJuris ─────────────────────────────── */
+  #navire-subscribe .ns-adjuris {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 36px;
+    background: rgba(91,111,255,0.08); border: 1px solid var(--accent); border-radius: 22px;
+    box-shadow: 0 0 0 3px rgba(91,111,255,0.14);
+    padding: 30px 28px;
+  }
+  #navire-subscribe .ns-adj-pitch .ns-list { margin-bottom: 18px; flex: none; }
+  #navire-subscribe .ns-cert {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--ink-faint); border-radius: 14px; padding: 12px 14px;
+  }
+  #navire-subscribe .ns-cert-icon { width: 40px; height: 40px; flex-shrink: 0; object-fit: contain; }
+  #navire-subscribe .ns-cert strong { display: block; font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  #navire-subscribe .ns-cert span { display: block; font-size: 12px; line-height: 1.45; color: var(--ink-soft); }
+
+  /* ── Formulaires ──────────────────────────────── */
+  #navire-subscribe .ns-form { min-width: 0; }
+  #navire-subscribe .ns-form-narrow { max-width: 440px; margin: 0 auto; }
+  #navire-subscribe .ns-field { margin-bottom: 16px; border: 0; min-width: 0; }
+  #navire-subscribe .ns-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #navire-subscribe .ns-label { display: block; font-size: 12px; font-weight: 600; letter-spacing: 0.2px; margin-bottom: 7px; }
+  #navire-subscribe .ns-opt { font-weight: 400; color: var(--ink-soft); }
+  #navire-subscribe .ns-input {
+    width: 100%; font-family: inherit; font-size: 14.5px; color: var(--ink);
+    background: rgba(255,255,255,0.04); border: 1px solid var(--ink-faint); border-radius: 12px; padding: 12px 14px;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  #navire-subscribe .ns-input::placeholder { color: rgba(255,255,255,0.32); }
+  #navire-subscribe .ns-input:focus { outline: none; background: rgba(255,255,255,0.07); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,111,255,0.18); }
+  #navire-subscribe .ns-input.is-invalid { border-color: var(--danger); }
+  #navire-subscribe .ns-input.is-applied { border-color: var(--ok); }
+  #navire-subscribe .ns-hint { font-size: 11.5px; line-height: 1.5; color: var(--ink-soft); margin-top: 7px; }
+  #navire-subscribe .ns-field-msg { display: none; font-size: 12px; font-weight: 500; line-height: 1.4; margin-top: 7px; }
+  #navire-subscribe .ns-field-msg.is-visible { display: block; }
+  #navire-subscribe .ns-field-msg.is-ok { color: var(--ok); }
+  #navire-subscribe .ns-field-msg.is-err { color: var(--danger); }
+
+  #navire-subscribe .ns-levels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  #navire-subscribe .ns-pill {
+    font-family: inherit; font-size: 14px; font-weight: 600; color: var(--ink-soft);
+    background: rgba(255,255,255,0.04); border: 1px solid var(--ink-faint); border-radius: 99px; padding: 10px 0;
+    cursor: pointer; transition: all .15s ease;
+  }
+  #navire-subscribe .ns-pill:hover { color: var(--ink); border-color: rgba(255,255,255,0.3); }
+  #navire-subscribe .ns-pill.is-active { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+  #navire-subscribe .ns-pill:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,111,255,0.35); }
+
+  #navire-subscribe .ns-matieres { display: flex; flex-direction: column; gap: 8px; }
+  #navire-subscribe .ns-mat {
+    display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+    font-family: inherit; font-size: 14px; font-weight: 500; color: var(--ink);
+    background: rgba(255,255,255,0.04); border: 1px solid var(--ink-faint); border-radius: 12px; padding: 11px 14px;
+    cursor: pointer; transition: all .15s ease;
+  }
+  #navire-subscribe .ns-mat:hover { border-color: rgba(255,255,255,0.3); }
+  #navire-subscribe .ns-mat:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,111,255,0.35); }
+  #navire-subscribe .ns-mat.is-on { border-color: var(--accent); background: rgba(91,111,255,0.14); }
+  #navire-subscribe .ns-mat[disabled] { cursor: default; opacity: .55; }
+  #navire-subscribe .ns-mat-tag { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--ok); }
+  #navire-subscribe .ns-tick {
+    width: 18px; height: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid rgba(255,255,255,0.3); border-radius: 6px; transition: all .15s ease;
+  }
+  #navire-subscribe .ns-tick svg { opacity: 0; }
+  #navire-subscribe .ns-mat.is-on .ns-tick { background: var(--accent); border-color: var(--accent); }
+  #navire-subscribe .ns-mat.is-on .ns-tick svg { opacity: 1; }
+
+  /* Bloc compte */
+  #navire-subscribe .ns-account { margin-bottom: 2px; }
+  #navire-subscribe .ns-logged {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 13px; color: var(--ink-soft);
+    background: rgba(78,205,196,0.08); border: 1px solid rgba(78,205,196,0.3); border-radius: 12px;
+    padding: 11px 14px; margin-bottom: 16px;
+  }
+  #navire-subscribe .ns-logged strong { color: var(--ink); font-weight: 600; }
+  #navire-subscribe .ns-acc-note { display: none; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-soft); margin-bottom: 8px; }
+  #navire-subscribe .ns-acc-note.is-visible { display: flex; }
+  #navire-subscribe .ns-acc-note i { width: 6px; height: 6px; border-radius: 99px; background: var(--ok); flex-shrink: 0; }
+  #navire-subscribe .ns-acc-note.is-known i { background: var(--accent); }
+  #navire-subscribe .ns-meter { display: none; gap: 4px; height: 4px; margin-top: 9px; }
+  #navire-subscribe .ns-meter.is-visible { display: flex; }
+  #navire-subscribe .ns-meter span { flex: 1; border-radius: 99px; background: var(--ink-faint); }
+  #navire-subscribe .ns-meter.s1 span:nth-child(1) { background: var(--danger); }
+  #navire-subscribe .ns-meter.s2 span:nth-child(-n+2) { background: var(--warn); }
+  #navire-subscribe .ns-meter.s3 span { background: var(--ok); }
+
+  /* Récapitulatif */
+  #navire-subscribe .ns-recap {
+    background: rgba(255,255,255,0.04); border: 1px solid var(--ink-faint); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.5;
+  }
+  #navire-subscribe .ns-recap-row { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-soft); }
+  #navire-subscribe .ns-recap-row + .ns-recap-row { margin-top: 5px; }
+  #navire-subscribe .ns-recap-row strong { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  #navire-subscribe .ns-recap-main { font-size: 14.5px; color: var(--ink); padding-bottom: 9px; margin-bottom: 9px; border-bottom: 1px solid var(--ink-faint); }
+  #navire-subscribe .ns-recap details { margin-top: 10px; }
+  #navire-subscribe .ns-recap summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--accent-text); }
+  #navire-subscribe .ns-recap-text { white-space: pre-line; font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+  #navire-subscribe .ns-recap-err { color: var(--danger); }
+
+  #navire-subscribe .ns-error {
+    display: none; font-size: 13px; font-weight: 500; line-height: 1.45; color: var(--danger);
+    background: rgba(255,138,152,0.08); border: 1px solid rgba(255,138,152,0.3); border-radius: 10px;
+    padding: 10px 13px; margin-bottom: 14px;
+  }
+  #navire-subscribe .ns-error.is-visible { display: block; }
+  #navire-subscribe .ns-note { font-size: 11.5px; line-height: 1.5; color: var(--ink-soft); text-align: center; margin-top: 10px; }
+
+  #navire-subscribe .ns-done { text-align: center; align-self: center; }
+  #navire-subscribe .ns-done-icon {
+    width: 48px; height: 48px; border-radius: 99px; background: rgba(91,111,255,0.18);
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;
+  }
+  #navire-subscribe .ns-done-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  #navire-subscribe .ns-done-sub { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; }
+  #navire-subscribe .ns-done-sub a { color: var(--ink); font-weight: 600; }
+
+  /* ── Bascule mensuel / annuel ─────────────────── */
+  #navire-subscribe .ns-toggle {
+    display: inline-flex; gap: 4px; padding: 4px;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--ink-faint); border-radius: 99px;
+  }
+  #navire-subscribe .ns-toggle-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: var(--ink-soft);
+    background: transparent; border: 0; border-radius: 99px; padding: 9px 18px; cursor: pointer; transition: all .15s ease;
+  }
+  #navire-subscribe .ns-toggle-btn:hover { color: var(--ink); }
+  #navire-subscribe .ns-toggle-btn.is-active { background: var(--ink); color: var(--on-ink); }
+  #navire-subscribe .ns-toggle-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,111,255,0.3); }
+  #navire-subscribe .ns-save { font-size: 11px; font-weight: 700; color: var(--ok); background: rgba(78,205,196,0.14); border-radius: 99px; padding: 2px 7px; }
+  #navire-subscribe .ns-toggle-btn.is-active .ns-save { color: #127A73; background: rgba(78,205,196,0.2); }
+
+  /* ── Cartes d'offres ──────────────────────────── */
+  #navire-subscribe .ns-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  #navire-subscribe .ns-card {
+    display: flex; flex-direction: column;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--ink-faint); border-radius: 20px; padding: 24px 22px 22px;
+  }
+  #navire-subscribe .ns-card.is-featured { border-color: rgba(91,111,255,0.6); }
+  #navire-subscribe .ns-card.is-current { border-color: var(--ok); background: rgba(78,205,196,0.06); }
+  #navire-subscribe .ns-card.is-selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,111,255,0.18); }
+  #navire-subscribe .ns-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; margin-bottom: 16px; }
+  #navire-subscribe .ns-name { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
+  #navire-subscribe .ns-tag { font-size: 11px; font-weight: 600; color: var(--accent-text); white-space: nowrap; background: rgba(91,111,255,0.2); border-radius: 99px; padding: 3px 9px; }
+  #navire-subscribe .ns-tag-soft { color: var(--ink-soft); background: rgba(255,255,255,0.08); }
+  #navire-subscribe .ns-tag-ok { color: var(--ok); background: rgba(78,205,196,0.14); }
+
+  #navire-subscribe .ns-price { display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px; }
+  #navire-subscribe .ns-amount { font-size: 36px; font-weight: 800; letter-spacing: -1.4px; line-height: 1.1; }
+  #navire-subscribe .ns-unit { font-size: 13px; font-weight: 500; color: var(--ink-soft); }
+  #navire-subscribe .ns-billing { font-size: 12px; line-height: 1.5; color: var(--ink-soft); min-height: 36px; margin-bottom: 16px; }
+
+  #navire-subscribe .ns-list {
+    list-style: none; display: flex; flex-direction: column; gap: 10px;
+    border-top: 1px solid var(--ink-faint); padding-top: 16px; margin-bottom: 22px; flex: 1;
+  }
+  #navire-subscribe .ns-list li { position: relative; padding-left: 15px; font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); }
+  #navire-subscribe .ns-list li::before { content: ""; position: absolute; left: 0; top: 7px; width: 5px; height: 5px; border-radius: 99px; background: var(--accent); }
+  #navire-subscribe .ns-list strong { color: var(--ink); font-weight: 600; }
+
+  #navire-subscribe .ns-btn {
+    display: block; width: 100%; font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--on-ink);
+    background: var(--ink); border: 1px solid var(--ink); border-radius: 99px; padding: 13px 18px;
+    cursor: pointer; text-align: center; text-decoration: none;
+    transition: opacity .15s ease, background .15s ease, color .15s ease;
+  }
+  #navire-subscribe .ns-btn:hover { opacity: .86; }
+  #navire-subscribe .ns-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,111,255,0.3); }
+  #navire-subscribe .ns-btn-ghost { background: transparent; color: var(--ink); border-color: rgba(255,255,255,0.28); }
+  #navire-subscribe .ns-btn-ghost:hover { opacity: 1; background: rgba(255,255,255,0.06); }
+  #navire-subscribe .ns-btn[disabled] { cursor: default; opacity: 1; color: var(--ink-soft); background: rgba(255,255,255,0.06); border-color: transparent; }
+  #navire-subscribe .ns-msg { display: none; font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--danger); margin-top: 9px; text-align: center; }
+  #navire-subscribe .ns-msg.is-visible { display: block; }
+  #navire-subscribe .ns-link { font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  #navire-subscribe .ns-link:hover { color: var(--ink); }
+
+  /* Panneau d'abonnement */
+  #navire-subscribe .ns-plan-panel {
+    margin-top: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--accent); border-radius: 20px; padding: 24px 22px;
+  }
+  #navire-subscribe .ns-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 440px; margin: 0 auto 18px; }
+  #navire-subscribe .ns-plan-title { font-size: 15px; font-weight: 700; }
+  #navire-subscribe .ns-plan-done { text-align: center; }
+
+  #navire-subscribe .ns-foot { font-size: 13px; color: var(--ink-soft); text-align: center; margin-top: 24px; }
+  #navire-subscribe .ns-foot a { color: var(--ink); font-weight: 600; text-decoration: none; border-bottom: 1px solid var(--ink-faint); }
+  #navire-subscribe .ns-legal { font-size: 11.5px; color: var(--ink-soft); text-align: center; margin-top: 8px; }
+  #navire-subscribe .ns-legal strong { color: var(--ink); }
+
+  @container (max-width: 860px) {
+    #navire-subscribe .ns-adjuris { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 26px 22px; }
+    #navire-subscribe .ns-card { padding: 20px 16px 18px; }
+    #navire-subscribe .ns-amount { font-size: 30px; }
+  }
+  @container (max-width: 680px) {
+    #navire-subscribe .ns-grid { grid-template-columns: minmax(0, 1fr); }
+    #navire-subscribe .ns-card { padding: 22px 20px 20px; }
+    #navire-subscribe .ns-billing { min-height: 0; }
+    #navire-subscribe .ns-title { font-size: 24px; letter-spacing: -0.6px; }
+    #navire-subscribe .ns-title-2 { font-size: 21px; }
+    #navire-subscribe .ns-head-2 { margin-top: 48px; }
+  }
+  @container (max-width: 420px) {
+    #navire-subscribe .ns-sheet { padding: 16px 0; }
+    #navire-subscribe .ns-adjuris { padding: 22px 16px; }
+    #navire-subscribe .ns-row { grid-template-columns: 1fr; gap: 0; }
+    #navire-subscribe .ns-toggle-btn { padding: 9px 13px; }
+    #navire-subscribe .ns-plan-panel { padding: 20px 16px; }
+  }
+</style>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ═══ CONFIG ═══════════════════════════════════════════════ */
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",     // jeton partagé avec les autres embeds
+    REF_KEY: "navire_ref",         // code ambassadeur mémorisé (/rejoindre)
+    BILLING_KEY: "navire_billing",
+    LOGIN_URL: "/login"
+  };
+  var CYCLE_API = { mensuel: "monthly", annuel: "annual" };
+  var PLAN_NAMES = { membre: "Membre", "membre+": "Membre+" };
+
+  /* Clés identiques à PREPA_PRICES (app/core/prepa_adjuris_config.py). */
+  var NIVEAUX = ["L1", "L2", "L3", "M1"];
+  var MATIERES = {
+    L1: [["L1_droit_constit", "Droit constitutionnel"], ["L1_intro_au_droit", "Introduction au droit"], ["L1_droit_ijae", "Droit IJAE"]],
+    L2: [["L2_droit_administratif", "Droit administratif"], ["L2_droit_des_obligations", "Droit des obligations"], ["L2_droit_penal", "Droit pénal"]],
+    L3: [["L3_droit_des_societes", "Droit des sociétés"], ["L3_droit_des_suretes", "Droit des sûretés"], ["L3_droit_des_contrats_speciaux", "Droit des contrats spéciaux"]],
+    M1: [["M1_distribution", "Distribution"]]
+  };
+
+  /* Politique de création de compte (app/schemas/auth.py::PWD_REGEX). */
+  var PWD_REGEX = /^(?=.*[A-Z])(?=.*(\d|[^\w\s])).{8,72}$/;
+  var EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+  var root = document.getElementById("navire-subscribe");
+  if (!root) return;
+  function $(id) { return document.getElementById(id); }
+
+  var state = {
+    token: null, user: null, plan: null,     // session du site (navire_token)
+    enrolled: [],                            // matières AdJuris déjà actives
+    ref: null,
+    cycle: "mensuel",
+    niveau: null, matieres: [],
+    recapSeq: 0, recapOk: false, totalCents: null,
+    selectedPlan: null
+  };
+
+  /* ═══ Utilitaires ══════════════════════════════════════════ */
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function store(method, key, value) {
+    try { return window.localStorage[method](key, value); } catch (e) { return null; }
+  }
+  function euros(cents) {
+    var v = (cents || 0) / 100;
+    return (v % 1 === 0 ? String(v) : v.toFixed(2).replace(".", ",")) + " €";
+  }
+  function moisFr(isoDate) {
+    try {
+      return new Date(isoDate).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" });
+    } catch (e) { return isoDate; }
+  }
+  /* Erreur API → { message, code } ; seuls les 400/403 portent un texte destiné à l'élève. */
+  function apiError(status, body) {
+    var d = body && body.detail;
+    var e = new Error();
+    e.status = status;
+    if (status >= 400 && status < 500 && status !== 404) {
+      if (typeof d === "string") e.message = d;
+      else if (d && typeof d.message === "string") { e.message = d.message; e.code = d.code; }
+      else if (Array.isArray(d)) e.message = "Vérifie les champs du formulaire.";
+    }
+    if (!e.message) {
+      console.error("[NAVIRE subscribe] HTTP " + status, body);
+      e.message = "Le service est momentanément indisponible. Réessaie dans quelques minutes.";
+    }
+    return e;
+  }
+  function api(method, path, body, token) {
+    var h = { "Content-Type": "application/json" };
+    if (token) h.Authorization = "Bearer " + token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) throw apiError(r.status, j);
+          return j;
+        });
+      }, function () {
+        throw new Error("Connexion impossible. Vérifie ta connexion et réessaie.");
+      });
+  }
+  /* Stripe Checkout refuse d'être affiché dans une iframe : on navigue la
+     fenêtre principale ; sinon un lien manuel prend le relais. */
+  function go(url) {
+    try {
+      if (window.top && window.top !== window.self) { window.top.location.href = url; return true; }
+    } catch (e) {
+      return !!window.open(url, "_blank", "noopener");
+    }
+    window.location.href = url;
+    return true;
+  }
+  function readRef() {
+    var sources = [];
+    try { sources.push(window.location.search); } catch (e) {}
+    try { sources.push(window.top.location.search); } catch (e) {}
+    for (var i = 0; i < sources.length; i++) {
+      var m = /[?&]ref=([^&#]+)/.exec(sources[i] || "");
+      if (m) { var code = decodeURIComponent(m[1]).trim().slice(0, 40); store("setItem", CONFIG.REF_KEY, code); return code; }
+    }
+    return store("getItem", CONFIG.REF_KEY) || null;
+  }
+  function busy(btn, on, label) {
+    btn.disabled = on;
+    if (label) btn.textContent = label;
+  }
+  function showError(box, msg) { box.textContent = msg; box.classList.add("is-visible"); }
+  function hideError(box) { box.textContent = ""; box.classList.remove("is-visible"); }
+
+  /* ═══ Bloc compte (partagé AdJuris / abonnements) ══════════
+     Connecté : simple rappel du compte. Sinon : prénom, nom, email, mot de
+     passe ; l'email est vérifié à la sortie du champ pour basculer entre
+     connexion (un champ) et création (confirmation + force). */
+  function AccountBlock(container, prefix) {
+    var self = this;
+    this.exists = null;       // null inconnu, true compte existant, false nouveau
+    this.checkedEmail = null;
+    this.container = container;
+    this.prefix = prefix;
+
+    this.render = function () {
+      if (state.token) {
+        var who = state.user ? (state.user.username || state.user.email) : "ton compte NAVIRE";
+        container.innerHTML =
+          '<div class="ns-logged"><span>Connecté : <strong>' + esc(who) + '</strong></span>' +
+          '<button type="button" class="ns-link" data-logout>Changer de compte</button></div>';
+        container.querySelector("[data-logout]").addEventListener("click", logout);
+        return;
+      }
+      var p = prefix;
+      container.innerHTML =
+        '<div class="ns-row">' +
+          '<div class="ns-field"><label class="ns-label" for="' + p + '-prenom">Prénom</label>' +
+          '<input class="ns-input" id="' + p + '-prenom" type="text" autocomplete="given-name" maxlength="80" placeholder="Camille"></div>' +
+          '<div class="ns-field"><label class="ns-label" for="' + p + '-nom">Nom</label>' +
+          '<input class="ns-input" id="' + p + '-nom" type="text" autocomplete="family-name" maxlength="80" placeholder="Durand"></div>' +
+        '</div>' +
+        '<div class="ns-field"><label class="ns-label" for="' + p + '-email">Email</label>' +
+        '<input class="ns-input" id="' + p + '-email" type="email" autocomplete="email" maxlength="320" placeholder="camille.durand@etu.fr"></div>' +
+        '<div class="ns-field">' +
+          '<p class="ns-acc-note" id="' + p + '-note"><i></i><span></span></p>' +
+          '<label class="ns-label" for="' + p + '-pwd">Mot de passe</label>' +
+          '<input class="ns-input" id="' + p + '-pwd" type="password" autocomplete="new-password" maxlength="72" placeholder="••••••••">' +
+          '<div class="ns-meter" id="' + p + '-meter"><span></span><span></span><span></span></div>' +
+          '<p class="ns-hint" id="' + p + '-hint">8 caractères minimum, avec une majuscule et un chiffre ou un symbole.</p>' +
+          '<p class="ns-field-msg" id="' + p + '-pwd-msg"></p>' +
+        '</div>' +
+        '<div class="ns-field" id="' + p + '-confirm-field" hidden>' +
+          '<label class="ns-label" for="' + p + '-confirm">Confirme le mot de passe</label>' +
+          '<input class="ns-input" id="' + p + '-confirm" type="password" autocomplete="new-password" maxlength="72" placeholder="••••••••">' +
+          '<p class="ns-field-msg" id="' + p + '-confirm-msg"></p>' +
+        '</div>';
+
+      var email = $(p + "-email"), pwd = $(p + "-pwd"), confirm = $(p + "-confirm");
+      email.addEventListener("input", function () { self.exists = null; self.checkedEmail = null; self.updateUI(); });
+      email.addEventListener("blur", function () {
+        var v = email.value.trim();
+        if (EMAIL_REGEX.test(v)) self.check(v);
+      });
+      pwd.addEventListener("input", function () { self.clearField("pwd"); self.updateMeter(); });
+      confirm.addEventListener("input", function () { self.clearField("confirm"); });
+      self.updateUI();
+    };
+
+    this.clearField = function (name) {
+      var input = $(prefix + "-" + name), msg = $(prefix + "-" + name + "-msg");
+      if (input) input.classList.remove("is-invalid");
+      if (msg) { msg.textContent = ""; msg.classList.remove("is-visible", "is-err"); }
+    };
+    this.fieldError = function (name, text) {
+      var input = $(prefix + "-" + name), msg = $(prefix + "-" + name + "-msg");
+      if (input) { input.classList.add("is-invalid"); input.focus(); }
+      if (msg) { msg.textContent = text; msg.classList.add("is-visible", "is-err"); }
+    };
+
+    this.check = function (email) {
+      if (self.exists !== null && self.checkedEmail === email) return Promise.resolve(self.exists);
+      return fetch(CONFIG.API + "/auth/email-exists?email=" + encodeURIComponent(email))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (b) { return b ? !!b.exists : null; })
+        .catch(function () { return null; })
+        .then(function (exists) {
+          var current = $(prefix + "-email");
+          if (!current || current.value.trim() !== email) return exists;
+          self.exists = exists; self.checkedEmail = email; self.updateUI();
+          return exists;
+        });
+    };
+
+    this.updateUI = function () {
+      var note = $(prefix + "-note"); if (!note) return;
+      var hint = $(prefix + "-hint"), pwd = $(prefix + "-pwd"), cf = $(prefix + "-confirm-field");
+      note.classList.remove("is-visible", "is-known");
+      if (self.exists === true) {
+        note.querySelector("span").textContent = "Compte existant : entre son mot de passe pour continuer.";
+        note.classList.add("is-visible", "is-known");
+        pwd.setAttribute("autocomplete", "current-password");
+        hint.textContent = "Le mot de passe de ton compte NAVIRE.";
+        cf.hidden = true;
+      } else if (self.exists === false) {
+        note.querySelector("span").textContent = "Nouveau compte : choisis un mot de passe.";
+        note.classList.add("is-visible");
+        pwd.setAttribute("autocomplete", "new-password");
+        hint.textContent = "8 caractères minimum, avec une majuscule et un chiffre ou un symbole.";
+        cf.hidden = false;
+      } else {
+        hint.textContent = "8 caractères minimum, avec une majuscule et un chiffre ou un symbole.";
+        cf.hidden = true;
+      }
+      self.updateMeter();
+    };
+
+    this.updateMeter = function () {
+      var meter = $(prefix + "-meter"); if (!meter) return;
+      var pw = $(prefix + "-pwd").value;
+      meter.className = "ns-meter";
+      if (self.exists !== false || !pw) return;
+      var cats = (/[a-z]/.test(pw) ? 1 : 0) + (/[A-Z]/.test(pw) ? 1 : 0) + (/\d/.test(pw) ? 1 : 0) + (/[^\w\s]/.test(pw) ? 1 : 0);
+      var score = pw.length < 8 ? 1 : (pw.length >= 12 && cats >= 3) ? 3 : cats >= 2 ? 2 : 1;
+      meter.classList.add("is-visible", "s" + score);
+    };
+
+    /* Vérifications locales. Retourne un message d'erreur (déjà placé) ou null. */
+    this.validate = function (errorBox) {
+      if (state.token) return null;
+      var p = prefix;
+      var prenom = $(p + "-prenom"), nom = $(p + "-nom"), email = $(p + "-email"), pwd = $(p + "-pwd");
+      [prenom, nom, email].forEach(function (el) { el.classList.remove("is-invalid"); });
+      function fail(el, msg) { el.classList.add("is-invalid"); el.focus(); showError(errorBox, msg); return msg; }
+      if (!prenom.value.trim()) return fail(prenom, "Indique ton prénom.");
+      if (!nom.value.trim()) return fail(nom, "Indique ton nom.");
+      if (!EMAIL_REGEX.test(email.value.trim())) return fail(email, "Indique une adresse email valide.");
+      if (pwd.value.length < 8) { self.fieldError("pwd", "Le mot de passe doit faire au moins 8 caractères."); return "pwd"; }
+      return null;
+    };
+
+    /* Connexion ou création du compte. Promise<token>. Le jeton reste en
+       mémoire : l'écrire dans le localStorage du site déclenche le script qui
+       renvoie un utilisateur connecté vers /home, et cette redirection
+       gagnerait la course contre celle vers Stripe. */
+    this.authenticate = function () {
+      if (state.token) return Promise.resolve(state.token);
+      var p = prefix;
+      var prenom = $(p + "-prenom").value.trim(), nom = $(p + "-nom").value.trim();
+      var email = $(p + "-email").value.trim(), password = $(p + "-pwd").value;
+
+      return self.check(email).then(function (exists) {
+        if (exists === false) {
+          if (!PWD_REGEX.test(password)) {
+            var weak = new Error("Mot de passe trop faible : ajoute une majuscule et un chiffre ou un symbole.");
+            weak.field = "pwd"; throw weak;
+          }
+          if ($(p + "-confirm").value !== password) {
+            var mismatch = new Error("Les deux mots de passe ne correspondent pas.");
+            mismatch.field = "confirm"; throw mismatch;
+          }
+          return register();
+        }
+        // Compte existant (ou statut inconnu) : connexion d'abord, quel que
+        // soit l'âge du mot de passe ; création seulement si elle échoue.
+        return api("POST", "/auth/login", { email: email, password: password })
+          .then(function (r) { return r; }, function (err) {
+            if (exists === true) {
+              var wrong = new Error(err.status === 401 || err.status === 400 || err.status === 422
+                ? "Mot de passe incorrect pour ce compte." : err.message);
+              wrong.field = "pwd"; throw wrong;
+            }
+            return register();
+          });
+      }).then(function (r) {
+        if (!r || !r.access_token) throw new Error("Connexion impossible. Réessaie dans un instant.");
+        return r.access_token;
+      });
+
+      function register() {
+        var username = (prenom + " " + nom).replace(/\s+/g, " ").trim();
+        while (username.length < 3) username += "_";
+        return api("POST", "/auth/register", {
+          email: email, password: password, username: username.slice(0, 64),
+          newsletter_opt_in: false, referral_code: state.ref || null
+        }).catch(function (err) {
+          var e = new Error(err.message === "Email already registered"
+            ? "Un compte existe déjà avec cet email : indique son mot de passe."
+            : err.message);
+          if (err.status === 400) e.field = "pwd";
+          throw e;
+        });
+      }
+    };
+
+    /* Place une erreur d'authentification au bon endroit. */
+    this.showAuthError = function (err, errorBox) {
+      if (err.field === "pwd" || err.field === "confirm") self.fieldError(err.field, err.message);
+      else showError(errorBox, err.message);
+    };
+  }
+
+  function logout() {
+    store("removeItem", CONFIG.TOKEN_KEY);
+    state.token = null; state.user = null; state.plan = null; state.enrolled = [];
+    adjAccount.render(); planAccount.render();
+    renderMatieres(); renderPlans(); refreshAdjButton();
+  }
+
+  /* ═══ Prép'AdJuris ═════════════════════════════════════════ */
+  var adjForm = $("ns-adj-form"), adjError = $("ns-adj-error"), adjSubmit = $("ns-adj-submit");
+  var promoEl = $("ns-adj-promo"), promoMsg = $("ns-adj-promo-msg"), recapEl = $("ns-recap");
+  var adjAccount = new AccountBlock($("ns-adj-account"), "ns-adj");
+  var TICK = '<span class="ns-tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+
+  function renderLevels() {
+    $("ns-levels").innerHTML = NIVEAUX.map(function (n) {
+      return '<button type="button" class="ns-pill' + (state.niveau === n ? " is-active" : "") +
+             '" data-niveau="' + n + '" aria-pressed="' + (state.niveau === n) + '">' + n + '</button>';
+    }).join("");
+  }
+
+  function renderMatieres() {
+    var items = MATIERES[state.niveau] || [];
+    $("ns-mat-field").hidden = !items.length;
+    $("ns-matieres").innerHTML = items.map(function (m) {
+      var done = state.enrolled.indexOf(m[0]) >= 0;
+      var on = state.matieres.indexOf(m[0]) >= 0;
+      return '<button type="button" class="ns-mat' + (on ? " is-on" : "") + '" data-matiere="' + m[0] + '"' +
+             (done ? " disabled" : "") + ' aria-pressed="' + on + '">' + TICK + esc(m[1]) +
+             (done ? '<span class="ns-mat-tag">Déjà inscrit</span>' : "") + '</button>';
+    }).join("");
+  }
+
+  function refreshAdjButton() {
+    if (adjSubmit.disabled && adjSubmit.getAttribute("aria-busy") === "true") return;
+    if (!state.niveau) adjSubmit.textContent = "Choisis ton niveau";
+    else if (!state.matieres.length) adjSubmit.textContent = "Choisis au moins une matière";
+    else if (state.recapOk && state.totalCents != null) {
+      adjSubmit.textContent = state.totalCents > 0 ? "Payer " + euros(state.totalCents) + " et réserver ma place" : "Réserver ma place";
+    } else adjSubmit.textContent = "Continuer vers le paiement";
+  }
+
+  $("ns-levels").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-niveau]"); if (!b) return;
+    if (state.niveau !== b.getAttribute("data-niveau")) {
+      state.niveau = b.getAttribute("data-niveau");
+      var free = (MATIERES[state.niveau] || []).filter(function (m) { return state.enrolled.indexOf(m[0]) < 0; });
+      state.matieres = free.length === 1 ? [free[0][0]] : [];   // une seule matière : cochée d'office
+    }
+    hideError(adjError);
+    renderLevels(); renderMatieres(); updateRecap();
+  });
+
+  $("ns-matieres").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-matiere]"); if (!b || b.disabled) return;
+    var key = b.getAttribute("data-matiere"), i = state.matieres.indexOf(key);
+    if (i >= 0) state.matieres.splice(i, 1); else state.matieres.push(key);
+    hideError(adjError);
+    renderMatieres(); updateRecap();
+  });
+
+  var promoTimer = null;
+  promoEl.addEventListener("input", function () {
+    promoEl.classList.remove("is-invalid", "is-applied");
+    promoMsg.className = "ns-field-msg";
+    clearTimeout(promoTimer);
+    promoTimer = setTimeout(updateRecap, 500);
+  });
+
+  /* Devis public (/prepa/adjuris/echeancier) : montant du jour, prélèvements
+     à venir, et vérification du code promo sans le consommer. */
+  function updateRecap() {
+    var keys = state.matieres.slice();
+    var promo = promoEl.value.trim().toUpperCase();
+    var seq = ++state.recapSeq;
+    state.recapOk = false; state.totalCents = null;
+    refreshAdjButton();
+    if (!keys.length) { recapEl.hidden = true; return; }
+
+    recapEl.hidden = false;
+    recapEl.innerHTML = '<div class="ns-recap-row">Calcul de ton échéancier…</div>';
+    var qs = "?matieres=" + encodeURIComponent(keys.join(",")) + (promo ? "&promo_code=" + encodeURIComponent(promo) : "");
+
+    api("GET", "/prepa/adjuris/echeancier" + qs).then(function (r) {
+      if (seq !== state.recapSeq) return;
+      state.recapOk = true;
+      state.totalCents = r.inscription ? r.inscription.total_cents : null;
+      if (promo) {
+        promoEl.classList.add("is-applied");
+        promoMsg.textContent = "Code appliqué : " + euros(r.inscription.par_matiere_cents) + " par matière à l'inscription.";
+        promoMsg.className = "ns-field-msg is-visible is-ok";
+      }
+      var rows = '<div class="ns-recap-row ns-recap-main"><span>Aujourd\'hui</span><strong>' + euros(state.totalCents) + '</strong></div>';
+      (r.prelevements || []).forEach(function (p) {
+        if (!p.montant_cents) return;
+        rows += '<div class="ns-recap-row"><span>Le ' + esc(moisFr(p.date)) + ' · ' + p.seances + ' séance' + (p.seances > 1 ? "s" : "") +
+                '</span><strong>' + euros(p.montant_cents) + '</strong></div>';
+      });
+      if (r.texte) rows += '<details><summary>Voir le détail des séances</summary><p class="ns-recap-text">' + esc(r.texte.replace(/\*\*/g, "")) + '</p></details>';
+      recapEl.innerHTML = rows;
+      refreshAdjButton();
+    }).catch(function (err) {
+      if (seq !== state.recapSeq) return;
+      if (err.code && err.code.indexOf("PROMO_") === 0) {
+        promoEl.classList.add("is-invalid");
+        promoMsg.textContent = err.message;
+        promoMsg.className = "ns-field-msg is-visible is-err";
+        // Devis sans le code, pour garder le récapitulatif visible.
+        promoEl.value = "";
+        updateRecap();
+        promoEl.value = promo;
+        return;
+      }
+      recapEl.innerHTML = '<div class="ns-recap-row ns-recap-err">' + esc(err.message) + '</div>';
+      refreshAdjButton();
+    });
+  }
+
+  adjForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    hideError(adjError);
+    if (!state.niveau) return showError(adjError, "Sélectionne ton niveau.");
+    if (!state.matieres.length) return showError(adjError, "Sélectionne au moins une matière.");
+    if (promoEl.classList.contains("is-invalid")) { promoEl.focus(); return showError(adjError, "Corrige ou retire le code promo."); }
+    if (adjAccount.validate(adjError)) return;
+
+    adjSubmit.setAttribute("aria-busy", "true");
+    busy(adjSubmit, true, state.token ? "Ouverture du paiement…" : "Vérification du compte…");
+    var promo = promoEl.value.trim().toUpperCase();
+
+    adjAccount.authenticate().then(function (token) {
+      adjSubmit.textContent = "Ouverture du paiement…";
+      return api("POST", "/prepa/adjuris/checkout-session",
+                 { matieres: state.matieres, promo_code: promo || null, ref: state.ref || null }, token);
+    }).then(function (r) {
+      if (!r || !r.checkout_url) throw new Error("Lien de paiement indisponible. Réessaie dans un instant.");
+      adjForm.hidden = true;
+      $("ns-adj-done").hidden = false;
+      if (!go(r.checkout_url)) {
+        $("ns-adj-done-sub").innerHTML = 'Ton navigateur a bloqué la redirection. <a href="' + esc(r.checkout_url) + '" target="_top">Ouvrir la page de paiement</a>';
+      }
+    }).catch(function (err) {
+      adjSubmit.removeAttribute("aria-busy");
+      busy(adjSubmit, false);
+      refreshAdjButton();
+      if (err.code && err.code.indexOf("PROMO_") === 0) {
+        promoEl.classList.add("is-invalid");
+        promoMsg.textContent = err.message;
+        promoMsg.className = "ns-field-msg is-visible is-err";
+        promoEl.focus();
+        return;
+      }
+      if (err.code === "ALREADY_ENROLLED") return showError(adjError, "Tu es déjà inscrit à ces matières. Retrouve-les dans ton espace Prépa.");
+      adjAccount.showAuthError(err, adjError);
+    });
+  });
+
+  /* ═══ Abonnements NAVIRE AI ════════════════════════════════ */
+  var planPanel = $("ns-plan-panel"), planForm = $("ns-plan-form");
+  var planError = $("ns-plan-error"), planSubmit = $("ns-plan-submit");
+  var planAccount = new AccountBlock($("ns-plan-account"), "ns-plan");
+
+  function card(plan) { return root.querySelector('.ns-card[data-plan="' + plan + '"]'); }
+  function cardMsg(cardEl, text) {
+    var m = cardEl.querySelector(".ns-msg");
+    m.textContent = text || ""; m.classList.toggle("is-visible", !!text);
+  }
+  function normalizePlan(plan) {
+    var p = String(plan || "free").toLowerCase();
+    if (p === "membre_plus") return "membre+";
+    if (p === "beta") return "membre";
+    return p;
+  }
+
+  function renderCycle() {
+    var key = state.cycle === "annuel" ? "a" : "m";
+    root.querySelectorAll(".ns-toggle-btn").forEach(function (b) {
+      var active = b.getAttribute("data-cycle") === state.cycle;
+      b.classList.toggle("is-active", active);
+      b.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    root.querySelectorAll(".ns-amount[data-m], .ns-billing[data-m]").forEach(function (el) {
+      el.textContent = el.getAttribute("data-" + key);
+    });
+    renderPlanPanelTitle();
+  }
+
+  function setCurrentTag(cardEl, active) {
+    var top = cardEl.querySelector(".ns-card-top");
+    var tag = top.querySelector(".ns-tag");
+    if (tag && !tag.hasAttribute("data-original")) {
+      tag.setAttribute("data-original", tag.textContent);
+      tag.setAttribute("data-class", tag.className);
+    }
+    if (active) {
+      if (!tag) { tag = document.createElement("span"); top.appendChild(tag); }
+      tag.className = "ns-tag ns-tag-ok"; tag.textContent = "Ton offre";
+    } else if (tag) {
+      if (tag.hasAttribute("data-original")) { tag.className = tag.getAttribute("data-class"); tag.textContent = tag.getAttribute("data-original"); }
+      else tag.remove();
+    }
+    cardEl.classList.toggle("is-current", active);
+  }
+
+  function renderPlans() {
+    var logged = !!state.token, plan = state.plan;
+    var isPaid = logged && (plan === "membre" || plan === "membre+");
+    $("ns-foot").hidden = logged;
+
+    var freeCard = card("free"), freeBtn = freeCard.querySelector(".ns-btn");
+    setCurrentTag(freeCard, logged && plan === "free");
+    freeBtn.disabled = logged;
+    freeBtn.textContent = !logged ? "Créer mon compte" : plan === "free" ? "Ton offre actuelle" : "Inclus dans ton offre";
+
+    ["membre", "membre+"].forEach(function (name) {
+      var el = card(name), btn = el.querySelector(".ns-btn");
+      var current = logged && plan === name;
+      setCurrentTag(el, current);
+      btn.disabled = false;
+      btn.setAttribute("data-action", isPaid ? "portal" : "checkout");
+      btn.textContent = current ? "Gérer mon abonnement" : isPaid ? "Changer d'offre" : "S'abonner";
+      el.classList.toggle("is-selected", state.selectedPlan === name && !planPanel.hidden);
+    });
+  }
+
+  function renderPlanPanelTitle() {
+    if (!state.selectedPlan) return;
+    var el = card(state.selectedPlan);
+    var amount = el.querySelector(".ns-amount").textContent;
+    $("ns-plan-title").textContent = PLAN_NAMES[state.selectedPlan] + " · " + amount + " € /mois" +
+      (state.cycle === "annuel" ? " (annuel)" : "");
+  }
+
+  function planDone(html) {
+    planForm.hidden = true;
+    $("ns-plan-done").innerHTML = html;
+    $("ns-plan-done").hidden = false;
+  }
+  function resetPlanPanel() {
+    planForm.hidden = false;
+    $("ns-plan-done").hidden = true;
+    busy(planSubmit, false);
+  }
+
+  function openPlanPanel(plan) {
+    resetPlanPanel();
+    state.selectedPlan = plan;
+    hideError(planError);
+    planAccount.render();
+    planPanel.hidden = false;
+    planSubmit.textContent = state.token ? "Continuer vers le paiement" : "Créer mon compte et payer";
+    renderPlanPanelTitle(); renderPlans();
+    try { planPanel.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (e) {}
+  }
+  function closePlanPanel() { planPanel.hidden = true; state.selectedPlan = null; renderPlans(); }
+  $("ns-plan-close").addEventListener("click", closePlanPanel);
+
+  /* Compte gratuit : le panneau sans paiement. */
+  var freeMode = false;
+
+  planForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    hideError(planError);
+    if (planAccount.validate(planError)) return;
+    var plan = state.selectedPlan;
+    var label = freeMode ? "Création du compte…" : "Ouverture du paiement…";
+    busy(planSubmit, true, label);
+
+    planAccount.authenticate().then(function (token) {
+      if (freeMode) {
+        // Compte prêt : la page de connexion prend le relais.
+        planDone('Ton compte est prêt. <a href="' + CONFIG.LOGIN_URL + '" target="_top">Connecte-toi</a> pour commencer à réviser.');
+        return null;
+      }
+      return api("POST", "/subscriptions/checkout", {
+        plan: plan, billing_cycle: CYCLE_API[state.cycle],
+        promo_code: $("ns-plan-promo").value.trim() || null
+      }, token).then(function (r) {
+        if (!r.checkout_url) throw new Error("Lien de paiement indisponible. Réessaie dans un instant.");
+        planDone("Redirection vers le paiement sécurisé…");
+        if (!go(r.checkout_url)) {
+          planDone('Ton navigateur a bloqué la redirection. <a href="' + esc(r.checkout_url) + '" target="_top">Ouvrir la page de paiement</a>');
+        }
+        return r;
+      });
+    }).catch(function (err) {
+      busy(planSubmit, false, freeMode ? "Créer mon compte" : (state.token ? "Continuer vers le paiement" : "Créer mon compte et payer"));
+      if (err.status === 401 && state.token) {   // session du site expirée
+        logout(); openPlanPanel(plan);
+        return showError(planError, "Ta session a expiré : reconnecte-toi pour continuer.");
+      }
+      planAccount.showAuthError(err, planError);
+    });
+  });
+
+  function openPortal(cardEl, btn) {
+    busy(btn, true, "Ouverture…");
+    var ret = null; try { ret = window.top.location.href; } catch (e) {}
+    api("POST", "/subscriptions/portal", { return_url: ret }, state.token).then(function (r) {
+      if (!r.portal_url) throw new Error("");
+      go(r.portal_url);
+    }).catch(function (err) {
+      busy(btn, false); renderPlans();
+      cardMsg(cardEl, err.message || "Ton espace de facturation n'a pas pu s'ouvrir. Réessaie dans un instant.");
+    });
+  }
+
+  root.addEventListener("click", function (e) {
+    var toggle = e.target.closest(".ns-toggle-btn");
+    if (toggle) {
+      state.cycle = toggle.getAttribute("data-cycle");
+      store("setItem", CONFIG.BILLING_KEY, state.cycle);
+      renderCycle();
+      return;
+    }
+    var btn = e.target.closest(".ns-card .ns-btn");
+    if (!btn || btn.disabled) return;
+    var cardEl = btn.closest(".ns-card"), plan = cardEl.getAttribute("data-plan");
+    var action = btn.getAttribute("data-action");
+    cardMsg(cardEl, "");
+
+    if (action === "free") {
+      freeMode = true;
+      state.selectedPlan = null;
+      resetPlanPanel();
+      hideError(planError); planAccount.render();
+      planPanel.hidden = false;
+      $("ns-plan-title").textContent = "Compte gratuit";
+      $("ns-plan-promo").closest(".ns-field").hidden = true;
+      planSubmit.textContent = "Créer mon compte";
+      renderPlans();
+      try { planPanel.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (err) {}
+      return;
+    }
+    freeMode = false;
+    $("ns-plan-promo").closest(".ns-field").hidden = false;
+    if (action === "portal") return openPortal(cardEl, btn);
+    // Le panneau s'ouvre sous les cartes : compte (si besoin), code promo,
+    // puis paiement. Un second clic sur la même carte lance le paiement.
+    if (state.token && !planPanel.hidden && state.selectedPlan === plan && !planForm.hidden) {
+      return planForm.requestSubmit ? planForm.requestSubmit() : planSubmit.click();
+    }
+    openPlanPanel(plan);
+  });
+
+  /* ═══ Initialisation ═══════════════════════════════════════ */
+  var savedCycle = store("getItem", CONFIG.BILLING_KEY);
+  if (savedCycle === "annuel" || savedCycle === "mensuel") state.cycle = savedCycle;
+  state.ref = readRef();
+  state.token = store("getItem", CONFIG.TOKEN_KEY);
+  if (state.token) state.plan = "free";
+
+  renderLevels(); renderMatieres(); refreshAdjButton();
+  adjAccount.render(); planAccount.render();
+  renderCycle(); renderPlans();
+
+  if (state.token) {
+    Promise.all([
+      api("GET", "/auth/me", null, state.token).catch(function (e) { return e; }),
+      api("GET", "/subscriptions/me", null, state.token).catch(function () { return null; }),
+      api("GET", "/prepa/adjuris/me", null, state.token).catch(function () { return null; })
+    ]).then(function (res) {
+      var me = res[0];
+      if (me instanceof Error) {
+        if (me.status === 401) { store("removeItem", CONFIG.TOKEN_KEY); logout(); }
+        return;
+      }
+      state.user = me.user || me;
+      if (res[1]) state.plan = normalizePlan(res[1].plan);
+      if (res[2] && res[2].items) {
+        state.enrolled = res[2].items.map(function (i) { return i.matiere_key; });
+        if (!state.niveau && res[2].niveau && MATIERES[res[2].niveau]) state.niveau = res[2].niveau;
+      }
+      if (!state.niveau && state.user && MATIERES[state.user.study_level]) state.niveau = state.user.study_level;
+      state.matieres = state.matieres.filter(function (k) { return state.enrolled.indexOf(k) < 0; });
+      adjAccount.render(); planAccount.render();
+      renderLevels(); renderMatieres(); renderPlans(); refreshAdjButton();
+    });
+  }
+})();
+</script>
