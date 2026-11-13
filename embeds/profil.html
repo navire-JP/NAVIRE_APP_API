@@ -13,7 +13,12 @@
       aux autres quand le profil est en privé ; chacune porte son visuel
       NAVIRE (trophée, cible, dossier, orbe : assets/profil-*.png et
       home-fichiers.png, servis par GET /assets/{nom}) ;
-    - les posts de veille de l'élève, avec « Voir plus ».
+    - abonnés / abonnements (cliquables : liste avec « Suivre ») et, sur le
+      profil d'un autre élève, le bouton « Suivre » / « Abonné » ;
+    - trois onglets : Posts (posts de l'élève, 100 caractères, image et
+      document joints ; sur son profil, la zone « Quoi de neuf ? » pour en
+      écrire un), Veille et articles (ses posts de veille, avec « Voir
+      plus »), Enregistrés (sur son profil seulement).
   Téléphone : chaque post est en vue réduite (titre et deux lignes) avec
   « Voir plus » pour le déplier ; une flèche blanche ramène en haut de la
   page quand on est descendu loin.
@@ -40,7 +45,8 @@
   Routes : /users/me/profile-summary?ranking=false, /users/{id}/profile,
            /users/{id}/posts, PATCH /users/me, /users/me/avatar,
            /users/me/banner, /users/me/discord-code, /users/me/discord-unlink,
-           /users/me/password, /subscriptions/billing, /subscriptions/*
+           /users/me/password, /subscriptions/billing, /subscriptions/*,
+           /social/* (posts, enregistrés, suivre : app/routers/social.py)
 -->
 <meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -428,6 +434,57 @@
 #nv-profil.is-narrow .pf-back span { display: none; }
 #nv-profil.is-narrow .pf-back { padding: 0 11px; }
 #nv-profil.is-narrow .pf-search input { font-size: 16px; }
+
+/* ================= POSTS DES ÉLÈVES, ABONNÉS ================= */
+#nv-profil .pf-ptabs { display: flex; gap: 20px; margin-top: 26px; padding: 0 4px; overflow-x: auto; scrollbar-width: none; }
+#nv-profil .pf-ptabs::-webkit-scrollbar { display: none; }
+#nv-profil .pf-ptab { position: relative; padding: 10px 2px 12px; border: 0; background: none; color: var(--text-3); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: color .15s; }
+#nv-profil .pf-ptab:hover { color: var(--text-2); }
+#nv-profil .pf-ptab.is-active { color: var(--text); }
+#nv-profil .pf-ptab.is-active::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 3px; background: var(--blue); }
+#nv-profil .pf-ptab small { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-4); margin-left: 6px; }
+#nv-profil .pf-counts button { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+#nv-profil .pf-counts button:hover { color: var(--text-2); }
+#nv-profil .pf-btn.is-following { background: transparent; box-shadow: inset 0 0 0 1px var(--panel-3); color: #fff; }
+#nv-profil .pf-btn.is-following:hover { box-shadow: inset 0 0 0 1px rgba(255,107,107,0.5); color: var(--danger); }
+#nv-profil .pf-follows-me { font-size: 11px; font-weight: 600; color: var(--text-3); background: var(--panel-2); padding: 3px 8px; border-radius: 6px; align-self: center; }
+
+#nv-profil .pf-compose { margin-top: 10px; padding: 14px 16px; border-radius: 16px; background: var(--panel); display: flex; gap: 12px; }
+#nv-profil .pf-compose-main { flex: 1; min-width: 0; }
+#nv-profil .pf-compose textarea { width: 100%; border: 0; outline: 0; resize: none; background: none; color: #fff; font: inherit; font-size: 15px; line-height: 1.45; padding: 8px 0 4px; min-height: 44px; }
+#nv-profil .pf-compose textarea::placeholder { color: var(--text-4); }
+#nv-profil .pf-compose-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+#nv-profil .pf-compose-img { position: relative; width: 120px; height: 90px; border-radius: 12px; background: var(--panel-3) center/cover no-repeat; }
+#nv-profil .pf-chip-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border: 0; border-radius: 50%; background: rgba(0,0,0,0.65); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+#nv-profil .pf-chip-x svg { width: 12px; height: 12px; }
+#nv-profil .pf-doc { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 9px 12px; border-radius: 12px; background: var(--blue-soft); color: var(--text); text-decoration: none; font-size: 13px; position: relative; }
+#nv-profil a.pf-doc:hover { background: rgba(122,167,255,0.18); }
+#nv-profil .pf-doc svg { width: 18px; height: 18px; color: var(--blue); flex-shrink: 0; }
+#nv-profil .pf-doc span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+#nv-profil .pf-doc small { color: var(--text-3); font-size: 11.5px; white-space: nowrap; }
+#nv-profil .pf-doc .pf-chip-x { position: static; flex-shrink: 0; }
+#nv-profil .pf-compose-bar { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+#nv-profil .pf-compose-bar .pf-btn.is-icon { color: var(--blue); background: transparent; }
+#nv-profil .pf-compose-bar .pf-btn.is-icon:hover { background: var(--blue-soft); }
+#nv-profil .pf-compose-bar .pf-count { margin-left: auto; margin-right: 6px; }
+#nv-profil .pf-compose-bar .pf-count.is-over { color: var(--danger); }
+#nv-profil .pf-compose .pf-error { margin-top: 8px; }
+
+#nv-profil .pf-upost-text { margin: 4px 0 0; font-size: 15px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+#nv-profil .pf-upost-img { display: block; margin-top: 10px; max-width: 100%; max-height: 420px; border-radius: 14px; background: var(--panel-2); }
+#nv-profil .pf-upost-doc { margin-top: 10px; }
+#nv-profil .pf-post-foot .pf-post-del { border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--text-3); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+#nv-profil .pf-post-foot .pf-post-del:hover { color: var(--danger); }
+#nv-profil .pf-post-top .pf-post-who { border: 0; background: none; padding: 0; font: inherit; color: var(--text); font-weight: 700; cursor: pointer; }
+#nv-profil .pf-post-top .pf-post-who:hover { text-decoration: underline; }
+
+#nv-profil .pf-flist { margin-top: 12px; padding: 8px; border-radius: 16px; background: var(--panel); }
+#nv-profil .pf-flist-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 8px; font-size: 13px; font-weight: 700; }
+#nv-profil .pf-flist-head .pf-close { width: 28px; height: 28px; }
+#nv-profil .pf-frow { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 11px; }
+#nv-profil .pf-frow:hover { background: var(--panel-2); }
+#nv-profil .pf-frow .pf-res-txt { cursor: pointer; }
+#nv-profil .pf-frow .pf-btn { height: 30px; font-size: 12px; }
 </style>
 
 <div id="nv-profil">
@@ -475,9 +532,44 @@
       <div data-el="stats"></div>
     </section>
 
-    <div class="pf-tabs-bar"><div class="pf-tab-static">Posts et articles<small data-el="posts-count"></small></div></div>
-    <div class="pf-posts" data-el="posts"></div>
-    <div class="pf-more is-hidden" data-el="more"><button class="pf-btn" data-act="more">Voir plus</button></div>
+    <div class="pf-flist is-hidden" data-el="flist"></div>
+
+    <div class="pf-ptabs" role="tablist" data-el="ptabs">
+      <button class="pf-ptab is-active" data-ptab="posts" role="tab">Posts<small data-el="uposts-count"></small></button>
+      <button class="pf-ptab" data-ptab="veille" role="tab">Veille et articles<small data-el="posts-count"></small></button>
+      <button class="pf-ptab is-hidden" data-ptab="saved" data-el="ptab-saved" role="tab">Enregistrés</button>
+    </div>
+
+    <div data-ppane="posts">
+      <div class="pf-compose is-hidden" data-el="compose">
+        <div class="pf-post-av" data-el="compose-av"></div>
+        <div class="pf-compose-main">
+          <textarea data-el="compose-text" rows="2" maxlength="100" placeholder="Quoi de neuf ? Partage un devoir, une fiche…"></textarea>
+          <div class="pf-compose-files" data-el="compose-files"></div>
+          <div class="pf-error is-hidden" data-el="compose-error"></div>
+          <div class="pf-compose-bar">
+            <button class="pf-btn is-icon" data-act="compose-img" title="Ajouter une image" aria-label="Ajouter une image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></button>
+            <button class="pf-btn is-icon" data-act="compose-doc" title="Joindre un document (PDF, Word)" aria-label="Joindre un document"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
+            <span class="pf-count" data-el="compose-count">0 / 100</span>
+            <button class="pf-btn is-primary" data-act="compose-send" data-el="compose-send" disabled>Publier</button>
+          </div>
+          <input type="file" data-el="compose-img-in" accept="image/jpeg,image/png,image/webp" hidden>
+          <input type="file" data-el="compose-doc-in" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+        </div>
+      </div>
+      <div class="pf-posts" data-el="uposts"></div>
+      <div class="pf-more is-hidden" data-el="umore"><button class="pf-btn" data-act="umore">Voir plus</button></div>
+    </div>
+
+    <div data-ppane="veille" class="is-hidden">
+      <div class="pf-posts" data-el="posts"></div>
+      <div class="pf-more is-hidden" data-el="more"><button class="pf-btn" data-act="more">Voir plus</button></div>
+    </div>
+
+    <div data-ppane="saved" class="is-hidden">
+      <div class="pf-posts" data-el="saved"></div>
+      <div class="pf-more is-hidden" data-el="smore"><button class="pf-btn" data-act="smore">Voir plus</button></div>
+    </div>
   </div>
 
   <!-- ===== ÉDITER LE PROFIL ===== -->
@@ -725,7 +817,12 @@
     stats: null,      // null = masquées (profil privé vu par un autre)
     posts: [], postsTotal: 0, postsHasMore: false, loadingMore: false,
     shown: 0,         // posts affichés : POSTS_FIRST au départ, + POSTS_STEP par « Voir plus »
-    dc: { mode: null, code: '', ticker: null, tick: null }
+    dc: { mode: null, code: '', ticker: null, tick: null },
+    social: null,     // bloc `social` du profil : abonnés, abonnements, « je le suis »
+    uposts: [], upostsTotal: 0, upostsHasMore: false,
+    saved: null, savedHasMore: false,   // chargés au premier clic sur « Enregistrés »
+    ptab: 'posts',
+    draft: { image: null, doc: null }
   };
 
   // ================= CHARGEMENT =================
@@ -741,6 +838,7 @@
         S.user = d.user || {};
         S.stats = d.stats;
         setPosts(d.posts);
+        setSocial(d.social);
         render();
       });
     } else if (token) {
@@ -770,6 +868,7 @@
         deepwork: d.deepwork
       };
       setPosts(d.posts);
+      setSocial(d.social);
       render();
       // Un code Discord encore valable reprend son décompte
       if (d.discord_link_code && !S.dc.ticker) dcShowCode(d.discord_link_code);
@@ -811,12 +910,17 @@
     var elo = S.data.elo || {};
     var counts = '<span><b>' + fmtInt(elo.value) + '</b>Elo</span>';
     if (S.stats && S.stats.rank) counts += '<span><b>#' + fmtInt(S.stats.rank) + '</b>au classement</span>';
+    var so = S.social || {};
+    counts += '<button data-act="flist" data-mode="followers"><b>' + fmtInt(so.followers) + '</b>abonné' + (so.followers > 1 ? 's' : '') + '</button>';
+    counts += '<button data-act="flist" data-mode="following"><b>' + fmtInt(so.following) + '</b>abonnement' + (so.following > 1 ? 's' : '') + '</button>';
     $('counts').innerHTML = counts;
+    show($('flist'), false);
 
     renderActions();
     renderAlert();
     renderStats();
     renderPosts();
+    renderSocial();
   }
 
   function planLabel() {
@@ -841,7 +945,10 @@
   function renderActions() {
     var box = $('actions');
     if (!S.mine) {
-      box.innerHTML = '';
+      var so = S.social || {};
+      box.innerHTML = token
+        ? (so.follows_me ? '<span class="pf-follows-me">Te suit</span>' : '') + followBtnHtml(so.is_following, 'follow')
+        : '';
       return;
     }
     var u = S.user;
@@ -1600,10 +1707,274 @@
       .then(done);
   }
 
+  // ================= POSTS DES ÉLÈVES, ABONNEMENTS =================
+  // Posts de 100 caractères au plus, avec une image et/ou un document (devoir
+  // partagé, PDF ou Word). Routes : /social/* (app/routers/social.py).
+  var POST_MAX = 100;
+  var ICON2 = {
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>'
+  };
+
+  function setSocial(so) {
+    S.social = so || { followers: 0, following: 0, posts: {} };
+    var p = S.social.posts || {};
+    S.uposts = p.items || [];
+    S.upostsTotal = p.total || 0;
+    S.upostsHasMore = !!p.has_more;
+    S.saved = null;
+    S.draft = { image: null, doc: null };
+    // Onglet ouvert : Posts, sauf un autre élève sans post mais avec de la veille
+    S.ptab = !S.mine && !S.upostsTotal && S.postsTotal ? 'veille' : 'posts';
+  }
+
+  function followBtnHtml(on, act, id) {
+    return '<button class="pf-btn ' + (on ? 'is-following' : 'is-primary') + '" data-act="' + act + '"' + (id ? ' data-id="' + id + '"' : '') +
+      ' data-on="' + (on ? '1' : '') + '">' + (on ? 'Abonné' : 'Suivre') + '</button>';
+  }
+
+  function renderSocial() {
+    show($('ptab-saved'), S.mine);
+    show($('compose'), S.mine);
+    if (S.mine) { setAvatar($('compose-av'), S.user.avatar_url, S.user.username); syncCompose(); renderDraft(); }
+    renderUposts();
+    setPtab(S.ptab);
+  }
+
+  function setPtab(name) {
+    if (name === 'saved' && !S.mine) name = 'posts';
+    S.ptab = name;
+    [].forEach.call(root.querySelectorAll('.pf-ptab'), function (t) {
+      var on = t.getAttribute('data-ptab') === name;
+      t.classList.toggle('is-active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    [].forEach.call(root.querySelectorAll('[data-ppane]'), function (p) { show(p, p.getAttribute('data-ppane') === name); });
+    if (name === 'saved' && S.saved === null) loadSaved(null, false);
+  }
+
+  function fmtSize(n) {
+    if (!n) return '';
+    return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + ' Ko' : (n / 1024 / 1024).toFixed(1).replace('.', ',') + ' Mo';
+  }
+
+  function docHtml(d, removable) {
+    var inner = ICON.doc + '<span>' + esc(d.name || 'Document') + '</span>' + (d.size ? '<small>' + fmtSize(d.size) + '</small>' : '');
+    if (removable) return '<div class="pf-doc">' + inner + '<button class="pf-chip-x" data-act="compose-drop" data-kind="doc" aria-label="Retirer le document">' + ICON.close + '</button></div>';
+    return '<a class="pf-doc pf-upost-doc" href="' + safeUrl(d.url) + '" target="_blank" rel="noopener" download>' + inner + '</a>';
+  }
+
+  function upostHtml(p, i) {
+    var a = p.author || {};
+    var av = a.avatar_url
+      ? '<div class="pf-post-av" style="background-image:url(&quot;' + esc(a.avatar_url) + '&quot;)"></div>'
+      : '<div class="pf-post-av">' + esc(initial(a.username)) + '</div>';
+    var who = String(a.id) === String(S.user.id)
+      ? '<b>' + esc(a.username || '') + '</b>'
+      : '<button class="pf-post-who" data-act="open-user" data-id="' + a.id + '">' + esc(a.username || '') + '</button>';
+    var foot = '';
+    if (token) {
+      foot += '<button class="pf-post-save' + (p.is_saved ? ' is-on' : '') + '" data-act="upost-save" data-id="' + p.id + '" aria-pressed="' + !!p.is_saved + '">' +
+        ICON.save + (p.is_saved ? 'Enregistré' : 'Enregistrer') + (p.saves_count ? ' · ' + fmtInt(p.saves_count) : '') + '</button>';
+    }
+    if (p.can_delete) foot += '<button class="pf-post-del" data-act="upost-del" data-id="' + p.id + '">' + ICON2.trash + 'Supprimer</button>';
+    return '<article class="pf-post" data-upost="' + p.id + '" style="animation-delay:' + Math.min(i || 0, 8) * 0.03 + 's">' + av +
+      '<div class="pf-post-main">' +
+        '<div class="pf-post-top">' + who + '<span>·</span><span>' + esc(relDate(p.created_at)) + '</span></div>' +
+        (p.text ? '<p class="pf-upost-text">' + esc(p.text) + '</p>' : '') +
+        (p.image_url ? '<a href="' + safeUrl(p.image_url) + '" target="_blank" rel="noopener"><img class="pf-upost-img" src="' + safeUrl(p.image_url) + '" alt="" loading="lazy"></a>' : '') +
+        (p.document ? docHtml(p.document) : '') +
+        (foot ? '<div class="pf-post-foot">' + foot + '</div>' : '') +
+      '</div></article>';
+  }
+
+  function renderUposts() {
+    $('uposts-count').textContent = S.upostsTotal ? fmtInt(S.upostsTotal) : '';
+    $('uposts').innerHTML = S.uposts.length
+      ? S.uposts.map(upostHtml).join('')
+      : (S.mine
+        ? '<div class="pf-empty"><b>Aucun post pour l\'instant</b>Écris ton premier post : une pensée, une fiche, un devoir à partager.</div>'
+        : '<div class="pf-empty"><b>Aucun post pour l\'instant</b>' + esc(S.user.username || 'Cet élève') + ' n\'a encore rien posté.</div>');
+    show($('umore'), S.upostsHasMore);
+  }
+
+  function loadMoreUposts(btn) {
+    btn.disabled = true; btn.textContent = 'Chargement…';
+    api('GET', '/social/users/' + S.user.id + '/posts?offset=' + S.uposts.length + '&limit=10').then(function (d) {
+      S.uposts = S.uposts.concat(d.items || []);
+      S.upostsTotal = d.total || S.upostsTotal;
+      S.upostsHasMore = !!d.has_more;
+      renderUposts();
+    }).catch(function (e) { console.error('[posts]', e); })
+      .then(function () { btn.disabled = false; btn.textContent = 'Voir plus'; });
+  }
+
+  function renderSaved() {
+    var items = S.saved || [];
+    $('saved').innerHTML = items.length
+      ? items.map(upostHtml).join('')
+      : '<div class="pf-empty"><b>Rien d\'enregistré</b>Les posts que tu enregistres arrivent ici.</div>';
+    show($('smore'), S.savedHasMore);
+  }
+
+  function loadSaved(btn, more) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Chargement…'; }
+    else $('saved').innerHTML = '<div class="pf-empty">Chargement…</div>';
+    var offset = more && S.saved ? S.saved.length : 0;
+    api('GET', '/social/me/saved?offset=' + offset + '&limit=10').then(function (d) {
+      S.saved = (more && S.saved ? S.saved : []).concat(d.items || []);
+      S.savedHasMore = !!d.has_more;
+      renderSaved();
+    }).catch(function (e) {
+      if (!more) $('saved').innerHTML = '<div class="pf-empty">' + esc(e.message) + '</div>';
+    }).then(function () { if (btn) { btn.disabled = false; btn.textContent = 'Voir plus'; } });
+  }
+
+  // Un même post peut être affiché deux fois (Posts et Enregistrés)
+  function eachPost(id, fn) {
+    [S.uposts, S.saved || []].forEach(function (list) { list.forEach(function (p) { if (p.id === id) fn(p); }); });
+  }
+
+  function toggleUpostSave(btn) {
+    var id = +btn.getAttribute('data-id');
+    var on = btn.getAttribute('aria-pressed') !== 'true';
+    btn.disabled = true;
+    api(on ? 'PUT' : 'DELETE', '/social/posts/' + id + '/save').then(function () {
+      var post = null;
+      eachPost(id, function (p) {
+        if (!!p.is_saved !== on) p.saves_count = Math.max(0, (p.saves_count || 0) + (on ? 1 : -1));
+        p.is_saved = on; post = p;
+      });
+      if (S.saved !== null) {
+        if (on && post && !S.saved.some(function (p) { return p.id === id; })) S.saved.unshift(post);
+        if (!on) S.saved = S.saved.filter(function (p) { return p.id !== id; });
+        renderSaved();
+      }
+      renderUposts();
+    }).catch(function (e) { alert(e.message); })
+      .then(function () { btn.disabled = false; });
+  }
+
+  function deleteUpost(btn) {
+    if (!confirm('Supprimer ce post ?')) return;
+    var id = +btn.getAttribute('data-id');
+    btn.disabled = true;
+    api('DELETE', '/social/posts/' + id).then(function () {
+      var before = S.uposts.length;
+      S.uposts = S.uposts.filter(function (p) { return p.id !== id; });
+      if (S.uposts.length < before) S.upostsTotal = Math.max(0, S.upostsTotal - 1);
+      if (S.saved) { S.saved = S.saved.filter(function (p) { return p.id !== id; }); renderSaved(); }
+      renderUposts();
+    }).catch(function (e) { btn.disabled = false; alert(e.message); });
+  }
+
+  // ----- Écrire un post -----
+  function composeError(msg) { var el = $('compose-error'); el.textContent = msg || ''; show(el, !!msg); }
+
+  function syncCompose() {
+    var n = $('compose-text').value.length;
+    var c = $('compose-count');
+    c.textContent = n + ' / ' + POST_MAX;
+    c.classList.toggle('is-over', n > POST_MAX);
+    $('compose-send').disabled = n > POST_MAX || (!$('compose-text').value.trim() && !S.draft.image && !S.draft.doc);
+  }
+
+  function renderDraft() {
+    var d = S.draft, h = '';
+    if (d.image) h += '<div class="pf-compose-img" style="background-image:url(&quot;' + d.image.preview + '&quot;)"><button class="pf-chip-x" data-act="compose-drop" data-kind="image" aria-label="Retirer l\'image">' + ICON.close + '</button></div>';
+    if (d.doc) h += docHtml({ name: d.doc.file.name, size: d.doc.file.size }, true);
+    $('compose-files').innerHTML = h;
+    syncCompose();
+  }
+
+  function pickDraft(input, kind) {
+    var f = input.files && input.files[0];
+    input.value = '';
+    if (!f) return;
+    composeError('');
+    if (kind === 'image') {
+      if (!/^image\/(jpe?g|png|webp)$/i.test(f.type)) return composeError('Image : JPG, PNG ou WEBP.');
+      if (f.size > 8 * 1024 * 1024) return composeError('Image trop lourde (8 Mo max).');
+      var rd = new FileReader();
+      rd.onload = function () { S.draft.image = { file: f, preview: rd.result }; renderDraft(); };
+      rd.readAsDataURL(f);
+    } else {
+      if (!/\.(pdf|docx?)$/i.test(f.name)) return composeError('Document : PDF ou Word (.docx, .doc).');
+      if (f.size > 10 * 1024 * 1024) return composeError('Document trop lourd (10 Mo max).');
+      S.draft.doc = { file: f };
+      renderDraft();
+    }
+  }
+
+  function sendPost(btn) {
+    var text = $('compose-text').value.trim();
+    if (text.length > POST_MAX) return;
+    var fd = new FormData();
+    fd.append('text', text);
+    if (S.draft.image) fd.append('image', S.draft.image.file);
+    if (S.draft.doc) fd.append('document', S.draft.doc.file);
+    composeError('');
+    btn.disabled = true; btn.textContent = 'Publication…';
+    api('POST', '/social/posts', fd).then(function (p) {
+      S.uposts.unshift(p);
+      S.upostsTotal += 1;
+      $('compose-text').value = '';
+      S.draft = { image: null, doc: null };
+      renderDraft();
+      renderUposts();
+    }).catch(function (e) { composeError(e.rate ? 'Trop de posts aujourd\'hui, réessaie demain.' : e.message); })
+      .then(function () { btn.textContent = 'Publier'; syncCompose(); });
+  }
+
+  // ----- Suivre -----
+  function toggleFollow(btn) {
+    var on = !btn.getAttribute('data-on');
+    btn.disabled = true;
+    api(on ? 'PUT' : 'DELETE', '/social/users/' + S.user.id + '/follow').then(function (d) {
+      S.social.is_following = !!d.is_following;
+      S.social.followers = d.followers;
+      render();
+    }).catch(function (e) { btn.disabled = false; alert(e.message); });
+  }
+
+  var flistMode = null;
+  function openFollowList(mode) {
+    var box = $('flist');
+    if (flistMode === mode && !box.classList.contains('is-hidden')) { show(box, false); return; }
+    flistMode = mode;
+    var title = mode === 'followers' ? 'Abonnés' : 'Abonnements';
+    var head = '<div class="pf-flist-head"><span>' + title + '</span><button class="pf-close" data-act="flist-close" aria-label="Fermer">' + ICON.close + '</button></div>';
+    box.innerHTML = head + '<div class="pf-res-empty">Chargement…</div>';
+    show(box, true);
+    api('GET', '/social/users/' + S.user.id + '/' + mode + '?limit=50').then(function (d) {
+      var items = d.items || [];
+      box.innerHTML = head + (items.length ? items.map(function (u) {
+        var av = '<span class="pf-res-av" style="background-image:url(&quot;' + esc(u.avatar_url || '') + '&quot;)"></span>';
+        return '<div class="pf-frow">' + av +
+          '<span class="pf-res-txt" data-act="open-user" data-id="' + (u.is_me ? 'me' : u.id) + '"><b>' + esc(u.username) + (u.is_me ? ' · toi' : '') + '</b><span>' + esc(u.university || 'Étudiant NAVIRE') + '</span></span>' +
+          (token && !u.is_me ? followBtnHtml(u.is_following, 'flist-follow', u.id) : '') + '</div>';
+      }).join('') : '<div class="pf-res-empty">' + (mode === 'followers' ? 'Aucun abonné pour l\'instant.' : 'Aucun abonnement pour l\'instant.') + '</div>');
+    }).catch(function (e) { box.innerHTML = head + '<div class="pf-res-empty">' + esc(e.message) + '</div>'; });
+  }
+
+  function toggleRowFollow(btn) {
+    var id = btn.getAttribute('data-id'), on = !btn.getAttribute('data-on');
+    btn.disabled = true;
+    api(on ? 'PUT' : 'DELETE', '/social/users/' + id + '/follow').then(function () {
+      btn.outerHTML = followBtnHtml(on, 'flist-follow', id);
+      if (S.mine) {
+        S.social.following = Math.max(0, (S.social.following || 0) + (on ? 1 : -1));
+        var c = root.querySelector('[data-act="flist"][data-mode="following"]');
+        if (c) c.innerHTML = '<b>' + fmtInt(S.social.following) + '</b>abonnement' + (S.social.following > 1 ? 's' : '');
+      }
+    }).catch(function (e) { btn.disabled = false; alert(e.message); });
+  }
+
   // ================= ÉVÉNEMENTS =================
   root.addEventListener('click', function (e) {
     var t = e.target;
     if (t === overlay || t === $('stage')) { closeEdit(); return; }
+    var ptab = t.closest ? t.closest('.pf-ptab') : null;
+    if (ptab) { setPtab(ptab.getAttribute('data-ptab')); return; }
     var tab = t.closest ? t.closest('.pf-tab') : null;
     if (tab) { showNotice(null); setTab(tab.getAttribute('data-tab')); return; }
     var eye = t.closest ? t.closest('[data-eye]') : null;
@@ -1622,7 +1993,20 @@
       case 'close': closeEdit(); break;
       case 'save': saveProfile(btn); break;
       case 'more': loadMorePosts(btn); break;
-      case 'to-posts': var pb = $('posts'); if (pb && pb.scrollIntoView) pb.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
+      case 'to-posts': setPtab('veille'); var pb = $('ptabs'); if (pb && pb.scrollIntoView) pb.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
+      case 'follow': toggleFollow(btn); break;
+      case 'flist': openFollowList(btn.getAttribute('data-mode')); break;
+      case 'flist-close': show($('flist'), false); break;
+      case 'flist-follow': toggleRowFollow(btn); break;
+      case 'open-user': openUser(btn.getAttribute('data-id') === 'me' ? '' : btn.getAttribute('data-id')); break;
+      case 'umore': loadMoreUposts(btn); break;
+      case 'smore': loadSaved(btn, true); break;
+      case 'upost-save': toggleUpostSave(btn); break;
+      case 'upost-del': deleteUpost(btn); break;
+      case 'compose-img': $('compose-img-in').click(); break;
+      case 'compose-doc': $('compose-doc-in').click(); break;
+      case 'compose-drop': S.draft[btn.getAttribute('data-kind')] = null; renderDraft(); break;
+      case 'compose-send': sendPost(btn); break;
       case 'post-save': togglePostSave(btn); break;
       case 'post-toggle':
         var post = btn.closest('.pf-post'), open = !post.classList.contains('is-open');
@@ -1657,6 +2041,9 @@
 
   $('file-banner').addEventListener('change', function () { pickFile(this, 'banner'); });
   $('file-avatar').addEventListener('change', function () { pickFile(this, 'avatar'); });
+  $('compose-text').addEventListener('input', syncCompose);
+  $('compose-img-in').addEventListener('change', function () { pickDraft(this, 'image'); });
+  $('compose-doc-in').addEventListener('change', function () { pickDraft(this, 'doc'); });
   $('in-name').addEventListener('input', syncCounts);
   $('in-bio').addEventListener('input', syncCounts);
   $('pwd-new').addEventListener('input', syncRules);

@@ -130,3 +130,54 @@ def upload_proof(file_bytes: bytes, user_id: int, request_id: int) -> str:
         resource_type="auto",
     )
     return result["secure_url"]
+
+
+# ============================================================
+# POSTS DES ÉLÈVES : image et document joints
+# ============================================================
+POST_FOLDER = "navire/posts"
+MAX_POST_DOC_BYTES = 10 * 1024 * 1024  # 10 Mo
+POST_DOC_TYPES = {
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+}
+POST_DOC_EXTS = {"pdf", "doc", "docx"}
+
+
+def post_doc_ext(filename: str | None, content_type: str | None) -> str | None:
+    """Extension d'un document de post accepté (pdf, doc, docx), sinon None."""
+    ext = (filename or "").rsplit(".", 1)[-1].lower() if "." in (filename or "") else ""
+    if ext in POST_DOC_EXTS:
+        return ext
+    return POST_DOC_TYPES.get((content_type or "").lower())
+
+
+def upload_post_image(file_bytes: bytes, user_id: int, key: str) -> str:
+    """Image d'un post : 1600 px de large au plus, proportions gardées."""
+    result = cloudinary.uploader.upload(
+        file_bytes,
+        folder=POST_FOLDER,
+        public_id=f"img_user_{user_id}_{key}",
+        resource_type="image",
+        transformation=[
+            {"width": 1600, "height": 1600, "crop": "limit"},
+            {"quality": "auto", "fetch_format": "auto"},
+        ],
+    )
+    return result["secure_url"]
+
+
+def upload_post_doc(file_bytes: bytes, user_id: int, key: str, ext: str) -> str:
+    """
+    Document d'un post (devoir partagé : PDF ou Word), stocké tel quel
+    (resource_type raw : Cloudinary ne le transforme pas, l'extension reste
+    dans l'adresse pour que le navigateur l'ouvre correctement).
+    """
+    result = cloudinary.uploader.upload(
+        file_bytes,
+        folder=POST_FOLDER,
+        public_id=f"doc_user_{user_id}_{key}.{ext}",
+        resource_type="raw",
+    )
+    return result["secure_url"]

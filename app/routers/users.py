@@ -751,6 +751,7 @@ def get_profile_summary(
             **_article_fields(db, u),
         },
         "posts": _posts_page(db, u.id, viewer=u, offset=0, limit=POSTS_PAGE),
+        "social": _social_block(db, u, viewer=u),
         "deepwork": deepwork_stats,
         "subscription": subscription,
         "elo": {
@@ -882,6 +883,12 @@ def _posts_page(db: Session, author_id: int, viewer: User | None, offset: int, l
     }
 
 
+def _social_block(db: Session, u: User, viewer: User | None) -> dict:
+    """Abonnés, abonnements et posts d'élève (voir app/routers/social.py)."""
+    from app.routers.social import social_block
+    return social_block(db, u, viewer)
+
+
 @router.get("/{user_id}/posts")
 def get_user_posts(
     user_id: int,
@@ -964,5 +971,6 @@ def get_user_profile(
         "elo": {"value": int(u.elo or 0)},
         "stats": stats,
         "posts": _posts_page(db, u.id, viewer=viewer, offset=0, limit=POSTS_PAGE),
+        "social": _social_block(db, u, viewer=viewer),
     }
 

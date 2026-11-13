@@ -2681,3 +2681,68 @@ class LandingAvis(Base):
     )
 
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+
+
+# ============================================================
+# Posts des élèves, abonnements entre élèves, posts enregistrés
+# ============================================================
+
+class UserPost(Base):
+    """
+    Post court écrit par un élève (100 caractères au plus), affiché sur son
+    profil (et plus tard dans /feed). Peut porter une image et un document
+    (un devoir à partager, PDF ou Word), hébergés sur Cloudinary.
+    """
+
+    __tablename__ = "user_posts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    author_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    text: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    doc_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    doc_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    doc_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True, nullable=False
+    )
+
+    author: Mapped["User"] = relationship("User", foreign_keys=[author_id])
+
+
+class UserFollow(Base):
+    """`follower_id` suit `followed_id`. Une ligne par couple."""
+
+    __tablename__ = "user_follows"
+    __table_args__ = (UniqueConstraint("follower_id", "followed_id", name="uq_user_follow"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    follower_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    followed_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class UserPostSave(Base):
+    """Post d'élève enregistré par un utilisateur. Une ligne par couple."""
+
+    __tablename__ = "user_post_saves"
+    __table_args__ = (UniqueConstraint("user_id", "post_id", name="uq_user_post_save"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    post_id: Mapped[int] = mapped_column(
+        ForeignKey("user_posts.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
