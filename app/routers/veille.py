@@ -695,6 +695,12 @@ def get_actu(
     scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
     related = [c for _, _, c in scored[:4]]
 
+    # Ouverture de l'actu : point de départ des 30 s de lecture qui rapportent
+    # de l'elo (POST /veille/actus/{id}/lecture).
+    if user is not None:
+        db.add(VeilleEvent(user_id=user.id, item_id=item.id, event_type="view"))
+        db.commit()
+
     read_ids, saved_ids = _read_ids(db, user), _saved_ids(db, user)
     out = _hub_item(item, read_ids, saved_ids)
     if item.kind == articles_svc.ARTICLE_KIND:
@@ -704,6 +710,37 @@ def get_actu(
         "item":    out,
         "related": [_hub_item(c, read_ids, saved_ids) for c in related],
     }
+
+
+@router.post("/actus/{item_id}/lecture")
+def lecture_actu(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Appelée par la page après 30 s passées sur l'actu. Le serveur vérifie
+    qu'elle a bien été ouverte (GET /veille/actus/{id}) depuis au moins 30 s,
+    puis crédite +2 elo (une fois par actu) et +10 à la 5e actu du jour.
+    """
+    from app.services import elo_rewards
+
+    if db.get(VeilleItem, item_id) is None:
+        raise HTTPException(404, detail="Actu introuvable.")
+    seuil = utcnow() - timedelta(seconds=elo_rewards.ACTU_READ_SECONDS - 2)  # 2 s de marge réseau
+    ouverte = db.execute(
+        select(VeilleEvent.id).where(
+            VeilleEvent.user_id == user.id,
+            VeilleEvent.item_id == item_id,
+            VeilleEvent.event_type == "view",
+            VeilleEvent.created_at <= seuil,
+        )
+    ).first()
+    if ouverte is None:
+        raise HTTPException(400, detail="Lecture trop courte.")
+    gagne = elo_rewards.reward_actu_read(db, user, item_id)
+    db.refresh(user)
+    return {"ok": True, "elo_gagne": gagne, "elo": int(user.elo or 0)}
 
 
 @router.put("/actus/{item_id}/save")

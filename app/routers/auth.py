@@ -72,6 +72,10 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=401, detail="Utilisateur introuvable.")
 
+    # Elo « connexion jours d'affilée » : un passage par jour suffit.
+    from app.services.elo_rewards import register_daily_presence
+    register_daily_presence(db, user)
+
     return user
 
 

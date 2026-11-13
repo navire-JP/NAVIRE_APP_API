@@ -1289,6 +1289,7 @@
       content.querySelector('.nv-inner').innerHTML = articleHtml(d.item, d.related, d.cours || []);
       content.scrollTop = keep;
       markRead(d.item);
+      startReadTimer(id);
     }).catch(function (e) {
       if (state.view !== 'article') return;
       content.querySelector('.nv-inner').innerHTML = e.status === 404
@@ -1558,6 +1559,27 @@
     state.total = b.total; state.hasMore = b.hasMore; state.loading = false;
     state.start = b.start || 0; state.starts = b.starts || [];
     renderList();
+  }
+  // Elo : 30 s passées sur l'actu (onglet visible) → +2, +10 à la 5e du jour.
+  // Le serveur revérifie le délai depuis l'ouverture (GET /veille/actus/{id}).
+  var readTimer = null;
+  function startReadTimer(id) {
+    clearTimeout(readTimer);
+    if (!token) return;
+    var still = function () { return state.view === 'article' && state.article && state.article.item.id === id; };
+    var left = 30, last = Date.now();
+    (function tick() {
+      readTimer = setTimeout(function () {
+        if (!still()) return;
+        var now = Date.now();
+        if (document.visibilityState !== 'hidden') left -= (now - last) / 1000;
+        last = now;
+        if (left > 0) return tick();
+        api('/veille/actus/' + id + '/lecture', { method: 'POST', authOnly: true }).then(function (d) {
+          if (d && d.elo_gagne > 0) toast('+' + d.elo_gagne + ' elo · actu lue', 'ok');
+        }).catch(function () {});
+      }, 1000);
+    })();
   }
   function markRead(it) {
     if (!token || it.is_read) return;
