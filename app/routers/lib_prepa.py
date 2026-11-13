@@ -517,6 +517,9 @@ def creer_devoir(db: Session, user: User, background: BackgroundTasks, *, matier
     db.add(d)
     db.commit()
     db.refresh(d)
+    from app.services.elo_rewards import reward_prepa_devoir
+    reward_prepa_devoir(db, user, f"devoir:{d.id}")   # +25 elo
+    db.refresh(d)
     profs = dsvc.emails_professeurs(db, d.classe_id)
     if profs:
         background.add_task(
@@ -628,6 +631,8 @@ def retirer_devoir(devoir_id: int, db: Session = Depends(get_db), user: User = D
     delete_prepa_file(d.path)
     db.delete(d)
     db.commit()
+    from app.services.elo_rewards import revoke_prepa_devoir
+    revoke_prepa_devoir(db, user.id, f"devoir:{devoir_id}")   # copie retirée : elo repris
     return {"ok": True, "id": devoir_id}
 
 

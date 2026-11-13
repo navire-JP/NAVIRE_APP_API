@@ -45,6 +45,7 @@ from app.core.cloudinary_client import (
 from app.db.database import get_db
 from app.db.models import User, UserFollow, UserPost, UserPostSave
 from app.routers.auth import get_current_user, get_current_user_optional
+from app.services.elo_rewards import revoke_post, reward_post
 
 router = APIRouter(prefix="/social", tags=["social"])
 
@@ -245,7 +246,10 @@ async def create_post(
     db.add(post)
     db.commit()
     db.refresh(post)
-    return _serialize(db, [post], me)[0]
+    # +5 (+7 avec un devoir/fichier joint), +10 de plus pour le tout premier post
+    elo_gagne = reward_post(db, me, post.id, has_file=post.doc_url is not None)
+    db.refresh(post)
+    return {**_serialize(db, [post], me)[0], "elo_gagne": elo_gagne}
 
 
 @router.delete("/posts/{post_id}")
@@ -253,9 +257,11 @@ def delete_post(post_id: int, db: Session = Depends(get_db), me: User = Depends(
     p = _get_post(db, post_id)
     if p.author_id != me.id and not me.is_admin:
         raise HTTPException(status_code=403, detail="Seul l'auteur peut supprimer ce post.")
+    author_id, post_id = p.author_id, p.id
     db.execute(delete(UserPostSave).where(UserPostSave.post_id == p.id))
     db.delete(p)
     db.commit()
+    revoke_post(db, author_id, post_id)   # le post supprimé ne rapporte plus d'elo
     return {"ok": True}
 
 

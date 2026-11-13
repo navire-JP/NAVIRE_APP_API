@@ -26,6 +26,7 @@ from app.core.cloudinary_client import (
 )
 from app.core.config import DISCORD_INVITE_URL
 from app.core.default_avatars import random_default_avatar_url
+from app.services.elo_rewards import reward_avatar, reward_banner
 from app.core.limits import get_user_limit
 from app.services import deepwork as deepwork_service
 from app.services.discord_link import (
@@ -394,6 +395,7 @@ async def update_avatar(
 
     current_user.avatar_url = secure_url
     db.commit()
+    reward_avatar(db, current_user)
     db.refresh(current_user)
     return _user_dict(current_user)
 
@@ -443,6 +445,7 @@ def update_avatar_url(
 
     current_user.avatar_url = url
     db.commit()
+    reward_avatar(db, current_user)
     db.refresh(current_user)
     return _user_dict(current_user)
 
@@ -480,6 +483,7 @@ async def update_banner(
 
     current_user.banner_url = secure_url
     db.commit()
+    reward_banner(db, current_user)
     db.refresh(current_user)
     return _user_dict(current_user)
 

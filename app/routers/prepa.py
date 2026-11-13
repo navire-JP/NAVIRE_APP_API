@@ -712,6 +712,9 @@ async def my_submit(
     db.add(row)
     db.commit()
     db.refresh(row)
+    from app.services.elo_rewards import reward_prepa_devoir
+    reward_prepa_devoir(db, current_user, f"exercice:{e.id}")   # +25 elo, une fois par exercice
+    db.refresh(row)
     return _serialize_submission(row)
 
 
