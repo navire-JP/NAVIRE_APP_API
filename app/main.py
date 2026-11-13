@@ -55,6 +55,7 @@ from app.routers.prepa_epreuves import eleve_router as epreuves_eleve_router, pr
 from app.routers.professeurs import router as professeurs_router
 from app.routers.mailing import router as mailing_router
 from app.routers.landing import router as landing_router
+from app.routers.social import router as social_router
 # ============================================================
 # MEOLES — import isolé
 # ============================================================
@@ -409,6 +410,7 @@ app.include_router(lib_router)
 app.include_router(professeurs_router)
 app.include_router(mailing_router)
 app.include_router(landing_router)
+app.include_router(social_router)
 
 # ============================================================
 # MEOLES — Routers
