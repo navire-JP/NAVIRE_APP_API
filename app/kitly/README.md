@@ -89,7 +89,8 @@ limites, checklist d'onboarding) · `PATCH /kitly/account` · `POST /kitly/accou
 **Pages servies par l'API**
 `GET /kitly/p/{slug}` — vitrine complète (balises de partage Open Graph, canonical, contenu
 lisible sans JavaScript, 404 « noindex » si non publiée) · `GET /kitly/static/vitrine.js` — moteur
-de rendu partagé (page, embed profil, aperçu du builder)
+de rendu partagé (page, embed profil, aperçu du builder) · `GET /kitly/static/marketplace.js` — marketplace
+partagée (embeds marketplace et accueil)
 
 **Embed 3 — Marketplace**
 `GET /kitly/marketplace/new` · `/popular` · `/categories` ·

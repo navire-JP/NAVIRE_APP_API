@@ -704,6 +704,8 @@ def test_static_vitrine_js(client):
     r = client.get("/kitly/static/vitrine.js")
     assert r.status_code == 200 and "javascript" in r.headers["content-type"]
     assert "KitlyVitrine" in r.text
+    r = client.get("/kitly/static/marketplace.js")
+    assert r.status_code == 200 and "KitlyMarket" in r.text
     assert client.get("/kitly/static/../config.py").status_code == 404
     assert client.get("/kitly/static/config.py").status_code == 404
 

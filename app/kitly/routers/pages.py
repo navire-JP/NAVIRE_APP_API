@@ -1,7 +1,8 @@
 """
 Pages HTML servies par l'API Kitly.
 
-  GET /kitly/static/vitrine.js   moteur de rendu partagé (page publique, embed, builder)
+  GET /kitly/static/vitrine.js      moteur de rendu des vitrines (page publique, embed, builder)
+  GET /kitly/static/marketplace.js  marketplace (embeds marketplace et accueil)
   GET /kitly/p/{slug}            vitrine complète, prête à être servie sur kitly.fr/<slug>
 
 Pourquoi une page rendue par le serveur, en plus de l'embed Framer : quand un
@@ -29,7 +30,10 @@ from app.kitly.routers.public import vitrine_payload
 router = APIRouter(tags=["kitly · pages"])
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
-STATIC_FILES = {"vitrine.js": "application/javascript; charset=utf-8"}  # liste blanche
+STATIC_FILES = {  # liste blanche
+    "vitrine.js": "application/javascript; charset=utf-8",
+    "marketplace.js": "application/javascript; charset=utf-8",
+}
 
 
 @router.get("/static/{name}", include_in_schema=False)
