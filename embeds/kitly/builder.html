@@ -197,73 +197,8 @@
     #kb .pub-act .opt { display: none; }
   }
 
-  /* ════════════════════════════════════════════════════════
-     VITRINE (aperçu) — même rendu que la page publique
-     ════════════════════════════════════════════════════════ */
-  .kv { --bg: #fff; --fg: #0a0a0a; --mut2: rgba(10,10,10,.6); --acc: #0a0a0a; --btn-fg: #fff; --line2: rgba(10,10,10,.12);
-        --r-btn: 999px; --fh: 'Inter', sans-serif; --fb: 'Inter', sans-serif;
-        background: var(--bg); color: var(--fg); font-family: var(--fb); min-height: 640px; position: relative; padding-bottom: 28px; overflow: hidden; }
-  .kv * { box-sizing: border-box; }
-  .kv.bg-blobs::before { content: ""; position: absolute; inset: 0; pointer-events: none;
-     background: radial-gradient(38% 22% at 15% 12%, color-mix(in srgb, var(--bg) 72%, #000) 0 60%, transparent 61%),
-                 radial-gradient(30% 18% at 92% 30%, color-mix(in srgb, var(--bg) 72%, #000) 0 60%, transparent 61%),
-                 radial-gradient(42% 20% at 8% 58%, color-mix(in srgb, var(--bg) 72%, #000) 0 60%, transparent 61%),
-                 radial-gradient(36% 18% at 85% 82%, color-mix(in srgb, var(--bg) 72%, #000) 0 60%, transparent 61%); }
-  .kv.bg-gradient { background: linear-gradient(180deg, var(--bg), color-mix(in srgb, var(--bg) 70%, var(--acc))); }
-  .kv.bg-image { background: var(--bg) center/cover; }
-  .kv > * { position: relative; }
-  .kv-banner { height: 130px; background: color-mix(in srgb, var(--fg) 8%, var(--bg)) center/cover; }
-  .kv-hero { text-align: center; padding: 0 22px; }
-  .kv-av { width: 92px; height: 92px; border-radius: 50%; margin: 26px auto 14px; background: var(--acc) center/cover; color: var(--btn-fg); display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 900; box-shadow: 0 0 0 4px var(--bg); }
-  .kv-banner + .kv-hero .kv-av { margin-top: -46px; }
-  .kv-name { font-family: var(--fh); font-size: 25px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
-  .kv-meta { font-size: 13px; color: var(--mut2); font-weight: 600; margin-top: 6px; }
-  .kv-bio { font-size: 14px; line-height: 1.5; margin: 12px auto 0; max-width: 300px; color: var(--mut2); white-space: pre-wrap; overflow-wrap: anywhere; }
-  .kv-socials { display: flex; justify-content: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-  .kv-soc { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 800; color: var(--fg); text-decoration: none; }
-  .kv-sec { padding: 0 18px; margin-top: 22px; }
-  .kv-sec-t { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mut2); margin: 0 0 10px 4px; }
-  .kv-links { display: flex; flex-direction: column; gap: 10px; }
-  .kv-link { display: flex; align-items: center; gap: 12px; background: var(--acc); color: var(--btn-fg); border-radius: var(--r-btn); padding: 15px 18px; font-weight: 700; font-size: 15px; text-decoration: none; min-height: 54px; }
-  .kv-link svg { width: 20px; height: 20px; flex-shrink: 0; }
-  .kv-link span { flex: 1; text-align: center; padding-right: 32px; overflow-wrap: anywhere; }
-  .kv-link.no-ico span { padding-right: 0; }
-  .kv-video { border-radius: min(var(--r-btn), 22px); overflow: hidden; position: relative; aspect-ratio: 16/10; background: linear-gradient(160deg, #f6b26b, #e8743b) center/cover; display: block; text-decoration: none; }
-  .kv-video .play { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 58px; height: 58px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; }
-  .kv-video .play::after { content: ""; border-left: 17px solid #e8743b; border-top: 11px solid transparent; border-bottom: 11px solid transparent; margin-left: 5px; }
-  .kv-video .cap { position: absolute; left: 14px; bottom: 10px; color: #fff; font-weight: 700; font-size: 15px; text-shadow: 0 1px 8px rgba(0,0,0,.4); }
-  .kv-text h5 { font-family: var(--fh); font-size: 17px; margin: 4px 0 6px; }
-  .kv-text p { font-size: 14px; line-height: 1.55; color: var(--mut2); margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .kv-header { font-family: var(--fh); font-size: 18px; font-weight: 800; text-align: center; margin: 8px 0 0; }
-  .kv-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .kv-stat { border: 1px solid var(--line2); border-radius: 12px; padding: 11px 4px; text-align: center; }
-  .kv-stat b { display: block; font-family: var(--fh); font-size: 17px; font-weight: 800; }
-  .kv-stat small { font-size: 9.5px; color: var(--mut2); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-  .kv-about { font-size: 14px; line-height: 1.6; color: var(--mut2); white-space: pre-wrap; margin-top: 12px; overflow-wrap: anywhere; }
-  .kv-offers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .kv-offers.list { grid-template-columns: 1fr; }
-  .kv-offer { border: 1px solid var(--line2); border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--bg) 92%, var(--fg)); }
-  .kv-offer .im { height: 100px; background: color-mix(in srgb, var(--fg) 7%, var(--bg)) center/cover; display: flex; align-items: center; justify-content: center; color: var(--mut2); }
-  .kv-offer .im svg { width: 24px; height: 24px; opacity: .6; }
-  .kv-offer .bd { padding: 10px 12px 12px; }
-  .kv-offer .tg { display: inline-block; font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 99px; background: var(--acc); color: var(--btn-fg); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
-  .kv-offer .tt { font-weight: 700; font-size: 13.5px; line-height: 1.3; overflow-wrap: anywhere; }
-  .kv-offer .pr { font-weight: 800; font-size: 13px; margin-top: 3px; }
-  .kv-offer .ds { font-size: 11.5px; color: var(--mut2); margin-top: 4px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .kv-offer .ct { font-size: 10.5px; font-weight: 800; margin-top: 8px; text-transform: uppercase; letter-spacing: .06em; }
-  .kv-row { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line2); border-radius: 14px; padding: 12px 14px; }
-  .kv-row .tt { flex: 1; font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
-  .kv-row .ds { font-size: 12px; color: var(--mut2); margin-top: 2px; }
-  .kv-row .pr { font-weight: 800; font-size: 13.5px; white-space: nowrap; }
-  .kv-contact { display: block; text-align: center; border: 1.5px solid var(--fg); color: var(--fg); border-radius: var(--r-btn); padding: 14px; font-weight: 800; font-size: 14.5px; text-decoration: none; }
-  .kv-brand { text-align: center; font-size: 11px; color: var(--mut2); margin-top: 26px; font-weight: 600; }
-  .kv-brand b { color: var(--fg); }
-  .kv-empty { text-align: center; color: var(--mut2); font-size: 13px; padding: 10px 0; }
-  .kv.t-cadre { box-shadow: inset 0 0 0 5px var(--fg); }
-  .kv.t-noir .kv-offer, .kv.t-noir .kv-row, .kv.t-noir .kv-stat { border-color: rgba(255,255,255,.16); }
-  .kv.t-bold .kv-name { text-transform: uppercase; font-size: 46px; color: var(--acc); letter-spacing: -.01em; line-height: .95; margin-top: 4px; }
-  .kv.t-bold .kv-av { width: 150px; height: 150px; border-radius: 50%; box-shadow: none; }
-  .kv.t-bold .kv-meta, .kv.t-bold .kv-bio { color: color-mix(in srgb, var(--fg) 75%, transparent); }
+  /* La vitrine de l'aperçu est dessinée par le moteur partagé /kitly/static/vitrine.js. */
+  #kb .phone .kv { min-height: 640px; }
 </style>
 
 <div id="kb"><div class="center"><p>Chargement de ta vitrine…</p></div></div>
@@ -431,15 +366,6 @@
     };
     input.click();
   }
-  var loadedFonts = { "inter": 1, "instrument-serif": 1 };
-  function ensureFont(key) {
-    if (!key || loadedFonts[key] || !FONT_FAMILY[key]) return;
-    loadedFonts[key] = 1;
-    var l = document.createElement("link");
-    l.rel = "stylesheet";
-    l.href = "https://fonts.googleapis.com/css2?family=" + FONT_FAMILY[key].replace(/ /g, "+") + ":wght@400;600;700;800&display=swap";
-    document.head.appendChild(l);
-  }
 
   // ============================================================
   // Sauvegarde automatique
@@ -497,103 +423,27 @@
   // ============================================================
   // Rendu de la vitrine (aperçu)
   // ============================================================
-  function themeVars(theme) {
-    var tpl = TEMPLATE_PRESET[theme.template] ? theme.template : "blanc";
-    var preset = TEMPLATE_PRESET[tpl];
-    var custom = CUSTOMIZABLE[tpl];
-    var c = custom ? Object.assign({}, preset.colors, theme.colors || {}) : preset.colors;
-    var fh = custom && theme.font_heading ? theme.font_heading : preset.fh;
-    var fb = custom && theme.font_body && theme.font_body !== "inter" ? theme.font_body : "inter";
-    var bgType = custom ? ((theme.background && theme.background.type) || preset.bg) : "solid";
-    ensureFont(fh); ensureFont(fb);
-    var radius = { pill: "999px", rounded: "14px", square: "4px" }[theme.button_shape || "pill"] || "999px";
-    return {
-      tpl: tpl, bg: bgType,
-      style: "--bg:" + c.background + ";--fg:" + c.text + ";--acc:" + c.accent + ";--btn-fg:" + c.button_text +
-        ";--mut2:color-mix(in srgb," + c.text + " 62%,transparent);--line2:color-mix(in srgb," + c.text + " 14%,transparent)" +
-        ";--r-btn:" + radius + ";--fh:'" + FONT_FAMILY[fh] + "',sans-serif;--fb:'" + FONT_FAMILY[fb] + "',sans-serif;" +
-        (bgType === "image" && theme.background.image_url ? "background-image:" + cssUrl(theme.background.image_url) + ";" : "")
-    };
-  }
-  function ytThumb(url) {
-    var m = String(url || "").match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);
-    return m ? "https://img.youtube.com/vi/" + m[1] + "/hqdefault.jpg" : "";
-  }
-  function offerCard(o) {
-    var img = o.images && o.images[0];
-    return '<div class="kv-offer"><div class="im" style="background-image:' + cssUrl(img) + '">' + (img ? "" : svg(KIND_META[o.kind].icon)) + '</div>' +
-      '<div class="bd">' + (o.badge ? '<span class="tg">' + esc(o.badge) + '</span>' : '') +
-      '<div class="tt">' + esc(o.title) + '</div><div class="pr">' + esc(o.price_label || "") + '</div>' +
-      (o.description ? '<div class="ds">' + esc(o.description) + '</div>' : '') +
-      '<div class="ct">' + esc(CTA_LABEL[o.cta] || "") + ' →</div></div></div>';
-  }
-  function offerRow(o) {
-    var d = o.details || {};
-    var sub = o.kind === "appointment" ? (d.duration_minutes ? d.duration_minutes + " min" : "") + (d.location_mode === "visio" ? " · visio" : d.location_mode === "onsite" ? " · sur place" : d.location_mode === "phone" ? " · téléphone" : "")
-      : (d.duration_label || "");
-    return '<div class="kv-row"><div style="flex:1;min-width:0"><div class="tt">' + esc(o.title) + '</div>' +
-      (sub ? '<div class="ds">' + esc(sub) + '</div>' : (o.description ? '<div class="ds">' + esc(o.description.slice(0, 90)) + '</div>' : '')) +
-      '</div><div class="pr">' + esc(o.price_label || "") + '</div></div>';
-  }
-  function renderVitrine(p, offers, showBranding) {
-    var th = themeVars(p.theme || {});
-    var visible = (offers || []).filter(function (o) { return o.status === "published"; });
-    var services = visible.filter(function (o) { return o.kind === "service" || o.kind === "appointment"; });
-    var products = visible.filter(function (o) { return o.kind === "physical" || o.kind === "digital"; });
-    var parts = {
-      hero: function () {
-        var soc = (p.socials || []).filter(function (s) { return s.url; });
-        var meta = [p.headline, p.location].filter(Boolean).join(" · ");
-        return (p.banner_url ? '<div class="kv-banner" style="background-image:' + cssUrl(p.banner_url) + '"></div>' : '') +
-          '<div class="kv-hero"><div class="kv-av" style="background-image:' + cssUrl(p.avatar_url) + '">' + (p.avatar_url ? "" : esc((p.display_name || "?").charAt(0).toUpperCase())) + '</div>' +
-          '<h1 class="kv-name">' + esc(p.display_name || "Ton nom") + '</h1>' +
-          (meta ? '<div class="kv-meta">' + esc(meta) + '</div>' : '') +
-          (p.bio ? '<p class="kv-bio">' + esc(p.bio) + '</p>' : '') +
-          (soc.length ? '<div class="kv-socials">' + soc.map(function (s) {
-            return '<a class="kv-soc" href="' + esc(safeUrl(s.url)) + '" target="_blank" rel="noopener" title="' + esc(s.network) + '">' + esc(SOCIAL_ABBR[s.network] || "•") + '</a>';
-          }).join("") + '</div>' : '') + '</div>';
-      },
-      links: function () {
-        var blocks = (p.blocks || []).filter(function (b) { return b.visible !== false; });
-        if (!blocks.length) return "";
-        return '<div class="kv-sec"><div class="kv-links">' + blocks.map(function (b) {
-          if (b.type === "link") return '<a class="kv-link' + (b.icon ? "" : " no-ico") + '" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener">' + (b.icon ? svg(b.icon) : "") + '<span>' + esc(b.label || "Mon lien") + '</span></a>';
-          if (b.type === "video") { var th = b.thumbnail_url || ytThumb(b.url); return '<a class="kv-video" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener" style="' + (th ? "background-image:" + cssUrl(th) : "") + '"><span class="play"></span>' + (b.label ? '<span class="cap">' + esc(b.label) + '</span>' : '') + '</a>'; }
-          if (b.type === "text") return '<div class="kv-text">' + (b.title ? '<h5>' + esc(b.title) + '</h5>' : '') + '<p>' + esc(b.body || "") + '</p></div>';
-          if (b.type === "header") return '<h4 class="kv-header">' + esc(b.title || "") + '</h4>';
-          return "";
-        }).join("") + '</div></div>';
-      },
-      about: function () {
-        var stats = (p.stats || []).filter(function (s) { return s.label || s.value; });
-        if (!stats.length && !p.about) return "";
-        return '<div class="kv-sec">' + (stats.length ? '<div class="kv-stats">' + stats.map(function (s) {
-          return '<div class="kv-stat"><b>' + esc(s.value) + '</b><small>' + esc(s.label) + '</small></div>';
-        }).join("") + '</div>' : '') + (p.about ? '<div class="kv-about">' + esc(p.about) + '</div>' : '') + '</div>';
-      },
-      offers: function () {
-        if (!services.length) return "";
-        return '<div class="kv-sec"><div class="kv-sec-t">Prestations</div><div class="kv-offers list">' + services.map(offerRow).join("") + '</div></div>';
-      },
-      products: function () {
-        if (!products.length) return "";
-        return '<div class="kv-sec"><div class="kv-sec-t">Boutique</div><div class="kv-offers">' + products.map(offerCard).join("") + '</div></div>';
-      },
-      portfolio: function () { return ""; },
-      contact: function () {
-        return '<div class="kv-sec"><a class="kv-contact" href="#">Me contacter</a></div>';
-      }
-    };
-    var order = (p.sections && p.sections.length ? p.sections : Object.keys(SECTION_LABEL).map(function (k) { return { key: k, visible: true }; }));
-    var html = order.filter(function (s) { return s.visible !== false && parts[s.key]; }).map(function (s) { return parts[s.key](); }).join("");
-    if (!visible.length && !(p.blocks || []).length && !p.bio) html += '<div class="kv-sec kv-empty">Ajoute tes liens et tes offres : ils apparaîtront ici.</div>';
-    if (showBranding) html += '<div class="kv-brand">Propulsé par <b>kitly.</b></div>';
-    return '<div class="kv t-' + th.tpl + ' bg-' + th.bg + '" style="' + th.style + '">' + html + '</div>';
+  // Aperçu : mêmes données que la page publique (seules les offres en ligne,
+  // stock réduit à « disponible / épuisé »), rendues par le moteur partagé.
+  function publicShape() {
+    var p = S.profile;
+    var offers = S.offers.filter(function (o) { return o.status === "published"; }).map(function (o) {
+      var d = Object.assign({}, o.details || {});
+      if (o.kind === "physical") { d.in_stock = d.stock == null || d.stock > 0; delete d.stock; }
+      return Object.assign({}, o, { details: d });
+    });
+    return Object.assign({}, p, {
+      contact: { email: p.contact_email, phone: p.phone, website: p.website },
+      offers: offers, portfolio: [], legal: null,
+      show_kitly_branding: !limits().remove_branding
+    });
   }
   function renderPreview() {
     var el = $(".phone");
-    if (el && S.profile) el.innerHTML = renderVitrine(S.profile, S.offers, !limits().remove_branding);
+    if (!el || !S.profile || !window.KitlyVitrine) return;
+    el.innerHTML = window.KitlyVitrine.render(publicShape(), { emptyHint: "Ajoute tes liens et tes offres : ils apparaîtront ici." });
   }
+
 
   // ============================================================
   // Étapes
@@ -1205,9 +1055,19 @@
   // ============================================================
   // Démarrage
   // ============================================================
+  function loadEngine() {
+    if (window.KitlyVitrine) return Promise.resolve();
+    return new Promise(function (resolve) {
+      var sc = document.createElement("script");
+      sc.src = CONFIG.API_BASE + "/kitly/static/vitrine.js";
+      sc.onload = resolve;
+      sc.onerror = function () { toast("Aperçu indisponible pour le moment."); resolve(); };
+      document.head.appendChild(sc);
+    });
+  }
   function boot() {
     if (!load(CONFIG.TOKEN_KEY)) return showLogin();
-    Promise.all([api("GET", "/auth/me"), api("GET", "/catalog")]).then(function (res) {
+    Promise.all([api("GET", "/auth/me"), api("GET", "/catalog"), loadEngine()]).then(function (res) {
       S.me = res[0]; S.catalog = res[1];
       // Pas encore de vitrine : création immédiate (adresse proposée à partir du nom).
       var ensure = S.me.profile ? Promise.resolve({ profile: S.me.profile }) : api("POST", "/me/profile", {});

@@ -33,6 +33,7 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_CLOUDINARY_URL` | non | Compte Cloudinary dédié (à défaut : `CLOUDINARY_URL`, dossier `kitly/`) |
 | `KITLY_FRONTEND_URL` | non | Site Framer Kitly (défaut `https://kitly.fr`), base des retours Stripe |
 | `KITLY_PUBLIC_HOST` | non | Domaine des vitrines (défaut `kitly.fr`) |
+| `KITLY_PRIVACY_URL` | non | Politique de confidentialité citée par le formulaire de contact des vitrines |
 | `KITLY_ADMIN_EMAILS` | non | Adresses promues admin Kitly (séparées par des virgules) |
 | `KITLY_MARKETPLACE_COMMISSION_BPS` | non | Commission marketplace (défaut 1000 = 10 %) |
 | `KITLY_NEW_PROFILES_DAYS` / `KITLY_POPULAR_WINDOW_DAYS` | non | Fenêtres « nouveaux » (7 j) et « populaires » (30 j) |
@@ -84,6 +85,11 @@ limites, checklist d'onboarding) · `PATCH /kitly/account` · `POST /kitly/accou
 `{"source": "marketplace"}` si on vient de la marketplace) · `GET …/{slug}/offers/{id}` ·
 `GET …/{slug}/portfolio/{id}` · `GET …/{slug}/terms[?version=N]` · `POST …/{slug}/leads` ·
 `POST …/{slug}/report` · `GET /kitly/public/domains/{host}`
+
+**Pages servies par l'API**
+`GET /kitly/p/{slug}` — vitrine complète (balises de partage Open Graph, canonical, contenu
+lisible sans JavaScript, 404 « noindex » si non publiée) · `GET /kitly/static/vitrine.js` — moteur
+de rendu partagé (page, embed profil, aperçu du builder)
 
 **Embed 3 — Marketplace**
 `GET /kitly/marketplace/new` · `/popular` · `/categories` ·

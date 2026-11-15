@@ -11,7 +11,7 @@ from app.db.database import SessionLocal
 from app.kitly import catalog
 from app.kitly import models  # noqa: F401 — enregistre les tables kitly_* dans Base
 from app.kitly.config import KITLY_PUBLIC_HOST, missing_env
-from app.kitly.routers import admin, auth, billing, legal, marketplace, public, vitrine
+from app.kitly.routers import admin, auth, billing, legal, marketplace, pages, public, vitrine
 
 router = APIRouter(prefix="/kitly")
 router.include_router(auth.router)
@@ -21,6 +21,7 @@ router.include_router(public.router)
 router.include_router(marketplace.router)
 router.include_router(billing.router)
 router.include_router(admin.router)
+router.include_router(pages.router)
 
 
 @router.get("/health", tags=["kitly · meta"])

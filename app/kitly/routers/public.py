@@ -46,9 +46,8 @@ def _has_terms(profile: KitlyProfile) -> bool:
     return bool(profile.terms and profile.terms.current_version_id)
 
 
-@router.get("/profiles/{slug}")
-def get_vitrine(slug: str, db: Session = Depends(get_db)):
-    profile = _profile_or_404(db, slug)
+def vitrine_payload(db: Session, profile: KitlyProfile) -> dict:
+    """Données publiques complètes d'une vitrine (API JSON et page HTML)."""
     limits = get_plan(db, profile.user.plan_code).limits or {}
     offers = published_offers(db, profile.id)
     portfolio = [p for p in profile.portfolio if p.is_visible]
@@ -57,6 +56,11 @@ def get_vitrine(slug: str, db: Session = Depends(get_db)):
         show_branding=not limits.get("remove_branding", False),
         has_terms=_has_terms(profile),
     )
+
+
+@router.get("/profiles/{slug}")
+def get_vitrine(slug: str, db: Session = Depends(get_db)):
+    return vitrine_payload(db, _profile_or_404(db, slug))
 
 
 @router.get("/profiles/{slug}/offers/{offer_id}")

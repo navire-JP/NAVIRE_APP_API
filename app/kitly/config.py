@@ -34,6 +34,8 @@ def _int(name: str, default: int) -> int:
 KITLY_FRONTEND_URL = os.getenv("KITLY_FRONTEND_URL", "https://kitly.fr").rstrip("/")
 # Domaine affiché dans les URLs de vitrine (kitly.fr/<slug>).
 KITLY_PUBLIC_HOST = os.getenv("KITLY_PUBLIC_HOST", "kitly.fr")
+# Politique de confidentialité Kitly (citée par le formulaire de contact des vitrines)
+KITLY_PRIVACY_URL = os.getenv("KITLY_PRIVACY_URL", f"{KITLY_FRONTEND_URL}/confidentialite")
 
 # ============================================================
 # Auth

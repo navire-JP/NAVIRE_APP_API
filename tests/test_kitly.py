@@ -693,3 +693,40 @@ def test_catalog_and_plans_public(client):
     plans = client.get("/kitly/plans").json()["items"]
     assert [p["code"] for p in plans] == ["free", "custom", "premium"]
     assert plans[2]["price_label"] == "14,90 € / mois"
+
+
+# ============================================================
+# Pages servies par l'API
+# ============================================================
+
+def test_static_vitrine_js(client):
+    r = client.get("/kitly/static/vitrine.js")
+    assert r.status_code == 200 and "javascript" in r.headers["content-type"]
+    assert "KitlyVitrine" in r.text
+    assert client.get("/kitly/static/../config.py").status_code == 404
+    assert client.get("/kitly/static/config.py").status_code == 404
+
+
+def test_vitrine_page_meta_and_escaping(client):
+    email, h = register(client)
+    evil = '</script><script>alert(1)</script>'
+    slug = make_vitrine(client, h, display_name=f'Léa "Studio" {evil}'[:80], bio="Design & <b>identité</b>")
+    r = client.get(f"/kitly/p/{slug}")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
+    page = r.text
+    assert '<meta property="og:title" content="Léa &quot;Studio&quot; &lt;/script&gt;' in page
+    assert f'<link rel="canonical" href="https://kitly.fr/{slug}">' in page
+    assert '<script src="/kitly/static/vitrine.js"></script>' in page
+    # Le nom piégé n'ouvre jamais de balise : ni dans les <meta>, ni dans le JSON embarqué.
+    assert page.count("<script>alert(1)") == 0
+    assert "\\u003c/script\\u003e" in page
+    assert 'content="#ffffff"' in page  # theme-color du template Blanc
+
+    set_plan(email, "custom")
+    client.patch("/kitly/me/profile", json={"theme": {"template": "bold", "colors": {"background": "#123456"}}}, headers=h)
+    assert 'name="theme-color" content="#123456"' in client.get(f"/kitly/p/{slug}").text
+
+    client.post("/kitly/me/profile/unpublish", headers=h)
+    r = client.get(f"/kitly/p/{slug}")
+    assert r.status_code == 404 and 'noindex' in r.text
+    assert client.get("/kitly/p/inconnu-total-xyz").status_code == 404
