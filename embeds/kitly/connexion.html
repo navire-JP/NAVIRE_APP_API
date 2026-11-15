@@ -1,0 +1,512 @@
+<!--
+  KITLY : connexion & inscription (embed 4)
+  =========================================
+  À coller dans un composant « Embed » (HTML) du site Framer Kitly.
+
+  Un seul embed, plusieurs écrans :
+    - Connexion          POST /kitly/auth/login
+    - Inscription        POST /kitly/auth/register  (CGU et politique de confidentialité, cases séparées)
+    - Vérification email POST /kitly/auth/verify-email (code à 6 chiffres, « plus tard » possible :
+                         seule la publication de la vitrine l'exige)
+    - Mot de passe oublié POST /kitly/auth/password/forgot puis /password/reset
+    - Déjà connecté      GET /kitly/auth/me → accès au tableau de bord / déconnexion
+
+  Ouvrir directement l'inscription : ?mode=inscription dans l'URL de la page
+  (bouton « Créer ma vitrine » de la landing).
+
+  Le jeton est rangé sous « kitly_token » (jamais celui de NAVIRE).
+  Réglages : bloc CONFIG du script.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+<style>
+  html, body { margin: 0; padding: 0; background: transparent !important; }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  #kt-auth {
+    --ink: #0a0a0a; --paper: #ffffff; --grey: #f5f5f4; --line: #e4e4e2; --mut: #6f6f6c; --bad: #c2410c;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
+    width: 100%; max-width: 440px; margin: 0 auto; padding: 8px 16px 24px;
+  }
+  #kt-auth .card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 30px 28px; }
+  #kt-auth .logo { font-size: 20px; font-weight: 900; letter-spacing: -.04em; margin-bottom: 22px; }
+  #kt-auth .logo i { font-style: normal; font-family: var(--serif); }
+  #kt-auth h1 { font-size: 26px; font-weight: 900; letter-spacing: -.03em; line-height: 1.15; margin: 0 0 6px; }
+  #kt-auth h1 em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: 0; }
+  #kt-auth .sub { color: var(--mut); font-size: 14px; line-height: 1.5; margin: 0 0 22px; }
+
+  #kt-auth .tabs { display: flex; border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin-bottom: 22px; }
+  #kt-auth .tab { flex: 1; border: 0; background: none; font: 700 13.5px var(--sans); color: var(--mut); padding: 9px 0; border-radius: 999px; cursor: pointer; transition: .15s; }
+  #kt-auth .tab.on { background: var(--ink); color: var(--paper); }
+
+  #kt-auth .field { margin-bottom: 12px; }
+  #kt-auth .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #kt-auth label.lb { display: block; font-size: 12px; font-weight: 700; color: var(--mut); margin-bottom: 5px; }
+  #kt-auth input[type=text], #kt-auth input[type=email], #kt-auth input[type=password] {
+    width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; font: 15px var(--sans);
+    color: var(--ink); background: var(--paper); outline: none; transition: border-color .15s;
+  }
+  #kt-auth input:focus { border-color: var(--ink); }
+  #kt-auth input.err { border-color: var(--bad); }
+  #kt-auth .pw { position: relative; }
+  #kt-auth .pw input { padding-right: 70px; }
+  #kt-auth .pw button { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 0; background: none; font: 700 12px var(--sans); color: var(--mut); cursor: pointer; padding: 6px; }
+  #kt-auth .hint { font-size: 11.5px; color: var(--mut); margin-top: 5px; }
+  #kt-auth .msg { font-size: 12.5px; color: var(--bad); margin: 4px 0 10px; min-height: 0; }
+  #kt-auth .msg:empty { display: none; }
+  #kt-auth .ok-msg { font-size: 13px; color: var(--ink); background: var(--grey); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; }
+
+  #kt-auth .check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: #333; margin: 10px 0; cursor: pointer; }
+  #kt-auth .check input { width: 17px; height: 17px; margin: 1px 0 0; accent-color: var(--ink); flex-shrink: 0; cursor: pointer; }
+  #kt-auth a { color: var(--ink); font-weight: 700; text-decoration: none; border-bottom: 1px solid var(--ink); }
+  #kt-auth .link { background: none; border: 0; padding: 0; font: 700 13px var(--sans); color: var(--ink); cursor: pointer; border-bottom: 1px solid var(--ink); }
+  #kt-auth .muted-link { color: var(--mut); border-bottom-color: var(--line); }
+
+  #kt-auth .btn { display: flex; width: 100%; align-items: center; justify-content: center; gap: 8px; font: 700 15px var(--sans); padding: 14px 20px; border-radius: 999px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer; transition: .15s; margin-top: 8px; }
+  #kt-auth .btn:hover { background: #2a2a2a; }
+  #kt-auth .btn:disabled { opacity: .55; cursor: default; }
+  #kt-auth .btn.ghost { background: var(--paper); color: var(--ink); }
+  #kt-auth .btn.ghost:hover { background: var(--grey); }
+  #kt-auth .between { display: flex; justify-content: space-between; align-items: center; margin: 2px 0 6px; }
+  #kt-auth .foot { text-align: center; font-size: 13px; color: var(--mut); margin-top: 18px; }
+  #kt-auth .fine { text-align: center; font-size: 11.5px; color: var(--mut); margin-top: 14px; line-height: 1.5; }
+
+  #kt-auth .code { display: flex; gap: 8px; justify-content: center; margin: 6px 0 14px; }
+  #kt-auth .code input { width: 46px; height: 56px; text-align: center; font: 800 22px var(--sans); padding: 0; border-radius: 12px; }
+  #kt-auth .spin { width: 15px; height: 15px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: kt-spin .7s linear infinite; }
+  @keyframes kt-spin { to { transform: rotate(360deg); } }
+  #kt-auth .avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--ink); color: var(--paper); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 22px; margin-bottom: 14px; }
+  #kt-auth .strength { height: 3px; background: var(--line); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  #kt-auth .strength i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .2s; }
+
+  @media (max-width: 420px) {
+    #kt-auth { padding: 4px 0 16px; }
+    #kt-auth .card { border-radius: 16px; padding: 24px 18px; }
+    #kt-auth .row { grid-template-columns: 1fr; gap: 0; }
+    #kt-auth .code input { width: 40px; height: 50px; }
+  }
+</style>
+
+<div id="kt-auth"><div class="card"><p class="sub">Chargement…</p></div></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  var CONFIG = {
+    API_BASE: "https://navire-app-api.onrender.com",
+    // Tableau de bord / builder de vitrine (page Framer)
+    BUILDER_URL: "https://kitly.fr/builder",
+    // Documents Kitly
+    CGU_URL: "https://kitly.fr/cgu",
+    PRIVACY_URL: "https://kitly.fr/politique-de-confidentialite",
+    // Stockage local (ne jamais réutiliser les clés NAVIRE)
+    TOKEN_KEY: "kitly_token",
+    USER_KEY: "kitly_user"
+  };
+
+  var root = document.getElementById("kt-auth");
+  var state = { screen: "login", email: "", busy: false, user: null, notice: "" };
+
+  // ============================================================
+  // Utilitaires
+  // ============================================================
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  function token() { return load(CONFIG.TOKEN_KEY); }
+
+  function broadcast(msg) {
+    try { window.parent && window.parent.postMessage(msg, "*"); } catch (e) {}
+    try { window.top && window.top !== window.parent && window.top.postMessage(msg, "*"); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent("kitly-auth-updated")); } catch (e) {}
+  }
+
+  function navigate(url) {
+    try { if (window.top && window.top !== window) { window.top.location.href = url; return; } } catch (e) {}
+    window.location.href = url;
+  }
+
+  function errorText(data) {
+    if (!data) return "Une erreur est survenue, réessaie.";
+    var d = data.detail;
+    if (typeof d === "string") return d;
+    if (d && typeof d.message === "string") return d.message;
+    if (Array.isArray(d) && d[0]) {
+      var m = String(d[0].msg || "").replace(/^Value error, /, "");
+      var loc = (d[0].loc || []).slice(-1)[0];
+      if (loc === "email") return "Adresse email invalide.";
+      return m || "Vérifie les champs du formulaire.";
+    }
+    return "Une erreur est survenue, réessaie.";
+  }
+
+  function api(method, path, body) {
+    var headers = { "Content-Type": "application/json" };
+    var t = token();
+    if (t) headers.Authorization = "Bearer " + t;
+    return fetch(CONFIG.API_BASE + "/kitly" + path, {
+      method: method, headers: headers, body: body ? JSON.stringify(body) : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (!res.ok) { var e = new Error(errorText(data)); e.status = res.status; e.data = data; throw e; }
+        return data;
+      });
+    }, function () {
+      var e = new Error("Connexion au serveur impossible. Vérifie ta connexion et réessaie.");
+      e.status = 0; throw e;
+    });
+  }
+
+  function saveSession(data) {
+    store(CONFIG.TOKEN_KEY, data.token);
+    store(CONFIG.USER_KEY, JSON.stringify(data.user || {}));
+    state.user = data.user;
+    broadcast({ type: "KITLY_LOGGED_IN", token: data.token, user: data.user || null });
+  }
+
+  function logout() {
+    api("POST", "/auth/logout").catch(function () {});
+    store(CONFIG.TOKEN_KEY, null); store(CONFIG.USER_KEY, null);
+    broadcast({ type: "KITLY_LOGGED_OUT" });
+    state.user = null; go("login");
+  }
+
+  function go(screen, notice) { state.screen = screen; state.notice = notice || ""; render(); }
+
+  function setBusy(btn, label) {
+    state.busy = true; btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>' + esc(label);
+  }
+  function showMsg(id, text, field) {
+    var el = root.querySelector("#" + id);
+    if (el) el.textContent = text || "";
+    root.querySelectorAll("input.err").forEach(function (i) { i.classList.remove("err"); });
+    if (field) { var f = root.querySelector('[name="' + field + '"]'); if (f) { f.classList.add("err"); f.focus(); } }
+  }
+  function val(name) { var el = root.querySelector('[name="' + name + '"]'); return el ? el.value.trim() : ""; }
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+
+  function pwField(name, label, auto, hint) {
+    return '<div class="field"><label class="lb" for="kt-' + name + '">' + label + '</label>' +
+      '<div class="pw"><input type="password" id="kt-' + name + '" name="' + name + '" autocomplete="' + auto + '">' +
+      '<button type="button" data-toggle="' + name + '">Afficher</button></div>' +
+      (hint ? '<div class="strength"><i data-strength="' + name + '"></i></div><div class="hint">' + hint + '</div>' : '') + '</div>';
+  }
+
+  function codeInputs() {
+    var h = '<div class="code">';
+    for (var i = 0; i < 6; i++) h += '<input type="text" inputmode="numeric" data-code="' + i + '" autocomplete="' + (i ? "off" : "one-time-code") + '">';
+    return h + '</div>';
+  }
+  function readCode() {
+    return Array.prototype.map.call(root.querySelectorAll("[data-code]"), function (i) { return i.value; }).join("");
+  }
+
+  // ============================================================
+  // Écrans
+  // ============================================================
+  var VIEWS = {
+    login: function () {
+      return tabs("login") +
+        '<h1>Content de te <em>revoir</em></h1><p class="sub">Connecte-toi pour gérer ta vitrine.</p>' +
+        (state.notice ? '<div class="ok-msg">' + esc(state.notice) + '</div>' : '') +
+        '<form id="kt-form" novalidate>' +
+        '<div class="field"><label class="lb" for="kt-email">Adresse email</label><input type="email" id="kt-email" name="email" autocomplete="email" value="' + esc(state.email) + '"></div>' +
+        pwField("password", "Mot de passe", "current-password") +
+        '<div class="between"><span></span><button type="button" class="link muted-link" data-go="forgot">Mot de passe oublié ?</button></div>' +
+        '<div class="msg" id="kt-msg"></div>' +
+        '<button class="btn" type="submit" id="kt-submit">Se connecter</button></form>' +
+        '<p class="foot">Pas encore de compte ? <button type="button" class="link" data-go="register">Créer ma vitrine</button></p>';
+    },
+    register: function () {
+      return tabs("register") +
+        '<h1>Crée ta <em>vitrine</em></h1><p class="sub">Gratuit, sans carte bancaire. Tu complèteras le reste à ton rythme.</p>' +
+        '<form id="kt-form" novalidate>' +
+        '<div class="row"><div class="field"><label class="lb" for="kt-first">Prénom</label><input type="text" id="kt-first" name="first_name" autocomplete="given-name"></div>' +
+        '<div class="field"><label class="lb" for="kt-last">Nom</label><input type="text" id="kt-last" name="last_name" autocomplete="family-name"></div></div>' +
+        '<div class="field"><label class="lb" for="kt-email">Adresse email</label><input type="email" id="kt-email" name="email" autocomplete="email" value="' + esc(state.email) + '"></div>' +
+        pwField("password", "Mot de passe", "new-password", "8 caractères minimum, avec au moins une lettre et un chiffre.") +
+        pwField("password_confirm", "Confirmation du mot de passe", "new-password") +
+        '<label class="check"><input type="checkbox" name="accept_cgu"><span>J\'accepte les <a href="' + esc(CONFIG.CGU_URL) + '" target="_blank" rel="noopener">conditions générales d\'utilisation</a> de Kitly.</span></label>' +
+        '<label class="check"><input type="checkbox" name="ack_privacy"><span>J\'ai pris connaissance de la <a href="' + esc(CONFIG.PRIVACY_URL) + '" target="_blank" rel="noopener">politique de confidentialité</a>.</span></label>' +
+        '<label class="check"><input type="checkbox" name="marketing_opt_in"><span>Je souhaite recevoir les conseils et nouveautés Kitly (facultatif).</span></label>' +
+        '<div class="msg" id="kt-msg"></div>' +
+        '<button class="btn" type="submit" id="kt-submit">Créer mon compte</button></form>' +
+        '<p class="foot">Déjà un compte ? <button type="button" class="link" data-go="login">Se connecter</button></p>';
+    },
+    verify: function () {
+      return '<h1>Confirme ton <em>email</em></h1>' +
+        '<p class="sub">Un code à 6 chiffres vient d\'être envoyé à <b>' + esc(state.user ? state.user.email : state.email) + '</b>.</p>' +
+        '<form id="kt-form" novalidate>' + codeInputs() +
+        '<div class="msg" id="kt-msg" style="text-align:center"></div>' +
+        '<button class="btn" type="submit" id="kt-submit">Valider</button></form>' +
+        '<p class="foot"><button type="button" class="link muted-link" id="kt-resend">Renvoyer le code</button></p>' +
+        '<button type="button" class="btn ghost" id="kt-later">Plus tard, créer ma vitrine</button>' +
+        '<p class="fine">Tu pourras préparer ta vitrine tout de suite ; la confirmation sera demandée avant de la publier.</p>';
+    },
+    forgot: function () {
+      return '<h1>Mot de passe <em>oublié</em></h1><p class="sub">Indique ton adresse : nous t\'envoyons un code pour choisir un nouveau mot de passe.</p>' +
+        '<form id="kt-form" novalidate>' +
+        '<div class="field"><label class="lb" for="kt-email">Adresse email</label><input type="email" id="kt-email" name="email" autocomplete="email" value="' + esc(state.email) + '"></div>' +
+        '<div class="msg" id="kt-msg"></div>' +
+        '<button class="btn" type="submit" id="kt-submit">Recevoir un code</button></form>' +
+        '<p class="foot"><button type="button" class="link" data-go="login">Retour à la connexion</button></p>';
+    },
+    reset: function () {
+      return '<h1>Nouveau <em>mot de passe</em></h1><p class="sub">Si un compte existe pour <b>' + esc(state.email) + '</b>, un code vient d\'y être envoyé.</p>' +
+        '<form id="kt-form" novalidate>' + codeInputs() +
+        pwField("new_password", "Nouveau mot de passe", "new-password", "8 caractères minimum, avec au moins une lettre et un chiffre.") +
+        '<div class="msg" id="kt-msg"></div>' +
+        '<button class="btn" type="submit" id="kt-submit">Changer mon mot de passe</button></form>' +
+        '<p class="foot"><button type="button" class="link muted-link" data-go="forgot">Je n\'ai rien reçu</button></p>';
+    },
+    connected: function () {
+      var u = state.user || {};
+      return '<div class="avatar">' + esc((u.first_name || "?").charAt(0).toUpperCase()) + '</div>' +
+        '<h1>Bonjour <em>' + esc(u.first_name || "") + '</em></h1>' +
+        '<p class="sub">Tu es connecté(e) avec ' + esc(u.email || "") + '.</p>' +
+        (u.email_verified ? '' : '<div class="ok-msg">Ton adresse n\'est pas encore confirmée. <button type="button" class="link" data-go="verify-send">Confirmer maintenant</button></div>') +
+        '<button type="button" class="btn" id="kt-dash">Aller à mon tableau de bord →</button>' +
+        '<button type="button" class="btn ghost" id="kt-logout">Se déconnecter</button>';
+    }
+  };
+
+  function tabs(on) {
+    return '<div class="tabs" role="tablist">' +
+      '<button type="button" class="tab' + (on === "login" ? " on" : "") + '" data-go="login" role="tab">Connexion</button>' +
+      '<button type="button" class="tab' + (on === "register" ? " on" : "") + '" data-go="register" role="tab">Inscription</button></div>';
+  }
+
+  function render() {
+    state.busy = false;
+    root.innerHTML = '<div class="card"><div class="logo">kitly<i>.</i></div>' + VIEWS[state.screen]() + '</div>';
+    bind();
+    var first = root.querySelector("input:not([type=checkbox])");
+    if (first && state.screen !== "connected" && window.innerWidth > 700) { try { first.focus({ preventScroll: true }); } catch (e) {} }
+  }
+
+  // ============================================================
+  // Actions
+  // ============================================================
+  function afterAuth(data) {
+    saveSession(data);
+    navigate(CONFIG.BUILDER_URL);
+  }
+
+  function submitLogin(btn) {
+    var email = val("email"), password = root.querySelector('[name="password"]').value;
+    state.email = email;
+    if (!EMAIL_RE.test(email)) return showMsg("kt-msg", "Adresse email invalide.", "email");
+    if (!password) return showMsg("kt-msg", "Saisis ton mot de passe.", "password");
+    setBusy(btn, "Connexion…");
+    api("POST", "/auth/login", { email: email, password: password }).then(function (data) {
+      btn.textContent = "Connecté"; afterAuth(data);
+    }).catch(function (e) {
+      state.busy = false; btn.disabled = false; btn.textContent = "Se connecter";
+      showMsg("kt-msg", e.message, e.status === 401 ? "password" : null);
+    });
+  }
+
+  function submitRegister(btn) {
+    var f = function (n) { return root.querySelector('[name="' + n + '"]'); };
+    var body = {
+      first_name: val("first_name"), last_name: val("last_name"), email: val("email"),
+      password: f("password").value, password_confirm: f("password_confirm").value,
+      accept_cgu: f("accept_cgu").checked, ack_privacy: f("ack_privacy").checked,
+      marketing_opt_in: f("marketing_opt_in").checked
+    };
+    state.email = body.email;
+    if (!body.first_name) return showMsg("kt-msg", "Indique ton prénom.", "first_name");
+    if (!body.last_name) return showMsg("kt-msg", "Indique ton nom.", "last_name");
+    if (!EMAIL_RE.test(body.email)) return showMsg("kt-msg", "Adresse email invalide.", "email");
+    if (body.password.length < 8 || !/[A-Za-z]/.test(body.password) || !/\d/.test(body.password))
+      return showMsg("kt-msg", "8 caractères minimum, avec au moins une lettre et un chiffre.", "password");
+    if (body.password !== body.password_confirm) return showMsg("kt-msg", "Les mots de passe ne correspondent pas.", "password_confirm");
+    if (!body.accept_cgu) return showMsg("kt-msg", "L'acceptation des CGU est nécessaire pour créer un compte.");
+    if (!body.ack_privacy) return showMsg("kt-msg", "Merci de prendre connaissance de la politique de confidentialité.");
+    setBusy(btn, "Création du compte…");
+    api("POST", "/auth/register", body).then(function (data) {
+      saveSession(data);
+      go("verify");
+    }).catch(function (e) {
+      state.busy = false; btn.disabled = false; btn.textContent = "Créer mon compte";
+      if (e.status === 409) return go("login", e.message);
+      showMsg("kt-msg", e.message);
+    });
+  }
+
+  function submitVerify(btn) {
+    var code = readCode();
+    if (!/^\d{6}$/.test(code)) return showMsg("kt-msg", "Saisis les 6 chiffres du code.");
+    setBusy(btn, "Vérification…");
+    api("POST", "/auth/verify-email", { code: code }).then(function (data) {
+      store(CONFIG.USER_KEY, JSON.stringify(data.user || {}));
+      btn.textContent = "Adresse confirmée ✓";
+      navigate(CONFIG.BUILDER_URL);
+    }).catch(function (e) {
+      state.busy = false; btn.disabled = false; btn.textContent = "Valider";
+      if (e.status === 401) return go("login", "Ta session a expiré, reconnecte-toi.");
+      showMsg("kt-msg", e.message);
+      root.querySelectorAll("[data-code]").forEach(function (i) { i.value = ""; });
+      var first = root.querySelector('[data-code="0"]'); if (first) first.focus();
+    });
+  }
+
+  function submitForgot(btn) {
+    var email = val("email"); state.email = email;
+    if (!EMAIL_RE.test(email)) return showMsg("kt-msg", "Adresse email invalide.", "email");
+    setBusy(btn, "Envoi…");
+    api("POST", "/auth/password/forgot", { email: email }).then(function () { go("reset"); })
+      .catch(function (e) { state.busy = false; btn.disabled = false; btn.textContent = "Recevoir un code"; showMsg("kt-msg", e.message); });
+  }
+
+  function submitReset(btn) {
+    var code = readCode(), pw = root.querySelector('[name="new_password"]').value;
+    if (!/^\d{6}$/.test(code)) return showMsg("kt-msg", "Saisis les 6 chiffres du code.");
+    if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/\d/.test(pw))
+      return showMsg("kt-msg", "8 caractères minimum, avec au moins une lettre et un chiffre.", "new_password");
+    setBusy(btn, "Enregistrement…");
+    api("POST", "/auth/password/reset", { email: state.email, code: code, new_password: pw }).then(afterAuth)
+      .catch(function (e) { state.busy = false; btn.disabled = false; btn.textContent = "Changer mon mot de passe"; showMsg("kt-msg", e.message); });
+  }
+
+  var SUBMITS = { login: submitLogin, register: submitRegister, verify: submitVerify, forgot: submitForgot, reset: submitReset };
+
+  function strength(pw) {
+    var s = 0;
+    if (pw.length >= 8) s++; if (pw.length >= 12) s++;
+    if (/[A-Za-z]/.test(pw) && /\d/.test(pw)) s++;
+    if (/[^A-Za-z0-9]/.test(pw)) s++;
+    return Math.min(100, s * 25);
+  }
+
+  function bind() {
+    root.querySelectorAll("[data-go]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var target = b.getAttribute("data-go");
+        var email = root.querySelector('[name="email"]');
+        if (email) state.email = email.value.trim();
+        if (target === "verify-send") {
+          api("POST", "/auth/resend-code").catch(function () {}); return go("verify");
+        }
+        go(target);
+      });
+    });
+    root.querySelectorAll("[data-toggle]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var i = root.querySelector('[name="' + b.getAttribute("data-toggle") + '"]');
+        var show = i.type === "password"; i.type = show ? "text" : "password"; b.textContent = show ? "Masquer" : "Afficher";
+      });
+    });
+    root.querySelectorAll("[data-strength]").forEach(function (bar) {
+      var input = root.querySelector('[name="' + bar.getAttribute("data-strength") + '"]');
+      input.addEventListener("input", function () { bar.style.width = strength(input.value) + "%"; });
+    });
+    var codes = root.querySelectorAll("[data-code]");
+    codes.forEach(function (input, idx) {
+      input.addEventListener("input", function () {
+        var digits = input.value.replace(/\D/g, "");
+        if (digits.length > 1) {  // collage du code complet
+          digits.split("").slice(0, 6 - idx).forEach(function (d, k) { codes[idx + k].value = d; });
+          var next = codes[Math.min(5, idx + digits.length)]; next.focus();
+        } else {
+          input.value = digits;
+          if (digits && codes[idx + 1]) codes[idx + 1].focus();
+        }
+        if (readCode().length === 6 && state.screen === "verify") root.querySelector("#kt-submit").click();
+      });
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Backspace" && !input.value && codes[idx - 1]) codes[idx - 1].focus();
+      });
+      // Collage du code reçu par email : réparti sur les 6 cases.
+      input.addEventListener("paste", function (e) {
+        var text = ((e.clipboardData || window.clipboardData).getData("text") || "").replace(/\D/g, "");
+        if (!text) return;
+        e.preventDefault();
+        input.value = text;
+        input.dispatchEvent(new Event("input"));
+      });
+    });
+    var form = root.querySelector("#kt-form");
+    if (form) form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (state.busy) return;
+      SUBMITS[state.screen](root.querySelector("#kt-submit"));
+    });
+    var resend = root.querySelector("#kt-resend");
+    if (resend) resend.addEventListener("click", function () {
+      resend.disabled = true;
+      api("POST", "/auth/resend-code").then(function () { showMsg("kt-msg", ""); resend.textContent = "Code renvoyé ✓"; })
+        .catch(function (e) { showMsg("kt-msg", e.message); resend.disabled = false; });
+    });
+    var later = root.querySelector("#kt-later");
+    if (later) later.addEventListener("click", function () { navigate(CONFIG.BUILDER_URL); });
+    var dash = root.querySelector("#kt-dash");
+    if (dash) dash.addEventListener("click", function () { navigate(CONFIG.BUILDER_URL); });
+    var out = root.querySelector("#kt-logout");
+    if (out) out.addEventListener("click", logout);
+  }
+
+  // ============================================================
+  // Hauteur de l'iframe = hauteur du contenu
+  // ============================================================
+  (function () {
+    if (window.parent === window) return;
+    var frameEl = null, wrappers = [];
+    try {
+      if (window.frameElement && window.parent.document) {
+        frameEl = window.frameElement;
+        for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== window.parent.document.body; i++, n = n.parentElement) wrappers.push(n);
+        var s = document.createElement("style");
+        s.textContent = "html,body{margin:0;overflow:hidden}";
+        document.head.appendChild(s);
+      }
+    } catch (e) { frameEl = null; }
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height) + 2;
+      if (!h || h === last) return;
+      last = h;
+      if (frameEl) {
+        frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+        wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+      } else {
+        try { window.parent.postMessage({ type: "KITLY_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+      }
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+    window.addEventListener("load", report);
+  })();
+
+  // ============================================================
+  // Démarrage
+  // ============================================================
+  var mode = "";
+  try { mode = new URLSearchParams((window.top || window).location.search).get("mode") || ""; } catch (e) {
+    try { mode = new URLSearchParams(window.location.search).get("mode") || ""; } catch (e2) {}
+  }
+  var initial = /^(inscription|register|signup)$/i.test(mode) ? "register" : "login";
+
+  if (token()) {
+    api("GET", "/auth/me").then(function (me) { state.user = me.user; go("connected"); })
+      .catch(function (e) {
+        if (e.status === 401) { store(CONFIG.TOKEN_KEY, null); store(CONFIG.USER_KEY, null); }
+        go(initial);
+      });
+  } else {
+    go(initial);
+  }
+})();
+</script>

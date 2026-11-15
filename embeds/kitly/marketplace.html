@@ -1,0 +1,89 @@
+<!--
+  KITLY : marketplace (embed 3)
+  =============================
+  Moteur de recherche de freelances. Le code vit dans l'API
+  (GET /kitly/static/marketplace.js, partagé avec l'accueil home.html) : cet
+  embed ne fait que le charger et le régler.
+
+  Sans recherche : « Les nouveaux sur Kitly », « Les profils populaires »,
+  catégories. Avec une recherche ou un filtre : résultats, encart
+  « Sponsorisé » séparé du classement, « Voir plus ». Filtres : texte,
+  catégorie, lieu, type d'offre, budget ; tri pertinence / nouveaux /
+  populaires / prix. Filtres recopiés dans l'URL (lien partageable).
+
+  Deux modes (CONFIG.MODE) :
+    - "full"     : page /marketplace complète ;
+    - "showcase" : quelques profils + bouton vers la marketplace (section de la landing).
+
+  Composant Framer : Embed HTML, largeur Fill, hauteur auto. Réglages : bloc CONFIG.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent !important; }
+  #km-root .wait { font-family: Inter, Arial, sans-serif; color: #6f6f6c; text-align: center; padding: 60px 20px; font-size: 14px; }
+</style>
+
+<div id="km-root"><p class="wait">Chargement des freelances…</p></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  var CONFIG = {
+    API_BASE: "https://navire-app-api.onrender.com",
+    MODE: "full",                                       // "full" | "showcase"
+    PROFILE_URL: "https://kitly.fr/profile?u={slug}",   // lien d'une vitrine ({slug} remplacé)
+    MARKETPLACE_URL: "https://kitly.fr/marketplace",    // bouton du mode showcase
+    REGISTER_URL: "https://kitly.fr/connexion?mode=inscription",
+    PAGE_SIZE: 24,
+    SHOWCASE_COUNT: 8
+  };
+
+  var root = document.getElementById("km-root");
+
+  function start() {
+    window.KitlyMarket.mount(root, {
+      apiBase: CONFIG.API_BASE, mode: CONFIG.MODE, profileUrl: CONFIG.PROFILE_URL,
+      marketplaceUrl: CONFIG.MARKETPLACE_URL, registerUrl: CONFIG.REGISTER_URL,
+      pageSize: CONFIG.PAGE_SIZE, showcaseCount: CONFIG.SHOWCASE_COUNT
+    });
+  }
+  var s = document.createElement("script");
+  s.src = CONFIG.API_BASE + "/kitly/static/marketplace.js";
+  s.onload = start;
+  s.onerror = function () { root.innerHTML = '<p class="wait">La marketplace n\'a pas pu être chargée. Recharge la page.</p>'; };
+  document.head.appendChild(s);
+
+  // Hauteur de l'iframe = hauteur du contenu
+  (function () {
+    if (window.parent === window) return;
+    var frameEl = null, host = null, wrappers = [];
+    try {
+      if (window.frameElement && window.parent.document) {
+        frameEl = window.frameElement; host = window.parent;
+        for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== host.document.body; i++, n = n.parentElement) wrappers.push(n);
+        var st = document.createElement("style"); st.textContent = "html,body{overflow:hidden}"; document.head.appendChild(st);
+      }
+    } catch (e) { frameEl = null; }
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height);
+      if (!h || h === last) return;
+      last = h;
+      if (frameEl) {
+        frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+        wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+      } else {
+        try { window.parent.postMessage({ type: "KITLY_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+      }
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+    window.addEventListener("load", report);
+  })();
+})();
+</script>

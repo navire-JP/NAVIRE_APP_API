@@ -1,0 +1,266 @@
+<!--
+  KITLY : accueil (/home)
+  =======================
+  Page d'accueil simple, en deux temps :
+    1. « Crée ta vitrine » — s'adapte à la personne :
+         - visiteur              → « Créer ma vitrine gratuitement » + les 3 étapes ;
+         - connecté, en cours    → sa progression et « Continuer ma vitrine » ;
+         - vitrine en ligne      → son lien, ses visites et demandes, Gérer / Voir / Copier ;
+    2. la marketplace complète en dessous (recherche, nouveaux, populaires,
+       catégories), chargée depuis l'API (GET /kitly/static/marketplace.js, le
+       même code que l'embed marketplace).
+
+  Jeton : « kitly_token » (posé par l'embed connexion).
+  Composant Framer : Embed HTML, largeur Fill, hauteur auto. Réglages : bloc CONFIG.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+<style>
+  html, body { margin: 0; padding: 0; background: transparent !important; }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  #kh {
+    --ink: #0a0a0a; --paper: #ffffff; --grey: #f5f5f4; --line: #e4e4e2; --mut: #6f6f6c; --good: #15803d;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
+  }
+  #kh .top { max-width: 1160px; margin: 0 auto; padding: 8px 20px 0; }
+  #kh button { font-family: inherit; }
+  #kh .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; padding: 14px 26px; border-radius: 999px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer; text-decoration: none; white-space: nowrap; transition: .15s; }
+  #kh .btn:hover { background: #2a2a2a; }
+  #kh .btn.ghost { background: var(--paper); color: var(--ink); }
+  #kh .btn.ghost:hover { background: var(--grey); }
+  #kh .btn.sm { padding: 10px 18px; font-size: 13.5px; }
+  #kh em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -.01em; }
+
+  /* visiteur */
+  #kh .hero { text-align: center; padding: 56px 0 18px; }
+  #kh .kicker { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin: 0 0 18px; }
+  #kh h1 { font-size: clamp(36px, 6.4vw, 72px); font-weight: 900; letter-spacing: -.045em; line-height: 1.03; margin: 0 auto; max-width: 900px; }
+  #kh .hero p.lead { color: var(--mut); font-size: 17px; line-height: 1.5; max-width: 560px; margin: 20px auto 30px; }
+  #kh .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  #kh .fine { font-size: 12.5px; color: var(--mut); margin-top: 14px; }
+  #kh .fine a, #kh .fine button { color: var(--ink); font-weight: 700; background: none; border: 0; padding: 0; cursor: pointer; font-size: inherit; text-decoration: none; border-bottom: 1px solid var(--ink); }
+  #kh .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 44px 0 0; }
+  #kh .step { border: 1px solid var(--line); border-radius: 18px; padding: 22px; background: var(--paper); }
+  #kh .step .n { font-family: var(--serif); font-style: italic; color: var(--mut); font-size: 15px; }
+  #kh .step b { display: block; font-size: 16px; margin-top: 8px; letter-spacing: -.01em; }
+  #kh .step p { color: var(--mut); font-size: 13.5px; line-height: 1.5; margin: 6px 0 0; }
+
+  /* connecté */
+  #kh .me { margin-top: 28px; border: 1px solid var(--line); border-radius: 24px; padding: 28px; display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; background: var(--paper); }
+  #kh .me h2 { font-size: clamp(26px, 3.6vw, 36px); font-weight: 900; letter-spacing: -.035em; margin: 0; line-height: 1.1; }
+  #kh .me .sub { color: var(--mut); font-size: 14.5px; margin: 8px 0 0; line-height: 1.5; }
+  #kh .bar { height: 6px; background: var(--grey); border-radius: 99px; overflow: hidden; margin: 18px 0 8px; max-width: 420px; }
+  #kh .bar i { display: block; height: 100%; background: var(--ink); border-radius: 99px; transition: width .4s; }
+  #kh .next { font-size: 13px; color: var(--mut); }
+  #kh .next b { color: var(--ink); }
+  #kh .me-act { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  #kh .url { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; font-weight: 800; border: 1px solid var(--line); border-radius: 99px; padding: 8px 14px; max-width: 100%; }
+  #kh .url span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #kh .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex-shrink: 0; }
+  #kh .kpis { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  #kh .kpi { border: 1px solid var(--line); border-radius: 14px; padding: 10px 16px; min-width: 120px; }
+  #kh .kpi b { display: block; font-size: 22px; font-weight: 900; letter-spacing: -.02em; }
+  #kh .kpi small { font-size: 11px; color: var(--mut); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  #kh .upsell { margin-top: 14px; font-size: 13px; color: var(--mut); }
+  #kh .upsell a { color: var(--ink); font-weight: 700; }
+
+  #kh .divider { max-width: 1160px; margin: 56px auto 0; padding: 0 20px; }
+  #kh .divider hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+  #kh .market { padding-top: 40px; }
+  #kh .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--ink); color: var(--paper); padding: 11px 20px; border-radius: 99px; font-size: 13px; font-weight: 600; transition: .25s; pointer-events: none; z-index: 50; }
+  #kh .toast.show { opacity: 1; transform: translateX(-50%); }
+
+  @media (max-width: 760px) {
+    #kh .top { padding: 4px 16px 0; }
+    #kh .hero { padding: 32px 0 8px; }
+    #kh .steps { grid-template-columns: 1fr; gap: 10px; margin-top: 30px; }
+    #kh .step { padding: 16px 18px; }
+    #kh .me { grid-template-columns: 1fr; padding: 22px; }
+    #kh .me-act { justify-content: flex-start; }
+    #kh .actions .btn { width: 100%; }
+    #kh .divider { margin-top: 40px; padding: 0 16px; }
+  }
+</style>
+
+<div id="kh">
+  <div class="top" id="kh-top"><div class="hero"><p class="kicker">Kitly</p><h1>Ton activité mérite son <em>propre site.</em></h1></div></div>
+  <div class="divider"><hr></div>
+  <div class="market" id="kh-market"></div>
+  <div class="toast" id="kh-toast"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  var CONFIG = {
+    API_BASE: "https://navire-app-api.onrender.com",
+    REGISTER_URL: "https://kitly.fr/connexion?mode=inscription",
+    LOGIN_URL: "https://kitly.fr/connexion",
+    BUILDER_URL: "https://kitly.fr/builder",
+    PRICING_URL: "https://kitly.fr/subscribe",
+    PUBLIC_BASE: "https://kitly.fr/profile?u=",     // vitrine = PUBLIC_BASE + slug
+    PROFILE_URL: "https://kitly.fr/profile?u={slug}", // liens des cartes marketplace
+    TOKEN_KEY: "kitly_token"
+  };
+
+  var root = document.getElementById("kh");
+  var top = document.getElementById("kh-top");
+  var HOST = window, frameEl = null;
+  try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function token() { try { return localStorage.getItem(CONFIG.TOKEN_KEY); } catch (e) { return null; } }
+  function api(path) {
+    return fetch(CONFIG.API_BASE + "/kitly" + path, { headers: { Authorization: "Bearer " + token() } }).then(function (r) {
+      if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+      return r.json();
+    });
+  }
+  var toastTimer;
+  function toast(msg) {
+    var t = document.getElementById("kh-toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2600);
+  }
+  function scrollToMarket() {
+    var el = document.getElementById("kh-market");
+    try {
+      if (frameEl) {
+        var y = frameEl.getBoundingClientRect().top + HOST.scrollY + el.offsetTop - 70;
+        HOST.scrollTo({ top: y, behavior: "smooth" });
+        return;
+      }
+    } catch (e) {}
+    el.scrollIntoView({ behavior: "smooth" });
+  }
+
+  // ============================================================
+  // 1. Crée ta vitrine
+  // ============================================================
+  function renderGuest() {
+    top.innerHTML =
+      '<div class="hero"><p class="kicker">Kitly</p>' +
+      '<h1>Ton activité mérite son <em>propre site.</em></h1>' +
+      '<p class="lead">Crée ta vitrine professionnelle, présente tes prestations et trouve de nouveaux clients.</p>' +
+      '<div class="actions"><a class="btn" href="' + esc(CONFIG.REGISTER_URL) + '" target="_top">Créer ma vitrine gratuitement</a>' +
+      '<button type="button" class="btn ghost" data-market>Découvrir les freelances ↓</button></div>' +
+      '<p class="fine">Gratuit · Sans carte bancaire · 3 minutes — Déjà un compte ? <a href="' + esc(CONFIG.LOGIN_URL) + '" target="_top">Se connecter</a></p></div>' +
+      '<div class="steps">' +
+      '<div class="step"><span class="n">01</span><b>Crée ton site</b><p>Ton nom, ton métier, ta photo : ta vitrine est prête en quelques minutes.</p></div>' +
+      '<div class="step"><span class="n">02</span><b>Ajoute tes offres</b><p>Prestations, produits physiques ou numériques, rendez-vous.</p></div>' +
+      '<div class="step"><span class="n">03</span><b>Partage ton lien</b><p>kitly.fr/ton-nom sur Instagram, LinkedIn, WhatsApp… et reçois des demandes.</p></div>' +
+      '</div>';
+  }
+
+  function renderMember(me, stats, leads) {
+    var u = me.user, p = me.profile;
+    var isPremium = me.plan && me.plan.limits && me.plan.limits.marketplace;
+    if (p && p.is_published) {
+      var url = CONFIG.PUBLIC_BASE + p.slug;
+      top.innerHTML = '<div class="me"><div>' +
+        '<h2>Ta vitrine est <em>en ligne</em>, ' + esc(u.first_name) + '</h2>' +
+        '<div class="url"><span class="dot"></span><span>' + esc(url.replace(/^https?:\/\//, "")) + '</span></div>' +
+        '<div class="kpis"><div class="kpi"><b>' + (stats ? stats.visits : "—") + '</b><small>Visites · 30 j</small></div>' +
+        '<div class="kpi"><b>' + (leads ? leads.unread : "—") + '</b><small>Demandes à lire</small></div></div>' +
+        (isPremium ? '' : '<p class="upsell">Ta vitrine n\'apparaît pas encore dans la marketplace ci-dessous. <a href="' + esc(CONFIG.PRICING_URL) + '" target="_top">Passer à Premium+ →</a></p>') +
+        '</div><div class="me-act">' +
+        '<a class="btn sm" href="' + esc(CONFIG.BUILDER_URL) + '" target="_top">Gérer ma vitrine</a>' +
+        '<a class="btn sm ghost" href="' + esc(url) + '" target="_blank" rel="noopener">Voir</a>' +
+        '<button type="button" class="btn sm ghost" data-copy="' + esc(url) + '">Copier le lien</button></div></div>';
+      return;
+    }
+    var steps = me.onboarding || [];
+    var next = steps.filter(function (s) { return !s.done; })[0];
+    top.innerHTML = '<div class="me"><div>' +
+      '<h2>Bonjour <em>' + esc(u.first_name) + '</em>, on termine ta vitrine ?</h2>' +
+      '<p class="sub">Tout est enregistré automatiquement : reprends là où tu t\'es arrêté(e).</p>' +
+      '<div class="bar"><i style="width:' + (me.onboarding_progress || 0) + '%"></i></div>' +
+      '<div class="next">' + (me.onboarding_progress || 0) + ' % — ' + (next ? 'Prochaine étape : <b>' + esc(next.label) + '</b>' : 'Prête à publier') + '</div>' +
+      '</div><div class="me-act"><a class="btn" href="' + esc(CONFIG.BUILDER_URL) + '" target="_top">' + (p ? "Continuer ma vitrine" : "Créer ma vitrine") + ' →</a></div></div>';
+  }
+
+  root.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-market],[data-copy]");
+    if (!t) return;
+    if (t.hasAttribute("data-market")) return scrollToMarket();
+    var url = t.getAttribute("data-copy");
+    var done = function () { toast("Lien copié ✓"); };
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, function () { window.prompt("Ton lien :", url); });
+    else window.prompt("Ton lien :", url);
+  });
+
+  // ============================================================
+  // 2. Marketplace
+  // ============================================================
+  function loadMarket() {
+    var el = document.getElementById("kh-market");
+    var s = document.createElement("script");
+    s.src = CONFIG.API_BASE + "/kitly/static/marketplace.js";
+    s.onload = function () {
+      window.KitlyMarket.mount(el, {
+        apiBase: CONFIG.API_BASE, mode: "full", hero: false, ctaBand: false,
+        title: "Découvrir les <em>freelances</em>",
+        subtitle: "Graphistes, développeurs, photographes, coachs… Compare leurs offres et contacte-les directement.",
+        profileUrl: CONFIG.PROFILE_URL, registerUrl: CONFIG.REGISTER_URL
+      });
+    };
+    s.onerror = function () { el.innerHTML = '<p style="text-align:center;color:#6f6f6c">La marketplace n\'a pas pu être chargée.</p>'; };
+    document.head.appendChild(s);
+  }
+
+  // ============================================================
+  // Hauteur de l'iframe = hauteur du contenu
+  // ============================================================
+  (function () {
+    if (!frameEl) {
+      if (window.parent !== window) {
+        try { new ResizeObserver(function () { window.parent.postMessage({ type: "KITLY_EMBED_HEIGHT", height: Math.ceil(root.getBoundingClientRect().height) }, "*"); }).observe(root); } catch (e) {}
+      }
+      return;
+    }
+    var wrappers = [];
+    try {
+      for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+      var st = document.createElement("style"); st.textContent = "html,body{overflow:hidden}"; document.head.appendChild(st);
+    } catch (e) {}
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height);
+      if (!h || h === last) return;
+      last = h;
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+    window.addEventListener("load", report);
+  })();
+
+  // ============================================================
+  // Démarrage
+  // ============================================================
+  if (token()) {
+    api("/auth/me").then(function (me) {
+      if (me.profile && me.profile.is_published) {
+        return Promise.all([api("/me/stats?days=30").catch(function () { return null; }), api("/me/leads?page_size=1").catch(function () { return null; })])
+          .then(function (r) { renderMember(me, r[0], r[1]); });
+      }
+      renderMember(me, null, null);
+    }).catch(function (e) {
+      if (e.status === 401) { try { localStorage.removeItem(CONFIG.TOKEN_KEY); } catch (x) {} }
+      renderGuest();
+    });
+  } else {
+    renderGuest();
+  }
+  loadMarket();
+})();
+</script>

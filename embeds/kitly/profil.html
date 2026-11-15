@@ -1,0 +1,179 @@
+<!--
+  KITLY : page profil publique (embed 2)
+  ======================================
+  Affiche la vitrine d'un freelance dans le site Framer Kitly, avec le même
+  moteur de rendu que l'aperçu du builder (GET /kitly/static/vitrine.js) :
+  liens, boutique, fiches offres, demande de contact / devis / rendez-vous,
+  réalisations, CGV du vendeur, signalement, comptage des visites.
+
+  Quelle vitrine afficher :
+    1. paramètre d'URL ?u=<adresse> (ou ?slug=) — ex. page Framer /vitrine?u=lea-martin ;
+    2. sinon le chemin de la page — ex. sur la page 404 de Framer, kitly.fr/lea-martin
+       affiche la vitrine « lea-martin ».
+  Ajoute ?src=marketplace aux liens de la marketplace (statistiques d'acquisition).
+
+  ⚠️ Partage sur les réseaux : l'aperçu (photo, nom) d'un lien collé sur WhatsApp
+  ou LinkedIn n'est lu que dans une page servie avec ses balises. La version
+  complète est servie par l'API : GET /kitly/p/<adresse> — voir README.
+
+  Composant Framer : Embed HTML, largeur Fill, hauteur auto (l'embed agrandit son
+  iframe à la hauteur de la vitrine). Réglages : bloc CONFIG.
+-->
+
+<style>
+  html, body { margin: 0; padding: 0; background: transparent !important; }
+  #kp { min-height: 200px; }
+  #kp .kp-state { font-family: Inter, -apple-system, 'Segoe UI', Arial, sans-serif; color: #0a0a0a; text-align: center; padding: 80px 20px; }
+  #kp .kp-state h1 { font-size: 28px; font-weight: 900; letter-spacing: -.03em; margin: 0 0 8px; }
+  #kp .kp-state em { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; }
+  #kp .kp-state p { color: #6f6f6c; margin: 0 0 18px; font-size: 15px; }
+  #kp .kp-state a { display: inline-block; background: #0a0a0a; color: #fff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 22px; border-radius: 99px; }
+  #kp .kp-skel { max-width: 420px; margin: 40px auto; padding: 0 20px; }
+  #kp .kp-skel i { display: block; background: #f0f0ee; border-radius: 12px; margin: 0 auto 12px; animation: kp-pulse 1.2s infinite; }
+  @keyframes kp-pulse { 50% { opacity: .5; } }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+<div id="kp">
+  <div class="kp-skel">
+    <i style="width:92px;height:92px;border-radius:50%"></i>
+    <i style="width:60%;height:24px"></i><i style="width:40%;height:14px"></i>
+    <i style="height:54px;border-radius:99px;margin-top:28px"></i><i style="height:54px;border-radius:99px"></i>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  var CONFIG = {
+    API_BASE: "https://navire-app-api.onrender.com",
+    KITLY_URL: "https://kitly.fr",                    // lien « Propulsé par kitly »
+    PRIVACY_URL: "https://kitly.fr/politique-de-confidentialite",  // cité par le formulaire de contact
+    MARKETPLACE_URL: "https://kitly.fr/marketplace",  // bouton de la page « introuvable »
+    // Chemins du site qui ne sont jamais des vitrines (si l'embed lit le chemin)
+    RESERVED: ["", "home", "profile", "builder", "subscribe", "marketplace", "connexion", "console", "cgu", "cgv", "mentions-legales", "politique-de-confidentialite", "404"]
+  };
+
+  var root = document.getElementById("kp");
+  var HOST = window, frameEl = null;
+  try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+  var loc = (function () { try { return HOST.location; } catch (e) { return window.location; } })();
+
+  function readSlug() {
+    var params = new URLSearchParams(loc.search);
+    var q = params.get("u") || params.get("slug");
+    if (q) return q.trim().toLowerCase();
+    var seg = loc.pathname.replace(/\/+$/, "").split("/").pop() || "";
+    seg = decodeURIComponent(seg).toLowerCase();
+    if (CONFIG.RESERVED.indexOf(seg) >= 0 || !/^[a-z0-9-]{3,40}$/.test(seg)) return "";
+    return seg;
+  }
+  function readSource() {
+    try {
+      if (new URLSearchParams(loc.search).get("src") === "marketplace") return "marketplace";
+      var ref = (HOST.document && HOST.document.referrer) || document.referrer || "";
+      if (/\/marketplace|\/freelances/.test(ref)) return "marketplace";
+    } catch (e) {}
+    return "direct";
+  }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+
+  function notFound() {
+    root.innerHTML = '<div class="kp-state"><h1>Cette vitrine <em>n\'existe pas</em></h1>' +
+      '<p>Elle a peut-être changé d\'adresse ou n\'est pas encore publiée.</p>' +
+      '<a href="' + esc(CONFIG.MARKETPLACE_URL) + '" target="_top">Découvrir les freelances</a></div>';
+  }
+  function failed() {
+    root.innerHTML = '<div class="kp-state"><h1>Oups</h1><p>La vitrine n\'a pas pu être chargée.</p>' +
+      '<a href="#" id="kp-retry">Réessayer</a></div>';
+    document.getElementById("kp-retry").onclick = function (e) { e.preventDefault(); boot(); };
+  }
+
+  function loadEngine() {
+    if (window.KitlyVitrine) return Promise.resolve();
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = CONFIG.API_BASE + "/kitly/static/vitrine.js";
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  // Modales : sur la partie visible de la page parente, page figée pendant l'ouverture.
+  function frameViewport() {
+    if (!frameEl) return null;
+    var r = frameEl.getBoundingClientRect(), vh = HOST.innerHeight;
+    var top = Math.max(0, -r.top), bottom = Math.min(r.height, vh - r.top);
+    return { top: top, height: Math.max(200, bottom - top) };
+  }
+  var savedOverflow = "";
+  function lockScroll(on) {
+    if (!frameEl) return;
+    try {
+      var de = HOST.document.documentElement;
+      if (on) { savedOverflow = de.style.overflow; de.style.overflow = "hidden"; } else { de.style.overflow = savedOverflow; }
+    } catch (e) {}
+  }
+
+  function setMeta(data) {
+    // Titre de l'onglet (les aperçus de partage, eux, viennent de /kitly/p/<adresse>).
+    try { HOST.document.title = data.display_name + (data.headline ? " — " + data.headline : "") + " | Kitly"; } catch (e) {}
+  }
+
+  function boot() {
+    var slug = readSlug();
+    if (!slug) return notFound();
+    Promise.all([
+      loadEngine(),
+      fetch(CONFIG.API_BASE + "/kitly/public/profiles/" + encodeURIComponent(slug)).then(function (r) {
+        if (r.status === 404) { var e = new Error("404"); e.status = 404; throw e; }
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+    ]).then(function (res) {
+      var data = res[1];
+      setMeta(data);
+      window.KitlyVitrine.mount(root, data, {
+        apiBase: CONFIG.API_BASE, source: readSource(), privacyUrl: CONFIG.PRIVACY_URL, kitlyUrl: CONFIG.KITLY_URL,
+        frameViewport: frameEl ? frameViewport : null, lockScroll: lockScroll
+      });
+    }).catch(function (e) { if (e.status === 404) notFound(); else failed(); });
+  }
+
+  // ============================================================
+  // Hauteur de l'iframe = hauteur de la vitrine
+  // ============================================================
+  (function () {
+    if (window.parent === window) return;
+    var wrappers = [];
+    try {
+      if (frameEl) {
+        for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+        var s = document.createElement("style");
+        s.textContent = "html,body{overflow:hidden}";
+        document.head.appendChild(s);
+      }
+    } catch (e) {}
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height);
+      if (!h || h === last) return;
+      last = h;
+      if (frameEl) {
+        frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+        wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+      } else {
+        try { window.parent.postMessage({ type: "KITLY_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+      }
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+    window.addEventListener("load", report);
+  })();
+
+  boot();
+})();
+</script>
