@@ -64,6 +64,10 @@ from app.meoles_site.cart_routes import router as meoles_cart_router
 from app.meoles_site.stripe_routes import router as meoles_stripe_router
 from app.meoles_site.custom_routes import router as meoles_custom_router
 from app.meoles_site.admin_routes import router as meoles_admin_router
+# ============================================================
+# KITLY — import isolé (app/kitly/, routes /kitly, tables kitly_*)
+# ============================================================
+from app.kitly.router import router as kitly_router, kitly_startup, kitly_purge_job
 
 # ============================================================
 # APScheduler — purge QcmSessionHistory > 6 mois d'inactivité
@@ -118,6 +122,7 @@ def _daily_email_health() -> None:
 
 
 scheduler.add_job(_daily_email_health, trigger="cron", hour=7, minute=30)
+scheduler.add_job(kitly_purge_job, trigger="cron", hour=4, minute=10, id="kitly_purge", replace_existing=True)
 scheduler.add_job(
     check_expired_subscriptions,
     trigger="interval",
@@ -343,6 +348,9 @@ async def lifespan(app: FastAPI):
         print("🚀 Startup: NAVIRE index backfill (background)...")
         backfill_in_background()
 
+    print("🚀 Startup: Kitly (formules, configuration)...")
+    kitly_startup()
+
     print("🚀 Startup: creating default professor groups...")
     _creer_groupes_professeurs()
 
@@ -419,6 +427,11 @@ app.include_router(meoles_cart_router)
 app.include_router(meoles_stripe_router)
 app.include_router(meoles_custom_router)
 app.include_router(meoles_admin_router)
+
+# ============================================================
+# KITLY — Router
+# ============================================================
+app.include_router(kitly_router)
 
 # ============================================================
 # Healthcheck
