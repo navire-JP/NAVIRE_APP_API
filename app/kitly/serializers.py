@@ -10,7 +10,7 @@ connexion, Stripe, juridique privé) ne peut y fuiter par oubli.
 from __future__ import annotations
 
 from app.kitly import catalog
-from app.kitly.config import KITLY_PUBLIC_HOST
+from app.kitly.config import KITLY_PROFILE_URL_TEMPLATE
 from app.kitly.models import (
     KitlyLead,
     KitlyOffer,
@@ -130,7 +130,7 @@ def sections_with_defaults(sections: list | None) -> list:
 
 
 def public_url(profile: KitlyProfile) -> str:
-    return f"https://{KITLY_PUBLIC_HOST}/{profile.slug}"
+    return KITLY_PROFILE_URL_TEMPLATE.replace("{slug}", profile.slug)
 
 
 def profile_owner(profile: KitlyProfile) -> dict:

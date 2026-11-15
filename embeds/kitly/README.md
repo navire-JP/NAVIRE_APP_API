@@ -6,11 +6,11 @@ Embeds du second site Framer, branchés sur les routes `/kitly/*` de l'API
 
 | Fichier | Page Framer | Composant | Rôle |
 |---|---|---|---|
-| `home.html` | `/home` (accueil) | Embed HTML, largeur Fill, hauteur auto | Accueil simple : « Crée ta vitrine » en haut, adapté à la personne (visiteur : « Créer ma vitrine gratuitement » + 3 étapes ; connecté : progression et « Continuer ma vitrine » ; vitrine en ligne : lien, visites, demandes, Gérer / Voir / Copier), puis la marketplace complète en dessous |
+| `home.html` | Home (`/`) | Embed HTML, largeur Fill, hauteur auto | Accueil simple : « Crée ta vitrine » en haut, adapté à la personne (visiteur : « Créer ma vitrine gratuitement » + 3 étapes ; connecté : progression et « Continuer ma vitrine » ; vitrine en ligne : lien, visites, demandes, Gérer / Voir / Copier), puis la marketplace complète en dessous |
 | `connexion.html` | `/connexion` | Embed HTML, largeur Fill, hauteur auto (l'embed agrandit son iframe) | Embed 4 : connexion, inscription (CGU et confidentialité en cases séparées), code de vérification email (collage du code accepté, « plus tard » possible), mot de passe oublié, écran « déjà connecté ». `?mode=inscription` ouvre l'inscription (boutons « Créer ma vitrine » de la landing) |
-| `profil.html` | page 404 de Framer (et/ou `/vitrine?u=<adresse>`) | Embed HTML, largeur Fill, hauteur auto | Embed 2 : vitrine publique. Lit l'adresse dans `?u=` ou dans le chemin (`kitly.fr/lea-martin`). Fiches offres, contact / devis / rendez-vous, réalisations, CGV du vendeur, signalement, comptage des visites. Modales placées sur la partie visible de la page. Adresse inconnue : « Cette vitrine n'existe pas » |
+| `profil.html` | `/profile?u=<adresse>` (et/ou page 404 de Framer pour `kitly.fr/<adresse>`) | Embed HTML, largeur Fill, hauteur auto | Embed 2 : vitrine publique. Lit l'adresse dans `?u=` ou dans le chemin (`kitly.fr/lea-martin`). Fiches offres, contact / devis / rendez-vous, réalisations, CGV du vendeur, signalement, comptage des visites. Modales placées sur la partie visible de la page. Adresse inconnue : « Cette vitrine n'existe pas » |
 | `marketplace.html` | `/marketplace` (et section « marketplace » de la landing en mode `showcase`) | Embed HTML, largeur Fill, hauteur auto | Embed 3 : recherche (sans accents), catégories, lieu, type d'offre, budget, tri ; « Les nouveaux sur Kitly », « Les profils populaires », encart « Sponsorisé » séparé du classement, « Voir plus », « Comment sont classés les résultats ? ». Filtres recopiés dans l'URL de la page (lien partageable). Les cartes ouvrent la vitrine avec `?src=marketplace`. Mode `showcase` : 8 profils + bouton vers la marketplace |
-| `builder.html` | `/dashboard` | Embed HTML, largeur Fill, **hauteur 100vh** (ou Fill dans une section pleine hauteur, sous le header) | « Ma vitrine » : 4 étapes (Identité, Liens, Boutique, Style), aperçu téléphone en direct, sauvegarde automatique, ajout d'offres par type, publication avec confirmation d'email sur place. Mobile : onglets Modifier / Aperçu |
+| `builder.html` | `/builder` | Embed HTML, largeur Fill, **hauteur 100vh** (ou Fill dans une section pleine hauteur, sous le header) | « Ma vitrine » : 4 étapes (Identité, Liens, Boutique, Style), aperçu téléphone en direct, sauvegarde automatique, ajout d'offres par type, publication avec confirmation d'email sur place. Mobile : onglets Modifier / Aperçu |
 
 ## Moteur de rendu partagé
 
@@ -40,11 +40,13 @@ Framer ne sait pas créer une page pour chaque adresse de freelance. Au choix :
 2. **Sans infrastructure — page 404 de Framer** : y placer `profil.html`, qui lit
    l'adresse dans le chemin. Fonctionne pour les visiteurs, mais Framer répond
    « 404 » (mauvais pour Google) et les liens partagés n'ont pas d'aperçu.
-3. **Page Framer `/vitrine`** avec `profil.html` et des liens `kitly.fr/vitrine?u=<adresse>` :
-   simple, mais URL moins belle, mêmes limites que l'option 2.
+3. **Page Framer `/profile`** avec `profil.html` et des liens `kitly.fr/profile?u=<adresse>`
+   (réglage par défaut des embeds et de `KITLY_PROFILE_URL_TEMPLATE`) : simple, mais URL moins
+   belle, mêmes limites que l'option 2.
 
-L'option 2 peut servir dès maintenant ; l'option 1 est à mettre en place avant
-le lancement.
+Les embeds sont réglés par défaut sur l'option 3 (`/profile?u=`). L'option 1 est à
+mettre en place avant le lancement (changer alors `PROFILE_URL` / `PUBLIC_BASE` et
+`KITLY_PROFILE_URL_TEMPLATE`).
 
 ## Réglages (bloc CONFIG en haut de chaque script)
 

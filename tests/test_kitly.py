@@ -719,7 +719,7 @@ def test_vitrine_page_meta_and_escaping(client):
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
     page = r.text
     assert '<meta property="og:title" content="Léa &quot;Studio&quot; &lt;/script&gt;' in page
-    assert f'<link rel="canonical" href="https://kitly.fr/{slug}">' in page
+    assert f'<link rel="canonical" href="https://kitly.fr/profile?u={slug}">' in page
     assert '<script src="/kitly/static/vitrine.js"></script>' in page
     # Le nom piégé n'ouvre jamais de balise : ni dans les <meta>, ni dans le JSON embarqué.
     assert page.count("<script>alert(1)") == 0
