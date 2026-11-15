@@ -1,0 +1,1227 @@
+<!--
+  KITLY : builder de vitrine (tableau de bord « Ma vitrine »)
+  ==========================================================
+  À coller dans un composant « Embed » (HTML) du site Framer Kitly, page
+  /dashboard. Hauteur conseillée : 100vh (ou « Fill » dans une section pleine
+  hauteur) — l'embed gère lui-même ses deux zones de défilement (formulaire à
+  gauche, aperçu téléphone à droite ; onglets Modifier / Aperçu sur mobile).
+
+  Parcours en 4 étapes, sauvegarde automatique (PATCH /kitly/me/profile) :
+    1. Identité   nom, adresse kitly.fr/…, métier, catégorie, lieu, accroche,
+                  présentation, photo, bannière, email de contact
+    2. Liens      réseaux sociaux, chiffres clés, blocs (liens, vidéos, textes)
+    3. Boutique   offres : produit physique, numérique, prestation, rendez-vous
+    4. Style      template, couleurs, typo, forme des boutons, sections
+  Barre du bas : lien de la vitrine, aperçu public, publier / dépublier
+  (confirmation de l'email proposée sur place si nécessaire).
+
+  Les limites de formule viennent de l'API (GET /kitly/auth/me) : une option
+  verrouillée renvoie vers la page Tarifs. Jeton : « kitly_token ».
+  Réglages : bloc CONFIG du script.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: transparent !important; overflow: hidden; }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  #kb {
+    --ink: #0a0a0a; --paper: #ffffff; --grey: #f5f5f4; --line: #e4e4e2; --mut: #6f6f6c; --bad: #c2410c; --good: #15803d;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
+    height: 100%; display: flex; flex-direction: column; background: var(--paper);
+  }
+  #kb button { font-family: inherit; }
+  #kb .hidden { display: none !important; }
+
+  /* ── barre du haut ── */
+  #kb .top { border-bottom: 1px solid var(--line); padding: 12px 20px 0; flex-shrink: 0; }
+  #kb .top-in { display: flex; align-items: center; gap: 14px; justify-content: space-between; flex-wrap: wrap; }
+  #kb .title { font-size: 20px; font-weight: 900; letter-spacing: -.03em; margin: 0; }
+  #kb .title em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: 0; }
+  #kb .meta { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--mut); font-weight: 600; }
+  #kb .save { display: inline-flex; align-items: center; gap: 6px; }
+  #kb .save i { width: 7px; height: 7px; border-radius: 50%; background: var(--good); }
+  #kb .save.saving i { background: #d4d4d1; animation: kb-pulse 1s infinite; }
+  #kb .save.error i { background: var(--bad); }
+  @keyframes kb-pulse { 50% { opacity: .3; } }
+  #kb .plan { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--ink); padding: 4px 11px; border-radius: 99px; color: var(--ink); text-decoration: none; cursor: pointer; background: none; }
+  #kb .steps { display: flex; gap: 4px; margin-top: 12px; overflow-x: auto; scrollbar-width: none; }
+  #kb .step { border: 0; background: none; padding: 10px 12px 12px; font-size: 13.5px; font-weight: 700; color: var(--mut); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+  #kb .step b { font-family: var(--serif); font-style: italic; font-weight: 400; margin-right: 4px; }
+  #kb .step.on { color: var(--ink); border-bottom-color: var(--ink); }
+
+  /* ── zone principale ── */
+  #kb .main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 440px; }
+  #kb .edit { overflow-y: auto; padding: 24px 28px 40px; }
+  #kb .prev { overflow-y: auto; background: var(--grey); border-left: 1px solid var(--line); padding: 22px 20px 40px; }
+  #kb .edit-in { max-width: 620px; margin: 0 auto; }
+  #kb .pv-label { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mut); text-align: center; margin-bottom: 12px; }
+  #kb .phone { width: 100%; max-width: 380px; margin: 0 auto; border-radius: 30px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), 0 20px 50px -24px rgba(0,0,0,.25); }
+  #kb .mtabs { display: none; }
+
+  /* ── formulaires ── */
+  #kb .sec { margin-bottom: 30px; }
+  #kb .sec h3 { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); margin: 0 0 14px; }
+  #kb .sec .lead { font-size: 13.5px; color: var(--mut); margin: -6px 0 14px; line-height: 1.5; }
+  #kb .field { margin-bottom: 14px; }
+  #kb .field > label, #kb .lb { display: block; font-size: 12px; font-weight: 700; color: var(--mut); margin-bottom: 5px; }
+  #kb .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  #kb input[type=text], #kb input[type=email], #kb input[type=url], #kb input[type=number], #kb textarea, #kb select {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; font: 14.5px var(--sans);
+    color: var(--ink); background: var(--paper); outline: none; transition: border-color .15s;
+  }
+  #kb textarea { resize: vertical; line-height: 1.5; }
+  #kb input:focus, #kb textarea:focus, #kb select:focus { border-color: var(--ink); }
+  #kb .err-field { border-color: var(--bad) !important; }
+  #kb .count { float: right; font-weight: 600; color: #a3a3a0; }
+  #kb .slug { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  #kb .slug span { padding: 0 2px 0 13px; color: var(--mut); font-size: 14.5px; white-space: nowrap; }
+  #kb .slug input { border: 0 !important; padding-left: 2px; }
+  #kb .slug:focus-within { border-color: var(--ink); }
+  #kb .note { font-size: 12px; margin-top: 5px; color: var(--mut); }
+  #kb .note.bad { color: var(--bad); } #kb .note.good { color: var(--good); }
+
+  #kb .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 700; font-size: 13.5px; padding: 10px 18px; border-radius: 999px; border: 1px solid var(--ink); background: var(--paper); color: var(--ink); cursor: pointer; transition: .15s; text-decoration: none; white-space: nowrap; }
+  #kb .btn:hover { background: var(--grey); }
+  #kb .btn.dark { background: var(--ink); color: var(--paper); }
+  #kb .btn.dark:hover { background: #2a2a2a; }
+  #kb .btn.sm { padding: 7px 13px; font-size: 12.5px; }
+  #kb .btn:disabled { opacity: .5; cursor: default; }
+  #kb .add { width: 100%; background: none; border: 1px dashed #cfcfcc; border-radius: 11px; padding: 11px; font-size: 13px; font-weight: 700; color: var(--mut); cursor: pointer; transition: .15s; }
+  #kb .add:hover { border-color: var(--ink); color: var(--ink); }
+  #kb .icon-btn { width: 34px; height: 34px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--mut); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; padding: 0; }
+  #kb .icon-btn:hover { border-color: var(--ink); color: var(--ink); }
+  #kb .icon-btn svg { width: 15px; height: 15px; }
+
+  #kb .up { display: flex; gap: 12px; align-items: center; }
+  #kb .up-av { width: 56px; height: 56px; border-radius: 50%; background: var(--ink) center/cover; color: var(--paper); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; flex-shrink: 0; }
+  #kb .up-ban { width: 130px; height: 44px; border-radius: 9px; background: var(--grey) center/cover; color: var(--mut); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; border: 1px solid var(--line); }
+
+  #kb .item { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 8px; background: var(--paper); }
+  #kb .item-l { display: flex; gap: 8px; align-items: center; }
+  #kb .item-l > input, #kb .item-l > select { flex: 1; min-width: 0; }
+  #kb .item .grow { flex: 1; min-width: 0; }
+  #kb .item + .item { margin-top: 0; }
+  #kb .item .sub { display: flex; gap: 8px; margin-top: 8px; }
+  #kb .item .sub > * { flex: 1; min-width: 0; }
+  #kb .type-tag { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; background: var(--grey); padding: 4px 8px; border-radius: 99px; color: var(--mut); flex-shrink: 0; }
+  #kb .item.off { opacity: .55; }
+  #kb .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  #kb .chip { border: 1px solid var(--line); background: var(--paper); border-radius: 99px; padding: 7px 13px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: var(--ink); }
+  #kb .chip:hover { border-color: var(--ink); }
+
+  /* offres */
+  #kb .offer { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 13px; padding: 10px; margin-bottom: 8px; }
+  #kb .offer-img { width: 52px; height: 52px; border-radius: 10px; background: var(--grey) center/cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #b5b5b2; }
+  #kb .offer-img svg { width: 20px; height: 20px; }
+  #kb .offer-t { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #kb .offer-m { font-size: 12px; color: var(--mut); margin-top: 2px; }
+  #kb .pill { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; margin-left: 6px; vertical-align: 1px; }
+  #kb .pill.live { background: var(--ink); color: var(--paper); } #kb .pill.draft { background: var(--grey); color: var(--mut); }
+  #kb .banner { border: 1px solid var(--ink); border-radius: 13px; padding: 13px 15px; display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 22px; font-size: 13.5px; line-height: 1.45; }
+  #kb .banner.soft { border-color: var(--line); background: var(--grey); }
+  #kb .kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #kb .kind { border: 1px solid var(--line); border-radius: 14px; padding: 16px; text-align: left; background: var(--paper); cursor: pointer; transition: .15s; }
+  #kb .kind:hover { border-color: var(--ink); transform: translateY(-2px); }
+  #kb .kind svg { width: 22px; height: 22px; margin-bottom: 10px; }
+  #kb .kind b { display: block; font-size: 14px; } #kb .kind span { display: block; font-size: 12px; color: var(--mut); margin-top: 3px; line-height: 1.4; }
+  #kb .imgs { display: flex; gap: 8px; flex-wrap: wrap; }
+  #kb .img-th { width: 64px; height: 64px; border-radius: 10px; background: var(--grey) center/cover; position: relative; border: 1px solid var(--line); }
+  #kb .img-th button { position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); cursor: pointer; font-size: 11px; padding: 0; }
+  #kb .img-add { width: 64px; height: 64px; border-radius: 10px; border: 1px dashed #cfcfcc; display: flex; align-items: center; justify-content: center; color: var(--mut); cursor: pointer; font-size: 22px; background: none; }
+  #kb .check { display: flex; gap: 10px; align-items: center; font-size: 13.5px; font-weight: 600; cursor: pointer; margin: 6px 0; }
+  #kb .check input { width: 17px; height: 17px; accent-color: var(--ink); margin: 0; }
+
+  /* style */
+  #kb .tpls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  #kb .tpl { border: 2px solid var(--line); border-radius: 14px; padding: 0; overflow: hidden; cursor: pointer; background: var(--paper); text-align: left; position: relative; transition: .15s; }
+  #kb .tpl:hover { transform: translateY(-2px); }
+  #kb .tpl.on { border-color: var(--ink); }
+  #kb .tpl .sw { height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; }
+  #kb .tpl .sw i { display: block; width: 60%; height: 9px; border-radius: 99px; }
+  #kb .tpl .nm { font-size: 12px; font-weight: 700; padding: 8px 10px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+  #kb .lock { font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--mut); }
+  #kb .colors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #kb .color { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: 13px; font-weight: 600; }
+  #kb .color input[type=color] { width: 30px; height: 30px; border: 0; padding: 0; background: none; cursor: pointer; border-radius: 8px; }
+  #kb .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 99px; padding: 3px; }
+  #kb .seg button { border: 0; background: none; padding: 7px 14px; border-radius: 99px; font-size: 12.5px; font-weight: 700; color: var(--mut); cursor: pointer; }
+  #kb .seg button.on { background: var(--ink); color: var(--paper); }
+
+  /* barre de publication */
+  #kb .pub { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 20px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--paper); }
+  #kb .pub-url { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  #kb .dot { width: 8px; height: 8px; border-radius: 50%; background: #d4d4d1; flex-shrink: 0; }
+  #kb .dot.on { background: var(--good); }
+  #kb .pub-url b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #kb .pub-url small { display: block; font-size: 11.5px; color: var(--mut); font-weight: 600; }
+  #kb .pub-act { display: flex; gap: 8px; }
+
+  /* modale */
+  #kb .modal-bg { position: fixed; inset: 0; background: rgba(10,10,10,.5); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #kb .modal { background: var(--paper); border-radius: 20px; width: 100%; max-width: 560px; max-height: 100%; overflow-y: auto; padding: 26px; position: relative; animation: kb-pop .18s ease; }
+  @keyframes kb-pop { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+  #kb .modal h4 { font-size: 21px; font-weight: 900; letter-spacing: -.02em; margin: 0 0 6px; }
+  #kb .modal h4 em { font-family: var(--serif); font-style: italic; font-weight: 400; }
+  #kb .modal .x { position: absolute; top: 14px; right: 14px; }
+  #kb .modal-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
+  #kb .code { display: flex; gap: 8px; justify-content: center; margin: 16px 0; }
+  #kb .code input { width: 46px; height: 54px; text-align: center; font: 800 22px var(--sans); padding: 0; }
+
+  #kb .toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%) translateY(20px); opacity: 0; pointer-events: none; background: var(--ink); color: var(--paper); padding: 11px 20px; border-radius: 99px; font-size: 13px; font-weight: 600; transition: .25s; z-index: 60; max-width: calc(100% - 32px); text-align: center; }
+  #kb .toast.show { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+  #kb .toast a { color: var(--paper); font-weight: 800; }
+  #kb .center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  #kb .center h2 { font-size: 24px; font-weight: 900; letter-spacing: -.03em; margin: 0 0 8px; }
+  #kb .center p { color: var(--mut); font-size: 14px; margin: 0 0 18px; }
+
+  @media (max-width: 960px) {
+    #kb .main { grid-template-columns: 1fr; }
+    #kb .prev { border-left: 0; }
+    #kb .main[data-pane=edit] .prev, #kb .main[data-pane=prev] .edit { display: none; }
+    #kb .mtabs { display: flex; gap: 6px; padding: 10px 16px 0; }
+    #kb .mtabs button { flex: 1; border: 1px solid var(--line); background: var(--paper); border-radius: 99px; padding: 8px; font-weight: 700; font-size: 13px; color: var(--mut); cursor: pointer; }
+    #kb .mtabs button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    #kb .edit { padding: 18px 16px 32px; }
+    #kb .top { padding: 10px 16px 0; }
+    #kb .pub { padding: 10px 16px; }
+  }
+  @media (max-width: 560px) {
+    #kb .row, #kb .kinds, #kb .colors { grid-template-columns: 1fr; }
+    #kb .tpls { grid-template-columns: repeat(2, 1fr); }
+    #kb .pub-act .btn { padding: 9px 13px; }
+    #kb .pub-act .opt { display: none; }
+  }
+
+  /* ════════════════════════════════════════════════════════
+     VITRINE (aperçu) — même rendu que la page publique
+     ════════════════════════════════════════════════════════ */
+  .kv { --bg: #fff; --fg: #0a0a0a; --mut2: rgba(10,10,10,.6); --acc: #0a0a0a; --btn-fg: #fff; --line2: rgba(10,10,10,.12);
+        --r-btn: 999px; --fh: 'Inter', sans-serif; --fb: 'Inter', sans-serif;
+        background: var(--bg); color: var(--fg); font-family: var(--fb); min-height: 640px; position: relative; padding-bottom: 28px; overflow: hidden; }
+  .kv * { box-sizing: border-box; }
+  .kv.bg-blobs::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+     background: radial-gradient(38% 22% at 15% 12%, color-mix(in srgb, var(--bg) 72%, #000) 0 60%, transparent 61%),
+                 radial-gradient(30% 18% at 92% 30%, color-mix(in srgb, var(--bg) 72%, #000) 0 60%, transparent 61%),
+                 radial-gradient(42% 20% at 8% 58%, color-mix(in srgb, var(--bg) 72%, #000) 0 60%, transparent 61%),
+                 radial-gradient(36% 18% at 85% 82%, color-mix(in srgb, var(--bg) 72%, #000) 0 60%, transparent 61%); }
+  .kv.bg-gradient { background: linear-gradient(180deg, var(--bg), color-mix(in srgb, var(--bg) 70%, var(--acc))); }
+  .kv.bg-image { background: var(--bg) center/cover; }
+  .kv > * { position: relative; }
+  .kv-banner { height: 130px; background: color-mix(in srgb, var(--fg) 8%, var(--bg)) center/cover; }
+  .kv-hero { text-align: center; padding: 0 22px; }
+  .kv-av { width: 92px; height: 92px; border-radius: 50%; margin: 26px auto 14px; background: var(--acc) center/cover; color: var(--btn-fg); display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 900; box-shadow: 0 0 0 4px var(--bg); }
+  .kv-banner + .kv-hero .kv-av { margin-top: -46px; }
+  .kv-name { font-family: var(--fh); font-size: 25px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
+  .kv-meta { font-size: 13px; color: var(--mut2); font-weight: 600; margin-top: 6px; }
+  .kv-bio { font-size: 14px; line-height: 1.5; margin: 12px auto 0; max-width: 300px; color: var(--mut2); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .kv-socials { display: flex; justify-content: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .kv-soc { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 800; color: var(--fg); text-decoration: none; }
+  .kv-sec { padding: 0 18px; margin-top: 22px; }
+  .kv-sec-t { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mut2); margin: 0 0 10px 4px; }
+  .kv-links { display: flex; flex-direction: column; gap: 10px; }
+  .kv-link { display: flex; align-items: center; gap: 12px; background: var(--acc); color: var(--btn-fg); border-radius: var(--r-btn); padding: 15px 18px; font-weight: 700; font-size: 15px; text-decoration: none; min-height: 54px; }
+  .kv-link svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .kv-link span { flex: 1; text-align: center; padding-right: 32px; overflow-wrap: anywhere; }
+  .kv-link.no-ico span { padding-right: 0; }
+  .kv-video { border-radius: min(var(--r-btn), 22px); overflow: hidden; position: relative; aspect-ratio: 16/10; background: linear-gradient(160deg, #f6b26b, #e8743b) center/cover; display: block; text-decoration: none; }
+  .kv-video .play { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 58px; height: 58px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; }
+  .kv-video .play::after { content: ""; border-left: 17px solid #e8743b; border-top: 11px solid transparent; border-bottom: 11px solid transparent; margin-left: 5px; }
+  .kv-video .cap { position: absolute; left: 14px; bottom: 10px; color: #fff; font-weight: 700; font-size: 15px; text-shadow: 0 1px 8px rgba(0,0,0,.4); }
+  .kv-text h5 { font-family: var(--fh); font-size: 17px; margin: 4px 0 6px; }
+  .kv-text p { font-size: 14px; line-height: 1.55; color: var(--mut2); margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .kv-header { font-family: var(--fh); font-size: 18px; font-weight: 800; text-align: center; margin: 8px 0 0; }
+  .kv-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kv-stat { border: 1px solid var(--line2); border-radius: 12px; padding: 11px 4px; text-align: center; }
+  .kv-stat b { display: block; font-family: var(--fh); font-size: 17px; font-weight: 800; }
+  .kv-stat small { font-size: 9.5px; color: var(--mut2); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .kv-about { font-size: 14px; line-height: 1.6; color: var(--mut2); white-space: pre-wrap; margin-top: 12px; overflow-wrap: anywhere; }
+  .kv-offers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kv-offers.list { grid-template-columns: 1fr; }
+  .kv-offer { border: 1px solid var(--line2); border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--bg) 92%, var(--fg)); }
+  .kv-offer .im { height: 100px; background: color-mix(in srgb, var(--fg) 7%, var(--bg)) center/cover; display: flex; align-items: center; justify-content: center; color: var(--mut2); }
+  .kv-offer .im svg { width: 24px; height: 24px; opacity: .6; }
+  .kv-offer .bd { padding: 10px 12px 12px; }
+  .kv-offer .tg { display: inline-block; font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 99px; background: var(--acc); color: var(--btn-fg); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .kv-offer .tt { font-weight: 700; font-size: 13.5px; line-height: 1.3; overflow-wrap: anywhere; }
+  .kv-offer .pr { font-weight: 800; font-size: 13px; margin-top: 3px; }
+  .kv-offer .ds { font-size: 11.5px; color: var(--mut2); margin-top: 4px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .kv-offer .ct { font-size: 10.5px; font-weight: 800; margin-top: 8px; text-transform: uppercase; letter-spacing: .06em; }
+  .kv-row { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line2); border-radius: 14px; padding: 12px 14px; }
+  .kv-row .tt { flex: 1; font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+  .kv-row .ds { font-size: 12px; color: var(--mut2); margin-top: 2px; }
+  .kv-row .pr { font-weight: 800; font-size: 13.5px; white-space: nowrap; }
+  .kv-contact { display: block; text-align: center; border: 1.5px solid var(--fg); color: var(--fg); border-radius: var(--r-btn); padding: 14px; font-weight: 800; font-size: 14.5px; text-decoration: none; }
+  .kv-brand { text-align: center; font-size: 11px; color: var(--mut2); margin-top: 26px; font-weight: 600; }
+  .kv-brand b { color: var(--fg); }
+  .kv-empty { text-align: center; color: var(--mut2); font-size: 13px; padding: 10px 0; }
+  .kv.t-cadre { box-shadow: inset 0 0 0 5px var(--fg); }
+  .kv.t-noir .kv-offer, .kv.t-noir .kv-row, .kv.t-noir .kv-stat { border-color: rgba(255,255,255,.16); }
+  .kv.t-bold .kv-name { text-transform: uppercase; font-size: 46px; color: var(--acc); letter-spacing: -.01em; line-height: .95; margin-top: 4px; }
+  .kv.t-bold .kv-av { width: 150px; height: 150px; border-radius: 50%; box-shadow: none; }
+  .kv.t-bold .kv-meta, .kv.t-bold .kv-bio { color: color-mix(in srgb, var(--fg) 75%, transparent); }
+</style>
+
+<div id="kb"><div class="center"><p>Chargement de ta vitrine…</p></div></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  var CONFIG = {
+    API_BASE: "https://navire-app-api.onrender.com",
+    LOGIN_URL: "https://kitly.fr/connexion",     // embed connexion.html
+    PRICING_URL: "https://kitly.fr/tarifs",
+    LEGAL_URL: "https://kitly.fr/dashboard/juridique",  // « Mes documents juridiques » (à venir)
+    PUBLIC_BASE: "https://kitly.fr/",             // vitrine publique = PUBLIC_BASE + slug
+    TOKEN_KEY: "kitly_token",
+    USER_KEY: "kitly_user",
+    AUTOSAVE_MS: 700
+  };
+
+  // ============================================================
+  // Référentiels d'affichage
+  // ============================================================
+  var ICONS = {
+    link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
+    book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>',
+    waves: '<path d="M2 7c3-2 5-2 8 0s5 2 8 0 3-1 4-1"/><path d="M2 12c3-2 5-2 8 0s5 2 8 0 3-1 4-1"/><path d="M2 17c3-2 5-2 8 0s5 2 8 0 3-1 4-1"/>',
+    play: '<circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4z"/>',
+    mail: '<rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/>',
+    shop: '<path d="M5 7h14l-1 13H6z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>',
+    star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+    music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+    camera: '<path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="4"/>',
+    heart: '<path d="M12 21s-8-5.2-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.8-8 11-8 11z"/>',
+    sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>',
+    up: '<path d="m6 15 6-6 6 6"/>', down: '<path d="m6 9 6 6 6-6"/>',
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    eyeoff: '<path d="m3 3 18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+    edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+    box: '<path d="m3 7 9-4 9 4v10l-9 4-9-4z"/><path d="m3 7 9 4 9-4M12 11v10"/>',
+    file: '<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h6"/>',
+    brief: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>'
+  };
+  function svg(name, extra) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"' + (extra || "") + '>' + (ICONS[name] || ICONS.link) + '</svg>';
+  }
+  var LINK_ICONS = ["link", "book", "waves", "play", "mail", "shop", "calendar", "star", "music", "camera", "heart", "sparkle"];
+  var KIND_META = {
+    physical: { label: "Produit physique", icon: "box", hint: "Bijoux, vêtements, objets, livres…" },
+    digital: { label: "Produit numérique", icon: "file", hint: "E-book, template, formation, fichier…" },
+    service: { label: "Prestation de service", icon: "brief", hint: "Logo, site web, rédaction, conseil…" },
+    appointment: { label: "Rendez-vous", icon: "calendar", hint: "Consultation, coaching, cours…" }
+  };
+  var CTA_LABEL = { order: "Commander", quote: "Demander un devis", book: "Réserver", contact: "Me contacter" };
+  var CTA_BY_KIND = { physical: ["order", "contact"], digital: ["order", "contact"], service: ["quote", "contact", "order"], appointment: ["book", "contact"] };
+  var SOCIAL_ABBR = { instagram: "IG", tiktok: "TT", youtube: "YT", linkedin: "in", x: "X", facebook: "f", behance: "Be", dribbble: "Dr", github: "GH", pinterest: "P", twitch: "Tw", spotify: "Sp", soundcloud: "SC", threads: "@", whatsapp: "WA", malt: "M", website: "www" };
+  var SECTION_LABEL = { hero: "En-tête", links: "Liens et blocs", about: "À propos et chiffres", offers: "Prestations et rendez-vous", products: "Boutique", portfolio: "Portfolio", contact: "Contact" };
+  var FONT_FAMILY = { "inter": "Inter", "instrument-serif": "Instrument Serif", "space-grotesk": "Space Grotesk", "dm-sans": "DM Sans", "playfair": "Playfair Display", "archivo-black": "Archivo Black", "syne": "Syne", "manrope": "Manrope" };
+  // Les templates de base ont des couleurs fixes ; Bold et Studio prennent celles du freelance.
+  var TEMPLATE_PRESET = {
+    blanc: { colors: { background: "#ffffff", text: "#0a0a0a", accent: "#0a0a0a", button_text: "#ffffff" }, fh: "inter", bg: "solid" },
+    noir:  { colors: { background: "#0a0a0a", text: "#ffffff", accent: "#ffffff", button_text: "#0a0a0a" }, fh: "inter", bg: "solid" },
+    cadre: { colors: { background: "#ffffff", text: "#0a0a0a", accent: "#0a0a0a", button_text: "#ffffff" }, fh: "inter", bg: "solid" },
+    edito: { colors: { background: "#ffffff", text: "#0a0a0a", accent: "#0a0a0a", button_text: "#ffffff" }, fh: "instrument-serif", bg: "solid" },
+    bold:  { colors: { background: "#8B1E1E", text: "#ffffff", accent: "#FF4757", button_text: "#ffffff" }, fh: "archivo-black", bg: "blobs" },
+    studio:{ colors: { background: "#F2EFE9", text: "#1d1d1b", accent: "#1d1d1b", button_text: "#F2EFE9" }, fh: "syne", bg: "solid" }
+  };
+  var CUSTOMIZABLE = { bold: true, studio: true };
+
+  // ============================================================
+  // État
+  // ============================================================
+  var root = document.getElementById("kb");
+  var S = {
+    me: null, catalog: null, profile: null, offers: [], step: 1, pane: "edit",
+    pending: {}, timer: null, saving: false, saveState: "saved", slugTimer: null, slugOk: true
+  };
+  function limits() { return (S.me && S.me.plan && S.me.plan.limits) || {}; }
+
+  // ============================================================
+  // Utilitaires
+  // ============================================================
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function safeUrl(u) {
+    u = String(u || "").trim();
+    if (!u) return "";
+    if (!/^(https?:|mailto:|tel:)/i.test(u)) u = "https://" + u;
+    return u;
+  }
+  function cssUrl(u) { return u ? "url('" + String(u).replace(/['"\\()\s]/g, encodeURIComponent) + "')" : "none"; }
+  function rid() { return Math.random().toString(16).slice(2, 10); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  function $(sel) { return root.querySelector(sel); }
+  function $$(sel) { return Array.prototype.slice.call(root.querySelectorAll(sel)); }
+  function navigate(url) {
+    try { if (window.top && window.top !== window) { window.top.location.href = url; return; } } catch (e) {}
+    window.location.href = url;
+  }
+  function openTab(url) { try { window.open(url, "_blank", "noopener"); } catch (e) {} }
+
+  var toastTimer;
+  function toast(html, ms) {
+    var t = $(".toast");
+    if (!t) return;
+    t.innerHTML = html;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, ms || 3800);
+  }
+  function upsell(message) {
+    toast(esc(message || "Disponible avec une formule supérieure.") + ' <a href="' + esc(CONFIG.PRICING_URL) + '" target="_top">Voir les formules →</a>', 6000);
+  }
+
+  function errorText(data) {
+    if (!data) return "Une erreur est survenue, réessaie.";
+    var d = data.detail;
+    if (typeof d === "string") return d;
+    if (d && typeof d.message === "string") return d.message;
+    if (Array.isArray(d) && d[0]) return String(d[0].msg || "").replace(/^Value error, /, "") || "Champ invalide.";
+    return "Une erreur est survenue, réessaie.";
+  }
+  function api(method, path, body, isForm) {
+    var headers = {};
+    var t = load(CONFIG.TOKEN_KEY);
+    if (t) headers.Authorization = "Bearer " + t;
+    if (!isForm) headers["Content-Type"] = "application/json";
+    return fetch(CONFIG.API_BASE + "/kitly" + path, {
+      method: method, headers: headers, body: isForm ? body : (body ? JSON.stringify(body) : undefined)
+    }).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (res.status === 401) { store(CONFIG.TOKEN_KEY, null); showLogin(); }
+        if (!res.ok) { var e = new Error(errorText(data)); e.status = res.status; e.data = data; throw e; }
+        return data;
+      });
+    }, function () { var e = new Error("Connexion au serveur impossible."); e.status = 0; throw e; });
+  }
+  function handleError(e) {
+    var d = e.data && e.data.detail;
+    if (e.status === 403 && d && d.code === "plan_required") return upsell(d.message);
+    toast(esc(e.message));
+  }
+  function upload(file, purpose) {
+    var fd = new FormData();
+    fd.append("file", file); fd.append("purpose", purpose);
+    toast("Envoi de l'image…", 20000);
+    return api("POST", "/me/media", fd, true).then(function (r) { toast("Image ajoutée ✓", 1800); return r.url; });
+  }
+  function pickFile(purpose, cb) {
+    var input = document.createElement("input");
+    input.type = "file"; input.accept = "image/jpeg,image/png,image/webp,image/gif";
+    input.onchange = function () {
+      var f = input.files && input.files[0];
+      if (!f) return;
+      if (f.size > 8 * 1024 * 1024) return toast("Image trop lourde (8 Mo maximum).");
+      upload(f, purpose).then(cb).catch(handleError);
+    };
+    input.click();
+  }
+  var loadedFonts = { "inter": 1, "instrument-serif": 1 };
+  function ensureFont(key) {
+    if (!key || loadedFonts[key] || !FONT_FAMILY[key]) return;
+    loadedFonts[key] = 1;
+    var l = document.createElement("link");
+    l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=" + FONT_FAMILY[key].replace(/ /g, "+") + ":wght@400;600;700;800&display=swap";
+    document.head.appendChild(l);
+  }
+
+  // ============================================================
+  // Sauvegarde automatique
+  // ============================================================
+  function setSave(state) {
+    S.saveState = state;
+    var el = $(".save");
+    if (!el) return;
+    el.className = "save " + state;
+    el.querySelector("span").textContent = state === "saving" ? "Enregistrement…" : state === "error" ? "Non enregistré" : "Enregistré";
+  }
+  function queue(patch, immediate) {
+    Object.keys(patch).forEach(function (k) {
+      // Le thème se fusionne : couleurs puis typo ne doivent pas s'écraser dans la file.
+      S.pending[k] = k === "theme" && S.pending.theme ? Object.assign({}, S.pending.theme, patch.theme) : patch[k];
+    });
+    setSave("saving");
+    clearTimeout(S.timer);
+    S.timer = setTimeout(flush, immediate ? 0 : CONFIG.AUTOSAVE_MS);
+  }
+  function flush() {
+    if (S.saving) { S.timer = setTimeout(flush, 250); return Promise.resolve(); }
+    var body = S.pending;
+    if (!Object.keys(body).length) { setSave("saved"); return Promise.resolve(); }
+    S.pending = {}; S.saving = true;
+    return api("PATCH", "/me/profile", body).then(function (r) {
+      S.saving = false;
+      // On ne réécrit pas les champs en cours de saisie : seulement l'état serveur utile.
+      S.profile.is_published = r.profile.is_published;
+      S.profile.url = r.profile.url;
+      S.profile.slug = r.profile.slug;
+      if (!S.pending.theme) S.profile.theme = r.profile.theme;
+      if (!Object.keys(S.pending).length) setSave("saved");
+      renderPub();
+    }).catch(function (e) {
+      S.saving = false; setSave("error");
+      var d = e.data && e.data.detail;
+      if (d && d.field) { var f = $('[data-f="' + d.field + '"]'); if (f) f.classList.add("err-field"); }
+      handleError(e);
+      if (body.theme) reloadProfile();  // option refusée : on revient à l'état enregistré
+    });
+  }
+  window.addEventListener("pagehide", function () {
+    if (!Object.keys(S.pending).length) return;
+    try {
+      fetch(CONFIG.API_BASE + "/kitly/me/profile", { method: "PATCH", keepalive: true,
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + load(CONFIG.TOKEN_KEY) },
+        body: JSON.stringify(S.pending) });
+    } catch (e) {}
+  });
+  function reloadProfile() {
+    return api("GET", "/me/profile").then(function (r) { S.profile = r.profile; renderStep(); renderPreview(); });
+  }
+
+  // ============================================================
+  // Rendu de la vitrine (aperçu)
+  // ============================================================
+  function themeVars(theme) {
+    var tpl = TEMPLATE_PRESET[theme.template] ? theme.template : "blanc";
+    var preset = TEMPLATE_PRESET[tpl];
+    var custom = CUSTOMIZABLE[tpl];
+    var c = custom ? Object.assign({}, preset.colors, theme.colors || {}) : preset.colors;
+    var fh = custom && theme.font_heading ? theme.font_heading : preset.fh;
+    var fb = custom && theme.font_body && theme.font_body !== "inter" ? theme.font_body : "inter";
+    var bgType = custom ? ((theme.background && theme.background.type) || preset.bg) : "solid";
+    ensureFont(fh); ensureFont(fb);
+    var radius = { pill: "999px", rounded: "14px", square: "4px" }[theme.button_shape || "pill"] || "999px";
+    return {
+      tpl: tpl, bg: bgType,
+      style: "--bg:" + c.background + ";--fg:" + c.text + ";--acc:" + c.accent + ";--btn-fg:" + c.button_text +
+        ";--mut2:color-mix(in srgb," + c.text + " 62%,transparent);--line2:color-mix(in srgb," + c.text + " 14%,transparent)" +
+        ";--r-btn:" + radius + ";--fh:'" + FONT_FAMILY[fh] + "',sans-serif;--fb:'" + FONT_FAMILY[fb] + "',sans-serif;" +
+        (bgType === "image" && theme.background.image_url ? "background-image:" + cssUrl(theme.background.image_url) + ";" : "")
+    };
+  }
+  function ytThumb(url) {
+    var m = String(url || "").match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);
+    return m ? "https://img.youtube.com/vi/" + m[1] + "/hqdefault.jpg" : "";
+  }
+  function offerCard(o) {
+    var img = o.images && o.images[0];
+    return '<div class="kv-offer"><div class="im" style="background-image:' + cssUrl(img) + '">' + (img ? "" : svg(KIND_META[o.kind].icon)) + '</div>' +
+      '<div class="bd">' + (o.badge ? '<span class="tg">' + esc(o.badge) + '</span>' : '') +
+      '<div class="tt">' + esc(o.title) + '</div><div class="pr">' + esc(o.price_label || "") + '</div>' +
+      (o.description ? '<div class="ds">' + esc(o.description) + '</div>' : '') +
+      '<div class="ct">' + esc(CTA_LABEL[o.cta] || "") + ' →</div></div></div>';
+  }
+  function offerRow(o) {
+    var d = o.details || {};
+    var sub = o.kind === "appointment" ? (d.duration_minutes ? d.duration_minutes + " min" : "") + (d.location_mode === "visio" ? " · visio" : d.location_mode === "onsite" ? " · sur place" : d.location_mode === "phone" ? " · téléphone" : "")
+      : (d.duration_label || "");
+    return '<div class="kv-row"><div style="flex:1;min-width:0"><div class="tt">' + esc(o.title) + '</div>' +
+      (sub ? '<div class="ds">' + esc(sub) + '</div>' : (o.description ? '<div class="ds">' + esc(o.description.slice(0, 90)) + '</div>' : '')) +
+      '</div><div class="pr">' + esc(o.price_label || "") + '</div></div>';
+  }
+  function renderVitrine(p, offers, showBranding) {
+    var th = themeVars(p.theme || {});
+    var visible = (offers || []).filter(function (o) { return o.status === "published"; });
+    var services = visible.filter(function (o) { return o.kind === "service" || o.kind === "appointment"; });
+    var products = visible.filter(function (o) { return o.kind === "physical" || o.kind === "digital"; });
+    var parts = {
+      hero: function () {
+        var soc = (p.socials || []).filter(function (s) { return s.url; });
+        var meta = [p.headline, p.location].filter(Boolean).join(" · ");
+        return (p.banner_url ? '<div class="kv-banner" style="background-image:' + cssUrl(p.banner_url) + '"></div>' : '') +
+          '<div class="kv-hero"><div class="kv-av" style="background-image:' + cssUrl(p.avatar_url) + '">' + (p.avatar_url ? "" : esc((p.display_name || "?").charAt(0).toUpperCase())) + '</div>' +
+          '<h1 class="kv-name">' + esc(p.display_name || "Ton nom") + '</h1>' +
+          (meta ? '<div class="kv-meta">' + esc(meta) + '</div>' : '') +
+          (p.bio ? '<p class="kv-bio">' + esc(p.bio) + '</p>' : '') +
+          (soc.length ? '<div class="kv-socials">' + soc.map(function (s) {
+            return '<a class="kv-soc" href="' + esc(safeUrl(s.url)) + '" target="_blank" rel="noopener" title="' + esc(s.network) + '">' + esc(SOCIAL_ABBR[s.network] || "•") + '</a>';
+          }).join("") + '</div>' : '') + '</div>';
+      },
+      links: function () {
+        var blocks = (p.blocks || []).filter(function (b) { return b.visible !== false; });
+        if (!blocks.length) return "";
+        return '<div class="kv-sec"><div class="kv-links">' + blocks.map(function (b) {
+          if (b.type === "link") return '<a class="kv-link' + (b.icon ? "" : " no-ico") + '" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener">' + (b.icon ? svg(b.icon) : "") + '<span>' + esc(b.label || "Mon lien") + '</span></a>';
+          if (b.type === "video") { var th = b.thumbnail_url || ytThumb(b.url); return '<a class="kv-video" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener" style="' + (th ? "background-image:" + cssUrl(th) : "") + '"><span class="play"></span>' + (b.label ? '<span class="cap">' + esc(b.label) + '</span>' : '') + '</a>'; }
+          if (b.type === "text") return '<div class="kv-text">' + (b.title ? '<h5>' + esc(b.title) + '</h5>' : '') + '<p>' + esc(b.body || "") + '</p></div>';
+          if (b.type === "header") return '<h4 class="kv-header">' + esc(b.title || "") + '</h4>';
+          return "";
+        }).join("") + '</div></div>';
+      },
+      about: function () {
+        var stats = (p.stats || []).filter(function (s) { return s.label || s.value; });
+        if (!stats.length && !p.about) return "";
+        return '<div class="kv-sec">' + (stats.length ? '<div class="kv-stats">' + stats.map(function (s) {
+          return '<div class="kv-stat"><b>' + esc(s.value) + '</b><small>' + esc(s.label) + '</small></div>';
+        }).join("") + '</div>' : '') + (p.about ? '<div class="kv-about">' + esc(p.about) + '</div>' : '') + '</div>';
+      },
+      offers: function () {
+        if (!services.length) return "";
+        return '<div class="kv-sec"><div class="kv-sec-t">Prestations</div><div class="kv-offers list">' + services.map(offerRow).join("") + '</div></div>';
+      },
+      products: function () {
+        if (!products.length) return "";
+        return '<div class="kv-sec"><div class="kv-sec-t">Boutique</div><div class="kv-offers">' + products.map(offerCard).join("") + '</div></div>';
+      },
+      portfolio: function () { return ""; },
+      contact: function () {
+        return '<div class="kv-sec"><a class="kv-contact" href="#">Me contacter</a></div>';
+      }
+    };
+    var order = (p.sections && p.sections.length ? p.sections : Object.keys(SECTION_LABEL).map(function (k) { return { key: k, visible: true }; }));
+    var html = order.filter(function (s) { return s.visible !== false && parts[s.key]; }).map(function (s) { return parts[s.key](); }).join("");
+    if (!visible.length && !(p.blocks || []).length && !p.bio) html += '<div class="kv-sec kv-empty">Ajoute tes liens et tes offres : ils apparaîtront ici.</div>';
+    if (showBranding) html += '<div class="kv-brand">Propulsé par <b>kitly.</b></div>';
+    return '<div class="kv t-' + th.tpl + ' bg-' + th.bg + '" style="' + th.style + '">' + html + '</div>';
+  }
+  function renderPreview() {
+    var el = $(".phone");
+    if (el && S.profile) el.innerHTML = renderVitrine(S.profile, S.offers, !limits().remove_branding);
+  }
+
+  // ============================================================
+  // Étapes
+  // ============================================================
+  var STEPS = [
+    { n: 1, key: "identity", label: "Identité", title: "Ton <em>identité</em>" },
+    { n: 2, key: "links", label: "Liens", title: "Tes <em>liens</em>" },
+    { n: 3, key: "shop", label: "Boutique", title: "Tes <em>offres</em>" },
+    { n: 4, key: "style", label: "Style", title: "Ton <em>style</em>" }
+  ];
+
+  function fieldText(f, label, opts) {
+    opts = opts || {};
+    var v = S.profile[f] == null ? "" : S.profile[f];
+    var max = opts.max ? ' maxlength="' + opts.max + '"' : "";
+    var count = opts.max ? '<span class="count" data-count="' + f + '">' + String(v).length + '/' + opts.max + '</span>' : "";
+    var input = opts.area
+      ? '<textarea data-f="' + f + '" rows="' + (opts.rows || 3) + '"' + max + ' placeholder="' + esc(opts.ph || "") + '">' + esc(v) + '</textarea>'
+      : '<input type="' + (opts.type || "text") + '" data-f="' + f + '" value="' + esc(v) + '"' + max + ' placeholder="' + esc(opts.ph || "") + '">';
+    return '<div class="field"><label>' + label + count + '</label>' + input + (opts.note ? '<div class="note">' + opts.note + '</div>' : '') + '</div>';
+  }
+
+  var VIEWS = {};
+
+  VIEWS.identity = function () {
+    var p = S.profile;
+    var cats = ((S.catalog && S.catalog.categories) || []).map(function (c) {
+      return '<option value="' + esc(c.key) + '"' + (p.category === c.key ? " selected" : "") + '>' + esc(c.label) + '</option>';
+    }).join("");
+    var host = (S.catalog && S.catalog.public_host) || "kitly.fr";
+    return verifyBanner() +
+      '<div class="sec"><h3>Ta présentation</h3>' +
+      fieldText("display_name", "Nom ou nom commercial", { max: 80, ph: "Léa Martin" }) +
+      '<div class="field"><label>Adresse de ta vitrine</label><div class="slug"><span>' + esc(host) + '/</span><input type="text" id="kb-slug" value="' + esc(p.slug) + '" maxlength="40" autocomplete="off" spellcheck="false"></div><div class="note" id="kb-slug-note">Lettres minuscules, chiffres et tirets.</div></div>' +
+      '<div class="row">' + fieldText("headline", "Métier", { max: 120, ph: "Designer graphique" }) +
+      '<div class="field"><label>Catégorie</label><select data-f="category"><option value="">Choisir…</option>' + cats + '</select></div></div>' +
+      fieldText("location", "Localisation", { max: 120, ph: "Lyon · ou « À distance »" }) +
+      fieldText("bio", "Accroche — ce que tu proposes", { area: true, max: 300, rows: 3, ph: "J'aide les marques à exister sur Instagram : contenu, identité visuelle, croissance." }) +
+      fieldText("about", "Présentation détaillée (facultatif)", { area: true, max: 8000, rows: 5, ph: "Ton parcours, ta façon de travailler, tes références…" }) +
+      '</div>' +
+      '<div class="sec"><h3>Images</h3><div class="row">' +
+      '<div class="field"><label class="lb">Photo ou logo</label><div class="up"><div class="up-av" id="kb-av" style="background-image:' + cssUrl(p.avatar_url) + '">' + (p.avatar_url ? "" : esc((p.display_name || "?").charAt(0).toUpperCase())) + '</div>' +
+      '<button type="button" class="btn sm" data-upload="avatar">Choisir</button>' + (p.avatar_url ? '<button type="button" class="icon-btn" data-clear="avatar_url" title="Retirer">✕</button>' : '') + '</div></div>' +
+      '<div class="field"><label class="lb">Bannière</label><div class="up"><div class="up-ban" id="kb-ban" style="background-image:' + cssUrl(p.banner_url) + '">' + (p.banner_url ? "" : "+ bannière") + '</div>' +
+      '<button type="button" class="btn sm" data-upload="banner">Choisir</button>' + (p.banner_url ? '<button type="button" class="icon-btn" data-clear="banner_url" title="Retirer">✕</button>' : '') + '</div></div>' +
+      '</div></div>' +
+      '<div class="sec"><h3>Coordonnées professionnelles</h3><div class="row">' +
+      fieldText("contact_email", "Email de contact", { type: "email", ph: "contact@monsite.fr", note: "Reçoit les demandes de tes clients." }) +
+      fieldText("phone", "Téléphone (facultatif)", { max: 40 }) + '</div>' +
+      fieldText("website", "Site web (facultatif)", { type: "url", ph: "monsite.fr" }) + '</div>' +
+      nav();
+  };
+
+  VIEWS.links = function () {
+    var p = S.profile;
+    var nets = (S.catalog && S.catalog.social_networks) || Object.keys(SOCIAL_ABBR);
+    var socials = (p.socials || []).map(function (s, i) {
+      return '<div class="item"><div class="item-l"><select data-list="socials" data-i="' + i + '" data-k="network" style="max-width:150px">' +
+        nets.map(function (n) { return '<option value="' + n + '"' + (s.network === n ? " selected" : "") + '>' + n.charAt(0).toUpperCase() + n.slice(1) + '</option>'; }).join("") +
+        '</select><input type="text" data-list="socials" data-i="' + i + '" data-k="url" value="' + esc(s.url) + '" placeholder="instagram.com/ton.compte">' +
+        '<button type="button" class="icon-btn" data-del="socials" data-i="' + i + '" title="Supprimer">' + svg("trash") + '</button></div></div>';
+    }).join("");
+    var stats = (p.stats || []).map(function (s, i) {
+      return '<div class="item"><div class="item-l"><input type="text" data-list="stats" data-i="' + i + '" data-k="value" value="' + esc(s.value) + '" maxlength="20" placeholder="120+" style="max-width:110px">' +
+        '<input type="text" data-list="stats" data-i="' + i + '" data-k="label" value="' + esc(s.label) + '" maxlength="30" placeholder="Clients">' +
+        '<button type="button" class="icon-btn" data-del="stats" data-i="' + i + '" title="Supprimer">' + svg("trash") + '</button></div></div>';
+    }).join("");
+    var blocks = (p.blocks || []).map(blockEditor).join("");
+    var maxBlocks = limits().blocks_max || 10;
+    return '<div class="sec"><h3>Liens et blocs</h3><p class="lead">Comme une page de liens : boutons, vidéos, textes. Ils s\'affichent dans cet ordre (' + (p.blocks || []).length + '/' + maxBlocks + ').</p>' +
+      '<div id="kb-blocks">' + blocks + '</div>' +
+      '<div class="chips">' +
+      '<button type="button" class="chip" data-add-block="link">+ Lien</button>' +
+      '<button type="button" class="chip" data-add-block="video">+ Vidéo</button>' +
+      '<button type="button" class="chip" data-add-block="text">+ Texte</button>' +
+      '<button type="button" class="chip" data-add-block="header">+ Titre</button></div></div>' +
+      '<div class="sec"><h3>Réseaux sociaux</h3>' + socials + '<button type="button" class="add" data-add="socials">+ Ajouter un réseau</button></div>' +
+      '<div class="sec"><h3>Chiffres clés</h3><p class="lead">Jusqu\'à 6 chiffres : abonnés, clients, années d\'expérience, note…</p>' + stats +
+      ((p.stats || []).length < 6 ? '<button type="button" class="add" data-add="stats">+ Ajouter un chiffre</button>' : '') + '</div>' +
+      nav();
+  };
+
+  function blockEditor(b, i) {
+    var n = (S.profile.blocks || []).length;
+    var tools = '<button type="button" class="icon-btn" data-move-block="' + i + '" data-dir="-1" title="Monter"' + (i === 0 ? " disabled" : "") + '>' + svg("up") + '</button>' +
+      '<button type="button" class="icon-btn" data-move-block="' + i + '" data-dir="1" title="Descendre"' + (i === n - 1 ? " disabled" : "") + '>' + svg("down") + '</button>' +
+      '<button type="button" class="icon-btn" data-toggle-block="' + i + '" title="' + (b.visible === false ? "Afficher" : "Masquer") + '">' + svg(b.visible === false ? "eyeoff" : "eye") + '</button>' +
+      '<button type="button" class="icon-btn" data-del="blocks" data-i="' + i + '" title="Supprimer">' + svg("trash") + '</button>';
+    var tag = { link: "Lien", video: "Vidéo", text: "Texte", header: "Titre", image: "Image", offer: "Offre", embed: "Intégration" }[b.type] || b.type;
+    var inp = function (k, ph, max) {
+      return '<input type="text" data-list="blocks" data-i="' + i + '" data-k="' + k + '" value="' + esc(b[k] || "") + '" placeholder="' + esc(ph) + '"' + (max ? ' maxlength="' + max + '"' : '') + '>';
+    };
+    var body = "";
+    if (b.type === "link") {
+      body = '<div class="sub">' + inp("label", "Texte du bouton", 200) + '</div><div class="sub">' + inp("url", "https://…", 2000) +
+        '<select data-list="blocks" data-i="' + i + '" data-k="icon" style="max-width:130px"><option value="">Sans icône</option>' +
+        LINK_ICONS.map(function (ic) { return '<option value="' + ic + '"' + (b.icon === ic ? " selected" : "") + '>' + ic + '</option>'; }).join("") + '</select></div>';
+    } else if (b.type === "video") {
+      body = '<div class="sub">' + inp("label", "Légende", 200) + '</div><div class="sub">' + inp("url", "Lien YouTube, Vimeo…", 2000) + '</div>';
+    } else if (b.type === "text") {
+      body = '<div class="sub">' + inp("title", "Titre (facultatif)", 200) + '</div><div class="sub"><textarea rows="3" maxlength="2000" data-list="blocks" data-i="' + i + '" data-k="body" placeholder="Ton texte">' + esc(b.body || "") + '</textarea></div>';
+    } else if (b.type === "header") {
+      body = '<div class="sub">' + inp("title", "Titre de section", 200) + '</div>';
+    }
+    return '<div class="item' + (b.visible === false ? " off" : "") + '"><div class="item-l"><span class="type-tag">' + tag + '</span><span class="grow"></span>' + tools + '</div>' + body + '</div>';
+  }
+
+  VIEWS.shop = function () {
+    var max = limits().offers_max || 5;
+    var active = S.offers.filter(function (o) { return o.status !== "archived"; }).length;
+    var needsTerms = S.offers.some(function (o) { return o.needs_terms; });
+    var list = S.offers.map(function (o, i) {
+      var img = o.images && o.images[0];
+      return '<div class="offer"><div class="offer-img" style="background-image:' + cssUrl(img) + '">' + (img ? "" : svg(KIND_META[o.kind].icon)) + '</div>' +
+        '<div style="flex:1;min-width:0"><div class="offer-t">' + esc(o.title) + '</div>' +
+        '<div class="offer-m">' + esc(KIND_META[o.kind].label) + ' · ' + esc(o.price_label || "") +
+        '<span class="pill ' + (o.status === "published" ? "live" : "draft") + '">' + (o.status === "published" ? "En ligne" : o.status === "archived" ? "Archivée" : "Brouillon") + '</span></div></div>' +
+        '<button type="button" class="icon-btn" data-move-offer="' + i + '" data-dir="-1" title="Monter"' + (i === 0 ? " disabled" : "") + '>' + svg("up") + '</button>' +
+        '<button type="button" class="icon-btn" data-edit-offer="' + o.id + '" title="Modifier">' + svg("edit") + '</button>' +
+        '<button type="button" class="icon-btn" data-del-offer="' + o.id + '" title="Supprimer">' + svg("trash") + '</button></div>';
+    }).join("");
+    return (needsTerms ? '<div class="banner soft"><span>Pour encaisser tes ventes, tu auras besoin de tes propres <b>CGV</b>. Kitly t\'aide à les préparer en quelques questions.</span><a class="btn sm" href="' + esc(CONFIG.LEGAL_URL) + '" target="_top">Préparer mes CGV</a></div>' : '') +
+      '<div class="sec"><h3>Produits et prestations (' + active + '/' + max + ')</h3>' +
+      (list || '<p class="lead">Aucune offre pour l\'instant. Ajoute un produit, une prestation ou un rendez-vous.</p>') +
+      '<button type="button" class="add" id="kb-add-offer">+ Ajouter une offre</button></div>' + nav();
+  };
+
+  VIEWS.style = function () {
+    var th = S.profile.theme || {};
+    var adv = !!limits().advanced_theme;
+    var tpls = ((S.catalog && S.catalog.templates) || []).map(function (t) {
+      var pr = TEMPLATE_PRESET[t.key] || TEMPLATE_PRESET.blanc;
+      var locked = t.advanced && !adv;
+      return '<button type="button" class="tpl' + (th.template === t.key ? " on" : "") + '" data-tpl="' + t.key + '">' +
+        '<div class="sw" style="background:' + pr.colors.background + (t.key === "cadre" ? ";box-shadow:inset 0 0 0 4px " + pr.colors.text : "") + '"><i style="background:' + pr.colors.accent + '"></i><i style="background:' + pr.colors.accent + ';opacity:.6"></i></div>' +
+        '<div class="nm">' + esc(t.label) + (locked ? '<span class="lock">Custom</span>' : '') + '</div></button>';
+    }).join("");
+    var colors = "";
+    if (CUSTOMIZABLE[th.template]) {
+      var c = Object.assign({}, TEMPLATE_PRESET[th.template].colors, th.colors || {});
+      var labels = { background: "Fond", text: "Texte", accent: "Boutons", button_text: "Texte des boutons" };
+      colors = '<div class="sec"><h3>Couleurs</h3><div class="colors">' + Object.keys(labels).map(function (k) {
+        return '<label class="color"><input type="color" data-color="' + k + '" value="' + esc(c[k]) + '">' + labels[k] + '</label>';
+      }).join("") + '</div></div>' +
+        '<div class="sec"><h3>Typographie des titres</h3><select data-font="font_heading">' + Object.keys(FONT_FAMILY).map(function (k) {
+          var cur = th.font_heading || TEMPLATE_PRESET[th.template].fh;
+          return '<option value="' + k + '"' + (cur === k ? " selected" : "") + '>' + FONT_FAMILY[k] + '</option>';
+        }).join("") + '</select></div>' +
+        '<div class="sec"><h3>Fond</h3><div class="seg">' + ["solid", "blobs", "gradient"].map(function (b) {
+          var cur = (th.background && th.background.type) || TEMPLATE_PRESET[th.template].bg;
+          return '<button type="button" data-bg="' + b + '" class="' + (cur === b ? "on" : "") + '">' + { solid: "Uni", blobs: "Formes", gradient: "Dégradé" }[b] + '</button>';
+        }).join("") + '</div></div>';
+    }
+    var shape = th.button_shape || "pill";
+    var sections = (S.profile.sections || []).map(function (s, i, arr) {
+      return '<div class="item' + (s.visible === false ? " off" : "") + '"><div class="item-l"><span class="grow" style="font-size:14px;font-weight:600">' + esc(SECTION_LABEL[s.key] || s.key) + '</span>' +
+        '<button type="button" class="icon-btn" data-move-sec="' + i + '" data-dir="-1"' + (i === 0 ? " disabled" : "") + '>' + svg("up") + '</button>' +
+        '<button type="button" class="icon-btn" data-move-sec="' + i + '" data-dir="1"' + (i === arr.length - 1 ? " disabled" : "") + '>' + svg("down") + '</button>' +
+        '<button type="button" class="icon-btn" data-toggle-sec="' + i + '" title="' + (s.visible === false ? "Afficher" : "Masquer") + '">' + svg(s.visible === false ? "eyeoff" : "eye") + '</button></div></div>';
+    }).join("");
+    return '<div class="sec"><h3>Template</h3><div class="tpls">' + tpls + '</div>' +
+      (adv ? '' : '<p class="note" style="margin-top:10px">Les templates Bold et Studio, les couleurs et les typographies sont inclus à partir de Custom.</p>') + '</div>' +
+      colors +
+      '<div class="sec"><h3>Forme des boutons</h3><div class="seg">' + ["pill", "rounded", "square"].map(function (s) {
+        return '<button type="button" data-shape="' + s + '" class="' + (shape === s ? "on" : "") + '">' + { pill: "Pilule", rounded: "Arrondi", square: "Carré" }[s] + '</button>';
+      }).join("") + '</div></div>' +
+      '<div class="sec"><h3>Sections</h3><p class="lead">Ordre d\'affichage de ta vitrine.</p>' + sections + '</div>' + nav();
+  };
+
+  function verifyBanner() {
+    if (!S.me || S.me.user.email_verified) return "";
+    return '<div class="banner"><span>Confirme ton adresse email : c\'est nécessaire pour publier ta vitrine.</span><button type="button" class="btn sm dark" data-verify>Confirmer</button></div>';
+  }
+  function nav() {
+    var prev = S.step > 1 ? '<button type="button" class="btn" data-step="' + (S.step - 1) + '">← Précédent</button>' : '<span></span>';
+    var next = S.step < 4 ? '<button type="button" class="btn dark" data-step="' + (S.step + 1) + '">Suivant →</button>'
+      : '<button type="button" class="btn dark" data-publish>' + (S.profile.is_published ? "Vitrine en ligne ✓" : "Publier ma vitrine") + '</button>';
+    return '<div style="display:flex;justify-content:space-between;margin-top:8px">' + prev + next + '</div>';
+  }
+
+  // ============================================================
+  // Interactions
+  // ============================================================
+  function setList(key, list) { S.profile[key] = list; queue((function () { var o = {}; o[key] = list; return o; })()); }
+
+  function bindStep() {
+    var edit = $(".edit");
+    edit.oninput = function (e) {
+      var t = e.target;
+      if (t.dataset.f) {
+        t.classList.remove("err-field");
+        S.profile[t.dataset.f] = t.value;
+        var c = $('[data-count="' + t.dataset.f + '"]');
+        if (c) c.textContent = t.value.length + "/" + t.maxLength;
+        var patch = {}; patch[t.dataset.f] = t.dataset.f === "contact_email" && t.value && !/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(t.value) ? undefined : t.value;
+        if (patch[t.dataset.f] !== undefined) queue(patch);
+        renderPreview();
+      } else if (t.dataset.list) {
+        var list = S.profile[t.dataset.list].slice();
+        list[+t.dataset.i] = Object.assign({}, list[+t.dataset.i]);
+        list[+t.dataset.i][t.dataset.k] = t.value;
+        var clean = t.dataset.list === "socials" ? list.filter(function (s) { return s.url; }) : list;
+        S.profile[t.dataset.list] = list;
+        var o = {}; o[t.dataset.list] = clean; queue(o);
+        renderPreview();
+      } else if (t.id === "kb-slug") {
+        checkSlug(t);
+      } else if (t.dataset.color) {
+        var th = S.profile.theme;
+        th.colors = Object.assign({}, TEMPLATE_PRESET[th.template].colors, th.colors || {});
+        th.colors[t.dataset.color] = t.value;
+        renderPreview();
+        queue({ theme: { colors: th.colors } });
+      }
+    };
+    edit.onchange = function (e) {
+      var t = e.target;
+      if (t.tagName === "SELECT" && (t.dataset.f || t.dataset.list)) edit.oninput(e);
+      if (t.dataset.font) {
+        S.profile.theme.font_heading = t.value; renderPreview(); queue({ theme: { font_heading: t.value } });
+      }
+    };
+    edit.onclick = function (e) {
+      var b = e.target.closest("button, a");
+      if (!b || b.disabled) return;
+      var d = b.dataset;
+      if (d.step) { goStep(+d.step); }
+      else if (d.publish !== undefined) { togglePublish(); }
+      else if (d.verify !== undefined) { openVerify(); }
+      else if (d.upload) {
+        pickFile(d.upload, function (url) {
+          var f = d.upload + "_url"; S.profile[f] = url; var o = {}; o[f] = url; queue(o, true); renderStep(); renderPreview();
+        });
+      }
+      else if (d.clear) { S.profile[d.clear] = ""; var o = {}; o[d.clear] = ""; queue(o, true); renderStep(); renderPreview(); }
+      else if (d.add === "socials") { setList("socials", (S.profile.socials || []).concat([{ network: "instagram", url: "" }])); renderStep(); }
+      else if (d.add === "stats") { setList("stats", (S.profile.stats || []).concat([{ label: "", value: "" }])); renderStep(); }
+      else if (d.del) {
+        var l = S.profile[d.del].slice(); l.splice(+d.i, 1);
+        setList(d.del, d.del === "socials" ? l.filter(function (s) { return s.url; }) : l);
+        S.profile[d.del] = l; renderStep(); renderPreview();
+      }
+      else if (d.addBlock) {
+        var max = limits().blocks_max || 10;
+        if ((S.profile.blocks || []).length >= max) return upsell("Plus de " + max + " blocs : disponible avec une formule supérieure.");
+        var nb = { id: rid(), type: d.addBlock, visible: true };
+        if (d.addBlock === "link") { nb.label = ""; nb.url = ""; nb.icon = "link"; }
+        setList("blocks", (S.profile.blocks || []).concat([nb])); renderStep(); renderPreview();
+        var items = $$("#kb-blocks .item"); var last = items[items.length - 1]; if (last) { var inp = last.querySelector("input, textarea"); if (inp) inp.focus(); }
+      }
+      else if (d.moveBlock) { move("blocks", +d.moveBlock, +d.dir); }
+      else if (d.toggleBlock) {
+        var bl = S.profile.blocks.slice(); bl[+d.toggleBlock] = Object.assign({}, bl[+d.toggleBlock], { visible: bl[+d.toggleBlock].visible === false });
+        setList("blocks", bl); renderStep(); renderPreview();
+      }
+      else if (d.tpl) { chooseTemplate(d.tpl); }
+      else if (d.shape) { S.profile.theme.button_shape = d.shape; queue({ theme: { button_shape: d.shape } }); renderStep(); renderPreview(); }
+      else if (d.bg) { S.profile.theme.background = { type: d.bg, image_url: "" }; queue({ theme: { background: { type: d.bg, image_url: "" } } }); renderStep(); renderPreview(); }
+      else if (d.moveSec) { move("sections", +d.moveSec, +d.dir); }
+      else if (d.toggleSec) {
+        var sc = S.profile.sections.slice(); sc[+d.toggleSec] = Object.assign({}, sc[+d.toggleSec], { visible: sc[+d.toggleSec].visible === false });
+        setList("sections", sc); renderStep(); renderPreview();
+      }
+      else if (b.id === "kb-add-offer") { openOffer(null); }
+      else if (d.editOffer) { openOffer(S.offers.filter(function (o) { return o.id === +d.editOffer; })[0]); }
+      else if (d.delOffer) { deleteOffer(+d.delOffer); }
+      else if (d.moveOffer) { moveOffer(+d.moveOffer, +d.dir); }
+    };
+  }
+
+  function move(key, i, dir) {
+    var l = S.profile[key].slice(), j = i + dir;
+    if (j < 0 || j >= l.length) return;
+    var tmp = l[i]; l[i] = l[j]; l[j] = tmp;
+    setList(key, l); renderStep(); renderPreview();
+  }
+
+  function checkSlug(input) {
+    var note = $("#kb-slug-note");
+    var v = input.value.toLowerCase().replace(/[^a-z0-9-]/g, "");
+    if (v !== input.value) input.value = v;
+    clearTimeout(S.slugTimer);
+    if (v === S.profile.slug) { note.className = "note"; note.textContent = "C'est ton adresse actuelle."; return; }
+    note.className = "note"; note.textContent = "Vérification…";
+    S.slugTimer = setTimeout(function () {
+      api("GET", "/slugs/check?slug=" + encodeURIComponent(v)).then(function (r) {
+        if (input.value !== v) return;
+        if (r.available) {
+          note.className = "note good"; note.textContent = "✓ Disponible — enregistrée.";
+          queue({ slug: v }, true);
+        } else {
+          note.className = "note bad";
+          note.innerHTML = esc(r.reason || "Indisponible.") + (r.suggestion ? ' Suggestion : <button type="button" class="chip" id="kb-sugg">' + esc(r.suggestion) + '</button>' : "");
+          var s = $("#kb-sugg");
+          if (s) s.onclick = function () { input.value = r.suggestion; checkSlug(input); };
+        }
+      }).catch(function () { note.className = "note bad"; note.textContent = "Vérification impossible."; });
+    }, 450);
+  }
+
+  function chooseTemplate(key) {
+    var meta = ((S.catalog && S.catalog.templates) || []).filter(function (t) { return t.key === key; })[0];
+    if (meta && meta.advanced && !limits().advanced_theme) return upsell("Le template " + meta.label + " est inclus à partir de la formule Custom.");
+    var th = S.profile.theme;
+    var patch = { template: key };
+    th.template = key;
+    if (CUSTOMIZABLE[key]) {
+      var pr = TEMPLATE_PRESET[key];
+      th.colors = Object.assign({}, pr.colors); th.font_heading = pr.fh; th.background = { type: pr.bg, image_url: "" };
+      patch.colors = th.colors; patch.font_heading = pr.fh; patch.background = th.background;
+    }
+    queue({ theme: patch }, true);
+    renderStep(); renderPreview();
+  }
+
+  // ── Offres ────────────────────────────────────────────────
+  function refreshOffers() {
+    return api("GET", "/me/offers").then(function (r) { S.offers = r.items; if (S.step === 3) renderStep(); renderPreview(); });
+  }
+  function deleteOffer(id) {
+    var o = S.offers.filter(function (x) { return x.id === id; })[0];
+    if (!o || !window.confirm("Supprimer « " + o.title + " » ?")) return;
+    api("DELETE", "/me/offers/" + id).then(function () { toast("Offre supprimée."); refreshOffers(); }).catch(handleError);
+  }
+  function moveOffer(i, dir) {
+    var ids = S.offers.map(function (o) { return o.id; }), j = i + dir;
+    if (j < 0 || j >= ids.length) return;
+    var t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+    api("POST", "/me/offers/reorder", { ids: ids }).then(function (r) { S.offers = r.items; renderStep(); renderPreview(); }).catch(handleError);
+  }
+
+  function euros(cents) { return cents == null ? "" : (cents / 100).toFixed(2).replace(".", ",").replace(",00", ""); }
+  function cents(v) {
+    v = String(v || "").replace(/\s/g, "").replace(",", ".");
+    if (v === "") return null;
+    var n = Math.round(parseFloat(v) * 100);
+    return isNaN(n) || n < 0 ? NaN : n;
+  }
+
+  function openOffer(offer) {
+    var bg = document.createElement("div");
+    bg.className = "modal-bg";
+    var draft = offer ? JSON.parse(JSON.stringify(offer)) : null;
+    root.appendChild(bg);
+    bg.addEventListener("click", function (e) { if (e.target === bg) bg.remove(); });
+
+    function chooseKind() {
+      bg.innerHTML = '<div class="modal"><button type="button" class="icon-btn x" data-close>✕</button>' +
+        '<h4>Que souhaites-tu <em>proposer</em> ?</h4><p class="note" style="margin-bottom:16px">Le formulaire s\'adapte à ton choix.</p><div class="kinds">' +
+        Object.keys(KIND_META).map(function (k) {
+          return '<button type="button" class="kind" data-kind="' + k + '">' + svg(KIND_META[k].icon) + '<b>' + KIND_META[k].label + '</b><span>' + KIND_META[k].hint + '</span></button>';
+        }).join("") + '</div></div>';
+      bg.querySelector("[data-close]").onclick = function () { bg.remove(); };
+      bg.querySelectorAll("[data-kind]").forEach(function (b) {
+        b.onclick = function () {
+          var k = b.dataset.kind;
+          draft = { kind: k, title: "", description: "", price_mode: k === "service" ? "quote" : "fixed", price_cents: null, price_max_cents: null,
+                    badge: "", images: [], cta: CTA_BY_KIND[k][0] === "book" && !limits().appointments ? "contact" : CTA_BY_KIND[k][0],
+                    details: {}, status: "published" };
+          form();
+        };
+      });
+    }
+
+    function detailFields() {
+      var d = draft.details || {};
+      var t = function (k, label, ph, type) {
+        return '<div class="field"><label>' + label + '</label><input type="' + (type || "text") + '" data-d="' + k + '" value="' + esc(d[k] == null ? "" : d[k]) + '" placeholder="' + esc(ph || "") + '"></div>';
+      };
+      var sel = function (k, label, opts) {
+        return '<div class="field"><label>' + label + '</label><select data-d="' + k + '">' + Object.keys(opts).map(function (v) {
+          return '<option value="' + v + '"' + (d[k] === v ? " selected" : "") + '>' + opts[v] + '</option>';
+        }).join("") + '</select></div>';
+      };
+      if (draft.kind === "physical") return '<div class="row">' + t("stock", "Stock disponible (vide = non suivi)", "10", "number") + t("delivery_delay", "Délai de livraison", "2 à 5 jours ouvrés") + '</div>' +
+        '<label class="check"><input type="checkbox" data-d="pickup_available"' + (d.pickup_available ? " checked" : "") + '>Retrait sur place possible</label>';
+      if (draft.kind === "digital") return '<div class="row">' + t("file_format", "Format", "PDF, Notion, Figma…") +
+        sel("delivery_mode", "Livraison", { download: "Téléchargement", email_link: "Lien par email", account_access: "Accès en ligne" }) + '</div>';
+      if (draft.kind === "service") return '<div class="row">' + t("duration_label", "Délai de réalisation", "2 semaines") +
+        sel("location_mode", "Réalisation", { remote: "À distance", onsite: "En présentiel", both: "Les deux" }) + '</div>' +
+        t("revisions_included", "Modifications incluses", "2", "number");
+      if (draft.kind === "appointment") return '<div class="row">' + t("duration_minutes", "Durée (minutes)", "60", "number") +
+        sel("location_mode", "Lieu", { visio: "Visioconférence", onsite: "Sur place", phone: "Téléphone" }) + '</div>';
+      return "";
+    }
+
+    function form() {
+      var meta = KIND_META[draft.kind];
+      var maxImg = limits().images_per_offer || 3;
+      var ctas = CTA_BY_KIND[draft.kind];
+      bg.innerHTML = '<div class="modal"><button type="button" class="icon-btn x" data-close>✕</button>' +
+        '<h4>' + (offer ? "Modifier l'<em>offre</em>" : esc(meta.label)) + '</h4><p class="note" style="margin-bottom:16px">' + esc(meta.label) + '</p>' +
+        '<div class="field"><label>Titre</label><input type="text" data-o="title" maxlength="120" value="' + esc(draft.title) + '" placeholder="' + (draft.kind === "service" ? "Création de logo" : draft.kind === "appointment" ? "Séance de coaching" : "Kit Branding Pro") + '"></div>' +
+        '<div class="field"><label>Description</label><textarea data-o="description" rows="3" maxlength="8000" placeholder="Ce qui est inclus, pour qui, comment ça se passe…">' + esc(draft.description) + '</textarea></div>' +
+        '<div class="row"><div class="field"><label>Prix</label><select data-o="price_mode">' +
+        [["fixed", "Prix fixe"], ["range", "À partir de / fourchette"], ["quote", "Sur devis"], ["free", "Gratuit"]].map(function (m) {
+          return '<option value="' + m[0] + '"' + (draft.price_mode === m[0] ? " selected" : "") + '>' + m[1] + '</option>';
+        }).join("") + '</select></div>' +
+        '<div class="field" id="kb-price"><label>Montant TTC (€)</label><div class="item-l" style="gap:6px"><input type="text" inputmode="decimal" data-o="price" value="' + esc(euros(draft.price_cents)) + '" placeholder="150">' +
+        '<input type="text" inputmode="decimal" data-o="price_max" value="' + esc(euros(draft.price_max_cents)) + '" placeholder="max (facultatif)" id="kb-price-max"></div></div></div>' +
+        '<div class="row"><div class="field"><label>Badge (facultatif)</label><input type="text" data-o="badge" maxlength="30" value="' + esc(draft.badge) + '" placeholder="E-book, Best-seller…"></div>' +
+        '<div class="field"><label>Bouton client</label><select data-o="cta">' + ctas.map(function (c) {
+          return '<option value="' + c + '"' + (draft.cta === c ? " selected" : "") + '>' + CTA_LABEL[c] + (c === "book" && !limits().appointments ? " (Custom)" : "") + '</option>';
+        }).join("") + '</select></div></div>' +
+        detailFields() +
+        '<div class="field"><label class="lb">Images (' + draft.images.length + '/' + maxImg + ')</label><div class="imgs">' +
+        draft.images.map(function (u, i) { return '<div class="img-th" style="background-image:' + cssUrl(u) + '"><button type="button" data-rm-img="' + i + '">✕</button></div>'; }).join("") +
+        (draft.images.length < maxImg ? '<button type="button" class="img-add" data-add-img>+</button>' : '') + '</div></div>' +
+        '<label class="check"><input type="checkbox" data-o="published"' + (draft.status === "published" ? " checked" : "") + '>Afficher sur ma vitrine</label>' +
+        '<p class="note" id="kb-offer-err" style="color:var(--bad)"></p>' +
+        '<div class="modal-foot">' + (offer ? '<span></span>' : '<button type="button" class="btn" data-back>← Changer de type</button>') +
+        '<button type="button" class="btn dark" data-save>' + (offer ? "Enregistrer" : "Ajouter l'offre") + '</button></div></div>';
+      var priceBox = bg.querySelector("#kb-price"), maxBox = bg.querySelector("#kb-price-max");
+      function syncPrice() {
+        var m = bg.querySelector('[data-o="price_mode"]').value;
+        priceBox.style.visibility = m === "quote" || m === "free" ? "hidden" : "visible";
+        maxBox.style.display = m === "range" ? "" : "none";
+      }
+      syncPrice();
+      bg.querySelector('[data-o="price_mode"]').onchange = syncPrice;
+      bg.querySelector("[data-close]").onclick = function () { bg.remove(); };
+      var back = bg.querySelector("[data-back]"); if (back) back.onclick = chooseKind;
+      var addImg = bg.querySelector("[data-add-img]");
+      if (addImg) addImg.onclick = function () { readForm(); pickFile("offer", function (url) { draft.images.push(url); form(); }); };
+      bg.querySelectorAll("[data-rm-img]").forEach(function (b) { b.onclick = function () { readForm(); draft.images.splice(+b.dataset.rmImg, 1); form(); }; });
+      bg.querySelector("[data-save]").onclick = save;
+    }
+
+    function readForm() {
+      var g = function (k) { var el = bg.querySelector('[data-o="' + k + '"]'); return el ? el.value : ""; };
+      draft.title = g("title").trim(); draft.description = g("description").trim(); draft.price_mode = g("price_mode");
+      draft.badge = g("badge").trim(); draft.cta = g("cta");
+      draft._price = g("price"); draft._price_max = g("price_max");
+      draft.status = bg.querySelector('[data-o="published"]').checked ? "published" : "draft";
+      var d = Object.assign({}, draft.details || {});
+      bg.querySelectorAll("[data-d]").forEach(function (el) {
+        var k = el.dataset.d;
+        if (el.type === "checkbox") d[k] = el.checked;
+        else if (el.type === "number") { if (el.value === "") delete d[k]; else d[k] = parseInt(el.value, 10); }
+        else d[k] = el.value;
+      });
+      draft.details = d;
+    }
+
+    function save() {
+      readForm();
+      var err = bg.querySelector("#kb-offer-err");
+      if (!draft.title) { err.textContent = "Donne un titre à ton offre."; return; }
+      var body = { kind: draft.kind, title: draft.title, description: draft.description, price_mode: draft.price_mode,
+                   badge: draft.badge, cta: draft.cta, images: draft.images, details: draft.details, status: draft.status };
+      if (draft.price_mode === "fixed" || draft.price_mode === "range") {
+        var p = cents(draft._price), pm = cents(draft._price_max);
+        if (p === null || isNaN(p)) { err.textContent = "Indique un prix valide."; return; }
+        if (isNaN(pm)) { err.textContent = "Prix maximum invalide."; return; }
+        body.price_cents = p; body.price_max_cents = draft.price_mode === "range" ? pm : null;
+      }
+      var btn = bg.querySelector("[data-save]"); btn.disabled = true;
+      var req = offer ? api("PATCH", "/me/offers/" + offer.id, body) : api("POST", "/me/offers", body);
+      req.then(function (r) {
+        bg.remove();
+        toast(offer ? "Offre enregistrée ✓" : "Offre ajoutée ✓");
+        refreshOffers();
+        if (!offer && r.suggest_terms_questionnaire && body.cta === "order") {
+          setTimeout(function () { toast('Prochaine étape : <a href="' + esc(CONFIG.LEGAL_URL) + '" target="_top">préparer tes CGV</a> pour pouvoir vendre.', 7000); }, 2000);
+        }
+      }).catch(function (e) {
+        btn.disabled = false;
+        var d = e.data && e.data.detail;
+        if (e.status === 403 && d && d.code === "plan_required") { err.innerHTML = esc(d.message) + ' <a href="' + esc(CONFIG.PRICING_URL) + '" target="_top">Voir les formules</a>'; return; }
+        err.textContent = e.message;
+      });
+    }
+
+    if (offer) form(); else chooseKind();
+  }
+
+  // ── Publication ──────────────────────────────────────────
+  function togglePublish() {
+    flush().then(function () {
+      if (S.profile.is_published) {
+        if (!window.confirm("Dépublier ta vitrine ? Elle ne sera plus visible jusqu'à la prochaine publication.")) return;
+        return api("POST", "/me/profile/unpublish").then(function (r) { S.profile.is_published = false; renderPub(); renderStep(); toast("Vitrine dépubliée."); });
+      }
+      return api("POST", "/me/profile/publish").then(function (r) {
+        S.profile.is_published = true; renderPub(); renderStep();
+        toast("🎉 Ta vitrine est en ligne !", 5000);
+      }).catch(function (e) {
+        var d = e.data && e.data.detail;
+        if (d && d.missing) {
+          var keys = d.missing.map(function (m) { return m.key; });
+          if (keys.indexOf("verify_email") >= 0) return openVerify(true);
+          goStep(1);
+          keys.forEach(function (k) { var f = $('[data-f="' + k + '"]'); if (f) f.classList.add("err-field"); });
+          return toast(esc(d.missing.map(function (m) { return m.message; }).join(" ")));
+        }
+        handleError(e);
+      });
+    });
+  }
+
+  function openVerify(thenPublish) {
+    var bg = document.createElement("div");
+    bg.className = "modal-bg";
+    bg.innerHTML = '<div class="modal" style="max-width:420px;text-align:center"><button type="button" class="icon-btn x" data-close>✕</button>' +
+      '<h4>Confirme ton <em>email</em></h4><p class="note">Nous envoyons un code à 6 chiffres à <b>' + esc(S.me.user.email) + '</b>.</p>' +
+      '<div class="code">' + [0, 1, 2, 3, 4, 5].map(function (i) { return '<input type="text" inputmode="numeric" data-c="' + i + '">'; }).join("") + '</div>' +
+      '<p class="note" id="kb-v-err" style="color:var(--bad)"></p>' +
+      '<button type="button" class="btn dark" data-ok style="width:100%">Valider</button>' +
+      '<p class="note" style="margin-top:12px"><button type="button" class="chip" data-resend>Renvoyer le code</button></p></div>';
+    root.appendChild(bg);
+    var inputs = bg.querySelectorAll("[data-c]");
+    var err = bg.querySelector("#kb-v-err");
+    api("POST", "/auth/resend-code").catch(function (e) { if (e.status !== 429) err.textContent = e.message; });
+    inputs.forEach(function (inp, i) {
+      inp.oninput = function () {
+        var v = inp.value.replace(/\D/g, "");
+        if (v.length > 1) { v.split("").slice(0, 6 - i).forEach(function (c, k) { inputs[i + k].value = c; }); }
+        else { inp.value = v; if (v && inputs[i + 1]) inputs[i + 1].focus(); }
+      };
+      inp.onkeydown = function (e) { if (e.key === "Backspace" && !inp.value && inputs[i - 1]) inputs[i - 1].focus(); };
+      inp.onpaste = function (e) {
+        var text = ((e.clipboardData || window.clipboardData).getData("text") || "").replace(/\D/g, "");
+        if (!text) return;
+        e.preventDefault(); inp.value = text; inp.oninput();
+      };
+    });
+    inputs[0].focus();
+    bg.querySelector("[data-close]").onclick = function () { bg.remove(); };
+    bg.querySelector("[data-resend]").onclick = function () {
+      api("POST", "/auth/resend-code").then(function () { err.style.color = "var(--good)"; err.textContent = "Code renvoyé."; })
+        .catch(function (e) { err.style.color = "var(--bad)"; err.textContent = e.message; });
+    };
+    bg.querySelector("[data-ok]").onclick = function () {
+      var code = Array.prototype.map.call(inputs, function (i) { return i.value; }).join("");
+      if (!/^\d{6}$/.test(code)) { err.textContent = "Saisis les 6 chiffres."; return; }
+      api("POST", "/auth/verify-email", { code: code }).then(function (r) {
+        S.me.user = r.user; store(CONFIG.USER_KEY, JSON.stringify(r.user));
+        bg.remove(); renderStep(); toast("Adresse confirmée ✓");
+        if (thenPublish) togglePublish();
+      }).catch(function (e) { err.style.color = "var(--bad)"; err.textContent = e.message; });
+    };
+  }
+
+  // ============================================================
+  // Mise en page
+  // ============================================================
+  function goStep(n) {
+    S.step = n;
+    renderTop(); renderStep();
+    var edit = $(".edit"); if (edit) edit.scrollTop = 0;
+  }
+  function renderTop() {
+    $$(".step").forEach(function (b) { b.classList.toggle("on", +b.dataset.go === S.step); });
+    var cur = STEPS[S.step - 1];
+    $(".title").innerHTML = cur.title;
+  }
+  function renderStep() {
+    var cur = STEPS[S.step - 1];
+    $(".edit-in").innerHTML = VIEWS[cur.key]();
+  }
+  function renderPub() {
+    var p = S.profile, url = CONFIG.PUBLIC_BASE + p.slug;
+    var host = url.replace(/^https?:\/\//, "");
+    $(".pub").innerHTML = '<div class="pub-url"><span class="dot' + (p.is_published ? " on" : "") + '"></span><div style="min-width:0"><b>' + esc(host) + '</b>' +
+      '<small>' + (p.is_published ? "En ligne" : "Non publiée — visible seulement par toi") + '</small></div></div>' +
+      '<div class="pub-act"><button type="button" class="btn sm" data-copy>Copier le lien</button>' +
+      (p.is_published ? '<button type="button" class="btn sm opt" data-open>Voir</button>' : '') +
+      '<button type="button" class="btn sm ' + (p.is_published ? "" : "dark") + '" data-pub>' + (p.is_published ? "Dépublier" : "Publier") + '</button></div>';
+    $(".pub").onclick = function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.copy !== undefined) {
+        var done = function () { toast("Lien copié ✓"); };
+        if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, function () { window.prompt("Ton lien :", url); });
+        else window.prompt("Ton lien :", url);
+      }
+      if (b.dataset.open !== undefined) openTab(url);
+      if (b.dataset.pub !== undefined) togglePublish();
+    };
+  }
+  function renderApp() {
+    var planName = (S.me.plan && S.me.plan.name) || "Free";
+    root.innerHTML =
+      '<div class="top"><div class="top-in"><h2 class="title"></h2><div class="meta">' +
+      '<span class="save saved"><i></i><span>Enregistré</span></span>' +
+      '<a class="plan" href="' + esc(CONFIG.PRICING_URL) + '" target="_top">' + esc(planName) + '</a></div></div>' +
+      '<div class="steps">' + STEPS.map(function (s) { return '<button type="button" class="step" data-go="' + s.n + '"><b>0' + s.n + '</b>' + s.label + '</button>'; }).join("") + '</div></div>' +
+      '<div class="mtabs"><button type="button" data-pane="edit" class="on">Modifier</button><button type="button" data-pane="prev">Aperçu</button></div>' +
+      '<div class="main" data-pane="edit"><div class="edit"><div class="edit-in"></div></div>' +
+      '<div class="prev"><div class="pv-label">Aperçu en direct</div><div class="phone"></div></div></div>' +
+      '<div class="pub"></div><div class="toast"></div>';
+    $(".steps").onclick = function (e) { var b = e.target.closest("[data-go]"); if (b) goStep(+b.dataset.go); };
+    $(".mtabs").onclick = function (e) {
+      var b = e.target.closest("[data-pane]"); if (!b) return;
+      $(".main").dataset.pane = b.dataset.pane;
+      $$(".mtabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
+    };
+    bindStep(); renderTop(); renderStep(); renderPreview(); renderPub();
+  }
+  function showLogin() {
+    root.innerHTML = '<div class="center"><div><h2>Connecte-toi</h2><p>Connecte-toi à ton compte Kitly pour créer et gérer ta vitrine.</p>' +
+      '<button type="button" class="btn dark" id="kb-login">Se connecter</button></div></div>';
+    $("#kb-login").onclick = function () { navigate(CONFIG.LOGIN_URL); };
+  }
+  function showError(msg) {
+    root.innerHTML = '<div class="center"><div><h2>Oups</h2><p>' + esc(msg) + '</p><button type="button" class="btn dark" id="kb-retry">Réessayer</button></div></div>';
+    $("#kb-retry").onclick = boot;
+  }
+
+  // ============================================================
+  // Démarrage
+  // ============================================================
+  function boot() {
+    if (!load(CONFIG.TOKEN_KEY)) return showLogin();
+    Promise.all([api("GET", "/auth/me"), api("GET", "/catalog")]).then(function (res) {
+      S.me = res[0]; S.catalog = res[1];
+      // Pas encore de vitrine : création immédiate (adresse proposée à partir du nom).
+      var ensure = S.me.profile ? Promise.resolve({ profile: S.me.profile }) : api("POST", "/me/profile", {});
+      return ensure.then(function (r) {
+        S.profile = r.profile;
+        if (!S.profile.theme) S.profile.theme = {};
+        return api("GET", "/me/offers");
+      }).then(function (r) {
+        S.offers = r.items;
+        renderApp();
+        if (!S.me.profile) toast("Ta vitrine est créée : complète-la, tout est enregistré automatiquement.", 5000);
+      });
+    }).catch(function (e) { if (e.status !== 401) showError(e.message); });
+  }
+  boot();
+})();
+</script>
