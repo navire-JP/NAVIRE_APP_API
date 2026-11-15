@@ -413,6 +413,7 @@ def test_marketplace_eligibility_new_popular_search(client):
     r = client.get("/kitly/marketplace/search", params={"q": f"developpeur {tag}"}).json()
     assert [c["slug"] for c in r["items"]] == [slug_a]
     assert r["items"][0]["badge"] == "Premium+" and r["items"][0]["top_offers"][0]["title"] == "Site vitrine"
+    assert "banner_url" in r["items"][0] and "email" not in r["items"][0]
 
     r = client.get("/kitly/marketplace/search", params={"q": tag, "sort": "price_asc"}).json()
     assert [c["slug"] for c in r["items"]] == [slug_b, slug_a]

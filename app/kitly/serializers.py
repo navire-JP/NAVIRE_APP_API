@@ -254,6 +254,7 @@ def card_public(profile: KitlyProfile, top_offers: list[KitlyOffer], min_price: 
         "location": profile.location,
         "bio": profile.bio,
         "avatar_url": profile.avatar_url,
+        "banner_url": profile.banner_url,
         "top_offers": [{"id": o.id, "title": o.title, "price_label": price_label(o)} for o in top_offers],
         "starting_price_cents": min_price,
         "is_new": is_new,
