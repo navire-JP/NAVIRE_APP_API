@@ -137,14 +137,17 @@ def create_lead(
 ):
     """Formulaire de contact / demande de devis / demande de rendez-vous."""
     profile = _profile_or_404(db, slug)
+    # Pot de miel rempli : robot. Réponse identique, rien n'est enregistré — et le
+    # quota de la connexion n'est pas entamé (un vrai visiteur derrière la même
+    # IP ne doit pas être bloqué par les envois du robot).
+    if payload.website:
+        return {"ok": True}
+
     ip = client_ip(request)
     rate_guard(db, f"lead:ip:{ip}", 8, 3600, "Trop de messages envoyés, réessaie plus tard.")
     rate_guard(db, f"lead:ip:{ip}:p{profile.id}", 3, 3600, "Tu as déjà contacté ce professionnel, il va te répondre.")
     rate_hit(db, f"lead:ip:{ip}")
     rate_hit(db, f"lead:ip:{ip}:p{profile.id}")
-
-    if payload.website:  # pot de miel rempli : robot. Réponse identique, rien n'est enregistré.
-        return {"ok": True}
 
     offer_title = None
     if payload.offer_id is not None:

@@ -70,22 +70,32 @@ def looks_like_bot(request: Request) -> bool:
 # Limitation de débit (stockée en base : survit aux redémarrages)
 # ============================================================
 
+def _rate_key(key: str) -> str:
+    """
+    Les clés contiennent une IP ou une adresse email : seule leur empreinte
+    salée est stockée (stable, donc utilisable pour compter, mais jamais en clair).
+    """
+    prefix = key.split(":", 1)[0]
+    digest = hashlib.sha256(f"{KITLY_VISITOR_SALT}|rate|{key}".encode()).hexdigest()
+    return f"{prefix}:{digest}"
+
+
 def rate_count(db: Session, key: str, window_seconds: int) -> int:
     since = now() - timedelta(seconds=window_seconds)
     return db.execute(
         select(func.count()).select_from(KitlyRateEvent).where(
-            KitlyRateEvent.key == key, KitlyRateEvent.created_at >= since
+            KitlyRateEvent.key == _rate_key(key), KitlyRateEvent.created_at >= since
         )
     ).scalar_one()
 
 
 def rate_hit(db: Session, key: str) -> None:
-    db.add(KitlyRateEvent(key=key))
+    db.add(KitlyRateEvent(key=_rate_key(key)))
     db.commit()
 
 
 def rate_clear(db: Session, key: str) -> None:
-    db.execute(delete(KitlyRateEvent).where(KitlyRateEvent.key == key))
+    db.execute(delete(KitlyRateEvent).where(KitlyRateEvent.key == _rate_key(key)))
     db.commit()
 
 

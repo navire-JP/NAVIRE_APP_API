@@ -234,7 +234,11 @@ async def upload_media(
     """Envoie une image et rend son URL, à placer ensuite dans le profil / l'offre / le projet."""
     if purpose not in MEDIA_PURPOSES:
         raise HTTPException(422, detail="Usage d'image inconnu.")
-    data = await file.read()
+    # Lecture bornée : un fichier trop lourd n'est jamais chargé en entier en mémoire.
+    from app.kitly import media
+
+    check_image(file.content_type, 1)
+    data = await file.read(media.KITLY_MAX_IMAGE_BYTES + 1)
     check_image(file.content_type, len(data))
     return {"url": upload_image(data, user.id, purpose)}
 

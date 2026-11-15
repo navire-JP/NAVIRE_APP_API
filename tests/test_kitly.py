@@ -376,7 +376,8 @@ def test_lead_flow(client, _isolation):
     assert leads["total"] == 1 and leads["unread"] == 1
     lid = leads["items"][0]["id"]
     assert client.patch(f"/kitly/me/leads/{lid}", json={"status": "replied"}, headers=h).json()["item"]["status"] == "replied"
-    # Limite par profil et par IP
+    # Limite par profil et par IP : 3 demandes par heure (le pot de miel ne compte pas)
+    client.post(f"/kitly/public/profiles/{slug}/leads", json=body)
     client.post(f"/kitly/public/profiles/{slug}/leads", json=body)
     assert client.post(f"/kitly/public/profiles/{slug}/leads", json=body).status_code == 429
 
@@ -733,3 +734,62 @@ def test_vitrine_page_meta_and_escaping(client):
     r = client.get(f"/kitly/p/{slug}")
     assert r.status_code == 404 and 'noindex' in r.text
     assert client.get("/kitly/p/inconnu-total-xyz").status_code == 404
+
+
+# ============================================================
+# Retours de revue (Codex, PR #67)
+# ============================================================
+
+def test_rate_keys_never_store_ip_or_email(client):
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyRateEvent
+
+    email, _ = register(client)
+    client.post("/kitly/auth/login", json={"email": email, "password": "mauvais123"})
+    with SessionLocal() as db:
+        keys = [k for (k,) in db.query(KitlyRateEvent.key).all()]
+    assert keys and all(email not in k and "testclient" not in k for k in keys)
+    assert {k.split(":")[0] for k in keys} >= {"register", "login"}
+
+
+def test_honeypot_does_not_consume_lead_quota(client):
+    _, h = register(client)
+    slug = make_vitrine(client, h)
+    body = {"kind": "contact", "name": "Robot", "email": "bot@exemple.fr", "message": "spam", "consent": True,
+            "website": "spam.ru"}
+    for _ in range(5):
+        assert client.post(f"/kitly/public/profiles/{slug}/leads", json=body).status_code == 201
+    real = {**body, "name": "Camille", "website": ""}
+    assert client.post(f"/kitly/public/profiles/{slug}/leads", json=real).status_code == 201
+    assert client.get("/kitly/me/leads", headers=h).json()["total"] == 1
+
+
+def test_oversized_upload_rejected_without_full_read(client, monkeypatch):
+    from app.kitly import media
+
+    _, h = register(client)
+    monkeypatch.setattr(media, "KITLY_MAX_IMAGE_BYTES", 1024)
+    called = []
+    monkeypatch.setattr("app.kitly.routers.vitrine.upload_image", lambda *a: called.append(1) or "x")
+    r = client.post("/kitly/me/media", headers=h, data={"purpose": "avatar"},
+                    files={"file": ("big.png", b"0" * 5000, "image/png")})
+    assert r.status_code == 413 and not called
+    r = client.post("/kitly/me/media", headers=h, data={"purpose": "avatar"},
+                    files={"file": ("doc.pdf", b"0" * 10, "application/pdf")})
+    assert r.status_code == 415
+    r = client.post("/kitly/me/media", headers=h, data={"purpose": "avatar"},
+                    files={"file": ("ok.png", b"0" * 500, "image/png")})
+    assert r.status_code == 200 and called
+
+
+def test_export_includes_legal_records(client):
+    _, h = register(client)
+    make_vitrine(client, h)
+    client.put("/kitly/me/legal-profile", json={"legal_name": "Léa Martin EI", "siren": "123456789"}, headers=h)
+    client.put("/kitly/me/legal-answers/general", json={"answers": {"sells_to_consumers": True}}, headers=h)
+    client.put("/kitly/me/terms/draft", json={"articles": [{"key": "objet", "title": "Objet", "body": "Texte."}]}, headers=h)
+    client.post("/kitly/me/terms/draft/publish", json={"accept": True}, headers=h)
+    legal = client.get("/kitly/account/export", headers=h).json()["legal"]
+    assert legal["legal_profile"]["legal_name"] == "Léa Martin EI"
+    assert legal["questionnaire_answers"]["general"]["answers"]["sells_to_consumers"] is True
+    assert legal["terms_versions"][0]["articles"][0]["body"] == "Texte."

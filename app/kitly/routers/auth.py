@@ -250,7 +250,7 @@ def change_password(payload: PasswordChangeIn, user: KitlyUser = Depends(current
 def export_account(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """Portabilité RGPD : toutes les données du compte en JSON."""
     profile = user.profile
-    data: dict = {"account": user_out(user), "profile": None, "offers": [], "portfolio": [], "leads": []}
+    data: dict = {"account": user_out(user), "profile": None, "offers": [], "portfolio": [], "leads": [], "legal": None}
     data["account"]["consents"] = {
         "cgu_version": user.cgu_version, "cgu_accepted_at": str(user.cgu_accepted_at),
         "privacy_version": user.privacy_version, "privacy_ack_at": str(user.privacy_ack_at),
@@ -261,7 +261,23 @@ def export_account(user: KitlyUser = Depends(current_user), db: Session = Depend
         data["portfolio"] = [portfolio_owner(p) for p in profile.portfolio]
         leads = db.execute(select(KitlyLead).where(KitlyLead.profile_id == profile.id)).scalars()
         data["leads"] = [lead_out(lead) for lead in leads]
+        data["legal"] = _legal_export(db, profile)
     return data
+
+
+def _legal_export(db: Session, profile: KitlyProfile) -> dict:
+    """Identité juridique, réponses au questionnaire et toutes les versions de CGV."""
+    from app.kitly.models import KitlyLegalAnswers, KitlySellerLegalProfile
+    from app.kitly.serializers import terms_version_out
+
+    lp = profile.legal_profile
+    cols = [c.key for c in KitlySellerLegalProfile.__table__.columns if c.key not in ("id", "profile_id")]
+    answers = db.execute(select(KitlyLegalAnswers).where(KitlyLegalAnswers.profile_id == profile.id)).scalars()
+    return {
+        "legal_profile": {k: (str(getattr(lp, k)) if k == "updated_at" else getattr(lp, k)) for k in cols} if lp else None,
+        "questionnaire_answers": {a.scope: {"answers": a.answers, "version": a.questionnaire_version} for a in answers},
+        "terms_versions": [terms_version_out(v) for v in (profile.terms.versions if profile.terms else [])],
+    }
 
 
 @router.delete("/account")
