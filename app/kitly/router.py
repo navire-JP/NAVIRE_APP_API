@@ -50,6 +50,7 @@ def kitly_catalog():
         "templates": catalog.TEMPLATES,
         "fonts": sorted(catalog.FONTS),
         "button_shapes": sorted(catalog.BUTTON_SHAPES),
+        "layouts": sorted(catalog.LAYOUTS),
         "backgrounds": sorted(catalog.BACKGROUNDS),
         "default_theme": catalog.DEFAULT_THEME,
         "report_reasons": sorted(catalog.REPORT_REASONS),
@@ -90,12 +91,26 @@ def kitly_startup() -> None:
 
 
 def kitly_purge_job() -> None:
-    """Tâche planifiée : purge du journal de limitation de débit."""
-    from app.kitly.utils import purge_rate_events
+    """Tâche planifiée : purge du journal de limitation de débit, fin des formules offertes expirées."""
+    from sqlalchemy import select
+
+    from app.kitly.models import KitlyPlanGrant, KitlyUser
+    from app.kitly.routers.billing import recompute_plan
+    from app.kitly.utils import now, purge_rate_events
 
     db = SessionLocal()
     try:
         purge_rate_events(db)
+        expired = db.execute(select(KitlyPlanGrant).where(KitlyPlanGrant.revoked_at.is_(None),
+                                                          KitlyPlanGrant.expires_at.is_not(None),
+                                                          KitlyPlanGrant.expires_at < now())).scalars().all()
+        for g in expired:
+            g.revoked_at = now()
+            db.flush()
+            user = db.get(KitlyUser, g.user_id)
+            if user:
+                recompute_plan(db, user)
+        db.commit()
     except Exception as exc:
         db.rollback()
         print(f"[kitly] ⚠️  Purge des limites échouée : {exc}")

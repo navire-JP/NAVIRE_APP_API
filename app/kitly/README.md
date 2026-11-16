@@ -13,7 +13,7 @@ Kitly est hébergé dans l'API NAVIRE (même process, même base PostgreSQL) mai
 | Stripe | `STRIPE_SECRET_KEY` (variable globale `stripe.api_key`) | `KITLY_STRIPE_SECRET_KEY` via un `StripeClient` dédié, jamais la variable globale |
 | Emails | expéditeur NAVIRE | expéditeur `KITLY_SENDER_EMAIL` |
 | Images | `navire/…` | `kitly/u<id>/…` (compte Cloudinary distinct possible) |
-| Admin | console NAVIRE | comptes Kitly `is_admin` (`KITLY_ADMIN_EMAILS`) |
+| Admin | console NAVIRE | console Kitly `/admin` (embed `admin.html`), comptes `is_admin` (`KITLY_ADMIN_EMAILS`) |
 
 Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 `kitly_purge_job` dans le scheduler, `app.include_router(kitly_router)`.
@@ -36,7 +36,8 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_PUBLIC_HOST` | non | Domaine des vitrines (défaut `kitly.fr`) |
 | `KITLY_PROFILE_URL_TEMPLATE` | non | Adresse publique d'une vitrine, `{slug}` remplacé (défaut `<KITLY_FRONTEND_URL>/profile?u={slug}`) |
 | `KITLY_PRIVACY_URL` | non | Politique de confidentialité citée par le formulaire de contact des vitrines |
-| `KITLY_ADMIN_EMAILS` | non | Adresses promues admin Kitly (séparées par des virgules) |
+| `KITLY_ADMIN_EMAILS` | non | Adresses promues admin Kitly à leur prochaine connexion (séparées par des virgules) : accès à la console `/admin` |
+| `KITLY_CONTACT_EMAIL` | non | Adresse citée dans l'email de suspension d'une vitrine pour la contester (défaut : l'adresse de l'admin qui suspend). Conseillé : une adresse d'équipe, ex. `contact@kitly.fr` |
 | `KITLY_MARKETPLACE_COMMISSION_BPS` | non | Commission marketplace (défaut 1000 = 10 %) |
 | `KITLY_NEW_PROFILES_DAYS` / `KITLY_POPULAR_WINDOW_DAYS` | non | Fenêtres « nouveaux » (7 j) et « populaires » (30 j) |
 
@@ -115,9 +116,26 @@ les erreurs Stripe sont rendues en 502 `{"code": "stripe_error", "message": …}
 `GET /kitly/me/terms` · `PUT|DELETE /kitly/me/terms/draft` · `POST /kitly/me/terms/draft/publish` ·
 `GET /kitly/me/terms/versions/{id}`
 
-**Référentiels / back-office**
-`GET /kitly/catalog` · `/kitly/admin/overview` · `/kitly/admin/plans[/{code}]` (limites
-configurables) · `/kitly/admin/reports` · `/kitly/admin/profiles/{id}/suspend|unsuspend`
+**Référentiels**
+`GET /kitly/catalog` (templates, typos, mises en page `site` / `links`, catégories…)
+
+**Console admin** (`/kitly/admin/*`, comptes `is_admin` uniquement ; chaque action est
+inscrite dans `kitly_admin_actions`)
+- `GET /overview` : comptes, vitrines, abonnements, revenu mensuel, demandes, visites, signalements
+- Comptes : `GET /users?q=&plan=&page=` · `GET /users/{id}` · `POST|DELETE /users/{id}/grant`
+  (formule offerte, durée optionnelle ; formule effective = max(Stripe, offerte), expirée par
+  `kitly_purge_job`) · `POST /users/{id}/verify-email` · `/deactivate` (motif) · `/reactivate` ·
+  `/logout-all` · `/impersonate` · `DELETE /users/{id}` (`confirm: "SUPPRIMER"` + motif ;
+  abonnement Stripe résilié d'abord)
+- Vitrines : `GET /profiles?q=&status=published|draft|suspended` · `POST /profiles/{id}/suspend`
+  (motif envoyé au titulaire par email, exposé des motifs DSA) · `/unsuspend` · `/unpublish`
+- `GET /reports?status=` · `PATCH /reports/{id}?status=` · `GET /plans` · `PATCH /plans/{code}`
+- `GET /system` (configuration effective, sans secret) · `POST /system/email-check` ·
+  `POST /system/email-test` · `GET /actions` (journal)
+
+**Mode support** (`/impersonate`) : jeton d'1 h au nom du compte, marqué `imp` ; `/auth/me`
+renvoie `impersonated_by`. Paiement, portail Stripe, Connect, résiliation, mot de passe,
+suppression du compte et « déconnecter partout » restent réservés au titulaire (403).
 
 ## Choix de conception
 

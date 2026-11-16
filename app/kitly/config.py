@@ -92,6 +92,9 @@ KITLY_JWT_ALGO = "HS256"
 KITLY_JWT_AUDIENCE = "kitly"
 KITLY_TOKEN_TTL_MINUTES = _int("KITLY_TOKEN_TTL_MINUTES", 60 * 24 * 14)
 
+# Adresse de contact affichée dans les emails de modération (contestation).
+KITLY_CONTACT_EMAIL = os.getenv("KITLY_CONTACT_EMAIL", "")
+
 # Comptes promus administrateurs Kitly à l'inscription / connexion.
 KITLY_ADMIN_EMAILS = {e.lower() for e in _csv(os.getenv("KITLY_ADMIN_EMAILS", ""))}
 

@@ -1,0 +1,607 @@
+<!--
+  KITLY : console d'administration (/admin)
+  =========================================
+  Réservée aux comptes Kitly administrateurs (adresses listées dans
+  KITLY_ADMIN_EMAILS sur Render, promues à la connexion). Totalement distincte
+  de la console NAVIRE.
+
+  Onglets : Vue d'ensemble · Comptes · Vitrines · Signalements · Formules · Système.
+  Actions sur un compte : formule offerte, confirmer l'email, déconnecter partout,
+  désactiver / réactiver, supprimer, « Ouvrir son builder » (mode support : session
+  d'1 h à sa place, paiements et mot de passe bloqués, action journalisée).
+  Toute action est inscrite au journal (onglet Système).
+
+  Composant Framer : Embed HTML, largeur Fill, hauteur 100vh (sous le header).
+  Réglages : bloc CONFIG.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: transparent !important; overflow: hidden; }
+  *, *::before, *::after { box-sizing: border-box; }
+  #ka {
+    --ink: #0a0a0a; --paper: #ffffff; --grey: #f5f5f4; --line: #e4e4e2; --mut: #6f6f6c; --bad: #c2410c; --good: #15803d; --warn: #b45309;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
+    height: 100%; display: grid; grid-template-columns: 220px minmax(0, 1fr); background: var(--paper);
+  }
+  #ka button, #ka input, #ka select, #ka textarea { font-family: inherit; }
+  #ka em { font-family: var(--serif); font-style: italic; font-weight: 400; }
+  #ka .side { border-right: 1px solid var(--line); padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; background: var(--grey); }
+  #ka .logo { font-size: 19px; font-weight: 900; letter-spacing: -.04em; padding: 0 10px 2px; }
+  #ka .logo i { font-style: normal; font-family: var(--serif); }
+  #ka .role { font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mut); padding: 0 10px 16px; }
+  #ka .tab { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 0; background: none; text-align: left; font-size: 14px; font-weight: 600; color: #333; padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+  #ka .tab:hover { background: #ececea; }
+  #ka .tab.on { background: var(--ink); color: var(--paper); }
+  #ka .tab .badge { font-size: 11px; font-weight: 800; background: var(--bad); color: #fff; border-radius: 99px; padding: 1px 7px; }
+  #ka .side .me { margin-top: auto; font-size: 12px; color: var(--mut); padding: 10px; line-height: 1.4; word-break: break-all; }
+  #ka .main { overflow-y: auto; padding: 28px 32px 60px; position: relative; }
+  #ka h1 { font-size: 28px; font-weight: 900; letter-spacing: -.03em; margin: 0 0 4px; }
+  #ka .sub { color: var(--mut); font-size: 14px; margin: 0 0 22px; }
+  #ka h3 { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); margin: 28px 0 12px; }
+
+  #ka .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+  #ka .kpi { border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+  #ka .kpi b { display: block; font-size: 26px; font-weight: 900; letter-spacing: -.03em; }
+  #ka .kpi small { font-size: 11.5px; color: var(--mut); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  #ka .kpi.alert { border-color: var(--bad); }
+  #ka .kpi.alert b { color: var(--bad); }
+
+  #ka .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  #ka input[type=text], #ka input[type=email], #ka input[type=number], #ka select, #ka textarea { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--ink); background: var(--paper); outline: none; }
+  #ka input:focus, #ka select:focus, #ka textarea:focus { border-color: var(--ink); }
+  #ka .bar input[type=text] { flex: 1; min-width: 220px; }
+  #ka .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: 13px; padding: 9px 15px; border-radius: 999px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer; white-space: nowrap; text-decoration: none; }
+  #ka .btn:hover { background: #2a2a2a; }
+  #ka .btn.ghost { background: var(--paper); color: var(--ink); border-color: var(--line); }
+  #ka .btn.ghost:hover { background: var(--grey); }
+  #ka .btn.danger { background: var(--paper); color: var(--bad); border-color: #f0c9b6; }
+  #ka .btn.danger:hover { background: #fdf1ea; }
+  #ka .btn:disabled { opacity: .5; cursor: default; }
+
+  #ka table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  #ka th { text-align: left; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); padding: 10px 10px 10px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  #ka td { padding: 11px 10px 11px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  #ka tr.click { cursor: pointer; }
+  #ka tr.click:hover td { background: #fafaf9; }
+  #ka .muted { color: var(--mut); font-size: 12.5px; }
+  #ka .pill { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; background: var(--grey); color: var(--mut); white-space: nowrap; }
+  #ka .pill.ink { background: var(--ink); color: #fff; }
+  #ka .pill.ok { background: #e7f5ec; color: var(--good); }
+  #ka .pill.bad { background: #fdece4; color: var(--bad); }
+  #ka .pill.warn { background: #fff4e5; color: var(--warn); }
+  #ka .pager { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; font-size: 13px; color: var(--mut); }
+  #ka .empty { border: 1px dashed var(--line); border-radius: 14px; padding: 28px; text-align: center; color: var(--mut); font-size: 14px; }
+
+  #ka .cards { display: grid; gap: 12px; }
+  #ka .card { border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+  #ka .card .row { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  #ka .card p { margin: 8px 0 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+  #ka .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+  #ka .plans { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  #ka .plan { border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+  #ka .plan label { display: block; font-size: 11.5px; font-weight: 700; color: var(--mut); margin: 10px 0 4px; }
+  #ka .plan input[type=text], #ka .plan input[type=number], #ka .plan textarea { width: 100%; }
+  #ka .limits { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-top: 6px; }
+  #ka .limits .lim { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 9px; padding: 5px 8px; }
+  #ka .limits input[type=number] { width: 64px; padding: 4px 6px; }
+  #ka .limits input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--ink); }
+
+  #ka .kv { display: grid; grid-template-columns: 180px 1fr; gap: 8px 14px; font-size: 13.5px; }
+  #ka .kv dt { color: var(--mut); font-weight: 600; }
+  #ka .kv dd { margin: 0; word-break: break-word; }
+  #ka code { font-size: 12px; background: var(--grey); padding: 2px 6px; border-radius: 6px; }
+
+  /* tiroir de détail */
+  #ka .drawer-bg { position: fixed; inset: 0; background: rgba(10,10,10,.35); z-index: 40; display: flex; justify-content: flex-end; }
+  #ka .drawer { width: min(560px, 100%); height: 100%; background: var(--paper); overflow-y: auto; padding: 24px 26px 40px; box-shadow: -20px 0 50px -30px rgba(0,0,0,.4); animation: ka-in .2s ease; }
+  @keyframes ka-in { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+  #ka .drawer h2 { font-size: 22px; font-weight: 900; letter-spacing: -.02em; margin: 0 30px 4px 0; word-break: break-all; }
+  #ka .drawer .x { float: right; }
+  #ka .grant { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #ka .grant input[type=text] { flex: 1; min-width: 160px; }
+  #ka .grant input[type=number] { width: 90px; }
+  #ka .hist { list-style: none; padding: 0; margin: 0; font-size: 12.5px; }
+  #ka .hist li { padding: 7px 0; border-bottom: 1px solid var(--line); }
+
+  /* boîte de dialogue */
+  #ka .mbg { position: fixed; inset: 0; background: rgba(10,10,10,.45); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #ka .m { background: var(--paper); border-radius: 20px; width: 100%; max-width: 440px; padding: 24px; }
+  #ka .m h4 { font-size: 19px; font-weight: 900; margin: 0 0 6px; }
+  #ka .m p { color: var(--mut); font-size: 14px; line-height: 1.5; margin: 0 0 14px; }
+  #ka .m textarea, #ka .m input { width: 100%; }
+  #ka .m .acts { justify-content: flex-end; margin-top: 16px; }
+  #ka .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 99px; font-size: 13px; font-weight: 600; transition: .25s; pointer-events: none; z-index: 70; max-width: calc(100% - 32px); text-align: center; }
+  #ka .toast.show { opacity: 1; transform: translateX(-50%); }
+  #ka .center { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; }
+  #ka .center h1 { margin-bottom: 8px; }
+  #ka .center p { color: var(--mut); max-width: 460px; margin: 0 auto 18px; line-height: 1.5; }
+
+  @media (max-width: 860px) {
+    #ka { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+    #ka .side { flex-direction: row; overflow-x: auto; padding: 10px; gap: 4px; border-right: 0; border-bottom: 1px solid var(--line); }
+    #ka .logo, #ka .role, #ka .side .me { display: none; }
+    #ka .tab { white-space: nowrap; padding: 8px 12px; }
+    #ka .main { padding: 18px 16px 40px; }
+    #ka .kv { grid-template-columns: 1fr; gap: 2px 0; }
+    #ka .kv dt { margin-top: 8px; }
+    #ka .opt { display: none; }
+  }
+</style>
+
+<div id="ka"><div class="center"><p>Chargement de la console…</p></div></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  var CONFIG = {
+    API_BASE: "https://navire-app-api.onrender.com",
+    LOGIN_URL: "/connexion",
+    BUILDER_URL: "/builder",
+    PROFILE_URL: "/profile?u={slug}",
+    TOKEN_KEY: "kitly_token",
+    ADMIN_TOKEN_KEY: "kitly_admin_token"
+  };
+  (function () {
+    var origin = "";
+    try { origin = window.top.location.origin; } catch (e) { try { origin = window.location.origin; } catch (e2) {} }
+    if (!origin || origin === "null") origin = "https://kitly.framer.website";
+    Object.keys(CONFIG).forEach(function (k) { var v = CONFIG[k]; if (typeof v === "string" && v.charAt(0) === "/") CONFIG[k] = origin + v; });
+  })();
+
+  var root = document.getElementById("ka");
+  var S = { me: null, tab: "overview", users: { q: "", plan: "", page: 1 }, profiles: { q: "", status: "", page: 1 }, reports: { status: "open" }, openReports: 0 };
+  var PLAN_NAME = { free: "Free", custom: "Custom", premium: "Premium+" };
+  var ACTION_LABEL = {
+    grant_plan: "Formule offerte", revoke_grant: "Formule offerte retirée", verify_email: "Email confirmé", deactivate: "Compte désactivé",
+    reactivate: "Compte réactivé", logout_all: "Sessions coupées", impersonate: "Builder ouvert (support)", delete_user: "Compte supprimé",
+    suspend_profile: "Vitrine suspendue", unsuspend_profile: "Vitrine rétablie", unpublish_profile: "Vitrine dépubliée",
+    report_status: "Signalement traité", update_plan: "Formule modifiée", email_check: "Vérification email", email_test: "Email de test"
+  };
+  var REASON_LABEL = { fraud: "Arnaque ou fraude", illegal_content: "Contenu illicite", impersonation: "Usurpation d'identité",
+    ip_infringement: "Atteinte aux droits", inappropriate: "Contenu inapproprié", other: "Autre" };
+
+  // ============================================================
+  // Utilitaires
+  // ============================================================
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function $(sel) { return root.querySelector(sel); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  function navigate(url) { try { if (window.top && window.top !== window) { window.top.location.href = url; return; } } catch (e) {} window.location.href = url; }
+  function eur(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",").replace(",00", "") + " €"; }
+  function date(iso, withTime) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    return withTime ? d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })
+                    : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+  }
+  function api(method, path, body) {
+    return fetch(CONFIG.API_BASE + "/kitly" + path, {
+      method: method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + load(CONFIG.TOKEN_KEY) },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (d) {
+        if (!r.ok) {
+          var det = d && d.detail, msg = typeof det === "string" ? det : (det && det.message) || (Array.isArray(det) && det[0] && det[0].msg) || "Erreur " + r.status;
+          var e = new Error(String(msg).replace(/^Value error, /, "")); e.status = r.status; throw e;
+        }
+        return d;
+      });
+    }, function () { throw new Error("Connexion au serveur impossible."); });
+  }
+  var tt;
+  function toast(msg) { var t = $(".toast"); if (!t) return; t.textContent = msg; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove("show"); }, 3200); }
+  function fail(e) { toast(e.message); }
+
+  function dialog(opts) {
+    // opts : { title, text, input: "textarea"|"text"|null, placeholder, ok, danger, confirmWord }
+    return new Promise(function (resolve) {
+      var bg = document.createElement("div");
+      bg.className = "mbg";
+      bg.innerHTML = '<div class="m"><h4>' + esc(opts.title) + '</h4>' + (opts.text ? '<p>' + esc(opts.text) + '</p>' : '') +
+        (opts.input === "textarea" ? '<textarea rows="3" placeholder="' + esc(opts.placeholder || "") + '"></textarea>' : '') +
+        (opts.input === "text" ? '<input type="text" placeholder="' + esc(opts.placeholder || "") + '">' : '') +
+        '<div class="acts"><button type="button" class="btn ghost" data-no>Annuler</button><button type="button" class="btn' + (opts.danger ? " danger" : "") + '" data-yes>' + esc(opts.ok || "Valider") + '</button></div></div>';
+      root.appendChild(bg);
+      var field = bg.querySelector("textarea, input");
+      if (field) field.focus();
+      var done = function (v) { bg.remove(); resolve(v); };
+      bg.querySelector("[data-no]").onclick = function () { done(null); };
+      bg.querySelector("[data-yes]").onclick = function () {
+        var v = field ? field.value.trim() : true;
+        if (field && opts.input && v.length < (opts.min || 3)) { field.style.borderColor = "#c2410c"; return; }
+        if (opts.confirmWord && v !== opts.confirmWord) { field.style.borderColor = "#c2410c"; return; }
+        done(v);
+      };
+      bg.onclick = function (e) { if (e.target === bg) done(null); };
+    });
+  }
+
+  function profileLink(p) { return p.url || CONFIG.PROFILE_URL.replace("{slug}", encodeURIComponent(p.slug)); }
+  function planPill(plan, grant) {
+    return '<span class="pill' + (plan === "premium" ? " ink" : "") + '">' + esc(PLAN_NAME[plan] || plan) + '</span>' +
+      (grant ? ' <span class="pill warn" title="' + esc(grant.reason) + '">offerte</span>' : '');
+  }
+  function profileState(p) {
+    if (!p) return '<span class="muted">—</span>';
+    if (p.is_suspended) return '<span class="pill bad">Suspendue</span>';
+    return p.is_published ? '<span class="pill ok">En ligne</span>' : '<span class="pill">Brouillon</span>';
+  }
+
+  // ============================================================
+  // Onglets
+  // ============================================================
+  var TABS = [
+    ["overview", "Vue d'ensemble"], ["users", "Comptes"], ["profiles", "Vitrines"],
+    ["reports", "Signalements"], ["plans", "Formules"], ["system", "Système"]
+  ];
+
+  function shell() {
+    root.innerHTML = '<aside class="side"><div class="logo">kitly<i>.</i></div><div class="role">Console admin</div>' +
+      TABS.map(function (t) {
+        return '<button type="button" class="tab' + (S.tab === t[0] ? " on" : "") + '" data-tab="' + t[0] + '"><span>' + t[1] + '</span>' +
+          (t[0] === "reports" && S.openReports ? '<span class="badge">' + S.openReports + '</span>' : '') + '</button>';
+      }).join("") + '<div class="me">Connecté en tant que<br><b>' + esc(S.me.user.email) + '</b></div></aside>' +
+      '<section class="main" id="ka-main"></section><div class="toast"></div>';
+    root.querySelector(".side").onclick = function (e) {
+      var b = e.target.closest("[data-tab]"); if (!b) return;
+      S.tab = b.dataset.tab; shell(); VIEW[S.tab]();
+    };
+  }
+  function main(html) { var m = $("#ka-main"); m.innerHTML = html; m.scrollTop = 0; return m; }
+
+  var VIEW = {};
+
+  // ── Vue d'ensemble ───────────────────────────────────────
+  VIEW.overview = function () {
+    main('<h1>Vue <em>d\'ensemble</em></h1><p class="sub">Chargement…</p>');
+    Promise.all([api("GET", "/admin/overview"), api("GET", "/admin/actions?limit=8")]).then(function (r) {
+      var o = r[0], acts = r[1].items;
+      if (S.tab !== "overview") return;
+      S.openReports = o.open_reports;
+      shell();   // met à jour le badge « Signalements » du menu
+      renderOverview(o, acts);
+    }).catch(fail);
+  };
+  function renderOverview(o, acts) {
+    var k = function (label, value, alert) { return '<div class="kpi' + (alert ? " alert" : "") + '"><b>' + value + '</b><small>' + label + '</small></div>'; };
+    var plans = Object.keys(o.users_by_plan).map(function (p) { return '<div class="kpi"><b>' + o.users_by_plan[p] + '</b><small>' + esc(PLAN_NAME[p] || p) + '</small></div>'; }).join("");
+    main('<h1>Vue <em>d\'ensemble</em></h1><p class="sub">L\'activité de Kitly en un coup d\'œil.</p>' +
+      '<div class="kpis">' + k("Comptes", o.users) + k("Nouveaux · 7 j", o.new_users_7d) + k("Nouveaux · 30 j", o.new_users_30d) +
+      k("Emails confirmés", o.verified_users) + k("Vitrines en ligne", o.published_profiles + " / " + o.profiles) + k("Offres publiées", o.offers) +
+      k("Abonnements actifs", o.active_subscriptions) + k("Revenu mensuel", eur(o.mrr_cents)) + k("Formules offertes", o.active_grants) +
+      k("Demandes · 30 j", o.leads_30d) + k("Visites · 30 j", o.views_30d) + k("Signalements ouverts", o.open_reports, o.open_reports > 0) +
+      k("Vitrines suspendues", o.suspended_profiles) + k("Paiements activés", o.connected_accounts_active) + '</div>' +
+      '<h3>Comptes par formule</h3><div class="kpis">' + plans + '</div>' +
+      '<h3>Dernières actions</h3>' + actionsTable(acts));
+  }
+
+  function actionsTable(items) {
+    if (!items.length) return '<div class="empty">Aucune action pour l\'instant.</div>';
+    return '<table><thead><tr><th>Date</th><th>Admin</th><th>Action</th><th class="opt">Cible</th><th class="opt">Détails</th></tr></thead><tbody>' +
+      items.map(function (a) {
+        var det = Object.keys(a.details || {}).map(function (k) {
+          var v = a.details[k];
+          if (v && typeof v === "object") v = Array.isArray(v) ? v.length + " élément(s)" : Object.keys(v).join(", ");
+          return k + " : " + v;
+        }).join(" · ");
+        if (det.length > 160) det = det.slice(0, 157) + "…";
+        return '<tr><td class="muted">' + esc(date(a.at, true)) + '</td><td>' + esc(a.admin) + '</td><td>' + esc(ACTION_LABEL[a.action] || a.action) + '</td>' +
+          '<td class="opt muted">' + esc(a.target_type + (a.target_id ? " #" + a.target_id : "")) + '</td><td class="opt muted">' + esc(det) + '</td></tr>';
+      }).join("") + '</tbody></table>';
+  }
+
+  // ── Comptes ──────────────────────────────────────────────
+  VIEW.users = function () {
+    var f = S.users;
+    var m = main('<h1>Comptes</h1><p class="sub">Recherche par nom, email ou adresse de vitrine. Clique sur un compte pour agir.</p>' +
+      '<form class="bar" id="ka-uf"><input type="text" name="q" placeholder="Rechercher…" value="' + esc(f.q) + '">' +
+      '<select name="plan"><option value="">Toutes les formules</option>' + ["free", "custom", "premium"].map(function (p) {
+        return '<option value="' + p + '"' + (f.plan === p ? " selected" : "") + '>' + PLAN_NAME[p] + '</option>'; }).join("") + '</select>' +
+      '<button class="btn" type="submit">Rechercher</button></form><div id="ka-ul"><p class="muted">Chargement…</p></div>');
+    m.querySelector("#ka-uf").onsubmit = function (e) {
+      e.preventDefault(); f.q = this.q.value.trim(); f.plan = this.plan.value; f.page = 1; loadUsers();
+    };
+    loadUsers();
+  };
+  function loadUsers() {
+    var f = S.users, box = $("#ka-ul");
+    api("GET", "/admin/users?q=" + encodeURIComponent(f.q) + "&plan=" + f.plan + "&page=" + f.page + "&page_size=30").then(function (r) {
+      if (!r.items.length) { box.innerHTML = '<div class="empty">Aucun compte ne correspond.</div>'; return; }
+      box.innerHTML = '<table><thead><tr><th>Compte</th><th>Formule</th><th class="opt">Email</th><th>Vitrine</th><th class="opt">Inscription</th><th class="opt">Dernière connexion</th></tr></thead><tbody>' +
+        r.items.map(function (u) {
+          return '<tr class="click" data-user="' + u.id + '"><td><b>' + esc(u.first_name + " " + u.last_name) + '</b>' + (u.is_admin ? ' <span class="pill ink">admin</span>' : '') +
+            (u.is_active ? '' : ' <span class="pill bad">désactivé</span>') + '<br><span class="muted">' + esc(u.email) + '</span></td>' +
+            '<td>' + planPill(u.plan, u.grant) + (u.has_subscription ? ' <span class="pill ok">Stripe</span>' : '') + '</td>' +
+            '<td class="opt">' + (u.email_verified ? '<span class="pill ok">confirmé</span>' : '<span class="pill warn">à confirmer</span>') + '</td>' +
+            '<td>' + (u.profile ? esc(u.profile.slug) + '<br>' + profileState(u.profile) : '<span class="muted">aucune</span>') + '</td>' +
+            '<td class="opt muted">' + esc(date(u.created_at)) + '</td><td class="opt muted">' + esc(date(u.last_login_at)) + '</td></tr>';
+        }).join("") + '</tbody></table>' + pager(r, "users");
+      box.querySelectorAll("[data-user]").forEach(function (tr) { tr.onclick = function () { openUser(+tr.dataset.user); }; });
+      bindPager(box, "users", loadUsers);
+    }).catch(fail);
+  }
+  function pager(r, key) {
+    var pages = Math.max(1, Math.ceil(r.total / r.page_size));
+    return '<div class="pager"><span>' + r.total + ' résultat' + (r.total > 1 ? "s" : "") + '</span><span>' +
+      '<button class="btn ghost" data-page="-1"' + (r.page <= 1 ? " disabled" : "") + '>← Précédent</button> ' +
+      'Page ' + r.page + ' / ' + pages + ' <button class="btn ghost" data-page="1"' + (r.page >= pages ? " disabled" : "") + '>Suivant →</button></span></div>';
+  }
+  function bindPager(box, key, loader) {
+    box.querySelectorAll("[data-page]").forEach(function (b) { b.onclick = function () { S[key].page += +b.dataset.page; loader(); }; });
+  }
+
+  // ── Détail d'un compte ───────────────────────────────────
+  function openUser(id) {
+    var bg = document.createElement("div");
+    bg.className = "drawer-bg";
+    bg.innerHTML = '<div class="drawer"><p class="muted">Chargement…</p></div>';
+    root.appendChild(bg);
+    bg.onclick = function (e) { if (e.target === bg) bg.remove(); };
+    var dr = bg.querySelector(".drawer");
+    var refresh = function () { openUserInto(dr, id, bg); };
+    refresh();
+  }
+  function openUserInto(dr, id, bg) {
+    api("GET", "/admin/users/" + id).then(function (d) {
+      var u = d.user, p = d.profile, g = d.grant;
+      var subs = d.subscriptions.length ? d.subscriptions.map(function (s) {
+        return '<div>' + planPill(s.plan) + ' <span class="pill' + (["active", "trialing"].indexOf(s.status) >= 0 ? " ok" : s.status === "past_due" ? " warn" : "") + '">' + esc(s.status) + '</span> ' +
+          '<span class="muted">' + (s.cancel_at_period_end ? "se termine le " : "renouvellement le ") + esc(date(s.period_end)) + '</span></div>';
+      }).join("") : '<span class="muted">Aucun abonnement Stripe</span>';
+      dr.innerHTML = '<button class="btn ghost x" data-close>✕</button><h2>' + esc(u.first_name + " " + u.last_name) + '</h2>' +
+        '<p class="sub">' + esc(u.email) + '</p>' +
+        '<dl class="kv"><dt>Formule effective</dt><dd>' + planPill(u.plan, g) + '</dd>' +
+        '<dt>Email</dt><dd>' + (u.email_verified ? '<span class="pill ok">confirmé</span>' : '<span class="pill warn">à confirmer</span>') + '</dd>' +
+        '<dt>Statut</dt><dd>' + (u.is_active ? '<span class="pill ok">actif</span>' : '<span class="pill bad">désactivé</span>') + (u.is_admin ? ' <span class="pill ink">admin</span>' : '') + '</dd>' +
+        '<dt>Inscription</dt><dd>' + esc(date(u.created_at, true)) + '</dd><dt>Dernière connexion</dt><dd>' + esc(date(u.last_login_at, true)) + '</dd>' +
+        '<dt>CGU acceptées</dt><dd>' + esc(u.cgu_version || "—") + ' <span class="muted">le ' + esc(date(u.cgu_accepted_at)) + '</span></dd>' +
+        '<dt>Abonnement</dt><dd>' + subs + '</dd>' +
+        '<dt>Paiements (Connect)</dt><dd>' + (d.connect ? (d.connect.charges_enabled ? '<span class="pill ok">activés</span>' : '<span class="pill warn">en cours</span>') : '<span class="muted">non activés</span>') + '</dd></dl>' +
+        '<h3>Vitrine</h3>' + (p ? '<dl class="kv"><dt>Adresse</dt><dd>' + esc(p.slug) + ' ' + profileState(p) + '</dd>' +
+          '<dt>Métier</dt><dd>' + esc(p.headline || "—") + '</dd><dt>Offres / demandes</dt><dd>' + p.offers + ' / ' + p.leads + '</dd>' +
+          '<dt>Visites · 30 j</dt><dd>' + p.views_30d + '</dd>' + (p.is_suspended ? '<dt>Motif de suspension</dt><dd>' + esc(p.suspended_reason) + '</dd>' : '') + '</dl>' +
+          '<div class="acts"><a class="btn ghost" href="' + esc(profileLink(p)) + '" target="_blank" rel="noopener">Voir la vitrine</a>' +
+          '<button class="btn" data-imp>Ouvrir son builder</button>' +
+          (p.is_suspended ? '<button class="btn ghost" data-unsuspend="' + p.id + '">Lever la suspension</button>' : '<button class="btn danger" data-suspend="' + p.id + '">Suspendre la vitrine</button>') + '</div>'
+          : '<p class="muted">Pas encore de vitrine.</p><div class="acts"><button class="btn" data-imp>Ouvrir son builder</button></div>') +
+        '<h3>Formule offerte</h3>' + (g ? '<p>' + planPill(g.plan) + ' — « ' + esc(g.reason) + ' » ' + (g.expires_at ? '<span class="muted">jusqu\'au ' + esc(date(g.expires_at)) + '</span>' : '<span class="muted">sans date de fin</span>') +
+          ' <button class="btn danger" data-revoke>Retirer</button></p>' : '') +
+        '<form class="grant" id="ka-grant"><select name="plan"><option value="premium">Premium+</option><option value="custom">Custom</option></select>' +
+        '<input type="number" name="days" min="1" max="3650" placeholder="Jours"><input type="text" name="reason" placeholder="Motif (partenaire, test…)">' +
+        '<button class="btn" type="submit">' + (g ? "Remplacer" : "Offrir") + '</button></form>' +
+        '<p class="muted" style="margin-top:6px">Laisser « Jours » vide pour une durée illimitée. La formule effective reste la plus haute entre l\'abonnement Stripe et la formule offerte.</p>' +
+        '<h3>Actions sur le compte</h3><div class="acts">' +
+        (u.email_verified ? '' : '<button class="btn ghost" data-verify>Confirmer l\'email</button>') +
+        '<button class="btn ghost" data-logout>Déconnecter partout</button>' +
+        (u.is_active ? '<button class="btn danger" data-deactivate>Désactiver</button>' : '<button class="btn ghost" data-reactivate>Réactiver</button>') +
+        '<button class="btn danger" data-delete>Supprimer définitivement</button></div>' +
+        '<h3>Historique admin</h3>' + (d.actions.length ? '<ul class="hist">' + d.actions.map(function (a) {
+          return '<li><b>' + esc(ACTION_LABEL[a.action] || a.action) + '</b> — ' + esc(a.admin) + ' <span class="muted">' + esc(date(a.at, true)) + '</span>' +
+            (a.details && a.details.reason ? '<br><span class="muted">« ' + esc(a.details.reason) + ' »</span>' : '') + '</li>';
+        }).join("") + '</ul>' : '<p class="muted">Aucune action admin sur ce compte.</p>');
+
+      var again = function (msg) { toast(msg); openUserInto(dr, id, bg); if (S.tab === "users") loadUsers(); };
+      dr.querySelector("[data-close]").onclick = function () { bg.remove(); };
+      dr.querySelector("#ka-grant").onsubmit = function (e) {
+        e.preventDefault();
+        var body = { plan: this.plan.value, reason: this.reason.value.trim() };
+        if (this.days.value) body.days = +this.days.value;
+        if (body.reason.length < 3) { this.reason.style.borderColor = "#c2410c"; return; }
+        api("POST", "/admin/users/" + id + "/grant", body).then(function () { again("Formule offerte."); }).catch(fail);
+      };
+      var on = function (sel, fn) { var b = dr.querySelector(sel); if (b) b.onclick = fn; };
+      on("[data-revoke]", function () { api("DELETE", "/admin/users/" + id + "/grant").then(function () { again("Formule offerte retirée."); }).catch(fail); });
+      on("[data-verify]", function () { api("POST", "/admin/users/" + id + "/verify-email").then(function () { again("Email confirmé."); }).catch(fail); });
+      on("[data-logout]", function () { api("POST", "/admin/users/" + id + "/logout-all").then(function () { again("Toutes ses sessions sont coupées."); }).catch(fail); });
+      on("[data-reactivate]", function () { api("POST", "/admin/users/" + id + "/reactivate").then(function () { again("Compte réactivé."); }).catch(fail); });
+      on("[data-deactivate]", function () {
+        dialog({ title: "Désactiver ce compte ?", text: "La personne ne pourra plus se connecter et sa vitrine sera masquée. Rien n'est supprimé.", input: "textarea", placeholder: "Motif (journal)", ok: "Désactiver", danger: true })
+          .then(function (reason) { if (reason) api("POST", "/admin/users/" + id + "/deactivate", { reason: reason }).then(function () { again("Compte désactivé."); }).catch(fail); });
+      });
+      on("[data-delete]", function () {
+        dialog({ title: "Supprimer définitivement ?", text: "Abonnement Stripe résilié, puis compte, vitrine, offres et demandes effacés. Irréversible. Tape SUPPRIMER pour confirmer.", input: "text", placeholder: "SUPPRIMER", confirmWord: "SUPPRIMER", ok: "Supprimer", danger: true })
+          .then(function (word) {
+            if (!word) return;
+            return dialog({ title: "Motif de la suppression", input: "textarea", placeholder: "Ex. demande RGPD du titulaire", ok: "Confirmer", danger: true }).then(function (reason) {
+              if (reason) api("DELETE", "/admin/users/" + id, { confirm: "SUPPRIMER", reason: reason }).then(function () { bg.remove(); toast("Compte supprimé."); if (S.tab === "users") loadUsers(); }).catch(fail);
+            });
+          });
+      });
+      on("[data-imp]", function () {
+        dialog({ title: "Ouvrir son builder ?", text: "Tu vas modifier la vitrine de " + u.email + " à sa place pendant 1 heure (action journalisée). Paiements et mot de passe restent bloqués.", ok: "Ouvrir" })
+          .then(function (ok) { if (ok) impersonate(id); });
+      });
+      dr.querySelectorAll("[data-suspend]").forEach(function (b) { b.onclick = function () { suspendProfile(+b.dataset.suspend, function () { again("Vitrine suspendue, titulaire informé."); }); }; });
+      dr.querySelectorAll("[data-unsuspend]").forEach(function (b) { b.onclick = function () { api("POST", "/admin/profiles/" + b.dataset.unsuspend + "/unsuspend").then(function () { again("Suspension levée."); }).catch(fail); }; });
+    }).catch(fail);
+  }
+
+  function impersonate(userId) {
+    api("POST", "/admin/users/" + userId + "/impersonate").then(function (r) {
+      // La session admin est mise de côté ; le builder propose d'y revenir.
+      store(CONFIG.ADMIN_TOKEN_KEY, load(CONFIG.TOKEN_KEY));
+      store(CONFIG.TOKEN_KEY, r.token);
+      navigate(CONFIG.BUILDER_URL);
+    }).catch(fail);
+  }
+
+  function suspendProfile(profileId, done) {
+    dialog({ title: "Suspendre cette vitrine ?", text: "Elle disparaît du site et de la marketplace. Le titulaire reçoit le motif par email et peut le contester (DSA).", input: "textarea", placeholder: "Motif communiqué au titulaire", ok: "Suspendre", danger: true })
+      .then(function (reason) { if (reason) api("POST", "/admin/profiles/" + profileId + "/suspend", { reason: reason }).then(done).catch(fail); });
+  }
+
+  // ── Vitrines ─────────────────────────────────────────────
+  VIEW.profiles = function () {
+    var f = S.profiles;
+    var m = main('<h1>Vitrines</h1><p class="sub">Toutes les vitrines, publiées ou non.</p>' +
+      '<form class="bar" id="ka-pf"><input type="text" name="q" placeholder="Nom, adresse, métier ou email…" value="' + esc(f.q) + '">' +
+      '<select name="status"><option value="">Tous les statuts</option><option value="published"' + (f.status === "published" ? " selected" : "") + '>En ligne</option>' +
+      '<option value="draft"' + (f.status === "draft" ? " selected" : "") + '>Brouillons</option><option value="suspended"' + (f.status === "suspended" ? " selected" : "") + '>Suspendues</option></select>' +
+      '<button class="btn" type="submit">Rechercher</button></form><div id="ka-pl"><p class="muted">Chargement…</p></div>');
+    m.querySelector("#ka-pf").onsubmit = function (e) { e.preventDefault(); f.q = this.q.value.trim(); f.status = this.status.value; f.page = 1; loadProfiles(); };
+    loadProfiles();
+  };
+  function loadProfiles() {
+    var f = S.profiles, box = $("#ka-pl");
+    api("GET", "/admin/profiles?q=" + encodeURIComponent(f.q) + "&status=" + f.status + "&page=" + f.page + "&page_size=30").then(function (r) {
+      if (!r.items.length) { box.innerHTML = '<div class="empty">Aucune vitrine ne correspond.</div>'; return; }
+      box.innerHTML = '<table><thead><tr><th>Vitrine</th><th class="opt">Titulaire</th><th>Statut</th><th class="opt">Offres</th><th class="opt">Visites 30 j</th><th></th></tr></thead><tbody>' +
+        r.items.map(function (p) {
+          return '<tr><td><b>' + esc(p.display_name || p.slug) + '</b><br><span class="muted">' + esc(p.slug) + (p.headline ? " · " + esc(p.headline) : "") + '</span></td>' +
+            '<td class="opt">' + esc(p.owner.email) + '<br>' + planPill(p.owner.plan) + '</td>' +
+            '<td>' + profileState(p) + (p.promoted ? ' <span class="pill ink">sponsorisé</span>' : '') + '</td>' +
+            '<td class="opt">' + p.offers + '</td><td class="opt">' + p.views_30d + '</td>' +
+            '<td><div class="acts" style="margin:0"><a class="btn ghost" href="' + esc(profileLink(p)) + '" target="_blank" rel="noopener">Voir</a>' +
+            '<button class="btn ghost" data-owner="' + p.owner.id + '">Compte</button>' +
+            (p.is_suspended ? '<button class="btn ghost" data-unsuspend="' + p.id + '">Rétablir</button>' : '<button class="btn danger" data-suspend="' + p.id + '">Suspendre</button>') +
+            (p.is_published && !p.is_suspended ? '<button class="btn ghost" data-unpublish="' + p.id + '">Dépublier</button>' : '') + '</div></td></tr>';
+        }).join("") + '</tbody></table>' + pager(r, "profiles");
+      box.querySelectorAll("[data-owner]").forEach(function (b) { b.onclick = function () { openUser(+b.dataset.owner); }; });
+      box.querySelectorAll("[data-suspend]").forEach(function (b) { b.onclick = function () { suspendProfile(+b.dataset.suspend, function () { toast("Vitrine suspendue, titulaire informé."); loadProfiles(); }); }; });
+      box.querySelectorAll("[data-unsuspend]").forEach(function (b) { b.onclick = function () { api("POST", "/admin/profiles/" + b.dataset.unsuspend + "/unsuspend").then(function () { toast("Suspension levée."); loadProfiles(); }).catch(fail); }; });
+      box.querySelectorAll("[data-unpublish]").forEach(function (b) { b.onclick = function () { api("POST", "/admin/profiles/" + b.dataset.unpublish + "/unpublish").then(function () { toast("Vitrine dépubliée."); loadProfiles(); }).catch(fail); }; });
+      bindPager(box, "profiles", loadProfiles);
+    }).catch(fail);
+  }
+
+  // ── Signalements ─────────────────────────────────────────
+  VIEW.reports = function () {
+    var f = S.reports;
+    var m = main('<h1>Signalements</h1><p class="sub">Signalements envoyés depuis les vitrines (« Signaler ce profil »).</p>' +
+      '<div class="bar">' + [["open", "À traiter"], ["reviewed", "Traités"], ["dismissed", "Rejetés"]].map(function (x) {
+        return '<button class="btn' + (f.status === x[0] ? "" : " ghost") + '" data-st="' + x[0] + '">' + x[1] + '</button>'; }).join("") + '</div><div id="ka-rl"><p class="muted">Chargement…</p></div>');
+    m.querySelectorAll("[data-st]").forEach(function (b) { b.onclick = function () { f.status = b.dataset.st; VIEW.reports(); }; });
+    api("GET", "/admin/reports?status=" + f.status).then(function (r) {
+      var box = $("#ka-rl");
+      if (f.status === "open") { S.openReports = r.items.length; }
+      if (!r.items.length) { box.innerHTML = '<div class="empty">Aucun signalement ici.</div>'; return; }
+      box.innerHTML = '<div class="cards">' + r.items.map(function (x) {
+        return '<div class="card"><div class="row"><div><b>' + esc(x.display_name || x.slug) + '</b> <span class="muted">' + esc(x.slug) + '</span> ' +
+          (x.profile_suspended ? '<span class="pill bad">suspendue</span>' : '') + '<br><span class="pill warn">' + esc(REASON_LABEL[x.reason] || x.reason) + '</span> ' +
+          '<span class="muted">' + esc(date(x.created_at, true)) + (x.reporter_email ? " · " + esc(x.reporter_email) : " · anonyme") + '</span></div></div>' +
+          (x.details ? '<p>' + esc(x.details) + '</p>' : '') +
+          '<div class="acts"><a class="btn ghost" href="' + esc(profileLink(x)) + '" target="_blank" rel="noopener">Voir la vitrine</a>' +
+          (x.profile_suspended ? '' : '<button class="btn danger" data-suspend="' + x.profile_id + '" data-report="' + x.id + '">Suspendre la vitrine</button>') +
+          (f.status !== "reviewed" ? '<button class="btn ghost" data-mark="reviewed" data-id="' + x.id + '">Marquer traité</button>' : '') +
+          (f.status !== "dismissed" ? '<button class="btn ghost" data-mark="dismissed" data-id="' + x.id + '">Rejeter</button>' : '') + '</div></div>';
+      }).join("") + '</div>';
+      box.querySelectorAll("[data-mark]").forEach(function (b) {
+        b.onclick = function () { api("PATCH", "/admin/reports/" + b.dataset.id + "?status=" + b.dataset.mark).then(function () { toast("Signalement mis à jour."); VIEW.reports(); }).catch(fail); };
+      });
+      box.querySelectorAll("[data-suspend]").forEach(function (b) {
+        b.onclick = function () {
+          suspendProfile(+b.dataset.suspend, function () {
+            api("PATCH", "/admin/reports/" + b.dataset.report + "?status=reviewed").catch(function () {}).then(function () { toast("Vitrine suspendue, signalement traité."); VIEW.reports(); });
+          });
+        };
+      });
+    }).catch(fail);
+  };
+
+  // ── Formules ─────────────────────────────────────────────
+  var LIMIT_LABEL = {
+    offers_max: "Offres max", portfolio_max: "Projets max", images_per_offer: "Images / offre", blocks_max: "Blocs max",
+    custom_domain: "Domaine perso", advanced_theme: "Thèmes avancés", appointments: "Rendez-vous", stats: "Statistiques",
+    remove_branding: "Sans mention Kitly", marketplace: "Marketplace", marketplace_boost: "Mise en avant", acquisition_stats: "Stats acquisition"
+  };
+  VIEW.plans = function () {
+    main('<h1>Formules</h1><p class="sub">Prix affichés, textes et limites : appliqués immédiatement, sans redéploiement. Le prix réellement facturé est celui du Price Stripe.</p><div id="ka-pls"><p class="muted">Chargement…</p></div>');
+    api("GET", "/admin/plans").then(function (r) {
+      var box = $("#ka-pls");
+      box.innerHTML = '<div class="plans">' + r.items.map(function (p) {
+        var lim = r.known_limits.map(function (k) {
+          var v = p.limits[k];
+          return '<div class="lim"><span>' + esc(LIMIT_LABEL[k] || k) + '</span>' + (typeof v === "boolean" || v === undefined
+            ? '<input type="checkbox" data-lim="' + k + '"' + (v ? " checked" : "") + '>'
+            : '<input type="number" min="0" data-lim="' + k + '" value="' + esc(v) + '">') + '</div>';
+        }).join("");
+        return '<form class="plan" data-plan="' + p.code + '"><b>' + esc(p.name) + '</b> <span class="muted">(' + p.code + ')</span>' +
+          '<label>Nom</label><input type="text" name="name" value="' + esc(p.name) + '">' +
+          '<label>Accroche</label><input type="text" name="tagline" value="' + esc(p.tagline) + '">' +
+          '<label>Prix affiché (€ / mois)</label><input type="number" step="0.01" min="0" name="price" value="' + (p.price_cents / 100) + '">' +
+          '<label>Price ID Stripe (vide = variable Render)</label><input type="text" name="stripe_price_id" value="' + esc(p.stripe_price_id) + '">' +
+          '<label>Fonctionnalités affichées (une par ligne)</label><textarea name="features" rows="6">' + esc((p.features || []).join("\n")) + '</textarea>' +
+          '<label>Limites</label><div class="limits">' + lim + '</div>' +
+          '<div class="acts"><button class="btn" type="submit">Enregistrer</button></div></form>';
+      }).join("") + '</div><p class="muted" style="margin-top:14px">Astuce : cocher « Marketplace » sur Free ouvre la marketplace à tous les comptes (utile pour la lancer avec assez de profils).</p>';
+      box.querySelectorAll("form[data-plan]").forEach(function (form) {
+        form.onsubmit = function (e) {
+          e.preventDefault();
+          var limits = {};
+          form.querySelectorAll("[data-lim]").forEach(function (i) { limits[i.dataset.lim] = i.type === "checkbox" ? i.checked : parseInt(i.value || "0", 10); });
+          var body = { name: form.name.value.trim(), tagline: form.tagline.value.trim(), price_cents: Math.round(parseFloat(form.price.value || "0") * 100),
+                       stripe_price_id: form.stripe_price_id.value.trim(), features: form.features.value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean), limits: limits };
+          api("PATCH", "/admin/plans/" + form.dataset.plan, body).then(function () { toast("Formule enregistrée."); }).catch(fail);
+        };
+      });
+    }).catch(fail);
+  };
+
+  // ── Système ──────────────────────────────────────────────
+  VIEW.system = function () {
+    main('<h1>Système</h1><p class="sub">Configuration effective de l\'API Kitly (aucune valeur secrète) et journal des actions.</p><div id="ka-sys"><p class="muted">Chargement…</p></div>');
+    Promise.all([api("GET", "/admin/system"), api("GET", "/admin/actions?limit=200")]).then(function (r) {
+      var sy = r[0], em = sy.email || {};
+      var flag = function (v) { return v ? '<span class="pill ok">oui</span>' : '<span class="pill bad">non</span>'; };
+      $("#ka-sys").innerHTML =
+        '<h3>Emails (Brevo)</h3><dl class="kv"><dt>Vérifié</dt><dd>' + (em.checked ? flag(true) : '<span class="pill">pas encore</span>') + '</dd>' +
+        '<dt>Clé Brevo</dt><dd>' + flag(em.api_key_present) + '</dd><dt>Expéditeur</dt><dd><code>' + esc(em.sender || "—") + '</code> ' + (em.checked ? flag(em.sender_ok) : '') + '</dd>' +
+        '<dt>Détail</dt><dd>' + esc(em.detail || "—") + '</dd>' + (em.usable && em.usable.length ? '<dt>Adresses utilisables</dt><dd>' + em.usable.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(" ") + '</dd>' : '') + '</dl>' +
+        '<div class="acts"><button class="btn ghost" id="ka-echeck">Revérifier l\'expéditeur</button><button class="btn" id="ka-etest">Envoyer un email de test</button></div>' +
+        '<h3>Stripe</h3><dl class="kv"><dt>Clé secrète</dt><dd>' + flag(sy.stripe.secret_key) + (sy.stripe.live_mode ? ' <span class="pill warn">mode live</span>' : sy.stripe.secret_key ? ' <span class="pill">mode test</span>' : '') + '</dd>' +
+        '<dt>Price Custom</dt><dd>' + flag(sy.stripe.prices.custom) + '</dd><dt>Price Premium+</dt><dd>' + flag(sy.stripe.prices.premium) + '</dd></dl>' +
+        '<h3>Site et accès</h3><dl class="kv"><dt>Adresse du site</dt><dd><code>' + esc(sy.frontend_url) + '</code></dd>' +
+        '<dt>Origines autorisées (CORS)</dt><dd>' + sy.cors_origins.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(" ") + '</dd>' +
+        '<dt>Variables manquantes</dt><dd>' + (sy.missing_env.length ? sy.missing_env.map(function (x) { return '<span class="pill bad">' + esc(x) + '</span>'; }).join(" ") : '<span class="pill ok">aucune</span>') + '</dd></dl>' +
+        '<h3>Journal des actions</h3>' + actionsTable(r[1].items);
+      $("#ka-echeck").onclick = function () { api("POST", "/admin/system/email-check").then(function (st) { toast(st.detail || "Vérifié."); VIEW.system(); }).catch(fail); };
+      $("#ka-etest").onclick = function () {
+        dialog({ title: "Envoyer un email de test", text: "Adresse de réception (vide = ton email).", input: "text", placeholder: S.me.user.email, min: 0, ok: "Envoyer" }).then(function (to) {
+          if (to === null) return;
+          api("POST", "/admin/system/email-test", to ? { to: to } : {}).then(function (res) { toast(res.sent ? "Email envoyé à " + res.to + " ✓" : "Échec : " + res.detail); VIEW.system(); }).catch(fail);
+        });
+      };
+    }).catch(fail);
+  };
+
+  // ============================================================
+  // Démarrage
+  // ============================================================
+  function denied(title, text, button) {
+    root.innerHTML = '<div class="center"><div><h1>' + title + '</h1><p>' + text + '</p>' + (button || "") + '</div></div>';
+  }
+  if (!load(CONFIG.TOKEN_KEY)) {
+    denied("Console <em>admin</em>", "Connecte-toi avec un compte administrateur Kitly.", '<a class="btn" href="' + esc(CONFIG.LOGIN_URL) + '" target="_top">Se connecter</a>');
+    return;
+  }
+  api("GET", "/auth/me").then(function (me) {
+    S.me = me;
+    if (me.impersonated_by) {
+      denied("Mode support en cours", "Tu es connecté à la place de " + esc(me.user.email) + ". Reviens à ta session admin.",
+             '<button class="btn" id="ka-back">Revenir à ma session admin</button>');
+      $("#ka-back").onclick = function () { store(CONFIG.TOKEN_KEY, load(CONFIG.ADMIN_TOKEN_KEY)); store(CONFIG.ADMIN_TOKEN_KEY, null); location.reload(); };
+      return;
+    }
+    if (!me.user.is_admin) {
+      denied("Accès réservé", "Ce compte n'est pas administrateur Kitly. Les administrateurs sont les adresses listées dans la variable KITLY_ADMIN_EMAILS sur Render (droits appliqués à la prochaine connexion).");
+      return;
+    }
+    shell();
+    VIEW.overview();
+  }).catch(function (e) {
+    if (e.status === 401) denied("Session expirée", "Reconnecte-toi pour accéder à la console.", '<a class="btn" href="' + esc(CONFIG.LOGIN_URL) + '" target="_top">Se connecter</a>');
+    else denied("Oups", esc(e.message));
+  });
+})();
+</script>

@@ -62,10 +62,14 @@ BASIC_TEMPLATES = {t["key"] for t in TEMPLATES if not t["advanced"]}
 
 FONTS = {"inter", "instrument-serif", "space-grotesk", "dm-sans", "playfair", "archivo-black", "syne", "manrope"}
 BUTTON_SHAPES = {"pill", "rounded", "square"}
+# Mise en page : « site » (mini-site à sections et navigation sur ordinateur,
+# colonne façon Linktree sur mobile) ou « links » (page de liens partout).
+LAYOUTS = {"site", "links"}
 BACKGROUNDS = {"solid", "gradient", "blobs", "image"}
 
 DEFAULT_THEME = {
     "template": "blanc",
+    "layout": "site",
     "colors": {"background": "#ffffff", "text": "#0a0a0a", "accent": "#0a0a0a", "button_text": "#ffffff"},
     "font_heading": "inter",
     "font_body": "inter",

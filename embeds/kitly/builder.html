@@ -199,6 +199,19 @@
 
   /* La vitrine de l'aperçu est dessinée par le moteur partagé /kitly/static/vitrine.js. */
   #kb .phone .kv { min-height: 640px; }
+  #kb .imp { flex-shrink: 0; background: #fff4e5; border-bottom: 1px solid #f3c98b; color: #7a4a00; padding: 9px 20px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+  #kb .imp .btn { padding: 6px 14px; font-size: 12.5px; }
+  #kb .pv-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; max-width: 380px; margin-left: auto; margin-right: auto; }
+  #kb .main.desk-mode .pv-head { max-width: none; }
+  #kb .pv-head .pv-label { margin: 0; }
+  #kb .main.desk-mode { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+  #kb .desk-frame { border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 20px 50px -24px rgba(0,0,0,.25); }
+  #kb .desk-bar { height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #fff; border-bottom: 1px solid var(--line); }
+  #kb .desk-bar i { width: 9px; height: 9px; border-radius: 50%; background: #e4e4e2; }
+  #kb .desk-bar span { margin-left: 10px; font-size: 11px; color: var(--mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #kb .desk-scale { position: relative; overflow: hidden; }
+  #kb .desk-inner { width: 1280px; transform-origin: 0 0; position: absolute; top: 0; left: 0; }
+  #kb .desk-inner .kv { min-height: 760px; }
 </style>
 
 <div id="kb"><div class="center"><p>Chargement de ta vitrine…</p></div></div>
@@ -218,6 +231,8 @@
     PUBLIC_BASE: "/profile?u=",   // vitrine publique = PUBLIC_BASE + slug
     TOKEN_KEY: "kitly_token",
     USER_KEY: "kitly_user",
+    ADMIN_TOKEN_KEY: "kitly_admin_token",   // session admin mise de côté pendant le mode support
+    ADMIN_URL: "/admin",
     AUTOSAVE_MS: 700
   };
   // Liens relatifs (« /builder ») complétés avec l'adresse du site qui affiche
@@ -289,7 +304,7 @@
   // ============================================================
   var root = document.getElementById("kb");
   var S = {
-    me: null, catalog: null, profile: null, offers: [], step: 1, pane: "edit",
+    me: null, catalog: null, profile: null, offers: [], step: 1, pane: "edit", device: "mobile",
     pending: {}, timer: null, saving: false, saveState: "saved", slugTimer: null, slugOk: true
   };
   function limits() { return (S.me && S.me.plan && S.me.plan.limits) || {}; }
@@ -451,10 +466,31 @@
     });
   }
   function renderPreview() {
-    var el = $(".phone");
-    if (!el || !S.profile || !window.KitlyVitrine) return;
-    el.innerHTML = window.KitlyVitrine.render(publicShape(), { emptyHint: "Ajoute tes liens et tes offres : ils apparaîtront ici." });
+    var box = $(".pv-box");
+    if (!box || !S.profile || !window.KitlyVitrine) return;
+    var html = window.KitlyVitrine.render(publicShape(), { emptyHint: "Ajoute tes liens et tes offres : ils apparaîtront ici." });
+    if (S.device === "desktop") {
+      // Rendu à la taille d'un écran d'ordinateur (1280 px), réduit pour tenir dans la colonne.
+      box.className = "pv-box desk";
+      box.innerHTML = '<div class="desk-frame"><div class="desk-bar"><i></i><i></i><i></i><span>' +
+        esc(CONFIG.PUBLIC_BASE.replace(/^https?:\/\//, "") + (S.profile.slug || "")) + '</span></div>' +
+        '<div class="desk-scale"><div class="desk-inner">' + html + '</div></div></div>';
+      scaleDesk();
+    } else {
+      box.className = "pv-box phone";
+      box.innerHTML = html;
+    }
+    window.KitlyVitrine.fit(box);
   }
+  function scaleDesk() {
+    var outer = $(".desk-scale"), inner = $(".desk-inner");
+    if (!outer || !inner) return;
+    var k = outer.clientWidth / 1280;
+    inner.style.transform = "scale(" + k + ")";
+    outer.style.height = Math.ceil(inner.offsetHeight * k) + "px";
+  }
+  window.addEventListener("resize", scaleDesk);
+  try { new ResizeObserver(function () { scaleDesk(); }).observe(document.body); } catch (e) {}
 
 
   // ============================================================
@@ -617,7 +653,12 @@
         '<button type="button" class="icon-btn" data-move-sec="' + i + '" data-dir="1"' + (i === arr.length - 1 ? " disabled" : "") + '>' + svg("down") + '</button>' +
         '<button type="button" class="icon-btn" data-toggle-sec="' + i + '" title="' + (s.visible === false ? "Afficher" : "Masquer") + '">' + svg(s.visible === false ? "eyeoff" : "eye") + '</button></div></div>';
     }).join("");
-    return '<div class="sec"><h3>Template</h3><div class="tpls">' + tpls + '</div>' +
+    var lay = th.layout || "site";
+    return '<div class="sec"><h3>Mise en page</h3><p class="lead">« Site complet » : un mini-site à sections avec menu sur ordinateur, une colonne façon page de liens sur mobile. « Page de liens » : une colonne partout.</p>' +
+      '<div class="seg">' + [["site", "Site complet"], ["links", "Page de liens"]].map(function (x) {
+        return '<button type="button" data-layout="' + x[0] + '" class="' + (lay === x[0] ? "on" : "") + '">' + x[1] + '</button>';
+      }).join("") + '</div></div>' +
+      '<div class="sec"><h3>Template</h3><div class="tpls">' + tpls + '</div>' +
       (adv ? '' : '<p class="note" style="margin-top:10px">Les templates Bold et Studio, les couleurs et les typographies sont inclus à partir de Custom.</p>') + '</div>' +
       colors +
       '<div class="sec"><h3>Forme des boutons</h3><div class="seg">' + ["pill", "rounded", "square"].map(function (s) {
@@ -713,6 +754,7 @@
         setList("blocks", bl); renderStep(); renderPreview();
       }
       else if (d.tpl) { chooseTemplate(d.tpl); }
+      else if (d.layout) { S.profile.theme.layout = d.layout; queue({ theme: { layout: d.layout } }); renderStep(); renderPreview(); }
       else if (d.shape) { S.profile.theme.button_shape = d.shape; queue({ theme: { button_shape: d.shape } }); renderStep(); renderPreview(); }
       else if (d.bg) { S.profile.theme.background = { type: d.bg, image_url: "" }; queue({ theme: { background: { type: d.bg, image_url: "" } } }); renderStep(); renderPreview(); }
       else if (d.moveSec) { move("sections", +d.moveSec, +d.dir); }
@@ -1042,16 +1084,38 @@
   }
   function renderApp() {
     var planName = (S.me.plan && S.me.plan.name) || "Free";
-    root.innerHTML =
+    var imp = S.me.impersonated_by
+      ? '<div class="imp"><span>Mode support : tu modifies la vitrine de <b>' + esc(S.me.user.email) + '</b> (session ouverte par ' + esc(S.me.impersonated_by) +
+        '). Paiements et mot de passe sont bloqués.</span><button type="button" class="btn sm" id="kb-imp-exit">Revenir à la console</button></div>'
+      : '';
+    root.innerHTML = imp +
       '<div class="top"><div class="top-in"><h2 class="title"></h2><div class="meta">' +
       '<span class="save saved"><i></i><span>Enregistré</span></span>' +
       '<a class="plan" href="' + esc(CONFIG.PRICING_URL) + '" target="_top">' + esc(planName) + '</a></div></div>' +
       '<div class="steps">' + STEPS.map(function (s) { return '<button type="button" class="step" data-go="' + s.n + '"><b>0' + s.n + '</b>' + s.label + '</button>'; }).join("") + '</div></div>' +
       '<div class="mtabs"><button type="button" data-pane="edit" class="on">Modifier</button><button type="button" data-pane="prev">Aperçu</button></div>' +
       '<div class="main" data-pane="edit"><div class="edit"><div class="edit-in"></div></div>' +
-      '<div class="prev"><div class="pv-label">Aperçu en direct</div><div class="phone"></div></div></div>' +
+      '<div class="prev"><div class="pv-head"><span class="pv-label">Aperçu en direct</span><div class="seg pv-dev">' +
+      '<button type="button" data-dev="mobile" class="on">Mobile</button><button type="button" data-dev="desktop">Ordinateur</button></div></div>' +
+      '<div class="pv-box phone"></div></div></div>' +
       '<div class="pub"></div><div class="toast"></div>';
     $(".steps").onclick = function (e) { var b = e.target.closest("[data-go]"); if (b) goStep(+b.dataset.go); };
+    var exitImp = $("#kb-imp-exit");
+    if (exitImp) exitImp.onclick = function () {
+      // Restaure la session admin mise de côté, puis retour à la console.
+      var adminToken = load(CONFIG.ADMIN_TOKEN_KEY);
+      store(CONFIG.TOKEN_KEY, adminToken || null);
+      store(CONFIG.ADMIN_TOKEN_KEY, null);
+      navigate(CONFIG.ADMIN_URL);
+    };
+    $(".pv-dev").onclick = function (e) {
+      var b = e.target.closest("[data-dev]"); if (!b) return;
+      S.device = b.dataset.dev;
+      $$(".pv-dev button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      $(".main").classList.toggle("desk-mode", S.device === "desktop");
+      renderPreview();
+      setTimeout(scaleDesk, 50);
+    };
     $(".mtabs").onclick = function (e) {
       var b = e.target.closest("[data-pane]"); if (!b) return;
       $(".main").dataset.pane = b.dataset.pane;
