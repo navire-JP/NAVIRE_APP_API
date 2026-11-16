@@ -169,6 +169,15 @@
   #kb .sell-row .tx small { display: block; color: var(--mut); font-size: 12px; }
   #kb .sell-foot { font-size: 12.5px; color: var(--mut); margin: 6px 0 0; line-height: 1.5; }
   #kb .sell-foot.ok { color: var(--good); font-weight: 600; }
+  #kb .blk-img { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+  #kb .blk-img .thumb { width: 64px; height: 48px; border-radius: 8px; background: var(--grey) center/cover; border: 1px solid var(--line); flex-shrink: 0; }
+  #kb .gal-ed { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  #kb .gal-ed .g { position: relative; width: 72px; height: 72px; border-radius: 10px; background: var(--grey) center/cover; border: 1px solid var(--line); }
+  #kb .gal-ed .g button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); cursor: pointer; font-size: 11px; line-height: 1; }
+  #kb .gal-ed .add-g { width: 72px; height: 72px; border-radius: 10px; border: 1px dashed var(--line); background: none; cursor: pointer; font-size: 22px; color: var(--mut); }
+  #kb .side-seg { display: inline-flex; gap: 4px; margin-left: auto; }
+  #kb .offer-pay { font-size: 11.5px; margin-top: 3px; color: var(--mut); }
+  #kb .offer-pay.ok { color: var(--good); font-weight: 600; }
   #kb .tm-art { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
   #kb .tm-art b { display: block; font-size: 13px; margin-bottom: 6px; }
   #kb .tm-art textarea { width: 100%; min-height: 110px; font-size: 13px; line-height: 1.5; }
@@ -334,7 +343,7 @@
   var CTA_LABEL = { order: "Commander", quote: "Demander un devis", book: "Réserver", contact: "Me contacter" };
   var CTA_BY_KIND = { physical: ["order", "contact"], digital: ["order", "contact"], service: ["quote", "contact", "order"], appointment: ["book", "contact"] };
   var SOCIAL_ABBR = { instagram: "IG", tiktok: "TT", youtube: "YT", linkedin: "in", x: "X", facebook: "f", behance: "Be", dribbble: "Dr", github: "GH", pinterest: "P", twitch: "Tw", spotify: "Sp", soundcloud: "SC", threads: "@", whatsapp: "WA", malt: "M", website: "www" };
-  var SECTION_LABEL = { hero: "En-tête", links: "Liens et blocs", about: "À propos et chiffres", offers: "Prestations et rendez-vous", products: "Boutique", portfolio: "Portfolio", contact: "Contact" };
+  var SECTION_LABEL = { hero: "En-tête", links: "Liens", content: "Sections de contenu (texte, images)", about: "À propos et chiffres", offers: "Prestations et rendez-vous", products: "Boutique", portfolio: "Portfolio", contact: "Contact" };
   var FONT_FAMILY = { "inter": "Inter", "instrument-serif": "Instrument Serif", "space-grotesk": "Space Grotesk", "dm-sans": "DM Sans", "playfair": "Playfair Display", "archivo-black": "Archivo Black", "syne": "Syne", "manrope": "Manrope" };
   // Les templates de base ont des couleurs fixes ; Bold et Studio prennent celles du freelance.
   var TEMPLATE_PRESET = {
@@ -546,7 +555,7 @@
   // ============================================================
   var STEPS = [
     { n: 1, key: "identity", label: "Identité", title: "Ton <em>identité</em>" },
-    { n: 2, key: "links", label: "Liens", title: "Tes <em>liens</em>" },
+    { n: 2, key: "links", label: "Contenu", title: "Ton <em>contenu</em>" },
     { n: 3, key: "shop", label: "Boutique", title: "Tes <em>offres</em>" },
     { n: 4, key: "style", label: "Style", title: "Ton <em>style</em>" },
     { n: 5, key: "sales", label: "Mes ventes", title: "Mes <em>ventes</em>", extra: true }   // hors parcours, pleine largeur
@@ -611,13 +620,17 @@
     }).join("");
     var blocks = (p.blocks || []).map(blockEditor).join("");
     var maxBlocks = limits().blocks_max || 10;
-    return '<div class="sec"><h3>Liens et blocs</h3><p class="lead">Comme une page de liens : boutons, vidéos, textes. Ils s\'affichent dans cet ordre (' + (p.blocks || []).length + '/' + maxBlocks + ').</p>' +
+    return '<div class="sec"><h3>Sections et liens</h3><p class="lead">Construis ton site : sections texte + image, galeries, images, titres, puis tes liens et vidéos. ' +
+      'Sur ordinateur, les sections s\'affichent en pleine largeur, comme sur un vrai site (' + (p.blocks || []).length + '/' + maxBlocks + ' blocs).</p>' +
       '<div id="kb-blocks">' + blocks + '</div>' +
       '<div class="chips">' +
-      '<button type="button" class="chip" data-add-block="link">+ Lien</button>' +
-      '<button type="button" class="chip" data-add-block="video">+ Vidéo</button>' +
+      '<button type="button" class="chip" data-add-block="section">+ Section texte + image</button>' +
+      '<button type="button" class="chip" data-add-block="gallery">+ Galerie</button>' +
+      '<button type="button" class="chip" data-add-block="image">+ Image</button>' +
       '<button type="button" class="chip" data-add-block="text">+ Texte</button>' +
-      '<button type="button" class="chip" data-add-block="header">+ Titre</button></div></div>' +
+      '<button type="button" class="chip" data-add-block="header">+ Titre</button>' +
+      '<button type="button" class="chip" data-add-block="link">+ Lien</button>' +
+      '<button type="button" class="chip" data-add-block="video">+ Vidéo</button></div></div>' +
       '<div class="sec"><h3>Réseaux sociaux</h3>' + socials + '<button type="button" class="add" data-add="socials">+ Ajouter un réseau</button></div>' +
       '<div class="sec"><h3>Chiffres clés</h3><p class="lead">Jusqu\'à 6 chiffres : abonnés, clients, années d\'expérience, note…</p>' + stats +
       ((p.stats || []).length < 6 ? '<button type="button" class="add" data-add="stats">+ Ajouter un chiffre</button>' : '') + '</div>' +
@@ -630,7 +643,13 @@
       '<button type="button" class="icon-btn" data-move-block="' + i + '" data-dir="1" title="Descendre"' + (i === n - 1 ? " disabled" : "") + '>' + svg("down") + '</button>' +
       '<button type="button" class="icon-btn" data-toggle-block="' + i + '" title="' + (b.visible === false ? "Afficher" : "Masquer") + '">' + svg(b.visible === false ? "eyeoff" : "eye") + '</button>' +
       '<button type="button" class="icon-btn" data-del="blocks" data-i="' + i + '" title="Supprimer">' + svg("trash") + '</button>';
-    var tag = { link: "Lien", video: "Vidéo", text: "Texte", header: "Titre", image: "Image", offer: "Offre", embed: "Intégration" }[b.type] || b.type;
+    var tag = { link: "Lien", video: "Vidéo", text: "Texte", header: "Titre", image: "Image", offer: "Offre", embed: "Intégration",
+                section: "Section", gallery: "Galerie" }[b.type] || b.type;
+    var imgPick = function (k, label) {
+      return '<div class="blk-img"><span class="thumb" style="background-image:' + cssUrl(b[k]) + '"></span>' +
+        '<button type="button" class="btn sm" data-block-img="' + i + '" data-k="' + k + '">' + (b[k] ? "Changer l'image" : label) + '</button>' +
+        (b[k] ? '<button type="button" class="btn sm" data-block-img-clear="' + i + '" data-k="' + k + '">Retirer</button>' : '') + '</div>';
+    };
     var inp = function (k, ph, max) {
       return '<input type="text" data-list="blocks" data-i="' + i + '" data-k="' + k + '" value="' + esc(b[k] || "") + '" placeholder="' + esc(ph) + '"' + (max ? ' maxlength="' + max + '"' : '') + '>';
     };
@@ -645,6 +664,23 @@
       body = '<div class="sub">' + inp("title", "Titre (facultatif)", 200) + '</div><div class="sub"><textarea rows="3" maxlength="2000" data-list="blocks" data-i="' + i + '" data-k="body" placeholder="Ton texte">' + esc(b.body || "") + '</textarea></div>';
     } else if (b.type === "header") {
       body = '<div class="sub">' + inp("title", "Titre de section", 200) + '</div>';
+    } else if (b.type === "section") {
+      var side = b.image_side === "left" ? "left" : "right";
+      body = '<div class="sub">' + inp("title", "Titre de la section", 200) + '</div>' +
+        '<div class="sub"><textarea rows="5" maxlength="5000" data-list="blocks" data-i="' + i + '" data-k="body" placeholder="Présente ton activité, ta démarche, un projet…">' + esc(b.body || "") + '</textarea></div>' +
+        imgPick("image_url", "Ajouter une image") +
+        (b.image_url ? '<div class="sub" style="align-items:center"><span class="note" style="margin:0">Image sur ordinateur :</span><span class="seg side-seg">' +
+          '<button type="button" data-block-side="' + i + '" data-v="left" class="' + (side === "left" ? "on" : "") + '">À gauche</button>' +
+          '<button type="button" data-block-side="' + i + '" data-v="right" class="' + (side === "right" ? "on" : "") + '">À droite</button></span></div>' : '') +
+        '<div class="sub">' + inp("button_label", "Texte du bouton (facultatif)", 200) + inp("button_url", "Lien du bouton", 2000) + '</div>';
+    } else if (b.type === "gallery") {
+      var imgs = b.images || [];
+      body = '<div class="sub">' + inp("title", "Titre de la galerie (facultatif)", 200) + '</div><div class="gal-ed">' +
+        imgs.map(function (u, j) { return '<span class="g" style="background-image:' + cssUrl(u) + '"><button type="button" data-gal-del="' + i + '" data-j="' + j + '" title="Retirer">✕</button></span>'; }).join("") +
+        (imgs.length < 12 ? '<button type="button" class="add-g" data-gal-add="' + i + '" title="Ajouter une image">+</button>' : '') + '</div>' +
+        '<p class="note">' + imgs.length + '/12 images.</p>';
+    } else if (b.type === "image") {
+      body = imgPick("url", "Choisir une image") + '<div class="sub">' + inp("caption", "Légende (facultatif)", 200) + inp("link_url", "Lien au clic (facultatif)", 2000) + '</div>';
     }
     return '<div class="item' + (b.visible === false ? " off" : "") + '"><div class="item-l"><span class="type-tag">' + tag + '</span><span class="grow"></span>' + tools + '</div>' + body + '</div>';
   }
@@ -658,7 +694,10 @@
       return '<div class="offer"><div class="offer-img" style="background-image:' + cssUrl(img) + '">' + (img ? "" : svg(KIND_META[o.kind].icon)) + '</div>' +
         '<div style="flex:1;min-width:0"><div class="offer-t">' + esc(o.title) + '</div>' +
         '<div class="offer-m">' + esc(KIND_META[o.kind].label) + ' · ' + esc(o.price_label || "") +
-        '<span class="pill ' + (o.status === "published" ? "live" : "draft") + '">' + (o.status === "published" ? "En ligne" : o.status === "archived" ? "Archivée" : "Brouillon") + '</span></div></div>' +
+        '<span class="pill ' + (o.status === "published" ? "live" : "draft") + '">' + (o.status === "published" ? "En ligne" : o.status === "archived" ? "Archivée" : "Brouillon") + '</span></div>' +
+        (o.online_payment && o.status === "published" ? (o.online_payment.ok
+          ? '<div class="offer-pay ok">✓ Payable en ligne (Stripe)</div>'
+          : '<div class="offer-pay" title="' + esc(o.online_payment.reasons.join(" ")) + '">Paiement en ligne indisponible : ' + esc(o.online_payment.reasons[0] || "") + '</div>') : '') + '</div>' +
         '<button type="button" class="icon-btn" data-move-offer="' + i + '" data-dir="-1" title="Monter"' + (i === 0 ? " disabled" : "") + '>' + svg("up") + '</button>' +
         '<button type="button" class="icon-btn" data-edit-offer="' + o.id + '" title="Modifier">' + svg("edit") + '</button>' +
         '<button type="button" class="icon-btn" data-del-offer="' + o.id + '" title="Supprimer">' + svg("trash") + '</button></div>';
@@ -673,12 +712,13 @@
   function loadSell() {
     S.sellLoading = true;
     Promise.all([
-      api("GET", "/connect/status").catch(function () { return { status: "unavailable", charges_enabled: false, message: "Paiements indisponibles pour le moment." }; }),
+      api("GET", "/connect/status?refresh=true").catch(function () { return api("GET", "/connect/status"); }).catch(function () { return { status: "unavailable", charges_enabled: false, message: "Paiements indisponibles pour le moment." }; }),
       api("GET", "/me/terms").catch(function () { return { current: null }; })
     ]).then(function (r) {
       S.sell = { connect: r[0], terms: r[1].current };
       S.sellLoading = false;
       if (S.step === 3 || S.step === 5) renderStep();
+      refreshOffers();   // l'état « payable en ligne » des offres suit le statut Stripe relu
     });
   }
   function sellPanel(needsTerms) {
@@ -1002,10 +1042,30 @@
         if ((S.profile.blocks || []).length >= max) return upsell("Plus de " + max + " blocs : disponible avec une formule supérieure.");
         var nb = { id: rid(), type: d.addBlock, visible: true };
         if (d.addBlock === "link") { nb.label = ""; nb.url = ""; nb.icon = "link"; }
+        if (d.addBlock === "section") { nb.title = ""; nb.body = ""; nb.image_url = ""; nb.image_side = "right"; }
+        if (d.addBlock === "gallery") { nb.title = ""; nb.images = []; }
         setList("blocks", (S.profile.blocks || []).concat([nb])); renderStep(); renderPreview();
         var items = $$("#kb-blocks .item"); var last = items[items.length - 1]; if (last) { var inp = last.querySelector("input, textarea"); if (inp) inp.focus(); }
       }
       else if (d.moveBlock) { move("blocks", +d.moveBlock, +d.dir); }
+      else if (d.blockImg) {
+        var bi = +d.blockImg, bk = d.k;
+        pickFile("block", function (url) { var bl = S.profile.blocks.slice(); bl[bi] = Object.assign({}, bl[bi]); bl[bi][bk] = url; setList("blocks", bl); renderStep(); renderPreview(); });
+      }
+      else if (d.blockImgClear) { var bc = S.profile.blocks.slice(); bc[+d.blockImgClear] = Object.assign({}, bc[+d.blockImgClear]); bc[+d.blockImgClear][d.k] = ""; setList("blocks", bc); renderStep(); renderPreview(); }
+      else if (d.blockSide) { var bs = S.profile.blocks.slice(); bs[+d.blockSide] = Object.assign({}, bs[+d.blockSide], { image_side: d.v }); setList("blocks", bs); renderStep(); renderPreview(); }
+      else if (d.galAdd) {
+        var gi = +d.galAdd;
+        pickFile("block", function (url) {
+          var bl = S.profile.blocks.slice(); bl[gi] = Object.assign({}, bl[gi]); bl[gi].images = (bl[gi].images || []).concat([url]).slice(0, 12);
+          setList("blocks", bl); renderStep(); renderPreview();
+        });
+      }
+      else if (d.galDel) {
+        var gd = S.profile.blocks.slice(); gd[+d.galDel] = Object.assign({}, gd[+d.galDel]);
+        gd[+d.galDel].images = (gd[+d.galDel].images || []).filter(function (_, j) { return j !== +d.j; });
+        setList("blocks", gd); renderStep(); renderPreview();
+      }
       else if (d.toggleBlock) {
         var bl = S.profile.blocks.slice(); bl[+d.toggleBlock] = Object.assign({}, bl[+d.toggleBlock], { visible: bl[+d.toggleBlock].visible === false });
         setList("blocks", bl); renderStep(); renderPreview();

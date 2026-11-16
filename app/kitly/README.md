@@ -148,6 +148,22 @@ les erreurs Stripe sont rendues en 502 `{"code": "stripe_error", "message": …}
 - CGV : `GET /kitly/me/terms/template` rend un modèle pré-rempli (identité du vendeur,
   types d'offres) ; la publication est refusée tant qu'il reste « [à compléter] ».
 
+**Contenu « site »** : blocs `section` (titre, texte, image à gauche ou à droite, bouton) et
+`gallery` (12 images), en plus de `text`, `header`, `image`. Dans la mise en page « site », ces
+blocs forment des sections pleine largeur (section `content`, les sections titrées entrent dans le
+menu) ; les liens et vidéos restent groupés dans la section `links`. Ordre par défaut des sections :
+en-tête, à propos, contenu, offres, boutique, réalisations, liens, contact.
+
+**Marketplace — offre de bienvenue** : tout compte de moins de `KITLY_WELCOME_MARKETPLACE_DAYS`
+jours (défaut 30, 0 = désactivé) est référencé dans la marketplace quelle que soit sa formule
+(s'il n'a pas refusé d'y apparaître) ; `/auth/me` renvoie `marketplace_welcome_until`.
+
+**Formules offertes et comptes créés par l'équipe** : `POST /kitly/admin/users` crée un compte
+(formule offerte facultative, durée en jours) et envoie une invitation
+(`/connexion?mode=activation&email=…`) : la personne reçoit un code, choisit son mot de passe et
+accepte les CGU à ce moment-là. Les formules offertes expirent toutes les 30 minutes
+(`kitly_grants_job`), le compte repasse à sa formule payée ou Free.
+
 **Console admin** (`/kitly/admin/*` ; il faut une adresse de `KITLY_ADMIN_EMAILS` ET une
 session ouverte par mot de passe sur `POST /kitly/auth/admin-login` (jeton « adm », 8 h).
 Une session ordinaire du site, même du même compte, est refusée. Chaque action est

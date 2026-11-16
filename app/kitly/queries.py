@@ -5,12 +5,12 @@ from __future__ import annotations
 import time
 from datetime import timedelta
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.kitly.config import KITLY_POPULAR_CACHE_SECONDS
+from app.kitly.config import KITLY_POPULAR_CACHE_SECONDS, KITLY_WELCOME_MARKETPLACE_DAYS
 from app.kitly.models import KitlyOffer, KitlyPlan, KitlyProfile, KitlyProfileView, KitlyUser
-from app.kitly.utils import normalize_text, today
+from app.kitly.utils import aware, normalize_text, now, today
 
 
 def plans_with(db: Session, feature: str) -> list[str]:
@@ -26,12 +26,24 @@ def public_profiles() -> Select:
     )
 
 
+def welcome_until(user: KitlyUser):
+    """Fin de l'offre de bienvenue (référencement marketplace offert aux nouveaux comptes), ou None."""
+    if KITLY_WELCOME_MARKETPLACE_DAYS <= 0 or not user.created_at:
+        return None
+    end = aware(user.created_at) + timedelta(days=KITLY_WELCOME_MARKETPLACE_DAYS)
+    return end if end > now() else None
+
+
 def marketplace_profiles(db: Session) -> Select:
-    """Vitrines référencées dans la marketplace : publiques + formule éligible + accord du freelance."""
-    return public_profiles().where(
-        KitlyProfile.marketplace_opt_in.is_(True),
-        KitlyUser.plan_code.in_(plans_with(db, "marketplace") or ["__none__"]),
-    )
+    """
+    Vitrines référencées dans la marketplace : publiques + accord du freelance +
+    formule qui inclut la marketplace OU compte de moins de
+    KITLY_WELCOME_MARKETPLACE_DAYS jours (offre de bienvenue).
+    """
+    eligible = KitlyUser.plan_code.in_(plans_with(db, "marketplace") or ["__none__"])
+    if KITLY_WELCOME_MARKETPLACE_DAYS > 0:
+        eligible = or_(eligible, KitlyUser.created_at >= now() - timedelta(days=KITLY_WELCOME_MARKETPLACE_DAYS))
+    return public_profiles().where(KitlyProfile.marketplace_opt_in.is_(True), eligible)
 
 
 def get_public_profile(db: Session, slug: str) -> KitlyProfile | None:

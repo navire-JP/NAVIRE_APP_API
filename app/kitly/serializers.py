@@ -124,10 +124,19 @@ def theme_with_defaults(theme: dict | None) -> dict:
 
 
 def sections_with_defaults(sections: list | None) -> list:
-    """Sections enregistrées, complétées par celles ajoutées depuis (visibles, en fin de liste)."""
-    seen = [s for s in (sections or []) if s.get("key") in catalog.SECTION_KEYS]
-    keys = {s["key"] for s in seen}
-    return seen + [{"key": k, "visible": True} for k in catalog.SECTION_KEYS if k not in keys]
+    """
+    Sections enregistrées, complétées par celles ajoutées depuis : une nouvelle
+    section prend sa place par défaut (après celle qui la précède dans
+    SECTION_KEYS), visible.
+    """
+    out = [dict(s) for s in (sections or []) if s.get("key") in catalog.SECTION_KEYS]
+    for i, k in enumerate(catalog.SECTION_KEYS):
+        if any(s["key"] == k for s in out):
+            continue
+        prev = [x for x in catalog.SECTION_KEYS[:i] if any(s["key"] == x for s in out)]
+        at = next((j + 1 for j, s in enumerate(out) if prev and s["key"] == prev[-1]), 0)
+        out.insert(at, {"key": k, "visible": True})
+    return out
 
 
 def public_url(profile: KitlyProfile) -> str:

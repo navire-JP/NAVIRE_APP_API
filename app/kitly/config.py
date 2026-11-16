@@ -175,6 +175,9 @@ KITLY_CONNECT_REFRESH_URL = os.getenv(
 # ============================================================
 # Fenêtre « Les nouveaux sur Kitly » (jours depuis la première publication)
 KITLY_NEW_PROFILES_DAYS = _int("KITLY_NEW_PROFILES_DAYS", 7)
+# Offre de bienvenue : tout nouveau compte est référencé dans la marketplace pendant N jours,
+# quelle que soit sa formule (0 = désactivé).
+KITLY_WELCOME_MARKETPLACE_DAYS = _int("KITLY_WELCOME_MARKETPLACE_DAYS", 30)
 # Période de référence du classement « Les profils populaires »
 KITLY_POPULAR_WINDOW_DAYS = _int("KITLY_POPULAR_WINDOW_DAYS", 30)
 # Durée de mise en cache du classement populaire (secondes)

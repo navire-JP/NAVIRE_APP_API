@@ -41,10 +41,17 @@ BLOCK_TYPES: dict[str, set[str]] = {
     "image": {"url", "caption", "link_url"},
     "offer": {"offer_id"},  # met en avant une offre de la boutique
     "embed": {"label", "url"},  # Calendly, Spotify…
+    # Sections de site : texte + image (côte à côte sur ordinateur) et galerie d'images.
+    "section": {"title", "body", "image_url", "image_side", "button_label", "button_url"},
+    "gallery": {"title", "images"},
 }
+# Blocs de contenu : pleine largeur dans la mise en page « site » (section « content »).
+CONTENT_BLOCKS = {"section", "gallery", "image", "text", "header"}
+GALLERY_MAX = 12
 
 # Sections de la vitrine, dans l'ordre par défaut.
-SECTION_KEYS = ["hero", "links", "about", "offers", "products", "portfolio", "contact"]
+# Ordre « site » : présentation et contenu d'abord, liens en fin de page.
+SECTION_KEYS = ["hero", "about", "content", "offers", "products", "portfolio", "links", "contact"]
 DEFAULT_SECTIONS = [{"key": k, "visible": True} for k in SECTION_KEYS]
 
 # Templates : les « basiques » sont ouverts à tous, les autres exigent la

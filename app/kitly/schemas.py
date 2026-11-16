@@ -81,6 +81,9 @@ class ResetIn(_In):
     email: EmailStr
     code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
     new_password: str
+    # Compte créé par l'équipe Kitly : CGU acceptées à l'activation (premier mot de passe).
+    accept_cgu: bool = False
+    ack_privacy: bool = False
 
     _pw = field_validator("new_password")(lambda cls, v: _password_ok(v))
 
@@ -148,10 +151,15 @@ class BlockIn(BaseModel):
             v = extra[k]
             if k == "offer_id":
                 extra[k] = int(v)
+            elif k == "images":
+                urls = v if isinstance(v, list) else []
+                extra[k] = [u for u in (_url_or_empty(str(x)) for x in urls[:catalog.GALLERY_MAX]) if u]
+            elif k == "image_side":
+                extra[k] = "left" if v == "left" else "right"
             elif k.endswith("url"):
                 extra[k] = _url_or_empty(str(v))
             else:
-                extra[k] = str(v)[:2000 if k == "body" else 200]
+                extra[k] = str(v)[:(5000 if self.type == "section" else 2000) if k == "body" else 200]
         self.__pydantic_extra__ = extra
         if not self.id:
             self.id = secrets.token_hex(4)
@@ -640,6 +648,23 @@ class GrantIn(_In):
     plan: Literal["custom", "premium"]
     reason: str = Field(min_length=3, max_length=300)
     days: Optional[int] = Field(default=None, ge=1, le=3650)  # vide = sans date de fin
+
+
+class AdminCreateUserIn(_In):
+    """Compte créé par l'équipe (partenaire, bêta-testeur…), avec ou sans formule offerte."""
+    email: EmailStr
+    first_name: str = Field(min_length=1, max_length=80)
+    last_name: str = Field(default="", max_length=80)
+    plan: Literal["free", "custom", "premium"] = "premium"
+    days: Optional[int] = Field(default=None, ge=1, le=3650)  # vide = sans date de fin
+    reason: str = Field(default="", max_length=300)
+    send_invite: bool = True
+
+    @model_validator(mode="after")
+    def _why(self):
+        if self.plan != "free" and len(self.reason.strip()) < 3:
+            raise ValueError("Indique le motif de la formule offerte (partenaire, test…).")
+        return self
 
 
 class ReasonIn(_In):

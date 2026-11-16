@@ -59,6 +59,31 @@
     ".kv-text h5{font-family:var(--fh);font-size:17px;margin:4px 0 6px}",
     ".kv-text p{font-size:14px;line-height:1.55;color:var(--mut2);margin:0;white-space:pre-wrap;overflow-wrap:anywhere}",
     ".kv-header{font-family:var(--fh);font-size:18px;font-weight:800;text-align:center;margin:8px 0 0}",
+    /* sections de contenu (texte + image, galerie…) */
+    ".kv-cb{display:flex;flex-direction:column;gap:18px;text-align:left}",
+    ".kv-cb-img{width:100%;border-radius:min(var(--r-btn),22px);overflow:hidden;background:color-mix(in srgb,var(--fg) 8%,var(--bg))}",
+    ".kv-cb-img img{display:block;width:100%;height:auto;max-height:520px;object-fit:cover}",
+    ".kv-cb-tx h3{font-family:var(--fh);font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.15;margin:0 0 10px}",
+    ".kv-cb-tx p{font-size:15px;line-height:1.7;color:var(--mut2);margin:0;white-space:pre-wrap;overflow-wrap:anywhere}",
+    ".kv-cb-tx .kv-btn{margin-top:18px;color:var(--btn-fg)!important}",
+    ".kv-gal h3{font-family:var(--fh);font-size:24px;font-weight:800;letter-spacing:-.02em;margin:0 0 14px}",
+    ".kv-gal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}",
+    ".kv-gal-grid button{border:0;padding:0;background:color-mix(in srgb,var(--fg) 8%,var(--bg)) center/cover;aspect-ratio:1;border-radius:12px;cursor:zoom-in}",
+    ".kv-figure{margin:0}.kv-figure img{display:block;width:100%;border-radius:min(var(--r-btn),22px)}",
+    ".kv-figure figcaption{font-size:13px;color:var(--mut2);margin-top:8px;text-align:center}",
+    ".kv-bigtitle{font-family:var(--fh);font-size:30px;font-weight:900;letter-spacing:-.03em;line-height:1.1;margin:0;text-align:center}",
+    ".kv.is-wide .kv-cb.has-img{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}",
+    ".kv.is-wide .kv-cb.has-img.left .kv-cb-img{order:-1}",
+    ".kv.is-wide .kv-cb.has-img.right .kv-cb-img{order:2}",
+    ".kv.is-wide .kv-cb-tx h3,.kv.is-wide .kv-gal h3{font-size:clamp(28px,3vw,40px)}",
+    ".kv.is-wide .kv-cb:not(.has-img) .kv-cb-tx{max-width:760px}",
+    ".kv.is-wide .kv-gal-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}",
+    ".kv.is-wide .kv-bigtitle{font-size:clamp(34px,4vw,52px)}",
+    /* liens en grille sur un site large */
+    ".kv.lay-site.is-wide .kv-s-links .kv-wrap.narrow{max-width:1120px}",
+    ".kv.lay-site.is-wide .kv-s-links .kv-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}",
+    ".kv.lay-site.is-wide .kv-s-links .kv-video,.kv.lay-site.is-wide .kv-s-links .kv-cb,.kv.lay-site.is-wide .kv-s-links .kv-text{grid-column:1/-1}",
+    ".kv:not(.lay-site) .kv-links .kv-cb,.kv:not(.lay-site) .kv-gal,.kv:not(.lay-site) .kv-figure{margin:6px 0}",
     ".kv-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}",
     ".kv-stat{border:1px solid var(--line2);border-radius:12px;padding:11px 4px;text-align:center}",
     ".kv-stat b{display:block;font-family:var(--fh);font-size:17px;font-weight:800}",
@@ -401,6 +426,7 @@
           if (b.type === "video") { var t = b.thumbnail_url || ytThumb(b.url); return '<a class="kv-video" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener nofollow" style="' + (t ? "background-image:" + cssUrl(t) : "") + '"><span class="play"></span>' + (b.label ? '<span class="cap">' + esc(b.label) + '</span>' : '') + '</a>'; }
           if (b.type === "text") return '<div class="kv-text">' + (b.title ? '<h5>' + esc(b.title) + '</h5>' : '') + '<p>' + esc(b.body || "") + '</p></div>';
           if (b.type === "header") return '<h2 class="kv-header">' + esc(b.title || "") + '</h2>';
+          if (b.type === "section" || b.type === "gallery" || b.type === "image") return contentBlockHtml(b);
           return "";
         }).join("") + '</div></div>';
       },
@@ -504,6 +530,32 @@
       return '<a class="kv-soc" href="' + esc(safeUrl(s.url)) + '" target="_blank" rel="noopener nofollow" title="' + esc(s.network) + '" aria-label="' + esc(s.network) + '">' + esc(SOCIAL_ABBR[s.network] || "•") + '</a>';
     }).join("") + '</div>' : "";
   }
+  var CONTENT_BLOCKS = { section: 1, gallery: 1, image: 1, text: 1, header: 1 };
+  function contentBlockHtml(b) {
+    if (b.type === "section") {
+      var img = b.image_url ? '<div class="kv-cb-img"><img src="' + esc(b.image_url) + '" alt="' + esc(b.title || "") + '" loading="lazy"></div>' : "";
+      return '<div class="kv-cb' + (img ? " has-img " + (b.image_side === "left" ? "left" : "right") : "") + '">' + img +
+        '<div class="kv-cb-tx">' + (b.title ? '<h3>' + esc(b.title) + '</h3>' : '') + (b.body ? '<p>' + esc(b.body) + '</p>' : '') +
+        (b.button_url ? '<a class="kv-btn" href="' + esc(safeUrl(b.button_url)) + '" target="_blank" rel="noopener nofollow">' + esc(b.button_label || "En savoir plus") + '</a>' : '') +
+        '</div></div>';
+    }
+    if (b.type === "gallery") {
+      var imgs = (b.images || []).filter(Boolean);
+      if (!imgs.length) return "";
+      return '<div class="kv-gal">' + (b.title ? '<h3>' + esc(b.title) + '</h3>' : '') + '<div class="kv-gal-grid">' + imgs.map(function (u) {
+        return '<button type="button" data-kv-img="' + esc(u) + '" aria-label="Agrandir l\'image" style="background-image:' + cssUrl(u) + '"></button>';
+      }).join("") + '</div></div>';
+    }
+    if (b.type === "image") {
+      if (!b.url) return "";
+      var im = '<img src="' + esc(b.url) + '" alt="' + esc(b.caption || "") + '" loading="lazy">';
+      return '<figure class="kv-figure">' + (b.link_url ? '<a href="' + esc(safeUrl(b.link_url)) + '" target="_blank" rel="noopener nofollow">' + im + '</a>' : im) +
+        (b.caption ? '<figcaption>' + esc(b.caption) + '</figcaption>' : '') + '</figure>';
+    }
+    if (b.type === "text") return '<div class="kv-cb"><div class="kv-cb-tx">' + (b.title ? '<h3>' + esc(b.title) + '</h3>' : '') + '<p>' + esc(b.body || "") + '</p></div></div>';
+    if (b.type === "header") return '<h2 class="kv-bigtitle">' + esc(b.title || "") + '</h2>';
+    return "";
+  }
   function blocksHtml(p) {
     var blocks = (p.blocks || []).filter(function (b) { return b.visible !== false && b.type !== "offer"; });
     return blocks.map(function (b) {
@@ -568,22 +620,34 @@
     var contact = p.contact || {};
     var stats = (p.stats || []).filter(function (s) { return s.label || s.value; });
     var tags = (p.skills || []).concat(p.languages || []);
-    var links = blocksHtml(p);
-    var order = (p.sections && p.sections.length ? p.sections : ["hero", "links", "about", "offers", "products", "portfolio", "contact"].map(function (k) { return { key: k, visible: true }; }))
+    var links = blocksHtml({ blocks: (p.blocks || []).filter(function (b) { return !CONTENT_BLOCKS[b.type]; }) });
+    var content = (p.blocks || []).filter(function (b) { return b.visible !== false && CONTENT_BLOCKS[b.type]; });
+    var order = (p.sections && p.sections.length ? p.sections : ["hero", "about", "content", "offers", "products", "portfolio", "links", "contact"].map(function (k) { return { key: k, visible: true }; }))
       .filter(function (x) { return x.visible !== false; }).map(function (x) { return x.key; });
 
+    if (order.indexOf("content") < 0 && content.length) order.splice(Math.max(0, order.indexOf("about") + 1), 0, "content");
     var has = {
-      links: !!links, about: !!(p.about || stats.length || tags.length), offers: services.length > 0,
+      content: content.length > 0, links: !!links, about: !!(p.about || stats.length || tags.length), offers: services.length > 0,
       products: products.length > 0, portfolio: portfolio.length > 0, contact: true
     };
     var NAV = { links: ["kv-links", "Liens"], about: ["kv-about", "À propos"], offers: ["kv-offers", "Prestations"],
                 products: ["kv-shop", "Boutique"], portfolio: ["kv-work", "Réalisations"], contact: ["kv-contact", "Contact"] };
-    var navItems = order.filter(function (k) { return NAV[k] && has[k] && k !== "links"; })
-      .map(function (k) { return '<button type="button" data-kv-nav="' + NAV[k][0] + '">' + NAV[k][1] + '</button>'; }).join("");
+    var contentNav = content.filter(function (b) { return b.type === "section" && b.title; }).slice(0, 3);
+    var navItems = order.filter(function (k) { return (NAV[k] && has[k] && k !== "links") || (k === "content" && has.content); })
+      .map(function (k) {
+        if (k === "content") return contentNav.map(function (b) { return '<button type="button" data-kv-nav="kv-b-' + esc(b.id) + '">' + esc(b.title.length > 22 ? b.title.slice(0, 21) + "…" : b.title) + '</button>'; }).join("");
+        return '<button type="button" data-kv-nav="' + NAV[k][0] + '">' + NAV[k][1] + '</button>';
+      }).join("");
     var firstOffers = has.offers ? "kv-offers" : has.products ? "kv-shop" : "";
     var meta = [p.headline, p.location].filter(Boolean).join(" · ");
 
     var parts = {
+      content: function () {
+        return content.map(function (b, i) {
+          var inner = contentBlockHtml(b);
+          return inner ? '<section class="kv-s kv-s-content" id="' + (b.id ? "kv-b-" + esc(b.id) : "kv-content-" + i) + '"><div class="kv-wrap">' + inner + '</div></section>' : "";
+        }).join("");
+      },
       links: function () {
         return '<section class="kv-s kv-s-links" id="kv-links"><div class="kv-wrap narrow"><div class="kv-links">' + links + '</div></div></section>';
       },
@@ -1029,6 +1093,8 @@
         scrollToId(nav.getAttribute("data-kv-nav"));
         return;
       }
+      var zoom = e.target.closest("[data-kv-img]");
+      if (zoom) { e.preventDefault(); modal('<img src="' + esc(zoom.getAttribute("data-kv-img")) + '" alt="" style="display:block;width:100%;border-radius:14px;margin-top:26px">'); return; }
       var t = e.target.closest("[data-kv-offer],[data-kv-project],[data-kv-contact],[data-kv-terms],[data-kv-report]");
       if (!t) return;
       e.preventDefault();

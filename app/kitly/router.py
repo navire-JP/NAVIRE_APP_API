@@ -93,26 +93,50 @@ def kitly_startup() -> None:
         db.close()
 
 
-def kitly_purge_job() -> None:
-    """Tâche planifiée : purge du journal de limitation de débit, fin des formules offertes expirées."""
+def expire_grants(db) -> int:
+    """Termine les formules offertes arrivées à échéance et recalcule la formule des comptes concernés."""
     from sqlalchemy import select
 
     from app.kitly.models import KitlyPlanGrant, KitlyUser
+    from app.kitly.queries import clear_popular_cache
     from app.kitly.routers.billing import recompute_plan
-    from app.kitly.utils import now, purge_rate_events
+    from app.kitly.utils import now
+
+    expired = db.execute(select(KitlyPlanGrant).where(KitlyPlanGrant.revoked_at.is_(None),
+                                                      KitlyPlanGrant.expires_at.is_not(None),
+                                                      KitlyPlanGrant.expires_at < now())).scalars().all()
+    for g in expired:
+        g.revoked_at = now()
+        db.flush()
+        user = db.get(KitlyUser, g.user_id)
+        if user:
+            recompute_plan(db, user)
+    if expired:
+        clear_popular_cache()
+    return len(expired)
+
+
+def kitly_grants_job() -> None:
+    """Toutes les 30 minutes : une formule offerte « 30 jours » s'arrête à l'heure prévue."""
+    db = SessionLocal()
+    try:
+        expire_grants(db)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        print(f"[kitly] ⚠️  Fin des formules offertes échouée : {exc}")
+    finally:
+        db.close()
+
+
+def kitly_purge_job() -> None:
+    """Tâche planifiée : purge du journal de limitation de débit, fin des formules offertes expirées."""
+    from app.kitly.utils import purge_rate_events
 
     db = SessionLocal()
     try:
         purge_rate_events(db)
-        expired = db.execute(select(KitlyPlanGrant).where(KitlyPlanGrant.revoked_at.is_(None),
-                                                          KitlyPlanGrant.expires_at.is_not(None),
-                                                          KitlyPlanGrant.expires_at < now())).scalars().all()
-        for g in expired:
-            g.revoked_at = now()
-            db.flush()
-            user = db.get(KitlyUser, g.user_id)
-            if user:
-                recompute_plan(db, user)
+        expire_grants(db)
         db.commit()
     except Exception as exc:
         db.rollback()

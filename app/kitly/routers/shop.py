@@ -90,6 +90,39 @@ def offer_buyable(offer: KitlyOffer, ready: bool) -> bool:
     )
 
 
+def seller_blockers(profile: KitlyProfile) -> list[str]:
+    """Ce qui empêche le vendeur d'encaisser en ligne (vide = prêt)."""
+    out = []
+    acc = profile.user.connected_account
+    if not acc:
+        out.append("Paiements non activés (bouton « Activer » du bloc Vente en ligne).")
+    elif not acc.charges_enabled:
+        out.append("Paiements en cours de validation par Stripe (informations à compléter ou vérification en cours).")
+    if not (profile.terms and profile.terms.current_version_id):
+        out.append("CGV non publiées (bouton « Rédiger » du bloc Vente en ligne).")
+    if not profile.user.is_active:
+        out.append("Compte désactivé.")
+    return out
+
+
+def offer_blockers(offer: KitlyOffer) -> list[str]:
+    """Ce qui empêche CETTE offre d'être payée en ligne, côté offre (vide = OK)."""
+    out = []
+    if offer.status != "published":
+        out.append("Offre non publiée.")
+    if offer.kind not in BUYABLE_KINDS:
+        out.append("Les rendez-vous se réservent sur demande.")
+    if offer.cta != "order":
+        out.append("Bouton de l'offre différent de « Commander ».")
+    if offer.price_mode != "fixed":
+        out.append("Prix non fixe (sur devis, fourchette ou gratuit).")
+    elif (offer.price_cents or 0) < MIN_AMOUNT_CENTS:
+        out.append("Prix inférieur à 0,50 €.")
+    if not _in_stock(offer):
+        out.append("Épuisé.")
+    return out
+
+
 def mark_buyable(payload: dict, profile: KitlyProfile, offers: list[KitlyOffer]) -> dict:
     """Ajoute `buyable` aux offres d'une réponse publique (vitrine ou fiche offre)."""
     ready = shop_ready(profile)

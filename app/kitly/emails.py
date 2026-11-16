@@ -262,6 +262,20 @@ def mail_order_fulfilled(seller_name: str, ref: str, snap: dict, tracking: str, 
     return f"{title} — {ref}", layout(title, body)
 
 
+def mail_invite(first_name: str, plan_name: str, until: str, link: str) -> tuple[str, str]:
+    offer = (f"<p>La formule <b>{_e(plan_name)}</b> t'est offerte" + (f" jusqu'au <b>{_e(until)}</b>" if until else "")
+             + ", sans abonnement ni carte bancaire.</p>") if plan_name else ""
+    body = (
+        f"<p>Bonjour {_e(first_name) or ''},</p><p>L'équipe Kitly t'a créé un compte pour présenter ton activité : "
+        "une vitrine en ligne avec tes offres, ta boutique et un formulaire de contact.</p>" + offer +
+        f'<p><a href="{_e(link)}" style="display:inline-block;background:#0a0a0a;color:#fff;padding:12px 20px;'
+        'border-radius:99px;text-decoration:none;font-weight:700">Activer mon compte</a></p>'
+        "<p style='color:#6f6f6c;font-size:13px'>Tu recevras un code pour choisir ton mot de passe. Si tu n'attendais pas "
+        "cet email, ignore-le : sans activation, le compte reste inutilisé.</p>"
+    )
+    return "Ton compte Kitly t'attend", layout("Bienvenue sur Kitly", body)
+
+
 def mail_profile_suspended(first_name: str, slug: str, reason: str, contact: str) -> tuple[str, str]:
     """Exposé des motifs d'une suspension (article 17 du règlement sur les services numériques)."""
     body = (

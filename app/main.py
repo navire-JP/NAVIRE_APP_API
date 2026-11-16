@@ -66,7 +66,7 @@ from app.meoles_site.admin_routes import router as meoles_admin_router
 # ============================================================
 # KITLY — import isolé (app/kitly/, routes /kitly, tables kitly_*)
 # ============================================================
-from app.kitly.router import router as kitly_router, kitly_startup, kitly_purge_job
+from app.kitly.router import router as kitly_router, kitly_startup, kitly_purge_job, kitly_grants_job
 from app.kitly.cors import SplitCORSMiddleware
 
 # ============================================================
@@ -123,6 +123,7 @@ def _daily_email_health() -> None:
 
 scheduler.add_job(_daily_email_health, trigger="cron", hour=7, minute=30)
 scheduler.add_job(kitly_purge_job, trigger="cron", hour=4, minute=10, id="kitly_purge", replace_existing=True)
+scheduler.add_job(kitly_grants_job, trigger="interval", minutes=30, id="kitly_grants", replace_existing=True)
 scheduler.add_job(
     check_expired_subscriptions,
     trigger="interval",
