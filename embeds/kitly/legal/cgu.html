@@ -1,0 +1,252 @@
+<!--
+  KITLY : Conditions générales d'utilisation (/cgu)
+  Composant Framer : Embed HTML, largeur Fill, hauteur auto (l'embed ajuste sa hauteur).
+  Les mentions surlignées en gris [entre crochets] sont à compléter avant publication.
+  Modèle rédigé d'après le fonctionnement réel de Kitly : à faire relire par un juriste.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+<style>
+  html, body { margin: 0; padding: 0; background: transparent !important; }
+  *, *::before, *::after { box-sizing: border-box; }
+  #klg {
+    --ink: #0a0a0a; --paper: #ffffff; --grey: #f5f5f4; --line: #e4e4e2; --mut: #6f6f6c;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
+    max-width: 1160px; margin: 0 auto; padding: 56px 20px 72px;
+  }
+  #klg em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -.01em; }
+  #klg .kicker { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin: 0 0 16px; }
+  #klg h1 { font-size: clamp(34px, 5.4vw, 60px); font-weight: 900; letter-spacing: -.045em; line-height: 1.04; margin: 0; max-width: 820px; }
+  #klg .meta { color: var(--mut); font-size: 14px; margin: 18px 0 0; }
+  #klg .lead { color: var(--mut); font-size: 17px; line-height: 1.55; max-width: 720px; margin: 22px 0 0; }
+  #klg .layout { display: grid; grid-template-columns: 240px 1fr; gap: 56px; margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--line); }
+  #klg nav.toc { position: sticky; top: 96px; align-self: start; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  #klg nav.toc b { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin-bottom: 4px; }
+  #klg nav.toc a { color: var(--mut); text-decoration: none; line-height: 1.35; font-weight: 500; }
+  #klg nav.toc a:hover { color: var(--ink); }
+  #klg .doc { max-width: 720px; }
+  #klg h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; margin: 44px 0 14px; scroll-margin-top: 96px; }
+  #klg .doc > h2:first-child { margin-top: 0; }
+  #klg h2 .n { font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--mut); margin-right: 8px; }
+  #klg h3 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
+  #klg p, #klg li { font-size: 15px; line-height: 1.7; color: #262626; }
+  #klg p { margin: 0 0 12px; text-align: justify; hyphens: auto; }
+  #klg ul { margin: 0 0 14px; padding-left: 20px; }
+  #klg li { margin: 0 0 6px; }
+  #klg a { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  #klg .todo { background: var(--grey); border: 1px dashed #c9c9c6; border-radius: 6px; padding: 0 5px; font-weight: 600; }
+  #klg .box { border: 1px solid var(--line); border-radius: 18px; padding: 18px 22px; margin: 18px 0; background: var(--paper); }
+  #klg .box p:last-child, #klg .box ul:last-child { margin-bottom: 0; }
+  #klg table { width: 100%; border-collapse: collapse; margin: 8px 0 18px; font-size: 14px; }
+  #klg th, #klg td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; }
+  #klg th { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); }
+  @media (max-width: 860px) {
+    #klg { padding: 32px 16px 48px; }
+    #klg .layout { grid-template-columns: 1fr; gap: 24px; margin-top: 32px; }
+    #klg nav.toc { position: static; }
+    #klg p { text-align: left; }
+    #klg table, #klg thead, #klg tbody, #klg tr, #klg th, #klg td { display: block; }
+    #klg thead { display: none; }
+    #klg td { border-bottom: 0; padding: 4px 0; }
+    #klg tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+    #klg td[data-label]::before { content: attr(data-label); display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); margin-top: 6px; }
+  }
+</style>
+
+<div id="klg">
+  <p class="kicker">Conditions générales d'utilisation</p>
+  <h1>Conditions générales <em>d'utilisation</em></h1>
+  <p class="meta">Version en vigueur au 16 novembre 2026</p>
+  <p class="lead">Les règles d'utilisation de Kitly : ton compte, ta vitrine, la marketplace et ce que chacun s'engage à respecter.</p>
+  <div class="layout">
+    <nav class="toc" aria-label="Sommaire"><b>Sommaire</b>
+      <a href="#objet">Objet et documents applicables</a>
+      <a href="#definitions">Définitions</a>
+      <a href="#acceptation">Acceptation et modification des CGU</a>
+      <a href="#compte">Compte</a>
+      <a href="#services">Services proposés</a>
+      <a href="#obligations">Obligations du Freelance</a>
+      <a href="#contenus">Contenus publiés</a>
+      <a href="#moderation">Signalement et modération</a>
+      <a href="#marketplace">Marketplace et classement</a>
+      <a href="#paiements">Paiements des ventes et commission</a>
+      <a href="#cgv-freelance">Outil de préparation des CGV du Freelance</a>
+      <a href="#relations">Relations entre Freelances et Clients</a>
+      <a href="#disponibilite">Disponibilité et responsabilité</a>
+      <a href="#resiliation">Suspension et fin du compte</a>
+      <a href="#reclamations">Réclamations et médiation</a>
+      <a href="#propriete">Propriété intellectuelle de Kitly</a>
+      <a href="#donnees">Données personnelles</a>
+      <a href="#droit">Droit applicable</a>
+    </nav>
+    <div class="doc">
+<h2 id="objet"><span class="n">01</span>Objet et documents applicables</h2>
+<p>Les présentes conditions générales d'utilisation (« CGU ») régissent l'accès et l'utilisation de Kitly, plateforme permettant aux freelances et indépendants de créer une vitrine professionnelle en ligne, d'y présenter leurs offres, de recevoir des demandes et, pour certaines formules, d'apparaître dans une marketplace de découverte.</p>
+<p>Trois documents distincts s'appliquent selon la situation :</p>
+<ul>
+  <li><b>les présentes CGU</b>, pour tout utilisateur de Kitly ;</li>
+  <li><b>les <a href="/cgv">CGV Kitly</a></b>, pour les abonnements payants (Custom, Premium+) souscrits auprès de Kitly ;</li>
+  <li><b>les CGV propres à chaque freelance</b>, pour les prestations et produits qu'il vend à ses clients. Kitly n'est pas partie à ces contrats.</li>
+</ul>
+<p>L'éditeur de Kitly est identifié dans les <a href="/mentions-legales">mentions légales</a>.</p>
+
+<h2 id="definitions"><span class="n">02</span>Définitions</h2>
+<ul>
+  <li><b>Freelance</b> : personne titulaire d'un compte Kitly, qui exerce une activité professionnelle indépendante et crée une vitrine.</li>
+  <li><b>Vitrine</b> : page publique du Freelance (adresse du type kitly.fr/profile?u=nom) présentant son activité, ses offres, ses liens et ses réalisations.</li>
+  <li><b>Offre</b> : produit physique, produit numérique, prestation de service ou rendez-vous présenté sur une Vitrine.</li>
+  <li><b>Client</b> ou <b>Visiteur</b> : toute personne qui consulte une Vitrine ou la marketplace, ou contacte un Freelance.</li>
+  <li><b>Marketplace</b> : annuaire de recherche de Kitly, réservé aux Vitrines éligibles.</li>
+</ul>
+
+<h2 id="acceptation"><span class="n">03</span>Acceptation et modification des CGU</h2>
+<p>La création d'un compte suppose l'acceptation expresse des CGU, par une case à cocher distincte de la prise de connaissance de la politique de confidentialité. La date et la version acceptées sont conservées.</p>
+<p>Kitly peut faire évoluer les CGU. Toute modification est notifiée au Freelance par email ou dans son espace <b>au moins 15 jours</b> avant son entrée en vigueur (règlement (UE) 2019/1150, dit « P2B »), sauf obligation légale ou réglementaire imposant un délai plus court. Le Freelance qui refuse les nouvelles conditions peut supprimer son compte avant leur entrée en vigueur.</p>
+
+<h2 id="compte"><span class="n">04</span>Compte</h2>
+<ul>
+  <li>Le compte est réservé aux personnes majeures exerçant ou préparant une activité professionnelle indépendante.</li>
+  <li>Les informations fournies doivent être exactes et tenues à jour. L'adresse email est confirmée par un code ; cette confirmation est nécessaire pour publier une Vitrine et activer les paiements.</li>
+  <li>Le mot de passe est personnel et confidentiel. Le Freelance est responsable de l'usage de son compte et prévient Kitly sans délai de toute utilisation non autorisée. Il peut à tout moment se déconnecter de tous ses appareils.</li>
+  <li>Kitly peut refuser ou suspendre un compte en cas d'informations manifestement fausses ou d'usage frauduleux, dans les conditions de l'article 14.</li>
+</ul>
+
+<h2 id="services"><span class="n">05</span>Services proposés</h2>
+<p>Selon sa formule (voir la page <a href="/subscribe">Tarifs</a>), le Freelance peut notamment :</p>
+<ul>
+  <li>créer et personnaliser sa Vitrine (présentation, liens, thème, sections) et la publier ou la dépublier à tout moment ;</li>
+  <li>présenter des Offres de quatre catégories et un portfolio ;</li>
+  <li>recevoir des demandes de contact, de devis ou de rendez-vous, transmises par email et visibles dans son espace ;</li>
+  <li>consulter des statistiques de visite ;</li>
+  <li>apparaître dans la Marketplace (formule Premium+) ;</li>
+  <li>préparer ses propres CGV à l'aide d'un outil d'aide à la rédaction (article 11) ;</li>
+  <li>activer l'encaissement de ses ventes via Stripe (article 10).</li>
+</ul>
+<p>Les limites de chaque formule (nombre d'offres, d'images, de blocs…) sont indiquées sur la page Tarifs et peuvent évoluer dans les conditions de l'article 3. Une fonctionnalité qui n'est plus incluse dans la formule est désactivée sans suppression des données.</p>
+
+<h2 id="obligations"><span class="n">06</span>Obligations du Freelance</h2>
+<p>Le Freelance s'engage à :</p>
+<ul>
+  <li>exercer une activité licite et disposer des autorisations, qualifications ou assurances qu'elle requiert ;</li>
+  <li>renseigner sur sa Vitrine des informations exactes, et en particulier, s'il vend en tant que professionnel, son identité, ses coordonnées, son numéro d'immatriculation et, s'il vend à des consommateurs, son médiateur de la consommation ;</li>
+  <li>informer ses clients loyalement (prix, caractéristiques, délais) et respecter ses propres CGV ainsi que les droits des consommateurs, notamment le droit de rétractation de 14 jours en cas de vente à distance, sauf exceptions légales ;</li>
+  <li>traiter les données personnelles de ses prospects et clients conformément au RGPD, dont il est responsable pour son propre usage ;</li>
+  <li>répondre aux demandes qu'il reçoit dans un délai raisonnable.</li>
+</ul>
+<h3>Obligations fiscales et sociales</h3>
+<p>Conformément à l'article 242 bis du code général des impôts, Kitly informe le Freelance que les revenus tirés de son activité, y compris par l'intermédiaire de Kitly, sont soumis à l'impôt et aux cotisations sociales. Il lui appartient de les déclarer. Informations : <a href="https://www.impots.gouv.fr">impots.gouv.fr</a> et <a href="https://www.urssaf.fr">urssaf.fr</a>.</p>
+<p>Lorsque des ventes seront encaissées par l'intermédiaire de Kitly, Kitly pourra être tenue de collecter certaines informations sur les vendeurs et de déclarer à l'administration fiscale les revenus perçus (directive (UE) 2021/514 dite « DAC7 »). Le Freelance s'engage à fournir les informations demandées à ce titre.</p>
+
+<h2 id="contenus"><span class="n">07</span>Contenus publiés</h2>
+<p>Le Freelance est seul responsable des contenus qu'il publie (textes, images, vidéos, liens, offres, prix) et garantit en détenir les droits.</p>
+<p>Il concède à Kitly, pour la durée de leur publication, une licence non exclusive, gratuite et mondiale d'hébergement, de reproduction et d'affichage de ces contenus, aux seules fins de faire fonctionner la Plateforme : affichage de la Vitrine, de ses aperçus de partage, de la Marketplace et des résultats de recherche. Cette licence prend fin à la suppression du contenu ou du compte.</p>
+<p>Sont notamment interdits : les contenus illicites, trompeurs ou frauduleux ; la contrefaçon ; l'usurpation d'identité ; les contenus haineux, violents, discriminatoires, à caractère sexuel ou portant atteinte aux mineurs ; la vente de produits ou services interdits ou réglementés sans autorisation ; les liens vers des logiciels malveillants ; le spam et la collecte de données de visiteurs à leur insu.</p>
+
+<h2 id="moderation"><span class="n">08</span>Signalement et modération</h2>
+<p>Chaque Vitrine comporte un lien <b>« Signaler ce profil »</b>. Un signalement peut aussi être adressé par email à <span class="todo">[adresse de signalement]</span>. Kitly examine les signalements avec diligence et, si l'auteur a laissé une adresse, l'informe de la suite donnée.</p>
+<p>En cas de contenu illicite ou contraire aux CGU, Kitly peut, de façon proportionnée : retirer ou masquer un contenu, suspendre une Vitrine, la retirer de la Marketplace, suspendre ou supprimer le compte. Le Freelance concerné reçoit un exposé des motifs (article 17 du règlement (UE) 2022/2065), sauf exception légale.</p>
+<p>Le Freelance peut contester une décision dans les <b>6 mois</b> par email à <span class="todo">[adresse de réclamation]</span> ; sa réclamation est examinée par une personne et non uniquement de façon automatisée. Il peut aussi saisir un organe de règlement extrajudiciaire des litiges certifié (article 21 du même règlement).</p>
+
+<h2 id="marketplace"><span class="n">09</span>Marketplace et classement</h2>
+<p><b>Éligibilité.</b> Apparaissent dans la Marketplace les Vitrines publiées, non suspendues, dont le titulaire a souscrit une formule incluant le référencement (Premium+) et n'a pas désactivé l'option « apparaître dans la marketplace ».</p>
+<p><b>Paramètres de classement</b> (article L. 111-7 du code de la consommation, article 5 du règlement P2B) :</p>
+<ul>
+  <li><b>pertinence</b> : correspondance entre la recherche et le nom, le métier, les spécialités, la présentation et les titres des offres ;</li>
+  <li><b>popularité</b> : nombre de visites uniques reçues sur les 30 derniers jours (un visiteur compté au plus une fois par jour, robots et propriétaire exclus) ;</li>
+  <li><b>nouveauté</b> : date de première publication (« Les nouveaux sur Kitly » : 7 derniers jours) ;</li>
+  <li><b>prix</b> : prix d'appel affiché le plus bas, pour le tri par prix croissant.</li>
+</ul>
+<p>Le classement organique ne dépend pas de la formule souscrite. Les profils mis en avant contre rémunération (option incluse dans Premium+) apparaissent dans un encart séparé, clairement identifié comme <b>« Sponsorisé »</b>, et n'influencent pas le classement des autres résultats.</p>
+<p>Kitly n'est ni l'employeur ni le mandataire des Freelances, qui exercent en toute indépendance. Kitly ne garantit ni un volume de visites ni l'obtention de clients.</p>
+
+<h2 id="paiements"><span class="n">10</span>Paiements des ventes et commission</h2>
+<p>Le Freelance peut activer l'encaissement de ses ventes via Stripe Connect. Les vérifications d'identité, d'activité et de coordonnées bancaires sont réalisées par Stripe, qui peut demander des justificatifs ; le compte n'est actif qu'après confirmation de Stripe. Le Freelance accepte à cette occasion le contrat de compte connecté de Stripe. Kitly ne collecte ni ne conserve ses données bancaires.</p>
+<p>Lorsque le paiement en ligne des commandes sera proposé, Kitly percevra une commission de <span class="todo">[10 %]</span> <span class="todo">[TTC / HT]</span> sur les seules ventes conclues par l'intermédiaire de la Marketplace. Les ventes issues du lien personnel du Freelance (sa Vitrine partagée sur ses propres réseaux) ne sont pas commissionnées. Les modalités détaillées (assiette, exigibilité, annulations et remboursements) seront précisées dans des conditions vendeurs communiquées avant toute mise en service, conformément à l'article 3.</p>
+
+<h2 id="cgv-freelance"><span class="n">11</span>Outil de préparation des CGV du Freelance</h2>
+<p>Kitly met à disposition un outil qui aide le Freelance à préparer ses propres conditions générales de vente à partir de ses réponses à un questionnaire, et à en publier des versions datées. Les documents produits sont des <b>modèles personnalisés</b> établis à partir des informations déclarées par le Freelance : ils ne constituent ni un conseil juridique ni une garantie de conformité. Le Freelance demeure seul responsable du contenu de ses CGV et de leur application ; une relecture par un professionnel du droit est recommandée.</p>
+
+<h2 id="relations"><span class="n">12</span>Relations entre Freelances et Clients</h2>
+<p>Les contrats relatifs aux Offres sont conclus directement entre le Freelance et son Client, aux conditions des CGV du Freelance. Kitly n'est pas partie à ces contrats et n'intervient ni dans leur exécution, ni dans leur prix, ni dans les éventuels litiges, sous réserve des obligations qui lui incombent en tant que plateforme.</p>
+<p>Les demandes envoyées depuis une Vitrine sont transmises au Freelance concerné, avec l'accord du Visiteur.</p>
+
+<h2 id="disponibilite"><span class="n">13</span>Disponibilité et responsabilité</h2>
+<p>Kitly s'efforce d'assurer l'accès à la Plateforme en continu mais ne peut le garantir : des interruptions peuvent survenir pour maintenance, mise à jour ou incident chez ses prestataires. Kitly est tenue d'une obligation de moyens.</p>
+<p>Kitly n'est pas responsable des contenus publiés par les Freelances ni des transactions conclues entre Freelances et Clients, sauf si, ayant eu connaissance du caractère manifestement illicite d'un contenu, elle n'a pas agi promptement pour le retirer. Vis-à-vis des professionnels, la responsabilité de Kitly est limitée aux dommages directs et prévisibles.</p>
+
+<h2 id="resiliation"><span class="n">14</span>Suspension et fin du compte</h2>
+<p>Le Freelance peut supprimer son compte à tout moment ; la suppression entraîne celle de sa Vitrine, de ses offres et des demandes reçues. Un éventuel abonnement payant est alors résilié.</p>
+<p>Kitly peut suspendre ou restreindre un compte en cas de manquement aux CGU, en indiquant les motifs. La résiliation définitive des services d'un Freelance est notifiée avec un préavis d'au moins <b>30 jours</b> et un exposé des motifs (article 4 du règlement P2B), sauf obligation légale, manquement grave ou répété, ou contenu manifestement illicite.</p>
+
+<h2 id="reclamations"><span class="n">15</span>Réclamations et médiation</h2>
+<p>Toute réclamation peut être adressée à <span class="todo">[adresse de réclamation]</span>. Kitly en accuse réception et y répond dans un délai raisonnable. Conformément au règlement P2B, Kitly désigne le ou les médiateurs suivants pour les litiges avec les Freelances : <span class="todo">[nom et coordonnées du médiateur]</span>.</p>
+
+<h2 id="propriete"><span class="n">16</span>Propriété intellectuelle de Kitly</h2>
+<p>La Plateforme, sa marque, ses logiciels, ses modèles de vitrines et ses textes restent la propriété exclusive de Kitly. Aucune cession n'est consentie aux utilisateurs, qui bénéficient d'un simple droit d'utilisation de la Plateforme pour la durée de leur compte.</p>
+
+<h2 id="donnees"><span class="n">17</span>Données personnelles</h2>
+<p>Les traitements de données réalisés par Kitly sont décrits dans la <a href="/politique-de-confidentialite">politique de confidentialité</a>.</p>
+
+<h2 id="droit"><span class="n">18</span>Droit applicable</h2>
+<p>Les CGU sont soumises au droit français. Pour les utilisateurs professionnels, tout litige relève, à défaut de résolution amiable, des tribunaux compétents de <span class="todo">[ville du siège]</span>. Les Visiteurs consommateurs bénéficient des règles de compétence protectrices prévues par la loi.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.getElementById("klg");
+  // Liens internes (/cgu, /cgv…) : ouvrir dans la page Framer, pas dans l'iframe de l'embed.
+  root.querySelectorAll("a[href^='/'], a[href^='http']").forEach(function (a) {
+    a.setAttribute("target", a.getAttribute("href").charAt(0) === "/" ? "_top" : "_blank");
+    if (a.getAttribute("href").charAt(0) !== "/") a.setAttribute("rel", "noopener");
+  });
+  root.querySelectorAll("nav.toc a").forEach(function (a) {
+    a.removeAttribute("target");
+    a.addEventListener("click", function (e) {
+      var el = document.getElementById(a.getAttribute("href").slice(1));
+      if (!el) return;
+      e.preventDefault();
+      try {
+        if (window.frameElement) {
+          var r = el.getBoundingClientRect(), fr = window.frameElement.getBoundingClientRect();
+          window.parent.scrollTo({ top: window.parent.scrollY + fr.top + r.top - 96, behavior: "smooth" });
+          return;
+        }
+      } catch (err) {}
+      el.scrollIntoView({ behavior: "smooth" });
+    });
+  });
+  // Hauteur automatique (même mécanisme que les autres embeds Kitly).
+  if (window.parent === window) return;
+  var frameEl = null, wrappers = [];
+  try {
+    if (window.frameElement && window.parent.document) {
+      frameEl = window.frameElement;
+      for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== window.parent.document.body; i++, n = n.parentElement) wrappers.push(n);
+      var s = document.createElement("style");
+      s.textContent = "html,body{margin:0;overflow:hidden}";
+      document.head.appendChild(s);
+    }
+  } catch (e) { frameEl = null; }
+  var last = 0;
+  function report() {
+    var h = Math.ceil(root.getBoundingClientRect().height) + 2;
+    if (!h || h === last) return;
+    last = h;
+    if (frameEl) {
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+    } else {
+      try { window.parent.postMessage({ type: "KITLY_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+    }
+  }
+  try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+  window.addEventListener("load", report);
+})();
+</script>

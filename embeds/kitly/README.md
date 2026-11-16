@@ -13,6 +13,22 @@ Embeds du second site Framer, branchés sur les routes `/kitly/*` de l'API
 | `subscribe.html` | `/subscribe` | Embed HTML, largeur Fill, hauteur auto | Abonnement (Stripe du compte Kitly) : formules lues dans l'API, « Commencer » → inscription puis retour ici formule présélectionnée, paiement Stripe, changement de formule sur place (prorata), résiliation en fin de période / reprise, carte et factures (portail Stripe), alerte d'échec de paiement, « Activer les paiements » (Stripe Connect). Après paiement, « activation en cours » jusqu'à la confirmation de Stripe |
 | `builder.html` | `/builder` | Embed HTML, largeur Fill, **hauteur 100vh** (ou Fill dans une section pleine hauteur, sous le header) | « Ma vitrine » : 4 étapes (Identité, Liens, Boutique, Style), aperçu téléphone en direct, sauvegarde automatique, ajout d'offres par type, publication avec confirmation d'email sur place. Mobile : onglets Modifier / Aperçu |
 
+## Pages légales (`embeds/kitly/legal/`)
+
+| Fichier | Page Framer |
+|---|---|
+| `legal/cgu.html` | `/cgu` |
+| `legal/cgv.html` | `/cgv` (abonnements Kitly, avec formulaire de rétractation) |
+| `legal/mentions-legales.html` | `/mentions-legales` |
+| `legal/politique-de-confidentialite.html` | `/politique-de-confidentialite` |
+
+Embed HTML, largeur Fill, hauteur auto ; même charte que la page Tarifs (sommaire
+latéral, numérotation). Textes rédigés d'après le fonctionnement réel de Kitly
+(données collectées, durées, prestataires, abonnements, classement de la
+marketplace, signalement). Les mentions surlignées en gris `[entre crochets]`
+(identité de l'éditeur, emails, médiateur, taux de commission…) sont à compléter
+avant publication ; l'ensemble est à faire relire par un juriste.
+
 ## Moteur de rendu partagé
 
 La vitrine est dessinée par **un seul fichier**, `app/kitly/static/vitrine.js`,
