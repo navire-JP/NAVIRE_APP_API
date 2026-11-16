@@ -122,6 +122,11 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
     return _auth_payload(db, user)
 
 
+def _mask(email: str) -> str:
+    name, _, domain = email.partition("@")
+    return (name[:2] + "***@" + domain) if domain else "***"
+
+
 @router.post("/auth/admin-login")
 def admin_login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
     """
@@ -140,6 +145,13 @@ def admin_login(payload: LoginIn, request: Request, db: Session = Depends(get_db
     user = db.execute(select(KitlyUser).where(KitlyUser.email == email)).scalar_one_or_none()
     ok = verify_secret(payload.password, user.password_hash if user else _DUMMY_HASH)
     if not user or not ok or not user.is_active or not is_admin_email(email):
+        # Même réponse pour tous les cas (rien n'indique qui est admin) ; la raison
+        # exacte n'est écrite que dans les journaux du serveur (Render → Logs).
+        reason = ("adresse absente de KITLY_ADMIN_EMAILS (%d adresse(s) configurée(s))" % len(KITLY_ADMIN_EMAILS)
+                  if not is_admin_email(email) else
+                  "aucun compte Kitly avec cette adresse (inscription sur /connexion)" if not user else
+                  "compte désactivé" if not user.is_active else "mot de passe incorrect")
+        print(f"[kitly] ⚠️  Connexion admin refusée pour {_mask(email)} : {reason}.", flush=True)
         rate_hit(db, email_key)
         rate_hit(db, ip_key)
         raise HTTPException(401, detail="Email ou mot de passe incorrect.")

@@ -42,6 +42,12 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_MARKETPLACE_COMMISSION_BPS` | non | Commission marketplace (défaut 1000 = 10 %) |
 | `KITLY_NEW_PROFILES_DAYS` / `KITLY_POPULAR_WINDOW_DAYS` | non | Fenêtres « nouveaux » (7 j) et « populaires » (30 j) |
 
+**Console admin refusée (« Email ou mot de passe incorrect »)** : la raison exacte est dans Render → Logs
+(`[kitly] ⚠️ Connexion admin refusée pour jp***@… : …`) — adresse absente de `KITLY_ADMIN_EMAILS`, aucun compte
+Kitly avec cette adresse (le compte Kitly est distinct de NAVIRE : s'inscrire sur `/connexion`), ou mot de passe
+incorrect (« Mot de passe oublié » sur `/connexion`). `/kitly/health` indique `admin_emails_configured` (nombre
+d'adresses lues). Après 5 échecs, la connexion admin est bloquée 15 minutes.
+
 **CORS séparé** (`app/kitly/cors.py`) : les routes `/kitly/*` n'acceptent que
 `KITLY_CORS_ORIGINS` (défaut : `https://kitly.fr,https://www.kitly.fr,https://kitly.framer.website`) ;
 les routes NAVIRE gardent `CORS_ORIGINS`, inchangé. Rien à ajouter dans `CORS_ORIGINS` pour Kitly.

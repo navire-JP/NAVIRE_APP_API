@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 
 
 def _csv(value: str) -> list[str]:
@@ -96,7 +97,12 @@ KITLY_TOKEN_TTL_MINUTES = _int("KITLY_TOKEN_TTL_MINUTES", 60 * 24 * 14)
 KITLY_CONTACT_EMAIL = os.getenv("KITLY_CONTACT_EMAIL", "")
 
 # Comptes promus administrateurs Kitly à l'inscription / connexion.
-KITLY_ADMIN_EMAILS = {e.lower() for e in _csv(os.getenv("KITLY_ADMIN_EMAILS", ""))}
+def _emails(value: str) -> set[str]:
+    """Liste d'adresses tolérante : virgules, points-virgules ou espaces ; guillemets et chevrons ignorés."""
+    return {e.strip().strip("\"'<>").lower() for e in re.split(r"[,;\s]+", value or "") if "@" in e}
+
+
+KITLY_ADMIN_EMAILS = _emails(os.getenv("KITLY_ADMIN_EMAILS", ""))
 # Session de la console /admin : ouverte par mot de passe sur /kitly/auth/admin-login, durée courte.
 KITLY_ADMIN_SESSION_MINUTES = _int("KITLY_ADMIN_SESSION_MINUTES", 8 * 60)
 
