@@ -54,6 +54,7 @@
   #kb .step b { font-family: var(--serif); font-style: italic; font-weight: 400; margin-right: 4px; }
   #kb .step.on { color: var(--ink); border-bottom-color: var(--ink); }
   #kb .step.extra { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+  #kb .step .short { display: none; }
   #kb .step .cnt { font-size: 10.5px; font-weight: 800; background: var(--bad); color: #fff; border-radius: 99px; padding: 1px 7px; }
   #kb .main.wide-mode { grid-template-columns: minmax(0, 1fr); }
   #kb .main.wide-mode .prev { display: none !important; }
@@ -282,10 +283,15 @@
     #kb .top-in { gap: 8px; flex-wrap: nowrap; }
     #kb .title { font-size: 17px; white-space: nowrap; }
     #kb .meta { gap: 8px; font-size: 12px; flex-shrink: 0; }
-    #kb .steps { margin: 4px -14px 0; padding: 0 28px 0 8px; scroll-snap-type: x proximity;
-      -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent);
-              mask-image: linear-gradient(90deg, #000 82%, transparent); }
-    #kb .step { padding: 9px 9px 10px; font-size: 13px; scroll-snap-align: start; }
+    /* les 5 onglets tiennent sur une ligne, sans défilement horizontal */
+    #kb .steps { display: grid; grid-template-columns: repeat(5, auto); justify-content: space-between; gap: 0;
+      margin: 4px 0 0; padding: 0; overflow: visible; }
+    #kb .step { padding: 9px 2px 10px; font-size: 12.5px; text-align: center; }
+    #kb .step b { display: none; }
+    #kb .step.extra { margin-left: 0; gap: 4px; }
+    #kb .step.extra .full { display: none; }
+    #kb .step.extra .short { display: inline; }
+    #kb .step .cnt { font-size: 9.5px; padding: 1px 5px; }
 
     /* bascule Modifier / Aperçu */
     #kb .mtabs { padding: 8px 14px 0; }
@@ -1487,7 +1493,7 @@
       '<span class="save saved"><i></i><span>Enregistré</span></span>' +
       '<a class="plan" href="' + esc(CONFIG.PRICING_URL) + '" target="_top">' + esc(planName) + '</a></div></div>' +
       '<div class="steps">' + STEPS.map(function (s) {
-        return s.extra ? '<button type="button" class="step extra" data-go="' + s.n + '">' + s.label + '<span class="cnt" data-sales-badge hidden></span></button>'
+        return s.extra ? '<button type="button" class="step extra" data-go="' + s.n + '"><span class="full">' + s.label + '</span><span class="short">Ventes</span><span class="cnt" data-sales-badge hidden></span></button>'
                        : '<button type="button" class="step" data-go="' + s.n + '"><b>0' + s.n + '</b>' + s.label + '</button>';
       }).join("") + '</div></div>' +
       '<div class="mtabs"><button type="button" data-pane="edit" class="on">Modifier</button><button type="button" data-pane="prev">Aperçu</button></div>' +
