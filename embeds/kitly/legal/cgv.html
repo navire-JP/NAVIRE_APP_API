@@ -1,0 +1,213 @@
+<!--
+  KITLY : Conditions générales de vente (/cgv)
+  Composant Framer : Embed HTML, largeur Fill, hauteur auto (l'embed ajuste sa hauteur).
+  Les mentions surlignées en gris [entre crochets] sont à compléter avant publication.
+  Modèle rédigé d'après le fonctionnement réel de Kitly : à faire relire par un juriste.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+<style>
+  html, body { margin: 0; padding: 0; background: transparent !important; }
+  *, *::before, *::after { box-sizing: border-box; }
+  #klg {
+    --ink: #0a0a0a; --paper: #ffffff; --grey: #f5f5f4; --line: #e4e4e2; --mut: #6f6f6c;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
+    max-width: 1160px; margin: 0 auto; padding: 56px 20px 72px;
+  }
+  #klg em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -.01em; }
+  #klg .kicker { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin: 0 0 16px; }
+  #klg h1 { font-size: clamp(34px, 5.4vw, 60px); font-weight: 900; letter-spacing: -.045em; line-height: 1.04; margin: 0; max-width: 820px; }
+  #klg .meta { color: var(--mut); font-size: 14px; margin: 18px 0 0; }
+  #klg .lead { color: var(--mut); font-size: 17px; line-height: 1.55; max-width: 720px; margin: 22px 0 0; }
+  #klg .layout { display: grid; grid-template-columns: 240px 1fr; gap: 56px; margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--line); }
+  #klg nav.toc { position: sticky; top: 96px; align-self: start; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  #klg nav.toc b { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin-bottom: 4px; }
+  #klg nav.toc a { color: var(--mut); text-decoration: none; line-height: 1.35; font-weight: 500; }
+  #klg nav.toc a:hover { color: var(--ink); }
+  #klg .doc { max-width: 720px; }
+  #klg h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; margin: 44px 0 14px; scroll-margin-top: 96px; }
+  #klg .doc > h2:first-child { margin-top: 0; }
+  #klg h2 .n { font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--mut); margin-right: 8px; }
+  #klg h3 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
+  #klg p, #klg li { font-size: 15px; line-height: 1.7; color: #262626; }
+  #klg p { margin: 0 0 12px; text-align: justify; hyphens: auto; }
+  #klg ul { margin: 0 0 14px; padding-left: 20px; }
+  #klg li { margin: 0 0 6px; }
+  #klg a { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  #klg .todo { background: var(--grey); border: 1px dashed #c9c9c6; border-radius: 6px; padding: 0 5px; font-weight: 600; }
+  #klg .box { border: 1px solid var(--line); border-radius: 18px; padding: 18px 22px; margin: 18px 0; background: var(--paper); }
+  #klg .box p:last-child, #klg .box ul:last-child { margin-bottom: 0; }
+  #klg table { width: 100%; border-collapse: collapse; margin: 8px 0 18px; font-size: 14px; }
+  #klg th, #klg td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; }
+  #klg th { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); }
+  @media (max-width: 860px) {
+    #klg { padding: 32px 16px 48px; }
+    #klg .layout { grid-template-columns: 1fr; gap: 24px; margin-top: 32px; }
+    #klg nav.toc { position: static; }
+    #klg p { text-align: left; }
+    #klg table, #klg thead, #klg tbody, #klg tr, #klg th, #klg td { display: block; }
+    #klg thead { display: none; }
+    #klg td { border-bottom: 0; padding: 4px 0; }
+    #klg tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+    #klg td[data-label]::before { content: attr(data-label); display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); margin-top: 6px; }
+  }
+</style>
+
+<div id="klg">
+  <p class="kicker">Conditions générales de vente</p>
+  <h1>Conditions générales <em>de vente</em></h1>
+  <p class="meta">Version en vigueur au 16 novembre 2026</p>
+  <p class="lead">Les conditions des abonnements payants Kitly (Custom et Premium+). Les ventes entre un freelance et ses clients relèvent des CGV de ce freelance, affichées sur sa vitrine.</p>
+  <div class="layout">
+    <nav class="toc" aria-label="Sommaire"><b>Sommaire</b>
+      <a href="#objet">Objet et champ d'application</a>
+      <a href="#formules">Formules et prix</a>
+      <a href="#souscription">Souscription</a>
+      <a href="#paiement">Paiement</a>
+      <a href="#duree">Durée, renouvellement et résiliation</a>
+      <a href="#changement">Changement de formule</a>
+      <a href="#impayes">Défaut de paiement</a>
+      <a href="#retractation">Droit de rétractation</a>
+      <a href="#modification">Modification des prix et des CGV</a>
+      <a href="#responsabilite">Responsabilité</a>
+      <a href="#donnees">Données personnelles</a>
+      <a href="#reclamations">Réclamations et médiation</a>
+      <a href="#droit">Droit applicable et juridiction</a>
+      <a href="#annexe">Annexe : formulaire de rétractation</a>
+    </nav>
+    <div class="doc">
+<h2 id="objet"><span class="n">01</span>Objet et champ d'application</h2>
+<p>Les présentes conditions générales de vente (« CGV ») s'appliquent aux abonnements payants proposés par Kitly aux utilisateurs titulaires d'un compte (les « Abonnés ») : formules <b>Custom</b> et <b>Premium+</b>. La formule Free, gratuite, est régie par les seules <a href="/cgu">conditions générales d'utilisation</a>, qui s'appliquent également aux Abonnés.</p>
+<p>Elles ne régissent pas les ventes conclues entre un freelance et ses propres clients, soumises aux CGV de ce freelance.</p>
+<p>Le vendeur est l'éditeur de Kitly, identifié dans les <a href="/mentions-legales">mentions légales</a>.</p>
+
+<h2 id="formules"><span class="n">02</span>Formules et prix</h2>
+<table>
+  <thead><tr><th>Formule</th><th>Prix</th><th>Principaux services</th></tr></thead>
+  <tbody>
+    <tr><td data-label="Formule"><b>Free</b></td><td data-label="Prix">0 €</td><td data-label="Principaux services">Vitrine publique, offres et portfolio en nombre limité, formulaire de contact.</td></tr>
+    <tr><td data-label="Formule"><b>Custom</b></td><td data-label="Prix">7 € par mois</td><td data-label="Principaux services">Personnalisation avancée, domaine personnalisé, rendez-vous, statistiques, suppression de la mention Kitly, limites étendues.</td></tr>
+    <tr><td data-label="Formule"><b>Premium+</b></td><td data-label="Prix">14,90 € par mois</td><td data-label="Principaux services">Tout Custom, référencement et mise en avant dans la marketplace, statistiques d'acquisition.</td></tr>
+  </tbody>
+</table>
+<p>Les prix sont indiqués en euros, <span class="todo">[toutes taxes comprises / TVA non applicable, article 293 B du CGI]</span>. Le contenu détaillé et les limites de chaque formule sont présentés sur la page <a href="/subscribe">Tarifs</a> au moment de la souscription.</p>
+
+<h2 id="souscription"><span class="n">03</span>Souscription</h2>
+<p>L'abonnement se souscrit depuis la page Tarifs, une fois connecté : l'Abonné choisit sa formule, puis est redirigé vers la page de paiement sécurisée de Stripe, où il prend connaissance du montant et valide sa commande. La validation du paiement vaut acceptation des présentes CGV.</p>
+<p>La formule est activée dès que Stripe confirme le paiement. Une facture est émise pour chaque échéance et reste consultable depuis la page Tarifs (rubrique « Mon abonnement »). Des codes promotionnels peuvent être proposés ; ils sont saisis sur la page de paiement.</p>
+
+<h2 id="paiement"><span class="n">04</span>Paiement</h2>
+<p>Le paiement est mensuel, d'avance, par carte bancaire ou tout autre moyen proposé sur la page de paiement. Il est traité par Stripe Payments Europe, Limited ; Kitly n'a jamais accès aux données complètes de la carte. L'Abonné autorise le prélèvement de chaque échéance sur le moyen de paiement enregistré, qu'il peut modifier à tout moment via « Gérer ma carte et mes factures ».</p>
+
+<h2 id="duree"><span class="n">05</span>Durée, renouvellement et résiliation</h2>
+<p>L'abonnement est conclu pour une durée d'<b>un mois</b>, renouvelée tacitement chaque mois à la date anniversaire de la souscription, sans engagement de durée.</p>
+<p>L'Abonné peut résilier à tout moment depuis la page Tarifs. La résiliation prend effet à la fin de la période mensuelle en cours, déjà payée : l'Abonné conserve sa formule jusqu'à cette date, puis son compte repasse automatiquement en formule Free. Aucune période entamée n'est remboursée, sous réserve du droit de rétractation (article 8). Tant que la période n'est pas échue, l'Abonné peut annuler sa résiliation (« Reprendre mon abonnement »).</p>
+<p>La suppression du compte entraîne la résiliation immédiate de l'abonnement, sans remboursement de la période en cours.</p>
+<p>Le retour en formule Free ne supprime aucune donnée : les fonctionnalités réservées sont désactivées et retrouvées en cas de nouvel abonnement.</p>
+
+<h2 id="changement"><span class="n">06</span>Changement de formule</h2>
+<ul>
+  <li><b>Passage à une formule supérieure</b> (Custom vers Premium+) : effet immédiat. La différence de prix pour le reste de la période en cours est calculée au prorata et facturée immédiatement sur le moyen de paiement enregistré.</li>
+  <li><b>Passage à une formule inférieure</b> (Premium+ vers Custom) : effet immédiat. La part non consommée de la période en cours est convertie en crédit, déduit des prochaines factures.</li>
+  <li><b>Retour en Free</b> : il s'opère par résiliation, dans les conditions de l'article 5.</li>
+</ul>
+<p>Un changement de formule ne nécessite pas de ressaisir le moyen de paiement. Il est confirmé à l'écran avant d'être appliqué.</p>
+
+<h2 id="impayes"><span class="n">07</span>Défaut de paiement</h2>
+<p>En cas d'échec d'un prélèvement, l'Abonné en est informé et invité à mettre à jour son moyen de paiement ; de nouvelles tentatives sont effectuées automatiquement. La formule est maintenue pendant ces relances. Si le paiement n'aboutit pas à leur issue, l'abonnement prend fin et le compte repasse en formule Free, sans suppression de données.</p>
+
+<h2 id="retractation"><span class="n">08</span>Droit de rétractation</h2>
+<p>Les formules Kitly s'adressent à des professionnels. Toutefois, l'Abonné qui agit en qualité de consommateur, ou de professionnel employant au plus cinq salariés lorsque l'abonnement n'entre pas dans le champ de son activité principale (article L. 221-3 du code de la consommation), dispose d'un délai de <b>14 jours</b> à compter de la souscription pour se rétracter, sans avoir à se justifier.</p>
+<p>En souscrivant, l'Abonné demande que l'exécution du service commence immédiatement, sans attendre la fin de ce délai. S'il se rétracte, il reste redevable d'un montant proportionnel au service fourni jusqu'à la communication de sa décision (article L. 221-25) ; le surplus lui est remboursé dans les 14 jours, par le même moyen de paiement.</p>
+<p>Pour exercer ce droit, l'Abonné adresse une déclaration dénuée d'ambiguïté à <span class="todo">[adresse de contact]</span>, par exemple au moyen du formulaire figurant en annexe.</p>
+
+<h2 id="modification"><span class="n">09</span>Modification des prix et des CGV</h2>
+<p>Kitly peut faire évoluer ses prix, ses formules et ses CGV. Toute modification applicable à un abonnement en cours est notifiée par email au moins <b>30 jours</b> avant son entrée en vigueur. L'Abonné qui la refuse peut résilier avant cette date ; à défaut, la modification s'applique à compter de l'échéance suivante.</p>
+
+<h2 id="responsabilite"><span class="n">10</span>Responsabilité</h2>
+<p>Kitly fournit ses services avec diligence, dans le cadre d'une obligation de moyens, et ne garantit aucun résultat commercial (nombre de visites, de demandes ou de clients). Vis-à-vis des Abonnés professionnels, la responsabilité de Kitly est limitée aux dommages directs et plafonnée aux sommes payées par l'Abonné au cours des douze derniers mois, sauf faute lourde ou dolosive. Ces limitations ne s'appliquent pas aux Abonnés consommateurs.</p>
+
+<h2 id="donnees"><span class="n">11</span>Données personnelles</h2>
+<p>Les données nécessaires à l'abonnement et à la facturation sont traitées conformément à la <a href="/politique-de-confidentialite">politique de confidentialité</a>. Les factures sont conservées dix ans, conformément aux obligations comptables.</p>
+
+<h2 id="reclamations"><span class="n">12</span>Réclamations et médiation</h2>
+<p>Pour toute réclamation : <span class="todo">[adresse de contact]</span>.</p>
+<p>L'Abonné consommateur peut, après une réclamation écrite restée sans solution, recourir gratuitement au médiateur de la consommation suivant (articles L. 612-1 et suivants du code de la consommation) : <span class="todo">[nom, adresse et site du médiateur]</span>.</p>
+
+<h2 id="droit"><span class="n">13</span>Droit applicable et juridiction</h2>
+<p>Les présentes CGV sont soumises au droit français. À défaut d'accord amiable, les litiges avec un Abonné professionnel relèvent des tribunaux compétents de <span class="todo">[ville du siège]</span> ; l'Abonné consommateur peut saisir, à son choix, la juridiction du lieu où il demeurait lors de la souscription ou de la survenance du fait dommageable.</p>
+
+<h2 id="annexe"><span class="n">—</span>Annexe : formulaire de rétractation</h2>
+<div class="box">
+  <p>À l'attention de <span class="todo">[nom de l'éditeur]</span>, <span class="todo">[adresse postale]</span>, <span class="todo">[adresse email]</span> :</p>
+  <p>Je vous notifie par la présente ma rétractation du contrat portant sur l'abonnement Kitly ci-dessous :</p>
+  <ul>
+    <li>Formule souscrite : …</li>
+    <li>Souscrite le : …</li>
+    <li>Nom de l'Abonné : …</li>
+    <li>Adresse email du compte : …</li>
+    <li>Date : …</li>
+  </ul>
+  <p>Signature (en cas d'envoi papier).</p>
+</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.getElementById("klg");
+  // Liens internes (/cgu, /cgv…) : ouvrir dans la page Framer, pas dans l'iframe de l'embed.
+  root.querySelectorAll("a[href^='/'], a[href^='http']").forEach(function (a) {
+    a.setAttribute("target", a.getAttribute("href").charAt(0) === "/" ? "_top" : "_blank");
+    if (a.getAttribute("href").charAt(0) !== "/") a.setAttribute("rel", "noopener");
+  });
+  root.querySelectorAll("nav.toc a").forEach(function (a) {
+    a.removeAttribute("target");
+    a.addEventListener("click", function (e) {
+      var el = document.getElementById(a.getAttribute("href").slice(1));
+      if (!el) return;
+      e.preventDefault();
+      try {
+        if (window.frameElement) {
+          var r = el.getBoundingClientRect(), fr = window.frameElement.getBoundingClientRect();
+          window.parent.scrollTo({ top: window.parent.scrollY + fr.top + r.top - 96, behavior: "smooth" });
+          return;
+        }
+      } catch (err) {}
+      el.scrollIntoView({ behavior: "smooth" });
+    });
+  });
+  // Hauteur automatique (même mécanisme que les autres embeds Kitly).
+  if (window.parent === window) return;
+  var frameEl = null, wrappers = [];
+  try {
+    if (window.frameElement && window.parent.document) {
+      frameEl = window.frameElement;
+      for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== window.parent.document.body; i++, n = n.parentElement) wrappers.push(n);
+      var s = document.createElement("style");
+      s.textContent = "html,body{margin:0;overflow:hidden}";
+      document.head.appendChild(s);
+    }
+  } catch (e) { frameEl = null; }
+  var last = 0;
+  function report() {
+    var h = Math.ceil(root.getBoundingClientRect().height) + 2;
+    if (!h || h === last) return;
+    last = h;
+    if (frameEl) {
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+    } else {
+      try { window.parent.postMessage({ type: "KITLY_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+    }
+  }
+  try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+  window.addEventListener("load", report);
+})();
+</script>

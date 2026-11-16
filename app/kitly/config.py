@@ -31,7 +31,11 @@ def _int(name: str, default: int) -> int:
 # ============================================================
 # Front (site Framer Kitly)
 # ============================================================
-KITLY_FRONTEND_URL = os.getenv("KITLY_FRONTEND_URL", "https://kitly.fr").rstrip("/")
+# Adresse du site Framer Kitly. Défaut : kitly.framer.website, tant que kitly.fr
+# n'est pas relié (passer KITLY_FRONTEND_URL=https://kitly.fr ensuite). Sert aux
+# liens des emails et des pages servies par l'API ; les retours Stripe, eux,
+# suivent automatiquement le domaine sur lequel se trouve le visiteur.
+KITLY_FRONTEND_URL = os.getenv("KITLY_FRONTEND_URL", "https://kitly.framer.website").rstrip("/")
 # Domaine affiché dans les URLs de vitrine (kitly.fr/<slug>).
 KITLY_PUBLIC_HOST = os.getenv("KITLY_PUBLIC_HOST", "kitly.fr")
 # Adresse publique d'une vitrine ({slug} remplacé) : lien partagé, balise canonical,
@@ -146,6 +150,11 @@ KITLY_BILLING_RETURN_URL = os.getenv("KITLY_BILLING_RETURN_URL", f"{KITLY_FRONTE
 KITLY_CONNECT_RETURN_URL = os.getenv(
     "KITLY_CONNECT_RETURN_URL", f"{KITLY_FRONTEND_URL}/subscribe?payments=return"
 )
+# Valeurs explicitement fixées par variable d'environnement (sinon : domaine du visiteur).
+KITLY_RETURN_URL_OVERRIDES = {
+    k: os.getenv(k, "") for k in ("KITLY_BILLING_SUCCESS_URL", "KITLY_BILLING_CANCEL_URL", "KITLY_BILLING_RETURN_URL",
+                                  "KITLY_CONNECT_RETURN_URL", "KITLY_CONNECT_REFRESH_URL")
+}
 KITLY_CONNECT_REFRESH_URL = os.getenv(
     "KITLY_CONNECT_REFRESH_URL", f"{KITLY_FRONTEND_URL}/subscribe?payments=refresh"
 )

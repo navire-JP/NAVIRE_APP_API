@@ -719,7 +719,7 @@ def test_vitrine_page_meta_and_escaping(client):
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
     page = r.text
     assert '<meta property="og:title" content="Léa &quot;Studio&quot; &lt;/script&gt;' in page
-    assert f'<link rel="canonical" href="https://kitly.fr/profile?u={slug}">' in page
+    assert f'<link rel="canonical" href="https://kitly.framer.website/profile?u={slug}">' in page
     assert '<script src="/kitly/static/vitrine.js"></script>' in page
     # Le nom piégé n'ouvre jamais de balise : ni dans les <meta>, ni dans le JSON embarqué.
     assert page.count("<script>alert(1)") == 0
@@ -893,3 +893,35 @@ def test_sender_diagnostic(monkeypatch):
     assert pub["sender_ok"] is False and "usable" not in pub
     monkeypatch.setattr(emails, "KITLY_BREVO_API_KEY", "")
     assert emails.check_sender()["sender_ok"] is False
+
+
+
+def test_stripe_returns_follow_visitor_domain(client, monkeypatch):
+    from app.kitly import config, plans
+    from app.kitly.routers import billing
+
+    fake = _FakeStripe()
+    monkeypatch.setattr(billing, "stripe_client", lambda: fake)
+    monkeypatch.setitem(config.KITLY_STRIPE_PRICES, "custom", "price_kitly_custom")
+    monkeypatch.setattr(plans, "KITLY_STRIPE_PRICES", config.KITLY_STRIPE_PRICES)
+    _, h = register(client)
+    for origin, expected in [("https://kitly.fr", "https://kitly.fr/subscribe"),
+                             ("https://kitly.framer.website", "https://kitly.framer.website/subscribe"),
+                             ("https://evil.example", config.KITLY_FRONTEND_URL + "/subscribe")]:
+        r = client.post("/kitly/billing/checkout", json={"plan": "custom"}, headers={**h, "Origin": origin})
+        assert r.status_code == 200, r.text
+        assert fake.last_checkout["success_url"].startswith(expected + "?subscription=success&session_id=")
+        assert fake.last_checkout["cancel_url"] == expected + "?subscription=cancelled"
+    # Une valeur fixée par variable d'environnement reste prioritaire.
+    monkeypatch.setitem(billing.KITLY_RETURN_URL_OVERRIDES, "KITLY_BILLING_CANCEL_URL", "https://kitly.fr/tarifs")
+    client.post("/kitly/billing/checkout", json={"plan": "custom"}, headers={**h, "Origin": "https://kitly.framer.website"})
+    assert fake.last_checkout["cancel_url"] == "https://kitly.fr/tarifs"
+
+
+def test_default_site_is_framer_until_kitly_fr_is_linked():
+    from app.kitly import config
+    from app.kitly.emails import mail_new_lead
+
+    assert config.KITLY_FRONTEND_URL == "https://kitly.framer.website"
+    _, html = mail_new_lead("Léa", "contact", "Camille", "c@x.fr", "Bonjour", None)
+    assert "https://kitly.framer.website/builder" in html and "/dashboard" not in html

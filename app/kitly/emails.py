@@ -172,6 +172,6 @@ def mail_new_lead(
         f"<p><b>De :</b> {_e(name)} &lt;{_e(email)}&gt;</p>{offer}"
         f'<div style="border-left:3px solid #0a0a0a;padding:4px 0 4px 12px;margin:14px 0;white-space:pre-wrap">{_e(message)}</div>'
         f'<p>Réponds directement à cet email ou retrouve la demande dans ton '
-        f'<a href="{KITLY_FRONTEND_URL}/dashboard" style="color:#0a0a0a;font-weight:700">tableau de bord</a>.</p>'
+        f'<a href="{KITLY_FRONTEND_URL}/builder" style="color:#0a0a0a;font-weight:700">tableau de bord</a>.</p>'
     )
     return f"{label} — {name}", layout(label, body)

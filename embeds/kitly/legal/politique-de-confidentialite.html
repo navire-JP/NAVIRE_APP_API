@@ -1,0 +1,213 @@
+<!--
+  KITLY : Politique de confidentialité (/politique-de-confidentialite)
+  Composant Framer : Embed HTML, largeur Fill, hauteur auto (l'embed ajuste sa hauteur).
+  Les mentions surlignées en gris [entre crochets] sont à compléter avant publication.
+  Modèle rédigé d'après le fonctionnement réel de Kitly : à faire relire par un juriste.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+<style>
+  html, body { margin: 0; padding: 0; background: transparent !important; }
+  *, *::before, *::after { box-sizing: border-box; }
+  #klg {
+    --ink: #0a0a0a; --paper: #ffffff; --grey: #f5f5f4; --line: #e4e4e2; --mut: #6f6f6c;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
+    max-width: 1160px; margin: 0 auto; padding: 56px 20px 72px;
+  }
+  #klg em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -.01em; }
+  #klg .kicker { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin: 0 0 16px; }
+  #klg h1 { font-size: clamp(34px, 5.4vw, 60px); font-weight: 900; letter-spacing: -.045em; line-height: 1.04; margin: 0; max-width: 820px; }
+  #klg .meta { color: var(--mut); font-size: 14px; margin: 18px 0 0; }
+  #klg .lead { color: var(--mut); font-size: 17px; line-height: 1.55; max-width: 720px; margin: 22px 0 0; }
+  #klg .layout { display: grid; grid-template-columns: 240px 1fr; gap: 56px; margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--line); }
+  #klg nav.toc { position: sticky; top: 96px; align-self: start; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  #klg nav.toc b { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin-bottom: 4px; }
+  #klg nav.toc a { color: var(--mut); text-decoration: none; line-height: 1.35; font-weight: 500; }
+  #klg nav.toc a:hover { color: var(--ink); }
+  #klg .doc { max-width: 720px; }
+  #klg h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; margin: 44px 0 14px; scroll-margin-top: 96px; }
+  #klg .doc > h2:first-child { margin-top: 0; }
+  #klg h2 .n { font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--mut); margin-right: 8px; }
+  #klg h3 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
+  #klg p, #klg li { font-size: 15px; line-height: 1.7; color: #262626; }
+  #klg p { margin: 0 0 12px; text-align: justify; hyphens: auto; }
+  #klg ul { margin: 0 0 14px; padding-left: 20px; }
+  #klg li { margin: 0 0 6px; }
+  #klg a { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  #klg .todo { background: var(--grey); border: 1px dashed #c9c9c6; border-radius: 6px; padding: 0 5px; font-weight: 600; }
+  #klg .box { border: 1px solid var(--line); border-radius: 18px; padding: 18px 22px; margin: 18px 0; background: var(--paper); }
+  #klg .box p:last-child, #klg .box ul:last-child { margin-bottom: 0; }
+  #klg table { width: 100%; border-collapse: collapse; margin: 8px 0 18px; font-size: 14px; }
+  #klg th, #klg td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; }
+  #klg th { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); }
+  @media (max-width: 860px) {
+    #klg { padding: 32px 16px 48px; }
+    #klg .layout { grid-template-columns: 1fr; gap: 24px; margin-top: 32px; }
+    #klg nav.toc { position: static; }
+    #klg p { text-align: left; }
+    #klg table, #klg thead, #klg tbody, #klg tr, #klg th, #klg td { display: block; }
+    #klg thead { display: none; }
+    #klg td { border-bottom: 0; padding: 4px 0; }
+    #klg tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+    #klg td[data-label]::before { content: attr(data-label); display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); margin-top: 6px; }
+  }
+</style>
+
+<div id="klg">
+  <p class="kicker">Données personnelles</p>
+  <h1>Politique de <em>confidentialité</em></h1>
+  <p class="meta">Version en vigueur au 16 novembre 2026</p>
+  <p class="lead">Quelles données Kitly traite, pourquoi, combien de temps, avec qui — et comment exercer tes droits.</p>
+  <div class="layout">
+    <nav class="toc" aria-label="Sommaire"><b>Sommaire</b>
+      <a href="#responsable">Responsable du traitement</a>
+      <a href="#donnees">Données traitées, finalités et bases légales</a>
+      <a href="#destinataires">Destinataires et prestataires</a>
+      <a href="#transferts">Transferts hors de l'Union européenne</a>
+      <a href="#conservation">Durées de conservation</a>
+      <a href="#cookies">Cookies et stockage local</a>
+      <a href="#droits">Tes droits</a>
+      <a href="#securite">Sécurité</a>
+      <a href="#mineurs">Mineurs</a>
+      <a href="#modifications">Modifications</a>
+    </nav>
+    <div class="doc">
+<h2 id="responsable"><span class="n">01</span>Responsable du traitement</h2>
+<p>Le responsable des traitements décrits ici est l'éditeur de Kitly : <span class="todo">[Prénom Nom ou dénomination]</span>, <span class="todo">[adresse]</span>, joignable à <span class="todo">[adresse email dédiée aux données personnelles]</span>. Kitly n'a pas désigné de délégué à la protection des données.</p>
+<p>Lorsqu'un Visiteur contacte un freelance depuis sa vitrine, ce freelance devient, pour l'usage qu'il fait de la demande reçue (réponse, devis, suivi commercial), responsable de ce traitement.</p>
+
+<h2 id="donnees"><span class="n">02</span>Données traitées, finalités et bases légales</h2>
+<table>
+  <thead><tr><th>Données</th><th>Pourquoi</th><th>Base légale</th></tr></thead>
+  <tbody>
+    <tr><td data-label="Données"><b>Compte</b> : prénom, nom, adresse email, mot de passe (stocké uniquement sous forme d'empreinte chiffrée, jamais en clair), date et version des CGU et de la politique de confidentialité acceptées, choix concernant les actualités Kitly, date de dernière connexion.</td><td data-label="Pourquoi">Créer et sécuriser ton compte, te permettre de te connecter, prouver ton consentement aux conditions.</td><td data-label="Base légale">Exécution du contrat (CGU).</td></tr>
+    <tr><td data-label="Données"><b>Vitrine</b> : nom ou nom commercial, métier, localisation, présentation, photo, bannière, liens, réseaux sociaux, offres, réalisations, coordonnées professionnelles que tu choisis d'afficher.</td><td data-label="Pourquoi">Publier ta vitrine et, selon ta formule, la référencer dans la marketplace.</td><td data-label="Base légale">Exécution du contrat.</td></tr>
+    <tr><td data-label="Données"><b>Informations légales du vendeur</b> : identité juridique, forme, SIREN, adresse, n° de TVA, médiateur.</td><td data-label="Pourquoi">Afficher les mentions obligatoires de ta vitrine ; identifier les vendeurs professionnels (règlement sur les services numériques) ; déclarations fiscales des plateformes lorsqu'elles s'appliqueront (DAC7).</td><td data-label="Base légale">Obligation légale ; exécution du contrat.</td></tr>
+    <tr><td data-label="Données"><b>Demandes reçues via une vitrine</b> : nom, email, téléphone et budget facultatifs, message, offre concernée, provenance (lien direct ou marketplace).</td><td data-label="Pourquoi">Transmettre la demande au freelance par email et dans son espace.</td><td data-label="Base légale">Mesures précontractuelles prises à la demande du Visiteur, qui y consent en cochant la case prévue.</td></tr>
+    <tr><td data-label="Données"><b>Statistiques de visite</b> : empreinte quotidienne non réversible (calculée à partir de l'adresse IP, du navigateur et de la date, avec une clé secrète), jour de visite, provenance. <b>Aucune adresse IP n'est conservée</b> et l'empreinte change chaque jour : un visiteur n'est pas suivi d'un jour à l'autre. Aucun cookie n'est utilisé.</td><td data-label="Pourquoi">Fournir aux freelances leurs statistiques de visite et établir le classement « Les profils populaires ».</td><td data-label="Base légale">Intérêt légitime.</td></tr>
+    <tr><td data-label="Données"><b>Sécurité</b> : empreintes non réversibles de l'adresse IP ou de l'email lors des connexions, inscriptions et formulaires ; codes de vérification (stockés sous forme chiffrée).</td><td data-label="Pourquoi">Bloquer les tentatives répétées et les abus, vérifier ton adresse email.</td><td data-label="Base légale">Intérêt légitime.</td></tr>
+    <tr><td data-label="Données"><b>Abonnement</b> : identifiant client Stripe, formule, statut, dates de renouvellement, factures. Les données de carte bancaire sont collectées et conservées <b>uniquement par Stripe</b>.</td><td data-label="Pourquoi">Gérer l'abonnement, la facturation et les impayés.</td><td data-label="Base légale">Exécution du contrat (CGV) ; obligation légale (comptabilité).</td></tr>
+    <tr><td data-label="Données"><b>Encaissement des ventes</b> (si tu l'actives) : pièces d'identité, coordonnées bancaires et informations d'activité sont collectées <b>directement par Stripe</b>. Kitly ne reçoit que l'identifiant du compte et son statut (actif, vérification en cours, informations manquantes).</td><td data-label="Pourquoi">Permettre l'encaissement des ventes et satisfaire aux obligations de vérification.</td><td data-label="Base légale">Exécution du contrat ; obligation légale (pour Stripe).</td></tr>
+    <tr><td data-label="Données"><b>Signalements</b> : motif, détails, email facultatif de l'auteur.</td><td data-label="Pourquoi">Traiter les signalements de contenus et y répondre.</td><td data-label="Base légale">Obligation légale (règlement sur les services numériques).</td></tr>
+    <tr><td data-label="Données"><b>Actualités Kitly</b> (si tu as coché la case) : adresse email.</td><td data-label="Pourquoi">T'envoyer conseils et nouveautés.</td><td data-label="Base légale">Consentement, retirable à tout moment.</td></tr>
+  </tbody>
+</table>
+<p>Les données de la vitrine et des offres sont, par nature, <b>publiques</b> : elles sont visibles par toute personne disposant du lien et, selon ta formule, dans la marketplace. Tu choisis ce que tu y publies.</p>
+
+<h2 id="destinataires"><span class="n">03</span>Destinataires et prestataires</h2>
+<p>Les données sont accessibles à l'équipe Kitly dans la limite de ses missions. Les demandes envoyées depuis une vitrine sont transmises au freelance concerné. Kitly ne vend ni ne loue aucune donnée.</p>
+<p>Kitly fait appel aux prestataires suivants, qui traitent les données pour son compte :</p>
+<table>
+  <thead><tr><th>Prestataire</th><th>Rôle</th><th>Localisation</th></tr></thead>
+  <tbody>
+    <tr><td data-label="Prestataire">Framer B.V.</td><td data-label="Rôle">Hébergement du site</td><td data-label="Localisation">Pays-Bas (UE)</td></tr>
+    <tr><td data-label="Prestataire">Render Services, Inc.</td><td data-label="Rôle">Hébergement de l'application et de la base de données</td><td data-label="Localisation">États-Unis — <span class="todo">[région des serveurs : ex. Francfort (UE) ou Oregon (États-Unis)]</span></td></tr>
+    <tr><td data-label="Prestataire">Brevo (Sendinblue SAS)</td><td data-label="Rôle">Envoi des emails (codes, notifications de demandes)</td><td data-label="Localisation">France (UE)</td></tr>
+    <tr><td data-label="Prestataire">Stripe Payments Europe, Limited</td><td data-label="Rôle">Paiement des abonnements, encaissement des ventes, vérifications d'identité</td><td data-label="Localisation">Irlande (UE), avec transferts possibles vers les États-Unis</td></tr>
+    <tr><td data-label="Prestataire">Cloudinary Ltd.</td><td data-label="Rôle">Stockage et diffusion des images que tu envoies</td><td data-label="Localisation">États-Unis</td></tr>
+    <tr><td data-label="Prestataire">Google (Google Fonts)</td><td data-label="Rôle">Polices de caractères chargées par le navigateur : l'adresse IP du visiteur est transmise à Google lors de ce chargement</td><td data-label="Localisation">Irlande / États-Unis</td></tr>
+    <tr><td data-label="Prestataire">YouTube (Google)</td><td data-label="Rôle">Miniature d'une vidéo YouTube, uniquement si un freelance en affiche une sur sa vitrine</td><td data-label="Localisation">Irlande / États-Unis</td></tr>
+  </tbody>
+</table>
+
+<h2 id="transferts"><span class="n">04</span>Transferts hors de l'Union européenne</h2>
+<p>Certains prestataires sont établis aux États-Unis ou peuvent y accéder aux données. Ces transferts sont encadrés par la certification du prestataire au cadre de protection des données UE–États-Unis (Data Privacy Framework) lorsqu'il y adhère, ou à défaut par les clauses contractuelles types adoptées par la Commission européenne.</p>
+
+<h2 id="conservation"><span class="n">05</span>Durées de conservation</h2>
+<table>
+  <thead><tr><th>Données</th><th>Durée</th></tr></thead>
+  <tbody>
+    <tr><td data-label="Données">Compte, vitrine, offres, réalisations</td><td data-label="Durée">Jusqu'à la suppression du compte. <span class="todo">[Compte inactif : suppression après 3 ans sans connexion, après information préalable — à confirmer]</span></td></tr>
+    <tr><td data-label="Données">Demandes reçues</td><td data-label="Durée">Jusqu'à la suppression du compte du freelance destinataire.</td></tr>
+    <tr><td data-label="Données">Statistiques de visite (empreintes non réversibles)</td><td data-label="Durée">Pendant la durée de vie de la vitrine.</td></tr>
+    <tr><td data-label="Données">Journal anti-abus</td><td data-label="Durée">48 heures.</td></tr>
+    <tr><td data-label="Données">Codes de vérification</td><td data-label="Durée">15 minutes de validité, supprimés dès utilisation.</td></tr>
+    <tr><td data-label="Données">Preuve d'acceptation des CGU</td><td data-label="Durée">Durée du compte, puis 5 ans (délai de prescription).</td></tr>
+    <tr><td data-label="Données">Factures et pièces comptables</td><td data-label="Durée">10 ans (article L. 123-22 du code de commerce).</td></tr>
+    <tr><td data-label="Données">Signalements</td><td data-label="Durée"><span class="todo">[1 an après leur traitement]</span></td></tr>
+  </tbody>
+</table>
+
+<h2 id="cookies"><span class="n">06</span>Cookies et stockage local</h2>
+<p>Les pages de Kitly <b>ne déposent aucun cookie publicitaire ni de mesure d'audience</b>. Les statistiques de visite sont établies sans cookie (article 2).</p>
+<p>Pour te garder connecté, Kitly enregistre dans le stockage local de ton navigateur un jeton de session (<code>kitly_token</code>) et les informations de compte utiles à l'affichage — prénom, nom, email, formule (<code>kitly_user</code>). Ce stockage est strictement nécessaire au service que tu demandes : il est exempté de consentement (article 82 de la loi Informatique et Libertés). Il est effacé à la déconnexion et peut l'être à tout moment depuis les réglages de ton navigateur.</p>
+<p>L'hébergeur du site, Framer, peut déposer des cookies techniques nécessaires à son fonctionnement. <span class="todo">[Si un outil de mesure d'audience est activé dans Framer, le décrire ici et recueillir le consentement si nécessaire.]</span></p>
+
+<h2 id="droits"><span class="n">07</span>Tes droits</h2>
+<p>Tu disposes d'un droit d'accès, de rectification, d'effacement, de limitation, d'opposition (notamment aux traitements fondés sur l'intérêt légitime) et de portabilité de tes données, ainsi que du droit de retirer ton consentement et de définir des directives relatives au sort de tes données après ton décès.</p>
+<ul>
+  <li>Tu peux modifier à tout moment les informations de ta vitrine depuis ton espace, et la dépublier.</li>
+  <li>Pour obtenir une copie de tes données (export complet au format JSON), supprimer ton compte ou exercer tout autre droit, écris à <span class="todo">[adresse email]</span>. Une réponse t'est apportée dans un délai d'un mois ; une preuve d'identité peut être demandée en cas de doute.</li>
+  <li>Un Visiteur qui a contacté un freelance peut exercer ses droits auprès de ce freelance, ou auprès de Kitly qui transmettra.</li>
+</ul>
+<p>Tu peux introduire une réclamation auprès de la CNIL : <a href="https://www.cnil.fr">cnil.fr</a>, 3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07.</p>
+
+<h2 id="securite"><span class="n">08</span>Sécurité</h2>
+<p>Kitly met en œuvre des mesures adaptées : connexions chiffrées (HTTPS), mots de passe et codes stockés sous forme d'empreintes chiffrées, jetons de session révocables (« se déconnecter partout »), limitation des tentatives de connexion, empreintes non réversibles à la place des adresses IP, séparation stricte entre le compte privé et la vitrine publique, aucune donnée bancaire conservée par Kitly.</p>
+
+<h2 id="mineurs"><span class="n">09</span>Mineurs</h2>
+<p>Les comptes Kitly sont réservés aux personnes majeures exerçant une activité professionnelle. Kitly ne collecte pas sciemment de données concernant des mineurs.</p>
+
+<h2 id="modifications"><span class="n">10</span>Modifications</h2>
+<p>Cette politique peut évoluer. En cas de changement important, les titulaires d'un compte en sont informés par email ou dans leur espace. La version en vigueur est datée en haut de cette page.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.getElementById("klg");
+  // Liens internes (/cgu, /cgv…) : ouvrir dans la page Framer, pas dans l'iframe de l'embed.
+  root.querySelectorAll("a[href^='/'], a[href^='http']").forEach(function (a) {
+    a.setAttribute("target", a.getAttribute("href").charAt(0) === "/" ? "_top" : "_blank");
+    if (a.getAttribute("href").charAt(0) !== "/") a.setAttribute("rel", "noopener");
+  });
+  root.querySelectorAll("nav.toc a").forEach(function (a) {
+    a.removeAttribute("target");
+    a.addEventListener("click", function (e) {
+      var el = document.getElementById(a.getAttribute("href").slice(1));
+      if (!el) return;
+      e.preventDefault();
+      try {
+        if (window.frameElement) {
+          var r = el.getBoundingClientRect(), fr = window.frameElement.getBoundingClientRect();
+          window.parent.scrollTo({ top: window.parent.scrollY + fr.top + r.top - 96, behavior: "smooth" });
+          return;
+        }
+      } catch (err) {}
+      el.scrollIntoView({ behavior: "smooth" });
+    });
+  });
+  // Hauteur automatique (même mécanisme que les autres embeds Kitly).
+  if (window.parent === window) return;
+  var frameEl = null, wrappers = [];
+  try {
+    if (window.frameElement && window.parent.document) {
+      frameEl = window.frameElement;
+      for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== window.parent.document.body; i++, n = n.parentElement) wrappers.push(n);
+      var s = document.createElement("style");
+      s.textContent = "html,body{margin:0;overflow:hidden}";
+      document.head.appendChild(s);
+    }
+  } catch (e) { frameEl = null; }
+  var last = 0;
+  function report() {
+    var h = Math.ceil(root.getBoundingClientRect().height) + 2;
+    if (!h || h === last) return;
+    last = h;
+    if (frameEl) {
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+    } else {
+      try { window.parent.postMessage({ type: "KITLY_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+    }
+  }
+  try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+  window.addEventListener("load", report);
+})();
+</script>

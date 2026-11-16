@@ -24,12 +24,10 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.kitly.config import (
-    KITLY_BILLING_CANCEL_URL,
-    KITLY_BILLING_RETURN_URL,
-    KITLY_BILLING_SUCCESS_URL,
     KITLY_CONNECT_COUNTRY,
-    KITLY_CONNECT_REFRESH_URL,
-    KITLY_CONNECT_RETURN_URL,
+    KITLY_CORS_ORIGINS,
+    KITLY_FRONTEND_URL,
+    KITLY_RETURN_URL_OVERRIDES,
     KITLY_STRIPE_CONNECT_WEBHOOK_SECRET,
     KITLY_STRIPE_SECRET_KEY,
     KITLY_STRIPE_WEBHOOK_SECRET,
@@ -44,6 +42,30 @@ from app.kitly.utils import iso
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["kitly · paiements"])
+
+# Chemins de retour par défaut (page /subscribe du site Framer Kitly).
+RETURN_PATHS = {
+    "KITLY_BILLING_SUCCESS_URL": "/subscribe?subscription=success",
+    "KITLY_BILLING_CANCEL_URL": "/subscribe?subscription=cancelled",
+    "KITLY_BILLING_RETURN_URL": "/subscribe",
+    "KITLY_CONNECT_RETURN_URL": "/subscribe?payments=return",
+    "KITLY_CONNECT_REFRESH_URL": "/subscribe?payments=refresh",
+}
+
+
+def return_url(request: Request, key: str) -> str:
+    """
+    Adresse de retour après Stripe : celle fixée par variable d'environnement si
+    elle existe, sinon le domaine sur lequel se trouve le visiteur (kitly.fr ou
+    kitly.framer.website), à condition qu'il fasse partie de KITLY_CORS_ORIGINS ;
+    à défaut KITLY_FRONTEND_URL.
+    """
+    if KITLY_RETURN_URL_OVERRIDES.get(key):
+        return KITLY_RETURN_URL_OVERRIDES[key]
+    origin = (request.headers.get("origin") or "").strip().lower().rstrip("/")
+    base = origin if origin in KITLY_CORS_ORIGINS else KITLY_FRONTEND_URL
+    return base + RETURN_PATHS[key]
+
 
 def stripe_guard(message: str):
     """
@@ -194,7 +216,7 @@ def get_subscription(user: KitlyUser = Depends(current_user), db: Session = Depe
 
 @router.post("/billing/checkout")
 @stripe_guard("Le paiement n'a pas pu être préparé. Réessaie dans un instant.")
-def checkout(payload: CheckoutIn, user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
+def checkout(payload: CheckoutIn, request: Request, user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """
     Pas encore abonné : rend l'URL de la page de paiement Stripe.
     Déjà abonné : change de formule sur place (prorata), sans nouveau paiement à saisir.
@@ -223,14 +245,14 @@ def checkout(payload: CheckoutIn, user: KitlyUser = Depends(current_user), db: S
 
     customer = _ensure_customer(db, user)
     meta = kitly_metadata(kitly_user_id=user.id, plan=plan.code)
+    success = return_url(request, "KITLY_BILLING_SUCCESS_URL")
     session = client.checkout.sessions.create(params={
         "mode": "subscription",
         "customer": customer,
         "client_reference_id": str(user.id),
         "line_items": [{"price": price, "quantity": 1}],
-        "success_url": KITLY_BILLING_SUCCESS_URL + "&session_id={CHECKOUT_SESSION_ID}"
-        if "?" in KITLY_BILLING_SUCCESS_URL else KITLY_BILLING_SUCCESS_URL + "?session_id={CHECKOUT_SESSION_ID}",
-        "cancel_url": KITLY_BILLING_CANCEL_URL,
+        "success_url": success + ("&" if "?" in success else "?") + "session_id={CHECKOUT_SESSION_ID}",
+        "cancel_url": return_url(request, "KITLY_BILLING_CANCEL_URL"),
         "allow_promotion_codes": True,
         "billing_address_collection": "auto",
         "locale": "fr",
@@ -242,12 +264,12 @@ def checkout(payload: CheckoutIn, user: KitlyUser = Depends(current_user), db: S
 
 @router.post("/billing/portal")
 @stripe_guard("Le portail de gestion de l'abonnement est indisponible pour le moment.")
-def billing_portal(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
+def billing_portal(request: Request, user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """Portail Stripe : carte bancaire, factures, résiliation."""
     if not user.stripe_customer_id:
         raise HTTPException(404, detail="Aucun abonnement à gérer.")
     session = stripe_client().billing_portal.sessions.create(params={
-        "customer": user.stripe_customer_id, "return_url": KITLY_BILLING_RETURN_URL, "locale": "fr",
+        "customer": user.stripe_customer_id, "return_url": return_url(request, "KITLY_BILLING_RETURN_URL"), "locale": "fr",
     })
     return {"url": session["url"]}
 
@@ -365,7 +387,7 @@ def get_connect_status(refresh: bool = False, user: KitlyUser = Depends(current_
 
 @router.post("/connect/onboarding")
 @stripe_guard("L'activation des paiements est indisponible pour le moment.")
-def connect_onboarding(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
+def connect_onboarding(request: Request, user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """
     « Activer les paiements » : crée le compte connecté au premier appel puis
     rend un lien d'onboarding hébergé par Stripe (identité, adresse, statut,
@@ -400,8 +422,8 @@ def connect_onboarding(user: KitlyUser = Depends(current_user), db: Session = De
         db.commit()
     link = client.account_links.create(params={
         "account": acc.stripe_account_id,
-        "refresh_url": KITLY_CONNECT_REFRESH_URL,
-        "return_url": KITLY_CONNECT_RETURN_URL,
+        "refresh_url": return_url(request, "KITLY_CONNECT_REFRESH_URL"),
+        "return_url": return_url(request, "KITLY_CONNECT_RETURN_URL"),
         "type": "account_onboarding",
         "collection_options": {"fields": "eventually_due"},
     })
