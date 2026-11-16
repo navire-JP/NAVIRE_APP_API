@@ -108,6 +108,15 @@
   #ka .grant { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   #ka .grant input[type=text] { flex: 1; min-width: 160px; }
   #ka .grant input[type=number] { width: 90px; }
+  #ka #ka-grant input[name=reason] { flex: 1 1 100%; order: 3; }
+  #ka #ka-grant button[type=submit] { order: 4; }
+  #ka .grant input[type=date] { border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font: inherit; font-size: 14px; }
+  #ka .m.wide { max-width: 520px; }
+  #ka .m .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #ka .m label.lb { display: block; font-size: 12px; font-weight: 700; color: var(--mut); margin: 12px 0 4px; }
+  #ka .m .chk { display: flex; gap: 8px; align-items: center; font-size: 13.5px; margin-top: 12px; }
+  #ka .m .chk input { width: 16px; height: 16px; accent-color: var(--ink); }
+  #ka .diag li { margin: 3px 0; }
   #ka .hist { list-style: none; padding: 0; margin: 0; font-size: 12.5px; }
   #ka .hist li { padding: 7px 0; border-bottom: 1px solid var(--line); }
 
@@ -169,7 +178,7 @@
     reactivate: "Compte réactivé", logout_all: "Sessions coupées", impersonate: "Builder ouvert (support)", delete_user: "Compte supprimé",
     suspend_profile: "Vitrine suspendue", unsuspend_profile: "Vitrine rétablie", unpublish_profile: "Vitrine dépubliée",
     report_status: "Signalement traité", update_plan: "Formule modifiée", email_check: "Vérification email", email_test: "Email de test",
-    admin_login: "Connexion à la console"
+    admin_login: "Connexion à la console", create_user: "Compte créé"
   };
   var REASON_LABEL = { fraud: "Arnaque ou fraude", illegal_content: "Contenu illicite", impersonation: "Usurpation d'identité",
     ip_infringement: "Atteinte aux droits", inappropriate: "Contenu inapproprié", other: "Autre" };
@@ -242,6 +251,26 @@
   }
 
   function profileLink(p) { return p.url || CONFIG.PROFILE_URL.replace("{slug}", encodeURIComponent(p.slug)); }
+  var DURATIONS = [["30", "1 mois"], ["7", "7 jours"], ["90", "3 mois"], ["180", "6 mois"], ["365", "1 an"], ["", "Sans date de fin"], ["date", "Jusqu'au…"]];
+  function durationFields() {
+    return '<select name="dur">' + DURATIONS.map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join("") + '</select>' +
+      '<input type="date" name="until" hidden>';
+  }
+  function bindDuration(form) {
+    var sel = form.querySelector('[name="dur"]'), dt = form.querySelector('[name="until"]');
+    sel.onchange = function () { dt.hidden = sel.value !== "date"; if (!dt.hidden) dt.focus(); };
+  }
+  function readDays(form) {
+    // Rend un nombre de jours, null (sans fin) ou NaN (date absente / passée).
+    var v = form.querySelector('[name="dur"]').value;
+    if (v === "") return null;
+    if (v !== "date") return +v;
+    var dt = form.querySelector('[name="until"]').value;
+    if (!dt) return NaN;
+    var days = Math.floor((new Date(dt + "T23:59:59") - new Date()) / 86400000);  // fin au plus tard le jour choisi
+    return days >= 1 ? days : NaN;
+  }
+
   function planPill(plan, grant) {
     return '<span class="pill' + (plan === "premium" ? " ink" : "") + '">' + esc(PLAN_NAME[plan] || plan) + '</span>' +
       (grant ? ' <span class="pill warn" title="' + esc(grant.reason) + '">offerte</span>' : '');
@@ -325,7 +354,9 @@
       '<form class="bar" id="ka-uf"><input type="text" name="q" placeholder="Rechercher…" value="' + esc(f.q) + '">' +
       '<select name="plan"><option value="">Toutes les formules</option>' + ["free", "custom", "premium"].map(function (p) {
         return '<option value="' + p + '"' + (f.plan === p ? " selected" : "") + '>' + PLAN_NAME[p] + '</option>'; }).join("") + '</select>' +
-      '<button class="btn" type="submit">Rechercher</button></form><div id="ka-ul"><p class="muted">Chargement…</p></div>');
+      '<button class="btn" type="submit">Rechercher</button><button class="btn ghost" type="button" id="ka-new">+ Ajouter un compte</button></form>' +
+      '<div id="ka-ul"><p class="muted">Chargement…</p></div>');
+    m.querySelector("#ka-new").onclick = createAccount;
     m.querySelector("#ka-uf").onsubmit = function (e) {
       e.preventDefault(); f.q = this.q.value.trim(); f.plan = this.plan.value; f.page = 1; loadUsers();
     };
@@ -348,6 +379,48 @@
       bindPager(box, "users", loadUsers);
     }).catch(fail);
   }
+  function createAccount() {
+    var bg = document.createElement("div");
+    bg.className = "mbg";
+    bg.innerHTML = '<form class="m wide" novalidate><h4>Ajouter un compte</h4>' +
+      '<p>Pour un partenaire ou un bêta-testeur : le compte est créé avec la formule choisie, offerte sans abonnement ni carte. ' +
+      'La personne reçoit un email pour choisir son mot de passe et accepter les CGU.</p>' +
+      '<label class="lb">Email</label><input type="email" name="email" autocomplete="off">' +
+      '<div class="row2"><div><label class="lb">Prénom</label><input type="text" name="first_name"></div><div><label class="lb">Nom</label><input type="text" name="last_name"></div></div>' +
+      '<div class="row2"><div><label class="lb">Formule offerte</label><select name="plan"><option value="premium">Premium+</option><option value="custom">Custom</option><option value="free">Aucune (Free)</option></select></div>' +
+      '<div><label class="lb">Durée</label><div class="grant" style="flex-wrap:nowrap">' + durationFields() + '</div></div></div>' +
+      '<label class="lb">Motif (journal)</label><input type="text" name="reason" placeholder="Partenaire de lancement, bêta-test…">' +
+      '<label class="chk"><input type="checkbox" name="invite" checked>Envoyer l\'email d\'invitation</label>' +
+      '<p class="err" style="color:var(--bad);font-size:13px;min-height:18px;margin:10px 0 0"></p>' +
+      '<div class="acts"><button type="button" class="btn ghost" data-no>Annuler</button><button type="submit" class="btn">Créer le compte</button></div></form>';
+    root.appendChild(bg);
+    var form = bg.querySelector("form"), err = form.querySelector(".err");
+    bindDuration(form);
+    form.plan.onchange = function () { form.querySelector('[name="dur"]').disabled = form.plan.value === "free"; };
+    form.email.focus();
+    bg.querySelector("[data-no]").onclick = function () { bg.remove(); };
+    bg.onclick = function (e) { if (e.target === bg) bg.remove(); };
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      var body = { email: form.email.value.trim(), first_name: form.first_name.value.trim(), last_name: form.last_name.value.trim(),
+                   plan: form.plan.value, reason: form.reason.value.trim(), send_invite: form.invite.checked };
+      if (body.plan !== "free") {
+        var days = readDays(form);
+        if (days !== null && isNaN(days)) { err.textContent = "Choisis une date de fin dans le futur."; return; }
+        if (days) body.days = days;
+        if (body.reason.length < 3) { err.textContent = "Indique le motif de la formule offerte."; return; }
+      }
+      if (!body.email || !body.first_name) { err.textContent = "Email et prénom requis."; return; }
+      var btn = form.querySelector('[type="submit"]'); btn.disabled = true; err.textContent = "";
+      api("POST", "/admin/users", body).then(function (r) {
+        bg.remove();
+        toast("Compte créé" + (r.invite_sent ? ", invitation envoyée ✓" : body.send_invite ? " (invitation non envoyée : vérifie les emails dans Système)" : " ✓"));
+        if (S.tab === "users") loadUsers();
+        openUser(r.user.id);
+      }).catch(function (e2) { btn.disabled = false; err.textContent = e2.message; });
+    };
+  }
+
   function pager(r, key) {
     var pages = Math.max(1, Math.ceil(r.total / r.page_size));
     return '<div class="pager"><span>' + r.total + ' résultat' + (r.total > 1 ? "s" : "") + '</span><span>' +
@@ -395,9 +468,16 @@
         '<h3>Formule offerte</h3>' + (g ? '<p>' + planPill(g.plan) + ' — « ' + esc(g.reason) + ' » ' + (g.expires_at ? '<span class="muted">jusqu\'au ' + esc(date(g.expires_at)) + '</span>' : '<span class="muted">sans date de fin</span>') +
           ' <button class="btn danger" data-revoke>Retirer</button></p>' : '') +
         '<form class="grant" id="ka-grant"><select name="plan"><option value="premium">Premium+</option><option value="custom">Custom</option></select>' +
-        '<input type="number" name="days" min="1" max="3650" placeholder="Jours"><input type="text" name="reason" placeholder="Motif (partenaire, test…)">' +
+        durationFields() + '<input type="text" name="reason" placeholder="Motif (partenaire, test…)">' +
         '<button class="btn" type="submit">' + (g ? "Remplacer" : "Offrir") + '</button></form>' +
-        '<p class="muted" style="margin-top:6px">Laisser « Jours » vide pour une durée illimitée. La formule effective reste la plus haute entre l\'abonnement Stripe et la formule offerte.</p>' +
+        '<p class="muted" style="margin-top:6px">Sans abonnement ni carte. À la date de fin, le compte repasse automatiquement à sa formule payée (ou Free). ' +
+        'La formule effective reste la plus haute entre l\'abonnement Stripe et la formule offerte.</p>' +
+        (d.shop ? '<h3>Vente en ligne</h3>' + (d.shop.ready ? '<p><span class="pill ok">prêt</span> Paiements actifs et CGV publiées.</p>'
+          : '<ul class="diag">' + d.shop.blockers.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join("") + '</ul>') +
+          (d.shop.offers.length ? '<ul class="diag">' + d.shop.offers.map(function (o) {
+            return '<li>' + (o.ok ? '<span class="pill ok">payable</span> ' : '<span class="pill">sur demande</span> ') + esc(o.title) +
+              (o.reasons.length ? ' <span class="muted">— ' + esc(o.reasons.join(" ")) + '</span>' : '') + '</li>';
+          }).join("") + '</ul>' : '') : '') +
         '<h3>Actions sur le compte</h3><div class="acts">' +
         (u.email_verified ? '' : '<button class="btn ghost" data-verify>Confirmer l\'email</button>') +
         '<button class="btn ghost" data-logout>Déconnecter partout</button>' +
@@ -410,10 +490,13 @@
 
       var again = function (msg) { toast(msg); openUserInto(dr, id, bg); if (S.tab === "users") loadUsers(); };
       dr.querySelector("[data-close]").onclick = function () { bg.remove(); };
+      bindDuration(dr.querySelector("#ka-grant"));
       dr.querySelector("#ka-grant").onsubmit = function (e) {
         e.preventDefault();
         var body = { plan: this.plan.value, reason: this.reason.value.trim() };
-        if (this.days.value) body.days = +this.days.value;
+        var days = readDays(this);
+        if (days !== null && isNaN(days)) { this.until.style.borderColor = "#c2410c"; return; }
+        if (days) body.days = days;
         if (body.reason.length < 3) { this.reason.style.borderColor = "#c2410c"; return; }
         api("POST", "/admin/users/" + id + "/grant", body).then(function () { again("Formule offerte."); }).catch(fail);
       };

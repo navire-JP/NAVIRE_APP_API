@@ -85,6 +85,18 @@ def set_plan(email, plan):
         db.commit()
 
 
+def age_account(email, days=40):
+    """Recule la date d'inscription (au-delà du mois de bienvenue marketplace)."""
+    from datetime import timedelta
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyUser
+    from app.kitly.utils import now
+
+    with SessionLocal() as db:
+        db.query(KitlyUser).filter_by(email=email).one().created_at = now() - timedelta(days=days)
+        db.commit()
+
+
 def make_vitrine(client, h, slug=None, publish=True, **fields):
     slug = slug or f"lea-{uuid.uuid4().hex[:8]}"
     body = {"slug": slug, "display_name": "Léa Martin", "headline": "Designer graphique", "category": "design",
@@ -409,6 +421,7 @@ def test_marketplace_eligibility_new_popular_search(client):
     tag = uuid.uuid4().hex[:6]
     free_email, free_h = register(client)
     make_vitrine(client, free_h, headline=f"Développeuse {tag}")
+    age_account(free_email)  # passé le mois de bienvenue
 
     prem_email, prem_h = register(client)
     set_plan(prem_email, "premium")
@@ -1007,6 +1020,7 @@ def test_admin_routes_are_forbidden_to_regular_accounts(client):
 def test_admin_grant_plan_and_marketplace(client):
     _, ah = _make_admin(client)
     email, h = register(client)
+    age_account(email)  # passé le mois de bienvenue : un compte Free n'est plus référencé
     tag = uuid.uuid4().hex[:8]
     slug = make_vitrine(client, h, headline=f"Grant {tag}")
     uid = _uid(client, h)
@@ -1332,3 +1346,83 @@ def test_seller_sales_tab_summary_and_fulfillment(client, monkeypatch):
     assert mails == []
     client.patch(f"/kitly/me/orders/{ref}", json={"fulfilled": False}, headers=h)
     assert client.get("/kitly/me/orders", headers=h).json()["summary"]["to_fulfill"] == 1
+
+
+
+def test_new_members_listed_in_marketplace_for_one_month(client):
+    tag = uuid.uuid4().hex[:8]
+    email, h = register(client)
+    slug = make_vitrine(client, h, headline=f"Bienvenue {tag}")
+    me = client.get("/kitly/auth/me", headers=h).json()
+    assert me["plan"]["code"] == "free" and me["marketplace_welcome_until"]
+    found = client.get("/kitly/marketplace/search", params={"q": tag}).json()
+    assert [c["slug"] for c in found["items"]] == [slug]  # nouveau compte Free : référencé
+    age_account(email, days=31)
+    assert client.get("/kitly/marketplace/search", params={"q": tag}).json()["total"] == 0
+    assert client.get("/kitly/auth/me", headers=h).json()["marketplace_welcome_until"] is None
+    # Le freelance peut toujours refuser d'apparaître dans la marketplace.
+    email2, h2 = register(client)
+    slug2 = make_vitrine(client, h2, headline=f"Discret {tag}")
+    client.patch("/kitly/me/profile", json={"marketplace_opt_in": False}, headers=h2)
+    assert slug2 not in [c["slug"] for c in client.get("/kitly/marketplace/search", params={"q": tag}).json()["items"]]
+
+
+def test_admin_creates_pro_account_for_a_set_time(client, _isolation):
+    from datetime import timedelta
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyPlanGrant
+    from app.kitly.router import kitly_grants_job
+    from app.kitly.utils import now
+
+    _, ah = _make_admin(client)
+    email = _email("invite")
+    r = client.post("/kitly/admin/users", json={"email": email, "first_name": "Inès", "plan": "premium"}, headers=ah)
+    assert r.status_code == 422  # motif obligatoire pour une formule offerte
+    _isolation.clear()
+    r = client.post("/kitly/admin/users", json={"email": email, "first_name": "Inès", "last_name": "Doe", "plan": "premium",
+                                                "days": 30, "reason": "Partenaire de lancement"}, headers=ah)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["user"]["plan"] == "premium" and body["grant"]["expires_at"] and body["invite_sent"]
+    assert [to for to, _ in _isolation] == [email]
+    assert client.post("/kitly/admin/users", json={"email": email, "first_name": "X", "plan": "free"}, headers=ah).status_code == 409
+    uid = body["user"]["id"]
+    assert client.get(f"/kitly/admin/users/{uid}", headers=ah).json()["actions"][0]["action"] == "create_user"
+
+    # Activation : code reçu par email, mot de passe choisi, CGU acceptées à ce moment-là.
+    client.post("/kitly/auth/password/forgot", json={"email": email})
+    reset = {"email": email, "code": "123456", "new_password": "nouveau-mdp-1"}
+    r = client.post("/kitly/auth/password/reset", json=reset)
+    assert r.status_code == 422 and "CGU" in r.json()["detail"]
+    r = client.post("/kitly/auth/password/reset", json={**reset, "accept_cgu": True, "ack_privacy": True})
+    assert r.status_code == 200
+    h = {"Authorization": f"Bearer {r.json()['token']}"}
+    me = client.get("/kitly/auth/me", headers=h).json()
+    assert me["plan"]["code"] == "premium" and me["user"]["email_verified"]
+
+    # Fin de la période : la tâche de 30 minutes repasse le compte en Free, sans attendre la nuit.
+    with SessionLocal() as db:
+        g = db.query(KitlyPlanGrant).filter_by(user_id=uid, revoked_at=None).one()
+        g.expires_at = now() - timedelta(minutes=1)
+        db.commit()
+    kitly_grants_job()
+    assert client.get("/kitly/auth/me", headers=h).json()["plan"]["code"] == "free"
+
+
+def test_site_sections_and_gallery_blocks(client):
+    _, h = register(client)
+    slug = make_vitrine(client, h)
+    blocks = [
+        {"type": "section", "title": "Mon atelier", "body": "Texte long " * 300, "image_url": "res.cloudinary.com/x/a.jpg",
+         "image_side": "gauche", "button_label": "Voir", "button_url": "exemple.fr", "intrus": "x"},
+        {"type": "gallery", "title": "Galerie", "images": [f"https://img.exemple.fr/{i}.jpg" for i in range(20)] + ["", 42]},
+    ]
+    r = client.patch("/kitly/me/profile", json={"blocks": blocks}, headers=h)
+    assert r.status_code == 200, r.text
+    pub = client.get(f"/kitly/public/profiles/{slug}").json()
+    sec, gal = pub["blocks"]
+    assert sec["image_side"] == "right" and sec["image_url"].startswith("https://") and sec["button_url"] == "https://exemple.fr"
+    assert len(sec["body"]) == 3300 and "intrus" not in sec
+    assert len(gal["images"]) == 12 and all(u.startswith("https://") for u in gal["images"])
+    keys = [s["key"] for s in pub["sections"]]
+    assert keys.index("content") == keys.index("about") + 1  # nouvelle section placée à sa place par défaut

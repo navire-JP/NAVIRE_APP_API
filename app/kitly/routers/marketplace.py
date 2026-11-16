@@ -46,7 +46,8 @@ RANKING_INFO = {
     ),
     "eligibility": (
         "Seules les vitrines publiées, dont le titulaire a choisi d'apparaître dans la marketplace et dont la "
-        "formule inclut le référencement, sont affichées."
+        "formule inclut le référencement, sont affichées. Les nouveaux comptes y figurent gratuitement pendant "
+        "leur premier mois (offre de bienvenue)."
     ),
 }
 

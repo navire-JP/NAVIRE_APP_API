@@ -41,7 +41,8 @@ from app.kitly.security import (
     verify_secret,
 )
 from app.kitly.serializers import lead_out, offer_owner, portfolio_owner, profile_owner, user_out
-from app.kitly.utils import client_ip, now, rate_clear, rate_guard, rate_hit
+from app.kitly.queries import welcome_until
+from app.kitly.utils import client_ip, iso, now, rate_clear, rate_guard, rate_hit
 
 router = APIRouter(tags=["kitly · auth"])
 
@@ -222,7 +223,14 @@ def password_reset(payload: ResetIn, db: Session = Depends(get_db)):
     user = db.execute(select(KitlyUser).where(KitlyUser.email == email)).scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(400, detail="Code invalide ou expiré.")
+    activation = user.cgu_accepted_at is None  # compte créé par l'équipe : jamais accepté les CGU
+    if activation and not (payload.accept_cgu and payload.ack_privacy):
+        raise HTTPException(422, detail="Pour activer ton compte, accepte les CGU et prends connaissance de la "
+                                        "politique de confidentialité.")
     codes.consume_code(db, email, "reset", payload.code)
+    if activation:
+        user.cgu_accepted_at, user.cgu_version = now(), KITLY_CGU_VERSION
+        user.privacy_ack_at, user.privacy_version = now(), KITLY_PRIVACY_VERSION
     user.password_hash = hash_secret(payload.new_password)
     user.token_version += 1
     # Recevoir le code prouve aussi la possession de l'adresse.
@@ -274,6 +282,8 @@ def me(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
         "onboarding_progress": round(100 * sum(s["done"] for s in onboarding) / len(onboarding)),
         # Session ouverte par un admin à la place du compte (support) : bandeau dans le builder.
         "impersonated_by": getattr(user, "_kitly_impersonator", None),
+        # Offre de bienvenue : référencement marketplace offert pendant le premier mois.
+        "marketplace_welcome_until": iso(welcome_until(user)),
     }
 
 

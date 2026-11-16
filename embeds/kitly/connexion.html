@@ -285,7 +285,9 @@
         '<p class="fine">Tu pourras préparer ta vitrine tout de suite ; la confirmation sera demandée avant de la publier.</p>';
     },
     forgot: function () {
-      return '<h1>Mot de passe <em>oublié</em></h1><p class="sub">Indique ton adresse : nous t\'envoyons un code pour choisir un nouveau mot de passe.</p>' +
+      return (state.activation
+        ? '<h1>Active ton <em>compte</em></h1><p class="sub">L\'équipe Kitly t\'a créé un compte. Reçois un code par email pour choisir ton mot de passe.</p>'
+        : '<h1>Mot de passe <em>oublié</em></h1><p class="sub">Indique ton adresse : nous t\'envoyons un code pour choisir un nouveau mot de passe.</p>') +
         '<form id="kt-form" novalidate>' +
         '<div class="field"><label class="lb" for="kt-email">Adresse email</label><input type="email" id="kt-email" name="email" autocomplete="email" value="' + esc(state.email) + '"></div>' +
         '<div class="msg" id="kt-msg"></div>' +
@@ -295,9 +297,13 @@
     reset: function () {
       return '<h1>Nouveau <em>mot de passe</em></h1><p class="sub">Si un compte existe pour <b>' + esc(state.email) + '</b>, un code vient d\'y être envoyé.</p>' +
         '<form id="kt-form" novalidate>' + codeInputs() +
-        pwField("new_password", "Nouveau mot de passe", "new-password", "8 caractères minimum, avec au moins une lettre et un chiffre.") +
+        pwField("new_password", state.activation ? "Choisis ton mot de passe" : "Nouveau mot de passe", "new-password", "8 caractères minimum, avec au moins une lettre et un chiffre.") +
+        (state.activation
+          ? '<label class="check"><input type="checkbox" name="accept_cgu"><span>J\'accepte les <a href="' + esc(CONFIG.CGU_URL) + '" target="_blank" rel="noopener">conditions générales d\'utilisation</a> de Kitly.</span></label>' +
+            '<label class="check"><input type="checkbox" name="ack_privacy"><span>J\'ai pris connaissance de la <a href="' + esc(CONFIG.PRIVACY_URL) + '" target="_blank" rel="noopener">politique de confidentialité</a>.</span></label>'
+          : '') +
         '<div class="msg" id="kt-msg"></div>' +
-        '<button class="btn" type="submit" id="kt-submit">Changer mon mot de passe</button></form>' +
+        '<button class="btn" type="submit" id="kt-submit">' + (state.activation ? "Activer mon compte" : "Changer mon mot de passe") + '</button></form>' +
         '<p class="foot"><button type="button" class="link muted-link" data-go="forgot">Je n\'ai rien reçu</button></p>';
     },
     connected: function () {
@@ -406,9 +412,15 @@
     if (!/^\d{6}$/.test(code)) return showMsg("kt-msg", "Saisis les 6 chiffres du code.");
     if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/\d/.test(pw))
       return showMsg("kt-msg", "8 caractères minimum, avec au moins une lettre et un chiffre.", "new_password");
+    var body = { email: state.email, code: code, new_password: pw };
+    if (state.activation) {
+      body.accept_cgu = root.querySelector('[name="accept_cgu"]').checked;
+      body.ack_privacy = root.querySelector('[name="ack_privacy"]').checked;
+      if (!body.accept_cgu || !body.ack_privacy) return showMsg("kt-msg", "Accepte les CGU et la politique de confidentialité pour activer ton compte.");
+    }
     setBusy(btn, "Enregistrement…");
-    api("POST", "/auth/password/reset", { email: state.email, code: code, new_password: pw }).then(afterAuth)
-      .catch(function (e) { state.busy = false; btn.disabled = false; btn.textContent = "Changer mon mot de passe"; showMsg("kt-msg", e.message); });
+    api("POST", "/auth/password/reset", body).then(afterAuth)
+      .catch(function (e) { state.busy = false; btn.disabled = false; btn.textContent = state.activation ? "Activer mon compte" : "Changer mon mot de passe"; showMsg("kt-msg", e.message); });
   }
 
   var SUBMITS = { login: submitLogin, register: submitRegister, verify: submitVerify, forgot: submitForgot, reset: submitReset };
@@ -527,13 +539,16 @@
   // ============================================================
   // Démarrage
   // ============================================================
-  var mode = "";
-  try { mode = new URLSearchParams((window.top || window).location.search).get("mode") || ""; } catch (e) {
-    try { mode = new URLSearchParams(window.location.search).get("mode") || ""; } catch (e2) {}
+  var mode = "", qs = null;
+  try { qs = new URLSearchParams((window.top || window).location.search); } catch (e) {
+    try { qs = new URLSearchParams(window.location.search); } catch (e2) {}
   }
+  if (qs) mode = qs.get("mode") || "";
   var initial = /^(inscription|register|signup)$/i.test(mode) ? "register" : "login";
+  // Compte créé par l'équipe Kitly (lien de l'email d'invitation) : choix du mot de passe + CGU.
+  if (/^activation$/i.test(mode)) { state.activation = true; state.email = (qs && qs.get("email")) || ""; initial = "forgot"; }
 
-  if (token()) {
+  if (token() && !state.activation) {
     api("GET", "/auth/me").then(function (me) { state.user = me.user; go("connected"); })
       .catch(function (e) {
         if (e.status === 401) { store(CONFIG.TOKEN_KEY, null); store(CONFIG.USER_KEY, null); }

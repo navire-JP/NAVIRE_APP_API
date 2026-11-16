@@ -368,8 +368,16 @@ def _clean_details(kind: str, details: dict | None) -> dict:
 
 @router.get("/me/offers")
 def list_offers(profile: KitlyProfile = Depends(require_profile)):
+    from app.kitly.routers.shop import offer_blockers, seller_blockers
+
     needs = not _has_terms(profile)
-    return {"items": [offer_owner(o, needs) for o in profile.offers], "kinds": catalog.OFFER_KINDS}
+    seller = seller_blockers(profile)
+    items = []
+    for o in profile.offers:
+        reasons = offer_blockers(o) + seller
+        items.append({**offer_owner(o, needs), "online_payment": {"ok": not reasons, "reasons": reasons}})
+    # seller_blockers : pourquoi le vendeur ne peut pas encore encaisser en ligne (vide = prêt).
+    return {"items": items, "kinds": catalog.OFFER_KINDS, "seller_blockers": seller}
 
 
 @router.get("/me/offers/{offer_id}")

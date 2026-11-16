@@ -11,6 +11,7 @@ Toutes les actions qui modifient quelque chose sont inscrites au journal
 from __future__ import annotations
 
 from datetime import timedelta
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
@@ -42,8 +43,8 @@ from app.kitly.models import (
 )
 from app.kitly.plans import DEFAULT_PLANS, plan_out
 from app.kitly.queries import clear_popular_cache
-from app.kitly.schemas import AdminDeleteIn, AdminPlanIn, EmailTestIn, GrantIn, ReasonIn, SuspendIn
-from app.kitly.security import admin_user, create_token
+from app.kitly.schemas import AdminCreateUserIn, AdminDeleteIn, AdminPlanIn, EmailTestIn, GrantIn, ReasonIn, SuspendIn
+from app.kitly.security import admin_user, create_token, hash_secret
 from app.kitly.serializers import public_url, user_out
 from app.kitly.utils import aware, iso, now, today
 
@@ -178,7 +179,56 @@ def user_detail(user_id: int, db: Session = Depends(get_db)):
         "connect": None if not acc else {"charges_enabled": acc.charges_enabled, "payouts_enabled": acc.payouts_enabled,
                                          "details_submitted": acc.details_submitted, "requirements_due": acc.requirements_due},
         "actions": [{"action": a.action, "admin": a.admin_email, "details": a.details, "at": iso(a.created_at)} for a in actions],
+        # Diagnostic « vente en ligne » : pourquoi les offres ne sont pas payables.
+        "shop": None if not p else _shop_diag(p),
     }
+
+
+def _shop_diag(p: KitlyProfile) -> dict:
+    from app.kitly.routers.shop import offer_blockers, seller_blockers
+
+    seller = seller_blockers(p)
+    return {"ready": not seller, "blockers": seller,
+            "offers": [{"title": o.title, "ok": not (offer_blockers(o) + seller), "reasons": offer_blockers(o)}
+                       for o in p.offers if o.status == "published"]}
+
+
+@router.post("/users", status_code=201)
+def create_user(payload: AdminCreateUserIn, admin: KitlyUser = Depends(admin_user), db: Session = Depends(get_db)):
+    """
+    Crée un compte (sans mot de passe utilisable) avec, au choix, une formule
+    offerte pour une durée donnée. L'invité reçoit un lien d'activation : il
+    choisit son mot de passe (code par email) et accepte les CGU à ce moment-là.
+    """
+    import secrets
+
+    from app.kitly.routers.billing import recompute_plan
+
+    email = str(payload.email).lower()
+    if db.execute(select(KitlyUser.id).where(KitlyUser.email == email)).first():
+        raise HTTPException(409, detail="Un compte existe déjà avec cette adresse : ouvre-le et offre-lui une formule.")
+    u = KitlyUser(email=email, password_hash=hash_secret(secrets.token_urlsafe(32)), first_name=payload.first_name.strip(),
+                  last_name=payload.last_name.strip())
+    db.add(u)
+    db.flush()
+    expires = None
+    if payload.plan != "free":
+        expires = now() + timedelta(days=payload.days) if payload.days else None
+        db.add(KitlyPlanGrant(user_id=u.id, plan_code=payload.plan, reason=payload.reason.strip(), granted_by=admin.id,
+                              expires_at=expires))
+        db.flush()
+        recompute_plan(db, u)
+    log(db, admin, "create_user", "user", u.id, email=email, plan=payload.plan, days=payload.days, reason=payload.reason)
+    db.commit()
+    clear_popular_cache()
+    sent = False
+    if payload.send_invite:
+        plan_name = {"custom": "Custom", "premium": "Premium+"}.get(payload.plan, "")
+        until = aware(expires).strftime("%d/%m/%Y") if expires else ""
+        link = f"{KITLY_FRONTEND_URL}/connexion?mode=activation&email={quote(email)}"
+        subject, html = emails.mail_invite(u.first_name, plan_name, until, link)
+        sent = emails.send(email, subject, html)
+    return {"user": {**user_out(u), "id": u.id}, "grant": _grant_out(_active_grant(db, u.id)), "invite_sent": bool(sent)}
 
 
 @router.post("/users/{user_id}/grant")
