@@ -7,7 +7,6 @@ import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import delete
 
 from app.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, ensure_storage_dirs
@@ -68,6 +67,7 @@ from app.meoles_site.admin_routes import router as meoles_admin_router
 # KITLY — import isolé (app/kitly/, routes /kitly, tables kitly_*)
 # ============================================================
 from app.kitly.router import router as kitly_router, kitly_startup, kitly_purge_job
+from app.kitly.cors import SplitCORSMiddleware
 
 # ============================================================
 # APScheduler — purge QcmSessionHistory > 6 mois d'inactivité
@@ -377,13 +377,9 @@ app = FastAPI(
 # Middleware
 # ============================================================
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS séparé : CORS_ORIGINS pour NAVIRE, KITLY_CORS_ORIGINS pour /kitly/*
+# (voir app/kitly/cors.py). Le comportement NAVIRE est inchangé.
+app.add_middleware(SplitCORSMiddleware, navire_origins=CORS_ORIGINS)
 
 # ============================================================
 # Routers

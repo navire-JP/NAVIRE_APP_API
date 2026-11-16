@@ -38,6 +38,11 @@ KITLY_PUBLIC_HOST = os.getenv("KITLY_PUBLIC_HOST", "kitly.fr")
 # aperçus de partage. Page Framer /profile?u=<slug> par défaut ; passer à
 # https://kitly.fr/{slug} une fois le proxy en place (voir embeds/kitly/README.md).
 KITLY_PROFILE_URL_TEMPLATE = os.getenv("KITLY_PROFILE_URL_TEMPLATE", f"{KITLY_FRONTEND_URL}/profile?u={{slug}}")
+# Origines autorisées à appeler /kitly/* depuis un navigateur (CORS propre à
+# Kitly, distinct de CORS_ORIGINS de NAVIRE). Liste séparée par des virgules.
+KITLY_CORS_ORIGINS = _csv(os.getenv(
+    "KITLY_CORS_ORIGINS", "https://kitly.fr,https://www.kitly.fr,https://kitly.framer.website"
+))
 # Politique de confidentialité Kitly (citée par le formulaire de contact des vitrines)
 KITLY_PRIVACY_URL = os.getenv("KITLY_PRIVACY_URL", f"{KITLY_FRONTEND_URL}/politique-de-confidentialite")
 

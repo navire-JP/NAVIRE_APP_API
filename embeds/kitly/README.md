@@ -66,7 +66,8 @@ sans modification. Une URL complète (`https://…`) reste possible pour forcer 
 - `builder.html` : `LOGIN_URL`, `PRICING_URL`, `LEGAL_URL` (future page CGV vendeur),
   `PUBLIC_BASE` (vitrine publique = `PUBLIC_BASE` + slug)
 
-Le domaine du site Kitly doit figurer dans `CORS_ORIGINS` sur Render.
+Les domaines du site Kitly sont autorisés par `KITLY_CORS_ORIGINS` (propre à Kitly,
+distinct de `CORS_ORIGINS` de NAVIRE) : kitly.fr, www.kitly.fr et kitly.framer.website par défaut.
 
 ## Messages envoyés à la page
 
