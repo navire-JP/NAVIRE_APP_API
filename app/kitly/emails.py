@@ -182,6 +182,86 @@ def mail_new_lead(
     return f"{label} — {name}", layout(label, body)
 
 
+def _order_lines(snap: dict) -> str:
+    rows = [f"<b>{_e(snap.get('title'))}</b>" + (f" — {_e(snap.get('variant'))}" if snap.get("variant") else "")
+            + (f" × {snap.get('quantity')}" if (snap.get("quantity") or 1) > 1 else "")]
+    if snap.get("pickup"):
+        rows.append("Retrait sur place" + (f" : {_e(snap.get('pickup_location'))}" if snap.get("pickup_location") else ""))
+    elif snap.get("shipping_label"):
+        rows.append(f"Livraison : {_e(snap['shipping_label'])} ({_money(snap.get('shipping_cents') or 0)})")
+    addr = snap.get("shipping_address") or {}
+    if addr:
+        parts = [addr.get("name"), addr.get("line1"), addr.get("line2"),
+                 " ".join(x for x in [addr.get("postal_code"), addr.get("city")] if x), addr.get("country")]
+        rows.append("Adresse : " + ", ".join(_e(x) for x in parts if x))
+    if snap.get("phone"):
+        rows.append(f"Téléphone : {_e(snap['phone'])}")
+    return "".join(f"<p style='margin:4px 0'>{r}</p>" for r in rows)
+
+
+def _money(cents: int) -> str:
+    return f"{cents / 100:.2f}".replace(".", ",").replace(",00", "") + " €"
+
+
+def mail_order_seller(first_name: str, ref: str, snap: dict, amount_cents: int, commission_cents: int,
+                      buyer_name: str, buyer_email: str) -> tuple[str, str]:
+    fee = (f"<p>Commission Kitly (vente issue de la marketplace) : {_money(commission_cents)}. "
+           f"Tu recevras {_money(amount_cents - commission_cents)}, hors frais Stripe.</p>") if commission_cents else ""
+    todo = {"physical": "Prépare l'envoi (ou le retrait) et préviens ton client.",
+            "digital": "Le lien de livraison lui a été envoyé automatiquement s'il est renseigné sur l'offre ; sinon, "
+                       "envoie-lui le fichier en répondant à cet email.",
+            "service": "Contacte ton client pour lancer la prestation."}.get(snap.get("kind"), "")
+    body = (
+        f"<p>Bonjour {_e(first_name) or ''},</p><p>Nouvelle commande payée sur ta vitrine Kitly 🎉</p>"
+        f"<p><b>Référence :</b> {_e(ref)} · <b>Montant :</b> {_money(amount_cents)}</p>{_order_lines(snap)}"
+        f"<p><b>Client :</b> {_e(buyer_name)} &lt;{_e(buyer_email)}&gt;</p>{fee}<p>{todo}</p>"
+        "<p>Le paiement est versé sur ton compte Stripe ; le détail est dans ton espace de paiements.</p>"
+    )
+    return f"Nouvelle commande {ref} — {_money(amount_cents)}", layout("Nouvelle commande", body)
+
+
+def mail_order_buyer(seller_name: str, ref: str, snap: dict, amount_cents: int, delivery_url: str,
+                     seller_email: str) -> tuple[str, str]:
+    deliver = ""
+    if snap.get("kind") == "digital":
+        deliver = (f'<p><a href="{_e(delivery_url)}" style="display:inline-block;background:#0a0a0a;color:#fff;'
+                   f'padding:12px 20px;border-radius:99px;text-decoration:none;font-weight:700">Accéder à mon achat</a></p>'
+                   if delivery_url else f"<p>{_e(seller_name)} va t'envoyer ton fichier par email.</p>")
+    elif snap.get("kind") == "physical":
+        deliver = f"<p>{_e(seller_name)} prépare ta commande et te tiendra informé(e) de l'envoi.</p>"
+    elif snap.get("kind") == "service":
+        deliver = f"<p>{_e(seller_name)} va te contacter pour démarrer la prestation.</p>"
+    contact = f"<p>Une question ? Écris à {_e(seller_email)} (réponds simplement à cet email).</p>" if seller_email else ""
+    body = (
+        f"<p>Bonjour,</p><p>Merci pour ta commande auprès de <b>{_e(seller_name)}</b> : ton paiement est confirmé.</p>"
+        f"<p><b>Référence :</b> {_e(ref)} · <b>Total payé :</b> {_money(amount_cents)}</p>{_order_lines(snap)}"
+        f"{deliver}{contact}<p style='color:#6f6f6c;font-size:12px'>Vente conclue avec {_e(seller_name)}, "
+        "selon ses conditions générales de vente acceptées lors de la commande. Kitly fournit la vitrine et le "
+        "paiement sécurisé.</p>"
+    )
+    return f"Ta commande {ref} est confirmée", layout("Commande confirmée", body)
+
+
+def mail_order_fulfilled(seller_name: str, ref: str, snap: dict, tracking: str, seller_email: str) -> tuple[str, str]:
+    kind = snap.get("kind")
+    if kind == "physical" and snap.get("pickup"):
+        what, title = "Ta commande est prête : tu peux venir la retirer" + (
+            f" ({_e(snap.get('pickup_location'))})" if snap.get("pickup_location") else "") + ".", "Commande prête"
+    elif kind == "physical":
+        what, title = "Ta commande a été expédiée.", "Commande expédiée"
+    elif kind == "digital":
+        what, title = "Ta commande a été livrée.", "Commande livrée"
+    else:
+        what, title = "Ta commande a été traitée.", "Commande traitée"
+    track = ""
+    if tracking:
+        track = (f'<p><b>Suivi :</b> <a href="{_e(tracking)}" style="color:#0a0a0a">{_e(tracking)}</a></p>'
+                 if tracking.startswith(("http://", "https://")) else f"<p><b>Numéro de suivi :</b> {_e(tracking)}</p>")
+    body = (f"<p>Bonjour,</p><p>{what}</p><p><b>Référence :</b> {_e(ref)}</p>{_order_lines(snap)}{track}"
+            f"<p>Une question ? Écris à {_e(seller_name)} : {_e(seller_email)} (ou réponds à cet email).</p>")
+    return f"{title} — {ref}", layout(title, body)
+
+
 def mail_profile_suspended(first_name: str, slug: str, reason: str, contact: str) -> tuple[str, str]:
     """Exposé des motifs d'une suspension (article 17 du règlement sur les services numériques)."""
     body = (

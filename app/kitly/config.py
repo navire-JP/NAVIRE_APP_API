@@ -97,6 +97,8 @@ KITLY_CONTACT_EMAIL = os.getenv("KITLY_CONTACT_EMAIL", "")
 
 # Comptes promus administrateurs Kitly à l'inscription / connexion.
 KITLY_ADMIN_EMAILS = {e.lower() for e in _csv(os.getenv("KITLY_ADMIN_EMAILS", ""))}
+# Session de la console /admin : ouverte par mot de passe sur /kitly/auth/admin-login, durée courte.
+KITLY_ADMIN_SESSION_MINUTES = _int("KITLY_ADMIN_SESSION_MINUTES", 8 * 60)
 
 # Codes email (vérification d'adresse, mot de passe oublié)
 KITLY_EMAIL_CODE_TTL_MINUTES = _int("KITLY_EMAIL_CODE_TTL_MINUTES", 15)

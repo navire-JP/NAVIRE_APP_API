@@ -687,13 +687,9 @@ def test_kitly_never_touches_global_stripe_key():
 # ============================================================
 
 def test_admin_plans_configurable(client):
-    email, h = register(client)
-    assert client.get("/kitly/admin/plans", headers=h).status_code == 403
-    from app.db.database import SessionLocal
-    from app.kitly.models import KitlyUser
-    with SessionLocal() as db:
-        db.query(KitlyUser).filter_by(email=email).one().is_admin = True
-        db.commit()
+    _, h0 = register(client)
+    assert client.get("/kitly/admin/plans", headers=h0).status_code == 403
+    _, h = _make_admin(client)
     r = client.patch("/kitly/admin/plans/free", json={"limits": {"offers_max": 7}}, headers=h)
     assert r.status_code == 200 and r.json()["plan"]["limits"]["offers_max"] == 7
     assert r.json()["plan"]["limits"]["portfolio_max"] == 6  # les autres limites sont conservées
@@ -944,14 +940,50 @@ def test_default_site_is_framer_until_kitly_fr_is_linked():
 # ============================================================
 
 def _make_admin(client):
+    """Adresse ajoutée à KITLY_ADMIN_EMAILS, puis connexion à la console par mot de passe."""
+    from app.kitly.config import KITLY_ADMIN_EMAILS
+
+    email, _ = register(client)
+    KITLY_ADMIN_EMAILS.add(email)
+    r = client.post("/kitly/auth/admin-login", json={"email": email, "password": PWD})
+    assert r.status_code == 200, r.text
+    return email, {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def test_admin_console_requires_password_session(client):
     from app.db.database import SessionLocal
+    from app.kitly.config import KITLY_ADMIN_EMAILS
     from app.kitly.models import KitlyUser
 
+    # Compte « admin » en base mais absent de KITLY_ADMIN_EMAILS : refusé partout.
     email, h = register(client)
     with SessionLocal() as db:
         db.query(KitlyUser).filter_by(email=email).one().is_admin = True
         db.commit()
-    return email, h
+    assert client.get("/kitly/admin/overview", headers=h).status_code == 403
+    r = client.post("/kitly/auth/admin-login", json={"email": email, "password": PWD})
+    assert r.status_code == 401 and r.json()["detail"] == "Email ou mot de passe incorrect."
+
+    # Adresse autorisée : la session ordinaire du site ne suffit pas, il faut la connexion admin.
+    KITLY_ADMIN_EMAILS.add(email)
+    r = client.get("/kitly/admin/overview", headers=h)
+    assert r.status_code == 401 and r.json()["detail"]["code"] == "admin_login_required"
+    assert client.post("/kitly/auth/admin-login", json={"email": email, "password": "mauvais-mdp"}).status_code == 401
+    r = client.post("/kitly/auth/admin-login", json={"email": email, "password": PWD})
+    assert r.status_code == 200 and r.json()["expires_in_minutes"] == 480
+    ah = {"Authorization": f"Bearer {r.json()['token']}"}
+    assert client.get("/kitly/admin/overview", headers=ah).status_code == 200
+    assert client.get("/kitly/admin/actions", headers=ah).json()["items"][0]["action"] == "admin_login"
+
+    # Adresse retirée de la liste : la session admin est coupée aussitôt.
+    KITLY_ADMIN_EMAILS.discard(email)
+    assert client.get("/kitly/admin/overview", headers=ah).status_code == 403
+
+    # Mode support : le jeton émis pour agir à la place d'un compte n'ouvre jamais la console.
+    _, ah2 = _make_admin(client)
+    uid = _uid(client, register(client)[1])
+    imp = client.post(f"/kitly/admin/users/{uid}/impersonate", headers=ah2).json()["token"]
+    assert client.get("/kitly/admin/overview", headers={"Authorization": f"Bearer {imp}"}).status_code == 403
 
 
 def _uid(client, h):
@@ -1065,3 +1097,231 @@ def test_admin_delete_user_and_system(client, monkeypatch):
     assert "stripe" in sysinfo and not any(k in str(sysinfo) for k in ("sk_live_", "sk_test_", "whsec_"))
     monkeypatch.setattr(emails, "send_result", lambda to, s, html, reply_to=None: {"sent": True, "detail": "ok"})
     assert client.post("/kitly/admin/system/email-test", json={}, headers=ah).json()["sent"] is True
+
+
+# ============================================================
+# Achat sur une vitrine (Stripe Checkout + Connect)
+# ============================================================
+
+class _FakeShopStripe:
+    def __init__(self):
+        outer = self
+        self.calls = []
+
+        class _Sessions:
+            def create(self, params=None):
+                outer.calls.append(params)
+                return {"id": f"cs_{uuid.uuid4().hex[:12]}", "url": "https://checkout.stripe.test/pay"}
+
+        class _Checkout:
+            sessions = _Sessions()
+
+        self.checkout = _Checkout()
+
+
+def _seller_ready(client, h, connect=True):
+    """Vitrine publiée + CGV publiées (+ paiements Stripe actifs si `connect`)."""
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyConnectedAccount
+
+    slug = make_vitrine(client, h)
+    client.put("/kitly/me/terms/draft", json={"articles": [{"key": "objet", "title": "Objet", "body": "Vente des produits."}]}, headers=h)
+    assert client.post("/kitly/me/terms/draft/publish", json={"accept": True}, headers=h).status_code == 200
+    if connect:
+        uid = _uid(client, h)
+        with SessionLocal() as db:
+            db.add(KitlyConnectedAccount(user_id=uid, stripe_account_id=f"acct_{uuid.uuid4().hex[:10]}",
+                                         details_submitted=True, charges_enabled=True, payouts_enabled=True))
+            db.commit()
+    return slug
+
+
+def test_shop_checkout_paid_by_webhook(client, monkeypatch, _isolation):
+    from app.kitly.routers import billing, shop
+
+    fake = _FakeShopStripe()
+    monkeypatch.setattr(shop, "stripe_client", lambda: fake)
+    monkeypatch.setattr(billing, "KITLY_STRIPE_WEBHOOK_SECRET", "whsec_kitly_test")
+
+    email, h = register(client)
+    acct = f"acct_{uuid.uuid4().hex[:10]}"
+    slug = _seller_ready(client, h, connect=False)
+    tee = client.post("/kitly/me/offers", json={
+        "kind": "physical", "title": "Tee-shirt", "price_cents": 3000, "status": "published",
+        "details": {"variants": [{"label": "M", "stock": 2}, {"label": "L", "stock": 0}],
+                    "shipping_options": [{"label": "Colissimo", "price_cents": 500}], "pickup_available": True,
+                    "delivery_zones": ["fr_metro", "eu"]}}, headers=h).json()["item"]
+    ebook = client.post("/kitly/me/offers", json={
+        "kind": "digital", "title": "E-book", "price_cents": 1500, "status": "published",
+        "details": {"delivery_url": "drive.example.com/ebook-secret"}}, headers=h).json()["item"]
+    devis = client.post("/kitly/me/offers", json={"kind": "service", "title": "Site", "price_mode": "quote",
+                                                  "cta": "quote", "status": "published"}, headers=h).json()["item"]
+    pub = lambda: {o["id"]: o for o in client.get(f"/kitly/public/profiles/{slug}").json()["offers"]}
+
+    # Paiements pas encore activés : « Commander » reste une demande, le paiement est refusé.
+    assert pub()[tee["id"]]["buyable"] is False
+    body = {"email": "client@exemple.fr", "accept_terms": True, "variant_id": tee["details"]["variants"][0]["id"], "delivery": "0"}
+    rr = client.post(f"/kitly/public/profiles/{slug}/offers/{tee["id"]}/checkout", json=body); assert rr.status_code == 409, rr.text
+
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyConnectedAccount
+    with SessionLocal() as db:
+        db.add(KitlyConnectedAccount(user_id=_uid(client, h), stripe_account_id=acct,
+                                     details_submitted=True, charges_enabled=True, payouts_enabled=True))
+        db.commit()
+    offers = pub()
+    assert offers[tee["id"]]["buyable"] and offers[ebook["id"]]["buyable"] and not offers[devis["id"]]["buyable"]
+    assert "delivery_url" not in offers[ebook["id"]]["details"]  # lien de livraison jamais public
+    url = f"/kitly/public/profiles/{slug}/offers/{tee['id']}/checkout"
+
+    # Garde-fous : CGV à accepter, variante épuisée, renonciation obligatoire pour le numérique.
+    assert client.post(url, json={**body, "accept_terms": False}).status_code == 422
+    assert client.post(url, json={**body, "variant_id": tee["details"]["variants"][1]["id"]}).status_code == 409
+    assert client.post(url, json={**body, "quantity": 3}).status_code == 409
+    eurl = f"/kitly/public/profiles/{slug}/offers/{ebook['id']}/checkout"
+    assert client.post(eurl, json={"email": "client@exemple.fr", "accept_terms": True}).status_code == 422
+
+    # Achat venu de la marketplace : commission Kitly, argent versé au vendeur, retour sur la page d'origine.
+    r = client.post(url, json={**body, "quantity": 2, "source": "marketplace",
+                               "return_url": f"https://kitly.framer.website/profile?u={slug}&commande=ok&ref=VIEUX"})
+    assert r.status_code == 200 and r.json()["url"].startswith("https://checkout.stripe.test")
+    p = fake.calls[-1]
+    assert p["payment_intent_data"]["transfer_data"]["destination"] == acct
+    assert p["payment_intent_data"]["application_fee_amount"] == 650  # 10 % de (2 × 30 € + 5 €)
+    assert [li["price_data"]["unit_amount"] for li in p["line_items"]] == [3000, 500]
+    assert p["success_url"] == f"https://kitly.framer.website/profile?u={slug}&commande=ok&ref={r.json()['ref']}"
+    assert "FR" in p["shipping_address_collection"]["allowed_countries"] and p["metadata"]["app"] == "kitly"
+    # Vente directe : pas de commission ; page de retour inconnue → adresse publique de la vitrine.
+    client.post(url, json={**body, "delivery": "pickup", "return_url": "https://evil.example/x"})
+    assert "application_fee_amount" not in fake.calls[-1]["payment_intent_data"]
+    assert "shipping_address_collection" not in fake.calls[-1]
+    assert not fake.calls[-1]["success_url"].startswith("https://evil.example")
+
+    # Le paiement n'est confirmé que par le webhook Stripe.
+    ref = r.json()["ref"]
+    pi = f"pi_{uuid.uuid4().hex[:10]}"
+    assert client.get("/kitly/me/orders", headers=h).json()["items"] == []
+    session = {"id": "cs_x", "object": "checkout.session", "mode": "payment", "payment_status": "paid",
+               "payment_intent": pi, "metadata": {**p["metadata"]},
+               "customer_details": {"email": "client@exemple.fr", "name": "Camille Client", "phone": "+33600000000"},
+               "collected_information": {"shipping_details": {"name": "Camille Client", "address": {
+                   "line1": "3 rue des Lilas", "postal_code": "75011", "city": "Paris", "country": "FR"}}}}
+    _isolation.clear()
+    for _ in range(2):  # deux événements distincts pour la même session : traitée une seule fois
+        event = {"id": f"evt_{uuid.uuid4().hex}", "type": "checkout.session.completed", "data": {"object": session}}
+        b, hd = _signed(event, "whsec_kitly_test")
+        assert client.post("/kitly/stripe/webhook", content=b, headers=hd).status_code == 200
+    orders = client.get("/kitly/me/orders", headers=h).json()["items"]
+    assert len(orders) == 1 and orders[0]["ref"] == ref and orders[0]["status"] == "paid"
+    assert orders[0]["item"]["shipping_address"]["city"] == "Paris" and orders[0]["commission_cents"] == 650
+    assert sorted(to for to, _ in _isolation) == sorted([email, "client@exemple.fr"])
+    variants = client.get("/kitly/me/offers", headers=h).json()["items"]
+    assert [v for v in variants if v["id"] == tee["id"]][0]["details"]["variants"][0]["stock"] == 0  # 2 - 2
+    assert pub()[tee["id"]]["buyable"] is False  # épuisé
+
+    # Remboursement total signalé par Stripe.
+    event = {"id": f"evt_{uuid.uuid4().hex}", "type": "charge.refunded",
+             "data": {"object": {"id": "ch_1", "payment_intent": pi, "refunded": True}}}
+    b, hd = _signed(event, "whsec_kitly_test")
+    client.post("/kitly/stripe/webhook", content=b, headers=hd)
+    assert client.get("/kitly/me/orders", headers=h).json()["items"][0]["status"] == "refunded"
+
+
+def test_shop_digital_delivery_link_sent_after_payment(client, monkeypatch):
+    from app.kitly import emails
+    from app.kitly.routers import billing, shop
+
+    fake = _FakeShopStripe()
+    monkeypatch.setattr(shop, "stripe_client", lambda: fake)
+    monkeypatch.setattr(billing, "KITLY_STRIPE_WEBHOOK_SECRET", "whsec_kitly_test")
+    mails = []
+    monkeypatch.setattr(emails, "send", lambda to, subject, html, reply_to=None: mails.append((to, html)) or True)
+    _, h = register(client)
+    slug = _seller_ready(client, h)
+    ebook = client.post("/kitly/me/offers", json={"kind": "digital", "title": "E-book", "price_cents": 1500, "status": "published",
+                                                  "details": {"delivery_url": "https://drive.example.com/secret"}}, headers=h).json()["item"]
+    buyer = f"lecteur-{uuid.uuid4().hex[:6]}@exemple.fr"
+    r = client.post(f"/kitly/public/profiles/{slug}/offers/{ebook['id']}/checkout",
+                    json={"email": buyer, "accept_terms": True, "waive_withdrawal": True})
+    assert r.status_code == 200
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyTermsAcceptance
+    with SessionLocal() as db:
+        acc = db.query(KitlyTermsAcceptance).filter_by(buyer_email=buyer).one()
+        assert acc.consents["waive_withdrawal"] is True and len(acc.content_hash) == 64
+    session = {"id": "cs_y", "mode": "payment", "payment_status": "paid", "payment_intent": f"pi_{uuid.uuid4().hex[:10]}",
+               "metadata": fake.calls[-1]["metadata"], "customer_details": {"email": buyer}}
+    event = {"id": f"evt_{uuid.uuid4().hex}", "type": "checkout.session.completed", "data": {"object": session}}
+    b, hd = _signed(event, "whsec_kitly_test")
+    assert client.post("/kitly/stripe/webhook", content=b, headers=hd).status_code == 200
+    buyer_mail = [html for to, html in mails if to == buyer][0]
+    assert "https://drive.example.com/secret" in buyer_mail
+
+
+def test_terms_template_prefilled_and_publish_guard(client):
+    _, h = register(client)
+    make_vitrine(client, h)
+    client.post("/kitly/me/offers", json={"kind": "digital", "title": "Guide", "price_cents": 900, "status": "published"}, headers=h)
+    t = client.get("/kitly/me/terms/template", headers=h).json()
+    keys = [a["key"] for a in t["articles"]]
+    assert "numerique" in keys and "retractation" in keys and "livraison" not in keys
+    assert "legal_name" in t["missing"] and "[à compléter]" in t["articles"][0]["body"]
+    # Un brouillon avec des trous ne peut pas être publié.
+    client.put("/kitly/me/terms/draft", json={"articles": [{k: a[k] for k in ("key", "title", "body")} for a in t["articles"]]}, headers=h)
+    r = client.post("/kitly/me/terms/draft/publish", json={"accept": True}, headers=h)
+    assert r.status_code == 422 and "à compléter" in r.json()["detail"]
+    # Identité complétée : le modèle se remplit, plus aucun trou, publication acceptée.
+    client.put("/kitly/me/legal-profile", json={"is_professional": True, "legal_name": "Léa Martin EI", "legal_form": "Micro-entreprise",
+                                               "siren": "123456789", "address_line": "1 rue X", "postal_code": "69001", "city": "Lyon",
+                                               "professional_email": "lea@exemple.fr", "mediator_name": "CM2C", "vat_exempt": True}, headers=h)
+    t = client.get("/kitly/me/terms/template", headers=h).json()
+    assert t["missing"] == [] and not any("[à compléter]" in a["body"] for a in t["articles"])
+    assert "Léa Martin EI" in t["articles"][0]["body"] and "293 B" in t["articles"][1]["body"] and "CM2C" in t["articles"][-1]["body"]
+    client.put("/kitly/me/terms/draft", json={"articles": [{k: a[k] for k in ("key", "title", "body")} for a in t["articles"]]}, headers=h)
+    assert client.post("/kitly/me/terms/draft/publish", json={"accept": True}, headers=h).status_code == 200
+
+
+def test_seller_sales_tab_summary_and_fulfillment(client, monkeypatch):
+    from app.kitly import emails
+    from app.kitly.routers import billing, shop
+
+    fake = _FakeShopStripe()
+    monkeypatch.setattr(shop, "stripe_client", lambda: fake)
+    monkeypatch.setattr(billing, "KITLY_STRIPE_WEBHOOK_SECRET", "whsec_kitly_test")
+    mails = []
+    monkeypatch.setattr(emails, "send", lambda to, subject, html, reply_to=None: mails.append((to, subject, html)) or True)
+    _, h = register(client)
+    slug = _seller_ready(client, h)
+    offer = client.post("/kitly/me/offers", json={"kind": "physical", "title": "Vase", "price_cents": 4000, "status": "published",
+                                                  "details": {"shipping_options": [{"label": "Colissimo", "price_cents": 600}]}},
+                        headers=h).json()["item"]
+    buyer = f"acheteur-{uuid.uuid4().hex[:6]}@exemple.fr"
+    r = client.post(f"/kitly/public/profiles/{slug}/offers/{offer['id']}/checkout",
+                    json={"email": buyer, "accept_terms": True, "delivery": "0", "source": "marketplace"})
+    ref = r.json()["ref"]
+    session = {"id": "cs_v", "mode": "payment", "payment_status": "paid", "payment_intent": f"pi_{uuid.uuid4().hex[:10]}",
+               "metadata": fake.calls[-1]["metadata"], "customer_details": {"email": buyer, "name": "Alex"}}
+    event = {"id": f"evt_{uuid.uuid4().hex}", "type": "checkout.session.completed", "data": {"object": session}}
+    b, hd = _signed(event, "whsec_kitly_test")
+    assert client.post("/kitly/stripe/webhook", content=b, headers=hd).status_code == 200
+
+    r = client.get("/kitly/me/orders", headers=h).json()
+    assert r["summary"]["to_fulfill"] == 1 and r["summary"]["orders_30d"] == 1
+    assert r["summary"]["net_30d_cents"] == 4600 - 460  # commission marketplace déduite
+    assert [o["ref"] for o in client.get("/kitly/me/orders?status=todo", headers=h).json()["items"]] == [ref]
+
+    # Un autre vendeur ne voit ni ne modifie cette vente.
+    _, h2 = register(client)
+    assert client.patch(f"/kitly/me/orders/{ref}", json={"fulfilled": True}, headers=h2).status_code == 404
+
+    mails.clear()
+    r = client.patch(f"/kitly/me/orders/{ref}", json={"fulfilled": True, "tracking": "6A12345678901"}, headers=h).json()
+    assert r["buyer_notified"] and r["order"]["fulfilled_at"] and r["order"]["tracking"] == "6A12345678901"
+    assert mails[0][0] == buyer and "expédiée" in mails[0][1] and "6A12345678901" in mails[0][2]
+    assert client.get("/kitly/me/orders?status=todo", headers=h).json()["items"] == []
+    # Re-marquer ne renvoie pas d'email ; annuler le marquage la remet « à traiter ».
+    mails.clear()
+    client.patch(f"/kitly/me/orders/{ref}", json={"fulfilled": True, "tracking": "6A12345678901"}, headers=h)
+    assert mails == []
+    client.patch(f"/kitly/me/orders/{ref}", json={"fulfilled": False}, headers=h)
+    assert client.get("/kitly/me/orders", headers=h).json()["summary"]["to_fulfill"] == 1

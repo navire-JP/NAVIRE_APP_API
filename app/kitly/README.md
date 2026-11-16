@@ -36,7 +36,8 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_PUBLIC_HOST` | non | Domaine des vitrines (défaut `kitly.fr`) |
 | `KITLY_PROFILE_URL_TEMPLATE` | non | Adresse publique d'une vitrine, `{slug}` remplacé (défaut `<KITLY_FRONTEND_URL>/profile?u={slug}`) |
 | `KITLY_PRIVACY_URL` | non | Politique de confidentialité citée par le formulaire de contact des vitrines |
-| `KITLY_ADMIN_EMAILS` | non | Adresses promues admin Kitly à leur prochaine connexion (séparées par des virgules) : accès à la console `/admin` |
+| `KITLY_ADMIN_EMAILS` | non | Seules adresses autorisées à ouvrir la console `/admin` (séparées par des virgules), par email + mot de passe. Retirer une adresse coupe l'accès aussitôt |
+| `KITLY_ADMIN_SESSION_MINUTES` | non | Durée d'une session de la console admin (défaut 480 = 8 h) |
 | `KITLY_CONTACT_EMAIL` | non | Adresse citée dans l'email de suspension d'une vitrine pour la contester (défaut : l'adresse de l'admin qui suspend). Conseillé : une adresse d'équipe, ex. `contact@kitly.fr` |
 | `KITLY_MARKETPLACE_COMMISSION_BPS` | non | Commission marketplace (défaut 1000 = 10 %) |
 | `KITLY_NEW_PROFILES_DAYS` / `KITLY_POPULAR_WINDOW_DAYS` | non | Fenêtres « nouveaux » (7 j) et « populaires » (30 j) |
@@ -56,7 +57,10 @@ Le démarrage affiche `[kitly] ⚠️ Variables manquantes : …` sans bloquer N
    prix TTC → `KITLY_STRIPE_PRICE_*`.
 3. Webhook « compte » → `https://navire-app-api.onrender.com/kitly/stripe/webhook`,
    événements : `checkout.session.completed`, `customer.subscription.created`,
-   `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`.
+   `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`,
+   et pour les ventes sur les vitrines : `checkout.session.expired`,
+   `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`,
+   `charge.refunded`, `charge.dispute.created`.
 4. Activer **Connect** (plateforme / marketplace), puis un webhook
    « comptes connectés » → `/kitly/stripe/connect-webhook`, événements :
    `account.updated`, `account.application.deauthorized`.
@@ -119,7 +123,28 @@ les erreurs Stripe sont rendues en 502 `{"code": "stripe_error", "message": …}
 **Référentiels**
 `GET /kitly/catalog` (templates, typos, mises en page `site` / `links`, catégories…)
 
-**Console admin** (`/kitly/admin/*`, comptes `is_admin` uniquement ; chaque action est
+**Achat sur une vitrine** (`app/kitly/routers/shop.py`)
+- Une offre est achetable en ligne (`buyable` dans la vitrine publique) si : action
+  « Commander », prix fixe ≥ 0,50 €, produit physique / numérique / prestation, en stock,
+  paiements du vendeur actifs (Connect) et CGV du vendeur publiées. Sinon « Commander »
+  reste une demande par email.
+- `POST /kitly/public/profiles/{slug}/offers/{id}/checkout` : variante, quantité,
+  livraison (option ou retrait), acceptation des CGV (preuve dans `kitly_terms_acceptances`),
+  renonciation à la rétractation pour un contenu numérique → Stripe Checkout, argent
+  versé au vendeur (`transfer_data.destination`), commission
+  `KITLY_MARKETPLACE_COMMISSION_BPS` seulement pour une vente venue de la marketplace.
+- La commande passe « payée » sur le webhook (`checkout.session.completed`) : stock
+  décrémenté, email au vendeur (adresse de livraison) et à l'acheteur (lien de livraison
+  pour un produit numérique : `details.delivery_url`, jamais public). Remboursement et
+  litige mettent à jour le statut. `GET /kitly/me/orders?status=todo|refunded|…` : ventes du
+  freelance et résumé (à traiter, ventes et net sur 30 jours) ; `PATCH /kitly/me/orders/{ref}`
+  `{fulfilled, tracking, notify}` : marquée expédiée / prête / traitée, email à l'acheteur (une seule fois).
+- CGV : `GET /kitly/me/terms/template` rend un modèle pré-rempli (identité du vendeur,
+  types d'offres) ; la publication est refusée tant qu'il reste « [à compléter] ».
+
+**Console admin** (`/kitly/admin/*` ; il faut une adresse de `KITLY_ADMIN_EMAILS` ET une
+session ouverte par mot de passe sur `POST /kitly/auth/admin-login` (jeton « adm », 8 h).
+Une session ordinaire du site, même du même compte, est refusée. Chaque action est
 inscrite dans `kitly_admin_actions`)
 - `GET /overview` : comptes, vitrines, abonnements, revenu mensuel, demandes, visites, signalements
 - Comptes : `GET /users?q=&plan=&page=` · `GET /users/{id}` · `POST|DELETE /users/{id}/grant`
@@ -157,8 +182,6 @@ suppression du compte et « déconnecter partout » restent réservés au titula
 
 ## Reste à faire (sprints suivants)
 
-- Parcours d'achat (Stripe Connect, destination charges + commission) et
-  acceptation des CGV au paiement (modèles déjà en place).
 - Rendez-vous : disponibilités, calendrier, réservations.
 - Générateur de CGV (modèles d'articles à faire valider par un juriste).
 - Vérification DNS des domaines personnalisés (enregistrement TXT) avant activation.

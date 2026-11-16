@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.kitly.config import (
+    KITLY_ADMIN_EMAILS,
+    KITLY_ADMIN_SESSION_MINUTES,
     KITLY_JWT_ALGO,
     KITLY_JWT_AUDIENCE,
     KITLY_JWT_SECRET,
@@ -41,12 +43,17 @@ def verify_secret(value: str, hashed: str) -> bool:
         return False
 
 
-def create_token(user: KitlyUser, ttl_minutes: int | None = None, impersonator: KitlyUser | None = None) -> str:
+def create_token(user: KitlyUser, ttl_minutes: int | None = None, impersonator: KitlyUser | None = None,
+                 admin_session: bool = False) -> str:
     """
     Jeton de session. `impersonator` : jeton court émis pour un admin qui agit
     à la place du compte (support) — marqué « imp », il ne permet ni paiement,
     ni changement de mot de passe, ni suppression du compte.
+    `admin_session` : jeton de la console /admin (marqué « adm », 8 h), seul
+    accepté par les routes /kitly/admin/*.
     """
+    if admin_session:
+        ttl_minutes = KITLY_ADMIN_SESSION_MINUTES
     issued = now()
     payload = {
         "sub": str(user.id),
@@ -56,6 +63,8 @@ def create_token(user: KitlyUser, ttl_minutes: int | None = None, impersonator: 
         "iat": int(issued.timestamp()),
         "exp": int((issued + timedelta(minutes=ttl_minutes or KITLY_TOKEN_TTL_MINUTES)).timestamp()),
     }
+    if admin_session:
+        payload["adm"] = 1
     if impersonator is not None:
         payload["imp"] = impersonator.id
         payload["imp_email"] = impersonator.email
@@ -86,6 +95,7 @@ def _user_from_token(db: Session, token: str) -> KitlyUser | None:
         return None  # session révoquée (déconnexion partout, mot de passe changé)
     # Attribut transitoire (non stocké) : session ouverte par un admin à la place du compte.
     user._kitly_impersonator = payload.get("imp_email") if payload.get("imp") else None
+    user._kitly_admin_session = bool(payload.get("adm")) and not payload.get("imp")
     return user
 
 
@@ -116,7 +126,20 @@ def optional_user(
     return _user_from_token(db, creds.credentials)
 
 
+def is_admin_email(email: str) -> bool:
+    return (email or "").lower() in KITLY_ADMIN_EMAILS
+
+
 def admin_user(user: KitlyUser = Depends(current_user)) -> KitlyUser:
-    if not user.is_admin:
+    """
+    Console /admin : il faut à la fois un compte administrateur, une adresse
+    listée dans KITLY_ADMIN_EMAILS (retirer une adresse coupe l'accès aussitôt)
+    et une session ouverte par mot de passe sur /auth/admin-login. Une session
+    ordinaire du site (/connexion), même du même compte, est refusée.
+    """
+    if not (user.is_admin and is_admin_email(user.email)):
         raise HTTPException(status_code=403, detail="Réservé à l'équipe Kitly.")
+    if not getattr(user, "_kitly_admin_session", False):
+        raise HTTPException(status_code=401, detail={"message": "Connecte-toi à la console admin avec ton mot de passe.",
+                                                     "code": "admin_login_required"})
     return user

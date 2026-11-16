@@ -33,6 +33,7 @@ from app.kitly.models import (
 from app.kitly.routers.vitrine import require_profile
 from app.kitly.schemas import LegalAnswersIn, LegalProfileIn, TermsDraftIn, TermsPublishIn
 from app.kitly.serializers import TERMS_DISCLAIMER, terms_version_out
+from app.kitly.terms_template import TEMPLATE_VERSION, build_terms, missing_fields
 from app.kitly.utils import iso, now
 
 router = APIRouter(tags=["kitly · juridique"])
@@ -166,6 +167,18 @@ def get_terms(profile: KitlyProfile = Depends(require_profile)):
     }
 
 
+@router.get("/me/terms/template")
+def terms_template(profile: KitlyProfile = Depends(require_profile)):
+    """
+    Modèle de CGV pré-rempli (identité du vendeur, types d'offres vendues), à
+    relire et modifier avant publication. « [à compléter] » marque les trous.
+    """
+    kinds = {o.kind for o in profile.offers if o.status != "archived"} or {"service"}
+    return {"articles": build_terms(profile.legal_profile, profile.display_name, kinds),
+            "template_version": TEMPLATE_VERSION, "missing": missing_fields(profile.legal_profile),
+            "disclaimer": TERMS_DISCLAIMER}
+
+
 @router.get("/me/terms/versions/{version_id}")
 def get_version(version_id: int, profile: KitlyProfile = Depends(require_profile), db: Session = Depends(get_db)):
     return {"version": terms_version_out(_own_version(db, profile, version_id))}
@@ -217,6 +230,8 @@ def publish_draft(payload: TermsPublishIn, profile: KitlyProfile = Depends(requi
     draft = next((v for v in t.versions if v.status == "draft"), None) if t else None
     if draft is None:
         raise HTTPException(404, detail="Aucun brouillon à publier.")
+    if any("[à compléter]" in (a.get("body", "") + a.get("title", "")) for a in draft.articles):
+        raise HTTPException(422, detail="Complète les passages marqués « [à compléter] » avant de publier tes CGV.")
     for v in t.versions:
         if v.status == "published":
             v.status = "superseded"

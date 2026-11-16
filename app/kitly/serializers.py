@@ -57,6 +57,7 @@ def price_label(offer: KitlyOffer) -> str:
 
 def offer_public(offer: KitlyOffer) -> dict:
     details = dict(offer.details or {})
+    details.pop("delivery_url", None)  # lien de livraison d'un produit numérique : envoyé après paiement seulement
     if offer.kind == "physical":
         # Le stock exact n'est pas public : seulement « disponible / épuisé ».
         stock = details.pop("stock", None)

@@ -53,6 +53,41 @@
   #kb .step { border: 0; background: none; padding: 10px 12px 12px; font-size: 13.5px; font-weight: 700; color: var(--mut); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
   #kb .step b { font-family: var(--serif); font-style: italic; font-weight: 400; margin-right: 4px; }
   #kb .step.on { color: var(--ink); border-bottom-color: var(--ink); }
+  #kb .step.extra { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+  #kb .step .cnt { font-size: 10.5px; font-weight: 800; background: var(--bad); color: #fff; border-radius: 99px; padding: 1px 7px; }
+  #kb .main.wide-mode { grid-template-columns: minmax(0, 1fr); }
+  #kb .main.wide-mode .prev { display: none !important; }
+  #kb .main.wide-mode .edit { display: block !important; }
+  #kb .main.wide-mode .edit-in { max-width: 860px; }
+  #kb.wide-mode .mtabs { display: none !important; }
+  #kb .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
+  #kb .kpi { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  #kb .kpi b { display: block; font-size: 22px; font-weight: 900; letter-spacing: -.03em; }
+  #kb .kpi small { font-size: 11px; color: var(--mut); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  #kb .kpi.hot { border-color: var(--ink); }
+  #kb .order { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+  #kb .order.todo { border-color: var(--ink); }
+  #kb .order-h { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  #kb .order-h .t { font-weight: 800; font-size: 14.5px; }
+  #kb .order-h .m { font-size: 12px; color: var(--mut); margin-top: 2px; }
+  #kb .order-h .amt { text-align: right; font-weight: 900; font-size: 16px; white-space: nowrap; }
+  #kb .order-h .amt small { display: block; font-weight: 600; font-size: 11.5px; color: var(--mut); }
+  #kb .order-b { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; margin-top: 10px; line-height: 1.45; }
+  #kb .order-b .lb { margin: 0 0 2px; }
+  #kb .order-b a { color: var(--ink); }
+  #kb .order-a { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  #kb .st { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; background: var(--grey); color: var(--mut); vertical-align: 2px; margin-left: 6px; }
+  #kb .st.todo { background: var(--ink); color: var(--paper); }
+  #kb .st.done { background: #e7f5ec; color: var(--good); }
+  #kb .st.bad { background: #fdece4; color: var(--bad); }
+  @media (max-width: 560px) {
+    #kb .kpis { gap: 6px; }
+    #kb .kpi { padding: 10px; }
+    #kb .kpi b { font-size: 16px; }
+    #kb .kpi small { font-size: 9.5px; }
+    #kb .order-b { grid-template-columns: 1fr; }
+    #kb .step.extra { margin-left: 0; }
+  }
 
   /* ── zone principale ── */
   #kb .main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 440px; }
@@ -124,6 +159,20 @@
   #kb .pill.live { background: var(--ink); color: var(--paper); } #kb .pill.draft { background: var(--grey); color: var(--mut); }
   #kb .banner { border: 1px solid var(--ink); border-radius: 13px; padding: 13px 15px; display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 22px; font-size: 13.5px; line-height: 1.45; }
   #kb .banner.soft { border-color: var(--line); background: var(--grey); }
+  #kb .sell { border: 1px solid var(--line); border-radius: 16px; padding: 16px 16px 12px; margin-bottom: 26px; }
+  #kb .sell h3 { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); margin: 0 0 8px; }
+  #kb .sell-row { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+  #kb .sell-row:first-of-type { border-top: 0; }
+  #kb .sell-row .ic { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; border: 1.5px solid var(--line); color: var(--mut); }
+  #kb .sell-row .ic.ok { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  #kb .sell-row .tx { flex: 1; min-width: 0; line-height: 1.4; }
+  #kb .sell-row .tx small { display: block; color: var(--mut); font-size: 12px; }
+  #kb .sell-foot { font-size: 12.5px; color: var(--mut); margin: 6px 0 0; line-height: 1.5; }
+  #kb .sell-foot.ok { color: var(--good); font-weight: 600; }
+  #kb .tm-art { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  #kb .tm-art b { display: block; font-size: 13px; margin-bottom: 6px; }
+  #kb .tm-art textarea { width: 100%; min-height: 110px; font-size: 13px; line-height: 1.5; }
+  #kb .tm-todo { border-color: #f0c9b6; background: #fdf6f1; }
   #kb .kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   #kb .kind { border: 1px solid var(--line); border-radius: 14px; padding: 16px; text-align: left; background: var(--paper); cursor: pointer; transition: .15s; }
   #kb .kind:hover { border-color: var(--ink); transform: translateY(-2px); }
@@ -227,11 +276,10 @@
     API_BASE: "https://navire-app-api.onrender.com",
     LOGIN_URL: "/connexion",     // embed connexion.html
     PRICING_URL: "/subscribe",
-    LEGAL_URL: "/builder",       // future page « Mes CGV » (à créer)
     PUBLIC_BASE: "/profile?u=",   // vitrine publique = PUBLIC_BASE + slug
     TOKEN_KEY: "kitly_token",
     USER_KEY: "kitly_user",
-    ADMIN_TOKEN_KEY: "kitly_admin_token",   // session admin mise de côté pendant le mode support
+    SUPPORT_RESTORE_KEY: "kitly_token_before_support",   // session du site mise de côté pendant le mode support
     ADMIN_URL: "/admin",
     AUTOSAVE_MS: 700
   };
@@ -500,7 +548,8 @@
     { n: 1, key: "identity", label: "Identité", title: "Ton <em>identité</em>" },
     { n: 2, key: "links", label: "Liens", title: "Tes <em>liens</em>" },
     { n: 3, key: "shop", label: "Boutique", title: "Tes <em>offres</em>" },
-    { n: 4, key: "style", label: "Style", title: "Ton <em>style</em>" }
+    { n: 4, key: "style", label: "Style", title: "Ton <em>style</em>" },
+    { n: 5, key: "sales", label: "Mes ventes", title: "Mes <em>ventes</em>", extra: true }   // hors parcours, pleine largeur
   ];
 
   function fieldText(f, label, opts) {
@@ -614,11 +663,215 @@
         '<button type="button" class="icon-btn" data-edit-offer="' + o.id + '" title="Modifier">' + svg("edit") + '</button>' +
         '<button type="button" class="icon-btn" data-del-offer="' + o.id + '" title="Supprimer">' + svg("trash") + '</button></div>';
     }).join("");
-    return (needsTerms ? '<div class="banner soft"><span>Pour encaisser tes ventes, tu auras besoin de tes propres <b>CGV</b>. Kitly t\'aide à les préparer en quelques questions.</span><a class="btn sm" href="' + esc(CONFIG.LEGAL_URL) + '" target="_top">Préparer mes CGV</a></div>' : '') +
+    return sellPanel(needsTerms) +
       '<div class="sec"><h3>Produits et prestations (' + active + '/' + max + ')</h3>' +
       (list || '<p class="lead">Aucune offre pour l\'instant. Ajoute un produit, une prestation ou un rendez-vous.</p>') +
       '<button type="button" class="add" id="kb-add-offer">+ Ajouter une offre</button></div>' + nav();
   };
+
+  // ── Vente en ligne : paiements Stripe + CGV publiées = « Commander » devient un vrai paiement ──
+  function loadSell() {
+    S.sellLoading = true;
+    Promise.all([
+      api("GET", "/connect/status").catch(function () { return { status: "unavailable", charges_enabled: false, message: "Paiements indisponibles pour le moment." }; }),
+      api("GET", "/me/terms").catch(function () { return { current: null }; })
+    ]).then(function (r) {
+      S.sell = { connect: r[0], terms: r[1].current };
+      S.sellLoading = false;
+      if (S.step === 3 || S.step === 5) renderStep();
+    });
+  }
+  function sellPanel(needsTerms) {
+    if (!S.sell) { if (!S.sellLoading) loadSell(); return '<div class="sell"><h3>Vente en ligne</h3><p class="sell-foot">Chargement…</p></div>'; }
+    var c = S.sell.connect, t = S.sell.terms, payOk = !!c.charges_enabled, termsOk = !!t;
+    var hasOrderOffers = S.offers.some(function (o) { return o.cta === "order" && o.status === "published"; });
+    return '<div class="sell"><h3>Vente en ligne</h3>' +
+      '<div class="sell-row"><span class="ic' + (payOk ? " ok" : "") + '">' + (payOk ? "✓" : "1") + '</span><div class="tx"><b>Paiements</b><small>' + esc(c.message || "") + '</small></div>' +
+      (payOk ? '' : '<button type="button" class="btn sm dark" data-connect' + (S.me.impersonated_by ? ' disabled title="Réservé au titulaire du compte"' : '') + '>Activer</button>') + '</div>' +
+      '<div class="sell-row"><span class="ic' + (termsOk ? " ok" : "") + '">' + (termsOk ? "✓" : "2") + '</span><div class="tx"><b>Conditions générales de vente</b><small>' +
+      (termsOk ? "Version " + t.number + " en vigueur depuis le " + new Date(t.effective_at).toLocaleDateString("fr-FR") : "Obligatoires pour vendre : un modèle pré-rempli t'attend.") + '</small></div>' +
+      '<button type="button" class="btn sm' + (termsOk ? "" : " dark") + '" data-terms>' + (termsOk ? "Modifier" : "Rédiger") + '</button></div>' +
+      (payOk && termsOk
+        ? '<p class="sell-foot ok">✓ Tes clients paient en ligne les offres « Commander » à prix fixe' + (hasOrderOffers ? '' : ' (aucune pour l\'instant)') + '. Tu reçois un email à chaque commande.</p>'
+        : '<p class="sell-foot">En attendant, le bouton « Commander » de tes offres envoie une demande par email.</p>') + '</div>';
+  }
+  function startConnect() {
+    api("POST", "/connect/onboarding").then(function (r) { navigate(r.url); })
+      .catch(function (e) { toast(esc(e.message)); });
+  }
+
+  // ── Éditeur de CGV : identité du vendeur + articles (modèle pré-rempli), puis publication ──
+  var LEGAL_FIELDS = [
+    ["legal_name", "Nom et prénom ou dénomination sociale", "Léa Martin"], ["legal_form", "Statut", "Micro-entreprise, EI, SASU…"],
+    ["siren", "SIREN", "123 456 789", "pro"], ["vat_number", "N° de TVA (si assujetti)", "FR…", "pro"],
+    ["address_line", "Adresse", "12 rue du Port"], ["postal_code", "Code postal", "64200"], ["city", "Ville", "Biarritz"],
+    ["professional_email", "Email de contact", "contact@…"], ["phone", "Téléphone (facultatif)", ""],
+    ["mediator_name", "Médiateur de la consommation", "CM2C, Médicys…", "pro"], ["mediator_url", "Site du médiateur", "cm2c.net", "pro"]
+  ];
+  function openTermsEditor() {
+    var bg = document.createElement("div");
+    bg.className = "modal-bg";
+    bg.innerHTML = '<div class="modal" style="max-width:720px"><p class="note">Chargement…</p></div>';
+    root.appendChild(bg);
+    bg.addEventListener("click", function (e) { if (e.target === bg) bg.remove(); });
+    var lp = {}, articles = [], disclaimer = "";
+    Promise.all([api("GET", "/me/legal-profile"), S.sell && S.sell.terms ? Promise.resolve(null) : api("GET", "/me/terms/template")]).then(function (r) {
+      lp = r[0].legal_profile || { is_professional: true, vat_exempt: true };
+      if (r[1]) { articles = r[1].articles; disclaimer = r[1].disclaimer; }
+      else { articles = S.sell.terms.articles; disclaimer = S.sell.terms.disclaimer || ""; }
+      draw();
+    }).catch(function (e) { bg.querySelector(".modal").innerHTML = '<p class="note bad">' + esc(e.message) + '</p>'; });
+
+    function readForm() {
+      var m = bg.querySelector(".modal");
+      var out = { is_professional: m.querySelector('[name="pro"]:checked').value === "1", vat_exempt: m.querySelector("[data-vat]").checked };
+      m.querySelectorAll("[data-lp]").forEach(function (i) { out[i.dataset.lp] = i.value.trim(); });
+      m.querySelectorAll("[data-art]").forEach(function (ta) { articles[+ta.dataset.art].body = ta.value; });
+      return out;
+    }
+    function draw() {
+      var pro = lp.is_professional !== false;
+      bg.innerHTML = '<div class="modal" style="max-width:720px"><button type="button" class="icon-btn x" data-close>✕</button>' +
+        '<h4>Mes <em>conditions générales de vente</em></h4><p class="note" style="margin-bottom:16px">Tes CGV encadrent tes ventes avec tes clients. ' +
+        'Complète tes informations, relis le modèle, puis publie. Elles s\'affichent sur ta vitrine et chaque client les accepte avant de payer.</p>' +
+        '<div class="sec"><h3>Tes informations de vendeur</h3><div class="seg" style="margin-bottom:12px">' +
+        '<label class="check" style="margin-right:16px"><input type="radio" name="pro" value="1"' + (pro ? " checked" : "") + '>Professionnel (SIREN)</label>' +
+        '<label class="check"><input type="radio" name="pro" value="0"' + (pro ? "" : " checked") + '>Particulier</label></div>' +
+        '<div class="row" style="flex-wrap:wrap">' + LEGAL_FIELDS.filter(function (f) { return pro || f[3] !== "pro"; }).map(function (f) {
+          return '<div class="field" style="flex:1 1 45%"><label>' + f[1] + '</label><input type="text" data-lp="' + f[0] + '" value="' + esc(lp[f[0]] || "") + '" placeholder="' + esc(f[2]) + '"></div>';
+        }).join("") + '</div>' +
+        (pro ? '<label class="check"><input type="checkbox" data-vat' + (lp.vat_exempt !== false ? " checked" : "") + '>Franchise en base de TVA (« TVA non applicable, art. 293 B du CGI »)</label>' : '<input type="checkbox" data-vat hidden>') +
+        '<button type="button" class="btn sm" data-regen style="margin-top:10px">Mettre à jour le modèle avec ces informations</button></div>' +
+        '<div class="sec"><h3>Articles</h3>' + articles.map(function (a, i) {
+          var todo = /\[à compléter\]/.test(a.body);
+          return '<div class="tm-art' + (todo ? " tm-todo" : "") + '"><b>' + esc(a.title) + '</b><textarea data-art="' + i + '">' + esc(a.body) + '</textarea>' +
+            (todo ? '<p class="note bad">Remplace « [à compléter] » avant de publier.</p>' : '') + '</div>';
+        }).join("") + '</div>' +
+        '<p class="note" style="margin-bottom:12px">' + esc(disclaimer) + '</p>' +
+        '<label class="check"><input type="checkbox" data-accept>Je confirme que ces CGV correspondent à mon activité et je les publie sous ma responsabilité.</label>' +
+        '<p class="note bad" data-err></p><div class="modal-foot"><button type="button" class="btn" data-close>Annuler</button>' +
+        '<button type="button" class="btn dark" data-publish>Publier mes CGV</button></div></div>';
+      bg.querySelectorAll("[data-close]").forEach(function (b) { b.onclick = function () { bg.remove(); }; });
+      bg.querySelectorAll('[name="pro"]').forEach(function (r) { r.onchange = function () { lp = Object.assign(lp, readForm()); draw(); }; });
+      bg.querySelector("[data-regen]").onclick = function () {
+        var body = readForm();
+        lp = Object.assign(lp, body);
+        api("PUT", "/me/legal-profile", body).then(function () { return api("GET", "/me/terms/template"); })
+          .then(function (r) { articles = r.articles; disclaimer = r.disclaimer; draw(); toast("Modèle mis à jour ✓"); })
+          .catch(function (e) { bg.querySelector("[data-err]").textContent = e.message; });
+      };
+      bg.querySelector("[data-publish]").onclick = function () {
+        var err = bg.querySelector("[data-err]"), btn = this;
+        var body = readForm();
+        if (!bg.querySelector("[data-accept]").checked) { err.textContent = "Coche la case de confirmation pour publier."; return; }
+        if (articles.some(function (a) { return /\[à compléter\]/.test(a.body); })) { err.textContent = "Il reste des passages « [à compléter] »."; return; }
+        btn.disabled = true; err.textContent = "";
+        api("PUT", "/me/legal-profile", body)
+          .then(function () { return api("PUT", "/me/terms/draft", { articles: articles.map(function (a) { return { key: a.key, title: a.title, body: a.body }; }) }); })
+          .then(function () { return api("POST", "/me/terms/draft/publish", { accept: true }); })
+          .then(function (r) {
+            bg.remove();
+            S.sell = Object.assign(S.sell || {}, { terms: r.current });
+            toast("CGV publiées ✓");
+            refreshOffers();
+            if (S.step === 3) renderStep();
+          })
+          .catch(function (e) { btn.disabled = false; err.textContent = e.message; });
+      };
+    }
+  }
+
+  // ── Mes ventes ──────────────────────────────────────────────
+  var ORDER_STATUS = { paid: "Payée", refunded: "Remboursée", disputed: "Litige", canceled: "Annulée" };
+  function eur(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",").replace(",00", "") + " €"; }
+  function loadSales() {
+    S.salesLoading = true;
+    var f = S.salesFilter == null ? "" : S.salesFilter;
+    return api("GET", "/me/orders" + (f ? "?status=" + f : "")).then(function (r) {
+      S.sales = r; S.salesLoading = false;
+      if (S.salesFilter == null) {   // première ouverture : « À traiter » s'il y a du travail
+        S.salesFilter = r.summary.to_fulfill ? "todo" : "";
+        if (S.salesFilter) return loadSales();
+      }
+      var badge = $("[data-sales-badge]");
+      if (badge) { badge.hidden = !r.summary.to_fulfill; badge.textContent = r.summary.to_fulfill; }
+      if (S.step === 5) renderStep();
+    }).catch(function (e) { S.salesLoading = false; S.sales = { error: e.message }; if (S.step === 5) renderStep(); });
+  }
+  function orderCard(o) {
+    var it = o.item || {}, todo = o.status === "paid" && !o.fulfilled_at;
+    var label = { physical: it.pickup ? "Retrait sur place" : "Livraison", digital: "Produit numérique", service: "Prestation" }[it.kind] || "";
+    var where = "";
+    if (it.kind === "physical" && it.pickup) where = esc(it.pickup_location || "Sur place");
+    else if (it.kind === "physical") {
+      var a = it.shipping_address || {};
+      where = [a.name, a.line1, a.line2, [a.postal_code, a.city].filter(Boolean).join(" "), a.country].filter(Boolean).map(esc).join("<br>") || "—";
+      if (it.shipping_label) where += '<br><span class="note">' + esc(it.shipping_label) + ' · ' + eur(it.shipping_cents) + '</span>';
+    } else if (it.kind === "digital") where = "Lien de livraison envoyé automatiquement (s'il est renseigné sur l'offre)";
+    else where = "À organiser avec le client";
+    var st = o.status !== "paid" ? '<span class="st bad">' + esc(ORDER_STATUS[o.status] || o.status) + '</span>'
+      : todo ? '<span class="st todo">À traiter</span>'
+      : '<span class="st done">' + (it.kind === "physical" ? (it.pickup ? "Remise" : "Expédiée") : "Traitée") + '</span>';
+    var doneLabel = it.kind === "physical" ? (it.pickup ? "Marquer comme prête" : "Marquer comme expédiée") : "Marquer comme traitée";
+    return '<div class="order' + (todo ? " todo" : "") + '"><div class="order-h"><div><div class="t">' + esc(it.title || "") +
+      (it.variant ? ' — ' + esc(it.variant) : '') + ((it.quantity || 1) > 1 ? ' × ' + it.quantity : '') + st + '</div>' +
+      '<div class="m">' + esc(o.ref) + ' · ' + new Date(o.paid_at || o.created_at).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) +
+      (o.channel === "marketplace" ? ' · via la marketplace' : '') + '</div></div>' +
+      '<div class="amt">' + eur(o.amount_cents) + (o.commission_cents ? '<small>' + eur(o.net_cents) + ' pour toi</small>' : '') + '</div></div>' +
+      '<div class="order-b"><div><div class="lb">Client</div>' + esc(o.buyer.name || "—") + '<br><a href="mailto:' + esc(o.buyer.email) + '?subject=' +
+      encodeURIComponent("Ta commande " + o.ref) + '">' + esc(o.buyer.email) + '</a>' + (it.phone ? '<br>' + esc(it.phone) : '') + '</div>' +
+      '<div><div class="lb">' + label + '</div>' + where + '</div></div>' +
+      (o.status === "paid" ? '<div class="order-a">' + (todo
+        ? '<button type="button" class="btn sm dark" data-fulfill="' + esc(o.ref) + '">' + doneLabel + '</button>'
+        : '<span class="note">' + (o.tracking ? 'Suivi : ' + esc(o.tracking) + ' · ' : '') + 'le ' + new Date(o.fulfilled_at).toLocaleDateString("fr-FR") + '</span>' +
+          '<button type="button" class="btn sm" data-unfulfill="' + esc(o.ref) + '">Remettre à traiter</button>') + '</div>' : '') + '</div>';
+  }
+  VIEWS.sales = function () {
+    if (!S.sales) { if (!S.salesLoading) loadSales(); return '<p class="lead">Chargement de tes ventes…</p>'; }
+    if (S.sales.error) return '<div class="banner soft"><span>' + esc(S.sales.error) + '</span></div>';
+    if (!S.sell && !S.sellLoading) loadSell();
+    var sm = S.sales.summary, f = S.salesFilter || "";
+    var ready = S.sell && S.sell.connect && S.sell.connect.charges_enabled && S.sell.terms;
+    var filters = [["todo", "À traiter" + (sm.to_fulfill ? " (" + sm.to_fulfill + ")" : "")], ["", "Toutes"], ["refunded", "Remboursées"]];
+    var list = S.sales.items.map(orderCard).join("");
+    var empty = f === "todo" ? "Rien à traiter : tout est à jour ✓"
+      : sm.orders_total ? "Aucune vente ici."
+      : "Pas encore de vente." + (ready ? " Partage le lien de ta vitrine pour te lancer !" : " Active les paiements et publie tes CGV (étape Boutique → Vente en ligne) pour encaisser en ligne.");
+    return '<div class="kpis"><div class="kpi' + (sm.to_fulfill ? " hot" : "") + '"><b>' + sm.to_fulfill + '</b><small>À traiter</small></div>' +
+      '<div class="kpi"><b>' + sm.orders_30d + '</b><small>Ventes · 30 j</small></div>' +
+      '<div class="kpi"><b>' + eur(sm.net_30d_cents) + '</b><small>Pour toi · 30 j</small></div></div>' +
+      '<div class="seg" style="margin-bottom:16px">' + filters.map(function (x) {
+        return '<button type="button" data-sales-filter="' + x[0] + '" class="' + (f === x[0] ? "on" : "") + '">' + x[1] + '</button>';
+      }).join("") + '</div>' +
+      (list || '<div class="banner soft"><span>' + esc(empty) + '</span>' + (!ready && !sm.orders_total ? '<button type="button" class="btn sm" data-step="3">Aller à la Boutique</button>' : '') + '</div>') +
+      (S.sales.has_more ? '<p class="note">Seules les 50 dernières ventes sont affichées ici.</p>' : '') +
+      '<div class="sec" style="margin-top:22px"><h3>Paiements et virements</h3><p class="lead">Montants versés, virements vers ton compte bancaire, remboursements : tout est dans ton espace Stripe.' +
+      ' Montants « pour toi » hors frais Stripe.</p><button type="button" class="btn sm" data-stripe-dash' + (S.me.impersonated_by ? ' disabled title="Réservé au titulaire du compte"' : '') + '>Ouvrir mon espace Stripe</button></div>';
+  };
+  function fulfillOrder(ref) {
+    var o = S.sales.items.filter(function (x) { return x.ref === ref; })[0];
+    if (!o) return;
+    var it = o.item || {}, shipping = it.kind === "physical" && !it.pickup;
+    var bg = document.createElement("div");
+    bg.className = "modal-bg";
+    bg.innerHTML = '<div class="modal"><button type="button" class="icon-btn x" data-close>✕</button>' +
+      '<h4>' + (shipping ? "Commande <em>expédiée</em>" : it.pickup ? "Commande <em>prête</em>" : "Commande <em>traitée</em>") + '</h4>' +
+      '<p class="note" style="margin-bottom:14px">' + esc(o.ref) + ' — ' + esc(it.title || "") + '</p>' +
+      (shipping ? '<div class="field"><label>Numéro ou lien de suivi (facultatif)</label><input type="text" data-tracking maxlength="120" placeholder="6A12345678901"></div>' : '') +
+      '<label class="check"><input type="checkbox" data-notify checked>Prévenir ' + esc(o.buyer.name || o.buyer.email) + ' par email</label>' +
+      '<p class="note bad" data-err></p><div class="modal-foot"><button type="button" class="btn" data-close>Annuler</button>' +
+      '<button type="button" class="btn dark" data-ok>Confirmer</button></div></div>';
+    root.appendChild(bg);
+    bg.addEventListener("click", function (e) { if (e.target === bg) bg.remove(); });
+    bg.querySelectorAll("[data-close]").forEach(function (b) { b.onclick = function () { bg.remove(); }; });
+    bg.querySelector("[data-ok]").onclick = function () {
+      var t = bg.querySelector("[data-tracking]"), btn = this;
+      btn.disabled = true;
+      api("PATCH", "/me/orders/" + encodeURIComponent(ref), { fulfilled: true, tracking: t ? t.value.trim() : "", notify: bg.querySelector("[data-notify]").checked })
+        .then(function (r) { bg.remove(); toast(r.buyer_notified ? "C'est noté ✓ Ton client est prévenu." : "C'est noté ✓"); loadSales(); })
+        .catch(function (e) { btn.disabled = false; bg.querySelector("[data-err]").textContent = e.message; });
+    };
+  }
 
   VIEWS.style = function () {
     var th = S.profile.theme || {};
@@ -725,6 +978,10 @@
       if (!b || b.disabled) return;
       var d = b.dataset;
       if (d.step) { goStep(+d.step); }
+      else if (d.salesFilter !== undefined) { S.salesFilter = d.salesFilter; S.sales = null; renderStep(); }
+      else if (d.fulfill) { fulfillOrder(d.fulfill); }
+      else if (d.unfulfill) { api("PATCH", "/me/orders/" + encodeURIComponent(d.unfulfill), { fulfilled: false }).then(function () { toast("Remise à traiter."); loadSales(); }).catch(function (e2) { toast(esc(e2.message)); }); }
+      else if (d.stripeDash !== undefined) { api("POST", "/connect/dashboard-link").then(function (r) { openTab(r.url); }).catch(function (e2) { toast(esc(e2.message)); }); }
       else if (d.publish !== undefined) { togglePublish(); }
       else if (d.verify !== undefined) { openVerify(); }
       else if (d.upload) {
@@ -762,6 +1019,8 @@
         var sc = S.profile.sections.slice(); sc[+d.toggleSec] = Object.assign({}, sc[+d.toggleSec], { visible: sc[+d.toggleSec].visible === false });
         setList("sections", sc); renderStep(); renderPreview();
       }
+      else if (b.hasAttribute("data-connect")) { startConnect(); }
+      else if (b.hasAttribute("data-terms")) { openTermsEditor(); }
       else if (b.id === "kb-add-offer") { openOffer(null); }
       else if (d.editOffer) { openOffer(S.offers.filter(function (o) { return o.id === +d.editOffer; })[0]); }
       else if (d.delOffer) { deleteOffer(+d.delOffer); }
@@ -876,7 +1135,8 @@
       if (draft.kind === "physical") return '<div class="row">' + t("stock", "Stock disponible (vide = non suivi)", "10", "number") + t("delivery_delay", "Délai de livraison", "2 à 5 jours ouvrés") + '</div>' +
         '<label class="check"><input type="checkbox" data-d="pickup_available"' + (d.pickup_available ? " checked" : "") + '>Retrait sur place possible</label>';
       if (draft.kind === "digital") return '<div class="row">' + t("file_format", "Format", "PDF, Notion, Figma…") +
-        sel("delivery_mode", "Livraison", { download: "Téléchargement", email_link: "Lien par email", account_access: "Accès en ligne" }) + '</div>';
+        sel("delivery_mode", "Livraison", { download: "Téléchargement", email_link: "Lien par email", account_access: "Accès en ligne" }) + '</div>' +
+        t("delivery_url", "Lien de livraison (envoyé automatiquement à l'acheteur après paiement, jamais affiché)", "https://drive.google.com/…");
       if (draft.kind === "service") return '<div class="row">' + t("duration_label", "Délai de réalisation", "2 semaines") +
         sel("location_mode", "Réalisation", { remote: "À distance", onsite: "En présentiel", both: "Les deux" }) + '</div>' +
         t("revisions_included", "Modifications incluses", "2", "number");
@@ -962,7 +1222,7 @@
         toast(offer ? "Offre enregistrée ✓" : "Offre ajoutée ✓");
         refreshOffers();
         if (!offer && r.suggest_terms_questionnaire && body.cta === "order") {
-          setTimeout(function () { toast('Prochaine étape : <a href="' + esc(CONFIG.LEGAL_URL) + '" target="_top">préparer tes CGV</a> pour pouvoir vendre.', 7000); }, 2000);
+          setTimeout(function () { toast("Pour encaisser cette vente en ligne : active les paiements et publie tes CGV (bloc « Vente en ligne » ci-dessus).", 7000); }, 2000);
         }
       }).catch(function (e) {
         btn.disabled = false;
@@ -1051,6 +1311,10 @@
   // ============================================================
   function goStep(n) {
     S.step = n;
+    var wide = !!STEPS[n - 1].extra;
+    $(".main").classList.toggle("wide-mode", wide);
+    root.classList.toggle("wide-mode", wide);
+    if (wide) S.sales = null;   // données fraîches à chaque ouverture de l'onglet
     renderTop(); renderStep();
     var edit = $(".edit"); if (edit) edit.scrollTop = 0;
   }
@@ -1092,7 +1356,10 @@
       '<div class="top"><div class="top-in"><h2 class="title"></h2><div class="meta">' +
       '<span class="save saved"><i></i><span>Enregistré</span></span>' +
       '<a class="plan" href="' + esc(CONFIG.PRICING_URL) + '" target="_top">' + esc(planName) + '</a></div></div>' +
-      '<div class="steps">' + STEPS.map(function (s) { return '<button type="button" class="step" data-go="' + s.n + '"><b>0' + s.n + '</b>' + s.label + '</button>'; }).join("") + '</div></div>' +
+      '<div class="steps">' + STEPS.map(function (s) {
+        return s.extra ? '<button type="button" class="step extra" data-go="' + s.n + '">' + s.label + '<span class="cnt" data-sales-badge hidden></span></button>'
+                       : '<button type="button" class="step" data-go="' + s.n + '"><b>0' + s.n + '</b>' + s.label + '</button>';
+      }).join("") + '</div></div>' +
       '<div class="mtabs"><button type="button" data-pane="edit" class="on">Modifier</button><button type="button" data-pane="prev">Aperçu</button></div>' +
       '<div class="main" data-pane="edit"><div class="edit"><div class="edit-in"></div></div>' +
       '<div class="prev"><div class="pv-head"><span class="pv-label">Aperçu en direct</span><div class="seg pv-dev">' +
@@ -1102,10 +1369,10 @@
     $(".steps").onclick = function (e) { var b = e.target.closest("[data-go]"); if (b) goStep(+b.dataset.go); };
     var exitImp = $("#kb-imp-exit");
     if (exitImp) exitImp.onclick = function () {
-      // Restaure la session admin mise de côté, puis retour à la console.
-      var adminToken = load(CONFIG.ADMIN_TOKEN_KEY);
-      store(CONFIG.TOKEN_KEY, adminToken || null);
-      store(CONFIG.ADMIN_TOKEN_KEY, null);
+      // Fin du mode support : la session du site d'avant est rendue (s'il y en avait
+      // une), puis retour à la console (sa session est restée ouverte dans l'onglet).
+      store(CONFIG.TOKEN_KEY, load(CONFIG.SUPPORT_RESTORE_KEY) || null);
+      store(CONFIG.SUPPORT_RESTORE_KEY, null);
       navigate(CONFIG.ADMIN_URL);
     };
     $(".pv-dev").onclick = function (e) {
@@ -1159,6 +1426,7 @@
       }).then(function (r) {
         S.offers = r.items;
         renderApp();
+        loadSales();   // compteur « à traiter » sur l'onglet Mes ventes
         if (!S.me.profile) toast("Ta vitrine est créée : complète-la, tout est enregistré automatiquement.", 5000);
       });
     }).catch(function (e) { if (e.status !== 401) showError(e.message); });
