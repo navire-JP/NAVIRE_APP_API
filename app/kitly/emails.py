@@ -8,8 +8,6 @@ authentifié), sinon Brevo accepte l'appel puis ne délivre rien.
 from __future__ import annotations
 
 import html as _html
-import logging
-
 import httpx
 
 from app.kitly.config import (
@@ -19,14 +17,13 @@ from app.kitly.config import (
     KITLY_SENDER_NAME,
 )
 
-logger = logging.getLogger(__name__)
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 
 def send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
-    """Envoie un email. Ne lève jamais : renvoie False en cas d'échec (loggué)."""
+    """Envoie un email. Ne lève jamais : renvoie False en cas d'échec (journalisé)."""
     if not KITLY_BREVO_API_KEY:
-        logger.warning("[kitly] clé Brevo absente — email non envoyé à %s (%s)", to, subject)
+        print(f"[kitly] ⚠️  Email non envoyé ({subject}) : aucune clé Brevo (KITLY_BREVO_API_KEY ou BREVO_API_KEY).")
         return False
     payload: dict = {
         "sender": {"email": KITLY_SENDER_EMAIL, "name": KITLY_SENDER_NAME},
@@ -44,12 +41,71 @@ def send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
             timeout=10.0,
         )
         if r.status_code not in (200, 201, 202):
-            logger.error("[kitly] Brevo HTTP %s pour %s : %s", r.status_code, to, r.text[:300])
+            # print : visible dans les logs Render (le logger n'y est pas branché).
+            print(f"[kitly] ⚠️  Brevo a refusé l'email « {subject} » (HTTP {r.status_code}) : {r.text[:300]}")
             return False
         return True
     except Exception as exc:  # réseau, timeout…
-        logger.error("[kitly] envoi Brevo impossible pour %s : %s", to, exc)
+        print(f"[kitly] ⚠️  Envoi Brevo impossible (« {subject} ») : {exc}")
         return False
+
+
+# ============================================================
+# Diagnostic de l'expéditeur
+# ============================================================
+# Piège classique : un expéditeur non validé chez Brevo. Brevo refuse l'envoi
+# (ou l'accepte puis ne délivre rien) et l'inscription reste bloquée faute de
+# code. Le diagnostic est fait au démarrage (en tâche de fond) et son résultat,
+# sans aucun secret, est exposé par /kitly/health.
+
+EMAIL_STATUS: dict = {"checked": False}
+
+
+def check_sender() -> dict:
+    """
+    L'expéditeur Kitly est utilisable s'il figure parmi les expéditeurs actifs
+    Brevo, ou si son domaine est authentifié chez Brevo. Ne lève jamais.
+    """
+    out = {"checked": True, "api_key_present": bool(KITLY_BREVO_API_KEY), "sender": KITLY_SENDER_EMAIL,
+           "sender_name": KITLY_SENDER_NAME, "sender_ok": None, "detail": "", "usable": []}
+    if not KITLY_BREVO_API_KEY:
+        out.update(sender_ok=False, detail="Aucune clé Brevo configurée.")
+        EMAIL_STATUS.clear(); EMAIL_STATUS.update(out)
+        return out
+    headers = {"api-key": KITLY_BREVO_API_KEY, "Accept": "application/json"}
+    sender = (KITLY_SENDER_EMAIL or "").lower()
+    domain = sender.split("@")[-1]
+    try:
+        r = httpx.get("https://api.brevo.com/v3/senders", headers=headers, timeout=10.0)
+        if r.status_code != 200:
+            out.update(sender_ok=False, detail=f"Clé Brevo refusée (HTTP {r.status_code}).")
+        else:
+            active = [s.get("email", "").lower() for s in (r.json() or {}).get("senders") or [] if s.get("active")]
+            domains = []
+            try:
+                d = httpx.get("https://api.brevo.com/v3/senders/domains", headers=headers, timeout=10.0)
+                if d.status_code == 200:
+                    domains = [x.get("domain_name", "").lower() for x in (d.json() or {}).get("domains") or []
+                               if x.get("authenticated")]
+            except Exception:
+                pass
+            out["usable"] = active + [f"*@{x}" for x in domains]
+            ok = sender in active or domain in domains
+            out["sender_ok"] = ok
+            out["detail"] = ("Expéditeur accepté par Brevo." if ok else
+                             f"{KITLY_SENDER_EMAIL} n'est ni un expéditeur validé ni sur un domaine authentifié chez Brevo : "
+                             "les emails Kitly (codes, demandes de contact) ne partent pas.")
+    except Exception as exc:
+        out["detail"] = f"Brevo injoignable : {exc}"
+    EMAIL_STATUS.clear(); EMAIL_STATUS.update(out)
+    return out
+
+
+def public_status() -> dict:
+    """Version publique (sans la liste des expéditeurs du compte Brevo)."""
+    if not EMAIL_STATUS.get("checked"):
+        return {"checked": False}
+    return {k: EMAIL_STATUS.get(k) for k in ("checked", "api_key_present", "sender", "sender_ok", "detail")}
 
 
 def _e(value: str) -> str:
