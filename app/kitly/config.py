@@ -38,6 +38,11 @@ KITLY_PUBLIC_HOST = os.getenv("KITLY_PUBLIC_HOST", "kitly.fr")
 # aperçus de partage. Page Framer /profile?u=<slug> par défaut ; passer à
 # https://kitly.fr/{slug} une fois le proxy en place (voir embeds/kitly/README.md).
 KITLY_PROFILE_URL_TEMPLATE = os.getenv("KITLY_PROFILE_URL_TEMPLATE", f"{KITLY_FRONTEND_URL}/profile?u={{slug}}")
+# Origines autorisées à appeler /kitly/* depuis un navigateur (CORS propre à
+# Kitly, distinct de CORS_ORIGINS de NAVIRE). Liste séparée par des virgules.
+KITLY_CORS_ORIGINS = _csv(os.getenv(
+    "KITLY_CORS_ORIGINS", "https://kitly.fr,https://www.kitly.fr,https://kitly.framer.website"
+))
 # Politique de confidentialité Kitly (citée par le formulaire de contact des vitrines)
 KITLY_PRIVACY_URL = os.getenv("KITLY_PRIVACY_URL", f"{KITLY_FRONTEND_URL}/politique-de-confidentialite")
 
@@ -116,17 +121,17 @@ KITLY_MARKETPLACE_COMMISSION_BPS = _int("KITLY_MARKETPLACE_COMMISSION_BPS", 1000
 
 # Retours Stripe (pages du site Framer)
 KITLY_BILLING_SUCCESS_URL = os.getenv(
-    "KITLY_BILLING_SUCCESS_URL", f"{KITLY_FRONTEND_URL}/builder?subscription=success"
+    "KITLY_BILLING_SUCCESS_URL", f"{KITLY_FRONTEND_URL}/subscribe?subscription=success"
 )
 KITLY_BILLING_CANCEL_URL = os.getenv(
     "KITLY_BILLING_CANCEL_URL", f"{KITLY_FRONTEND_URL}/subscribe?subscription=cancelled"
 )
-KITLY_BILLING_RETURN_URL = os.getenv("KITLY_BILLING_RETURN_URL", f"{KITLY_FRONTEND_URL}/builder")
+KITLY_BILLING_RETURN_URL = os.getenv("KITLY_BILLING_RETURN_URL", f"{KITLY_FRONTEND_URL}/subscribe")
 KITLY_CONNECT_RETURN_URL = os.getenv(
-    "KITLY_CONNECT_RETURN_URL", f"{KITLY_FRONTEND_URL}/builder?payments=return"
+    "KITLY_CONNECT_RETURN_URL", f"{KITLY_FRONTEND_URL}/subscribe?payments=return"
 )
 KITLY_CONNECT_REFRESH_URL = os.getenv(
-    "KITLY_CONNECT_REFRESH_URL", f"{KITLY_FRONTEND_URL}/builder?payments=refresh"
+    "KITLY_CONNECT_REFRESH_URL", f"{KITLY_FRONTEND_URL}/subscribe?payments=refresh"
 )
 
 # ============================================================

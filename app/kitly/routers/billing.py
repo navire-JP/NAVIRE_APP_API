@@ -13,6 +13,7 @@ sur la foi de Stripe (webhook ou lecture API), jamais du retour navigateur.
 
 from __future__ import annotations
 
+import functools
 import logging
 from datetime import datetime, timezone
 
@@ -43,6 +44,25 @@ from app.kitly.utils import iso
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["kitly · paiements"])
+
+def stripe_guard(message: str):
+    """
+    Transforme une erreur Stripe en réponse 502 lisible par le front, au lieu
+    d'une erreur 500 opaque (ex. portail client non configuré dans Stripe).
+    Les webhooks n'en bénéficient pas : ils doivent répondre 500 pour être relivrés.
+    """
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            try:
+                return fn(*args, **kwargs)
+            except stripe.StripeError as exc:
+                logger.warning("[kitly] Stripe : %s (%s)", exc, fn.__name__)
+                raise HTTPException(502, detail={"message": message, "stripe": exc.user_message or "",
+                                                 "code": "stripe_error"})
+        return wrapper
+    return deco
+
 
 LIVE_STATUSES = ("active", "trialing", "past_due")  # la formule reste ouverte (relances Stripe en cours)
 OPEN_STATUSES = LIVE_STATUSES + ("unpaid", "incomplete")
@@ -173,6 +193,7 @@ def get_subscription(user: KitlyUser = Depends(current_user), db: Session = Depe
 
 
 @router.post("/billing/checkout")
+@stripe_guard("Le paiement n'a pas pu être préparé. Réessaie dans un instant.")
 def checkout(payload: CheckoutIn, user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """
     Pas encore abonné : rend l'URL de la page de paiement Stripe.
@@ -220,6 +241,7 @@ def checkout(payload: CheckoutIn, user: KitlyUser = Depends(current_user), db: S
 
 
 @router.post("/billing/portal")
+@stripe_guard("Le portail de gestion de l'abonnement est indisponible pour le moment.")
 def billing_portal(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """Portail Stripe : carte bancaire, factures, résiliation."""
     if not user.stripe_customer_id:
@@ -241,17 +263,20 @@ def _set_cancel(db: Session, user: KitlyUser, cancel: bool) -> dict:
 
 
 @router.post("/billing/cancel")
+@stripe_guard("La résiliation n'a pas pu être enregistrée. Réessaie dans un instant.")
 def cancel_subscription(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """Résiliation à la fin de la période payée (la formule reste active jusque-là)."""
     return _set_cancel(db, user, True)
 
 
 @router.post("/billing/resume")
+@stripe_guard("La reprise de l'abonnement n'a pas pu être enregistrée. Réessaie dans un instant.")
 def resume_subscription(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     return _set_cancel(db, user, False)
 
 
 @router.get("/billing/invoices")
+@stripe_guard('Les factures sont indisponibles pour le moment.')
 def invoices(user: KitlyUser = Depends(current_user)):
     if not user.stripe_customer_id:
         return {"items": []}
@@ -328,6 +353,7 @@ def sync_account(db: Session, account) -> KitlyConnectedAccount | None:
 
 
 @router.get("/connect/status")
+@stripe_guard('Le statut de ton compte de paiement est indisponible pour le moment.')
 def get_connect_status(refresh: bool = False, user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """`refresh=true` relit Stripe (au retour de l'onboarding) ; sinon l'état reçu par webhook."""
     acc = user.connected_account
@@ -338,6 +364,7 @@ def get_connect_status(refresh: bool = False, user: KitlyUser = Depends(current_
 
 
 @router.post("/connect/onboarding")
+@stripe_guard("L'activation des paiements est indisponible pour le moment.")
 def connect_onboarding(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """
     « Activer les paiements » : crée le compte connecté au premier appel puis
@@ -382,6 +409,7 @@ def connect_onboarding(user: KitlyUser = Depends(current_user), db: Session = De
 
 
 @router.post("/connect/dashboard-link")
+@stripe_guard('Le tableau de bord des paiements est indisponible pour le moment.')
 def connect_dashboard(user: KitlyUser = Depends(current_user)):
     """Accès au tableau de bord Stripe Express (paiements, reversements)."""
     acc = user.connected_account

@@ -1,0 +1,514 @@
+<!--
+  KITLY : abonnement (/subscribe)
+  ===============================
+  Page Tarifs branchée sur l'API Kitly (Stripe du compte KITLY, jamais celui de NAVIRE) :
+
+    Visiteur        : les 3 formules (prix et contenu lus dans l'API, modifiables depuis
+                      le back-office) ; « Commencer » mène à l'inscription puis revient ici,
+                      formule présélectionnée.
+    Connecté (Free) : « Choisir Custom / Premium+ » → page de paiement Stripe.
+    Abonné          : formule marquée, changement de formule sur place (prorata, sans
+                      ressaisir la carte), résiliation en fin de période / reprise,
+                      carte et factures (portail Stripe), alerte en cas d'échec de paiement.
+    Ventes          : « Activer les paiements » (Stripe Connect) avec le statut réel Stripe.
+
+  Retour de Stripe : la formule n'est considérée comme active que lorsque Stripe l'a
+  confirmée (webhook) — la page affiche « activation en cours » en attendant.
+
+  Composant Framer : Embed HTML, largeur Fill, hauteur auto. Réglages : bloc CONFIG.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+<style>
+  html, body { margin: 0; padding: 0; background: transparent !important; }
+  *, *::before, *::after { box-sizing: border-box; }
+  #ks {
+    --ink: #0a0a0a; --paper: #ffffff; --grey: #f5f5f4; --line: #e4e4e2; --mut: #6f6f6c; --bad: #c2410c; --good: #15803d;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
+    max-width: 1160px; margin: 0 auto; padding: 56px 20px 72px; position: relative;
+  }
+  #ks button { font-family: inherit; }
+  #ks em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -.01em; }
+  #ks .kicker { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin: 0 0 16px; }
+  #ks h1 { font-size: clamp(34px, 5.4vw, 60px); font-weight: 900; letter-spacing: -.045em; line-height: 1.04; margin: 0 auto; max-width: 820px; }
+  #ks .center { text-align: center; }
+  #ks .lead { color: var(--mut); font-size: 17px; line-height: 1.55; max-width: 720px; margin: 20px auto 0; }
+  #ks a { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+  /* bandeau d'information */
+  #ks .banner { max-width: 760px; margin: 28px auto 0; border: 1px solid var(--line); border-radius: 18px; padding: 16px 20px; display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; font-size: 14.5px; line-height: 1.5; background: var(--paper); }
+  #ks .banner.ok { border-color: var(--good); }
+  #ks .banner.warn { border-color: var(--bad); }
+  #ks .banner.ink { border-color: var(--ink); }
+  #ks .banner:empty { display: none; }
+  #ks .spin { width: 15px; height: 15px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: ks-spin .7s linear infinite; display: inline-block; vertical-align: -2px; margin-right: 8px; }
+  @keyframes ks-spin { to { transform: rotate(360deg); } }
+
+  /* formules */
+  #ks .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 44px; align-items: stretch; }
+  #ks .plan { border: 1px solid var(--line); border-radius: 24px; padding: 28px; background: var(--paper); display: flex; flex-direction: column; position: relative; transition: box-shadow .2s, border-color .2s; }
+  #ks .plan.hl { border-color: var(--ink); box-shadow: 0 18px 40px rgba(10,10,10,.08); }
+  #ks .plan.picked { outline: 3px solid var(--ink); outline-offset: 3px; }
+  #ks .plan .tag { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; background: var(--ink); color: var(--paper); border-radius: 99px; padding: 5px 10px; margin-bottom: 14px; }
+  #ks .plan .tag.mine { background: var(--paper); color: var(--ink); border: 1px solid var(--ink); }
+  #ks .plan h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
+  #ks .plan .tagline { color: var(--mut); font-size: 14px; line-height: 1.5; margin: 8px 0 0; min-height: 42px; }
+  #ks .price { display: flex; align-items: baseline; gap: 6px; margin: 22px 0 4px; }
+  #ks .price b { font-size: 44px; font-weight: 900; letter-spacing: -.04em; line-height: 1; }
+  #ks .price span { color: var(--mut); font-size: 14px; font-weight: 600; }
+  #ks .plan .small { color: var(--mut); font-size: 12.5px; margin: 0 0 20px; }
+  #ks .plan ul { list-style: none; padding: 0; margin: 0 0 26px; flex: 1; }
+  #ks .plan li { position: relative; padding-left: 26px; font-size: 14px; line-height: 1.5; margin: 0 0 10px; }
+  #ks .plan li::before { content: ""; position: absolute; left: 2px; top: 5px; width: 12px; height: 7px; border-left: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: rotate(-45deg); }
+  #ks .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; padding: 14px 22px; border-radius: 999px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); text-decoration: none; white-space: nowrap; cursor: pointer; transition: background .15s; }
+  #ks .btn:hover { background: #2a2a2a; }
+  #ks .btn.ghost { background: var(--paper); color: var(--ink); border-color: var(--line); }
+  #ks .btn.ghost:hover { background: var(--grey); }
+  #ks .btn.sm { padding: 10px 18px; font-size: 13.5px; }
+  #ks .btn:disabled { opacity: .5; cursor: default; }
+  #ks .btn.current { background: var(--grey); color: var(--mut); border-color: var(--grey); cursor: default; }
+  #ks .plan .btn { width: 100%; text-decoration: none; }
+  #ks .note { text-align: center; color: var(--mut); font-size: 13px; margin: 22px 0 0; }
+
+  /* espace abonné */
+  #ks .panel { max-width: 860px; margin: 56px auto 0; border: 1px solid var(--line); border-radius: 24px; padding: 28px; background: var(--paper); }
+  #ks .panel h3 { font-size: 22px; font-weight: 900; letter-spacing: -.03em; margin: 0 0 6px; }
+  #ks .panel .sub { color: var(--mut); font-size: 14px; margin: 0 0 18px; line-height: 1.5; }
+  #ks .facts { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  #ks .fact { border: 1px solid var(--line); border-radius: 14px; padding: 10px 16px; min-width: 150px; }
+  #ks .fact small { display: block; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+  #ks .fact b { font-size: 16px; }
+  #ks .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  #ks table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+  #ks th, #ks td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); }
+  #ks th { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); }
+  #ks .pill { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 3px 9px; border-radius: 99px; background: var(--grey); color: var(--mut); }
+  #ks .pill.ok { background: #e7f5ec; color: var(--good); }
+  #ks .pill.warn { background: #fdece4; color: var(--bad); }
+  #ks .muted { color: var(--mut); font-size: 13px; }
+
+  /* FAQ */
+  #ks .faq { max-width: 760px; margin: 72px auto 0; border-top: 1px solid var(--line); }
+  #ks .faq h2 { text-align: center; font-size: 28px; font-weight: 800; letter-spacing: -.03em; margin: 56px 0 18px; }
+  #ks .faq details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+  #ks .faq summary { cursor: pointer; font-weight: 700; font-size: 16px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  #ks .faq summary::-webkit-details-marker { display: none; }
+  #ks .faq summary::after { content: "+"; font-family: var(--serif); font-size: 22px; line-height: 1; color: var(--mut); }
+  #ks .faq details[open] summary::after { content: "–"; }
+  #ks .faq p { margin: 10px 0 0; color: var(--mut); font-size: 15px; line-height: 1.7; }
+
+  /* modale de confirmation */
+  #ks .mbg { position: fixed; inset: 0; background: rgba(10,10,10,.5); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #ks .m { background: var(--paper); border-radius: 22px; max-width: 440px; width: 100%; padding: 26px; }
+  #ks .m h4 { font-size: 20px; font-weight: 900; letter-spacing: -.02em; margin: 0 0 8px; }
+  #ks .m p { color: var(--mut); font-size: 14.5px; line-height: 1.55; margin: 0 0 20px; }
+  #ks .m .acts { justify-content: flex-end; }
+  #ks .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--ink); color: var(--paper); padding: 12px 22px; border-radius: 99px; font-size: 13.5px; font-weight: 600; transition: .25s; pointer-events: none; z-index: 60; max-width: calc(100% - 32px); text-align: center; }
+  #ks .toast.show { opacity: 1; transform: translateX(-50%); }
+
+  @media (max-width: 900px) { #ks .plans { grid-template-columns: 1fr; } #ks .plan .tagline { min-height: 0; } }
+  @media (max-width: 640px) {
+    #ks { padding: 32px 16px 48px; }
+    #ks .panel { padding: 20px; }
+    #ks .acts .btn { flex: 1 1 100%; }
+    #ks table .opt { display: none; }
+  }
+</style>
+
+<div id="ks">
+  <div class="center">
+    <p class="kicker">Tarifs</p>
+    <h1>Une vitrine pro, <em>à ton rythme.</em></h1>
+    <p class="lead">Commence gratuitement. Passe à une formule supérieure quand ton activité le demande, sans engagement.</p>
+  </div>
+  <div class="banner" id="ks-banner"></div>
+  <div class="plans" id="ks-plans"></div>
+  <p class="note">Prix TTC. Paiement sécurisé par Stripe. Voir les <a href="/cgv" target="_top" data-rel>conditions générales de vente</a>.</p>
+  <div id="ks-account"></div>
+  <div id="ks-connect"></div>
+
+  <div class="faq">
+    <h2>Questions <em>fréquentes</em></h2>
+    <details><summary>Puis-je commencer gratuitement ?</summary><p>Oui. La formule Free est gratuite, sans limite de durée et sans carte bancaire. Tu peux créer et publier ta vitrine tout de suite.</p></details>
+    <details><summary>Comment changer de formule ?</summary><p>Ici même, à tout moment. Le passage à une formule supérieure est immédiat et la différence est calculée au prorata du mois en cours, sans ressaisir ta carte.</p></details>
+    <details><summary>Comment résilier ?</summary><p>En un clic sur cette page. La résiliation prend effet à la fin du mois déjà payé ; ta vitrine reste en ligne avec les fonctionnalités de la formule Free.</p></details>
+    <details><summary>Qu'est-ce que la marketplace ?</summary><p>C'est l'annuaire de recherche de Kitly : les clients y trouvent des indépendants par métier, lieu, type d'offre et budget. Elle est réservée à la formule Premium+.</p></details>
+    <details><summary>Mes données sont-elles conservées si je repasse en Free ?</summary><p>Oui. Les fonctionnalités réservées sont désactivées, mais rien n'est supprimé : tu retrouves tout si tu reprends une formule payante.</p></details>
+  </div>
+  <div class="toast" id="ks-toast"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  var CONFIG = {
+    API_BASE: "https://navire-app-api.onrender.com",
+    REGISTER_URL: "/connexion?mode=inscription",
+    BUILDER_URL: "/builder",
+    TOKEN_KEY: "kitly_token"
+  };
+
+  // Liens relatifs complétés avec l'adresse du site (kitly.framer.website ou kitly.fr).
+  var ORIGIN = (function () {
+    var o = "";
+    try { o = window.top.location.origin; } catch (e) { try { o = window.location.origin; } catch (e2) {} }
+    return o && o !== "null" ? o : "https://kitly.fr";
+  })();
+  function site(path) { return /^https?:/.test(path) ? path : ORIGIN + path; }
+
+  var root = document.getElementById("ks");
+  var HOST = window, frameEl = null;
+  try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+
+  var S = { plans: [], me: null, sub: null, connect: null, invoices: [], busy: false, billingReady: true };
+  var RANK = { free: 0, custom: 1, premium: 2 };
+
+  // ============================================================
+  // Utilitaires
+  // ============================================================
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function $(sel) { return root.querySelector(sel); }
+  function token() { try { return localStorage.getItem(CONFIG.TOKEN_KEY); } catch (e) { return null; } }
+  function params() { try { return new URLSearchParams(HOST.location.search); } catch (e) { return new URLSearchParams(window.location.search); } }
+  function cleanUrl(keys) {
+    try {
+      var p = new URLSearchParams(HOST.location.search);
+      keys.forEach(function (k) { p.delete(k); });
+      var qs = p.toString();
+      HOST.history.replaceState(HOST.history.state, "", HOST.location.pathname + (qs ? "?" + qs : "") + HOST.location.hash);
+    } catch (e) {}
+  }
+  function navigate(url) {
+    try { if (window.top && window.top !== window) { window.top.location.href = url; return; } } catch (e) {}
+    window.location.href = url;
+  }
+  function eur(cents) { return (cents / 100).toFixed(2).replace(".", ",").replace(",00", "") + " €"; }
+  function date(iso) { return iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : ""; }
+  function planName(code) { for (var i = 0; i < S.plans.length; i++) if (S.plans[i].code === code) return S.plans[i].name; return code; }
+
+  function api(method, path, body) {
+    var headers = { "Content-Type": "application/json" };
+    if (token()) headers.Authorization = "Bearer " + token();
+    return fetch(CONFIG.API_BASE + "/kitly" + path, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (d) {
+          if (!r.ok) {
+            var det = d && d.detail, msg = typeof det === "string" ? det : (det && det.message) || "Une erreur est survenue, réessaie.";
+            var e = new Error(msg); e.status = r.status; e.data = d; throw e;
+          }
+          return d;
+        });
+      }, function () { var e = new Error("Connexion au serveur impossible."); e.status = 0; throw e; });
+  }
+
+  var toastTimer;
+  function toast(msg, ms) {
+    var t = $("#ks-toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove("show"); }, ms || 3200);
+  }
+  function banner(html, kind) {
+    var b = $("#ks-banner");
+    b.className = "banner" + (kind ? " " + kind : "");
+    b.innerHTML = html || "";
+  }
+  function failure(e) {
+    if (e.status === 503) { S.billingReady = false; return banner("Les abonnements payants arrivent très bientôt. En attendant, profite de la formule Free.", "ink"); }
+    if (e.status === 401) { try { localStorage.removeItem(CONFIG.TOKEN_KEY); } catch (x) {} S.me = null; render(); return toast("Ta session a expiré, reconnecte-toi."); }
+    toast(e.message, 4500);
+  }
+
+  function viewport() {
+    if (!frameEl) return null;
+    var r = frameEl.getBoundingClientRect(), vh = HOST.innerHeight;
+    var top = Math.max(0, -r.top), bottom = Math.min(r.height, vh - r.top);
+    return { top: top, height: Math.max(220, bottom - top) };
+  }
+  function confirmBox(title, text, okLabel) {
+    return new Promise(function (resolve) {
+      var bg = document.createElement("div");
+      bg.className = "mbg";
+      var vp = viewport();
+      if (vp) { bg.style.position = "absolute"; bg.style.top = (vp.top - root.offsetTop) + "px"; bg.style.height = vp.height + "px"; bg.style.bottom = "auto"; }
+      bg.innerHTML = '<div class="m" role="dialog" aria-modal="true"><h4>' + esc(title) + '</h4><p>' + esc(text) + '</p>' +
+        '<div class="acts"><button type="button" class="btn ghost sm" data-no>Annuler</button><button type="button" class="btn sm" data-yes>' + esc(okLabel) + '</button></div></div>';
+      root.appendChild(bg);
+      var done = function (v) { bg.remove(); resolve(v); };
+      bg.querySelector("[data-no]").onclick = function () { done(false); };
+      bg.querySelector("[data-yes]").onclick = function () { done(true); };
+      bg.onclick = function (e) { if (e.target === bg) done(false); };
+    });
+  }
+
+  // ============================================================
+  // Rendu des formules
+  // ============================================================
+  function currentPlan() { return S.sub ? S.sub.plan.code : "free"; }
+  function liveSub() { return S.sub && S.sub.subscription && ["active", "trialing", "past_due"].indexOf(S.sub.subscription.status) >= 0 ? S.sub.subscription : null; }
+
+  function planButton(p) {
+    var picked = params().get("plan");
+    if (!S.me) {
+      var url = p.code === "free" ? CONFIG.REGISTER_URL : CONFIG.REGISTER_URL + "&next=" + encodeURIComponent("/subscribe?plan=" + p.code);
+      return '<a class="btn' + (p.limits && p.limits.marketplace ? "" : " ghost") + '" href="' + esc(site(url)) + '" target="_top">Commencer</a>';
+    }
+    var cur = currentPlan(), sub = liveSub();
+    if (p.code === cur) {
+      if (sub && sub.cancel_at_period_end) return '<button type="button" class="btn" data-resume>Garder ' + esc(p.name) + '</button>';
+      return '<button type="button" class="btn current" disabled>Ta formule actuelle</button>';
+    }
+    if (p.code === "free") {
+      if (sub && sub.cancel_at_period_end) return '<button type="button" class="btn current" disabled>Le ' + esc(date(sub.ends_at)) + '</button>';
+      return '<button type="button" class="btn ghost" data-cancel>Repasser en Free</button>';
+    }
+    if (!S.billingReady) return '<button type="button" class="btn current" disabled>Bientôt disponible</button>';
+    var label = (sub ? "Passer à " : "Choisir ") + p.name;
+    return '<button type="button" class="btn' + (p.code === picked || (p.limits && p.limits.marketplace) ? "" : " ghost") + '" data-plan="' + esc(p.code) + '">' + esc(label) + '</button>';
+  }
+
+  function renderPlans() {
+    var cur = S.me ? currentPlan() : null, picked = params().get("plan");
+    $("#ks-plans").innerHTML = S.plans.map(function (p) {
+      var market = p.limits && p.limits.marketplace;
+      var tag = cur === p.code ? '<span class="tag mine">Ta formule</span>' : market ? '<span class="tag">Marketplace incluse</span>' : "";
+      return '<div class="plan' + (market ? " hl" : "") + (picked === p.code && cur !== p.code ? " picked" : "") + '">' + tag +
+        '<h2>' + esc(p.name) + '</h2><p class="tagline">' + esc(p.tagline) + '</p>' +
+        '<div class="price"><b>' + esc(eur(p.price_cents)) + '</b><span>' + (p.price_cents ? "par mois" : "pour toujours") + '</span></div>' +
+        '<p class="small">' + (p.price_cents ? "Sans engagement, résiliable à tout moment." : "Sans carte bancaire.") + '</p>' +
+        '<ul>' + (p.features || []).map(function (f) { return '<li>' + esc(f) + '</li>'; }).join("") + '</ul>' +
+        planButton(p) + '</div>';
+    }).join("");
+  }
+
+  function renderAccount() {
+    var box = $("#ks-account");
+    if (!S.me || !S.sub || !S.sub.subscription) { box.innerHTML = ""; return; }
+    var sub = S.sub.subscription;
+    var status = sub.payment_issue
+      ? '<span class="pill warn">Paiement en échec</span>'
+      : sub.cancel_at_period_end ? '<span class="pill">Résilié — fin le ' + esc(date(sub.ends_at)) + '</span>' : '<span class="pill ok">Actif</span>';
+    var inv = S.invoices.length
+      ? '<table><thead><tr><th>Date</th><th class="opt">N°</th><th>Montant</th><th>Statut</th><th></th></tr></thead><tbody>' +
+        S.invoices.map(function (i) {
+          var st = i.status === "paid" ? '<span class="pill ok">Payée</span>' : i.status === "open" ? '<span class="pill warn">À régler</span>' : '<span class="pill">' + esc(i.status || "") + '</span>';
+          var link = i.pdf_url || i.url;
+          return '<tr><td>' + esc(date(i.date)) + '</td><td class="opt">' + esc(i.number || "") + '</td><td>' + esc(eur(i.amount_cents || 0)) + '</td><td>' + st + '</td><td>' +
+            (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">PDF</a>' : '') + '</td></tr>';
+        }).join("") + '</tbody></table>'
+      : '<p class="muted" style="margin-top:14px">Tes factures apparaîtront ici après le premier paiement.</p>';
+    box.innerHTML = '<div class="panel"><h3>Mon <em>abonnement</em></h3>' +
+      '<p class="sub">Formule ' + esc(planName(sub.plan)) + '. Ta carte et tes factures sont gérées de façon sécurisée par Stripe.</p>' +
+      '<div class="facts"><div class="fact"><small>Formule</small><b>' + esc(planName(sub.plan)) + '</b></div>' +
+      '<div class="fact"><small>Statut</small><b>' + status + '</b></div>' +
+      '<div class="fact"><small>' + (sub.cancel_at_period_end ? "Se termine le" : "Prochain prélèvement") + '</small><b>' + esc(date(sub.ends_at || sub.renews_at) || "—") + '</b></div></div>' +
+      '<div class="acts"><button type="button" class="btn sm" data-portal>' + (sub.payment_issue ? "Mettre à jour ma carte" : "Gérer ma carte et mes factures") + '</button>' +
+      (sub.cancel_at_period_end ? '<button type="button" class="btn ghost sm" data-resume>Reprendre mon abonnement</button>'
+                                : '<button type="button" class="btn ghost sm" data-cancel>Résilier</button>') + '</div>' + inv + '</div>';
+  }
+
+  var CONNECT_ACTION = { not_started: "Activer les paiements", onboarding_incomplete: "Terminer l'activation", action_required: "Compléter mes informations" };
+  function renderConnect() {
+    var box = $("#ks-connect");
+    if (!S.me || !S.connect) { box.innerHTML = ""; return; }
+    var c = S.connect;
+    var pill = c.status === "active" ? '<span class="pill ok">Activés</span>' : c.status === "pending_verification" ? '<span class="pill">Vérification en cours</span>' :
+      c.status === "not_started" ? '<span class="pill">Non activés</span>' : '<span class="pill warn">Action requise</span>';
+    var btn = CONNECT_ACTION[c.status] ? '<button type="button" class="btn sm" data-onboard>' + CONNECT_ACTION[c.status] + '</button>' : "";
+    if (c.status !== "not_started" && c.status !== "onboarding_incomplete") btn += '<button type="button" class="btn ghost sm" data-dashboard>Mes paiements et virements</button>';
+    box.innerHTML = '<div class="panel"><h3>Encaisser <em>tes ventes</em> ' + pill + '</h3>' +
+      '<p class="sub">' + esc(c.message) + ' Les vérifications d\'identité et de coordonnées bancaires sont réalisées par Stripe : Kitly ne voit jamais tes données bancaires.</p>' +
+      '<div class="acts">' + btn + '</div></div>';
+  }
+
+  function render() { renderPlans(); renderAccount(); renderConnect(); }
+
+  // ============================================================
+  // Actions
+  // ============================================================
+  function busy(btn, label) { S.busy = true; btn.disabled = true; btn.innerHTML = '<span class="spin"></span>' + esc(label); }
+  function idle() { S.busy = false; }
+
+  function choosePlan(code, btn) {
+    var target = S.plans.filter(function (p) { return p.code === code; })[0];
+    var sub = liveSub();
+    var go = function () {
+      busy(btn, sub ? "Changement…" : "Redirection vers Stripe…");
+      api("POST", "/billing/checkout", { plan: code }).then(function (r) {
+        if (r.checkout_url) return navigate(r.checkout_url);
+        S.sub = { plan: r.plan, subscription: r.subscription }; idle(); render();
+        toast("C'est fait : tu es maintenant en " + target.name + ".");
+        loadInvoices();
+      }).catch(function (e) { idle(); render(); failure(e); });
+    };
+    if (!sub) return go();
+    var up = RANK[code] > RANK[currentPlan()];
+    confirmBox("Passer à " + target.name + " ?",
+      up ? "Le changement est immédiat. La différence pour le mois en cours est calculée au prorata et facturée tout de suite sur ta carte."
+         : "Le changement est immédiat. Le trop-perçu du mois en cours sera déduit de tes prochaines factures.",
+      "Passer à " + target.name).then(function (ok) { if (ok) go(); });
+  }
+
+  function cancelPlan(btn) {
+    var sub = liveSub();
+    if (!sub) return;
+    confirmBox("Résilier ton abonnement ?",
+      "Tu gardes " + planName(sub.plan) + " jusqu'au " + date(sub.renews_at) + ", puis ta vitrine repasse en Free. Rien n'est supprimé.",
+      "Résilier").then(function (ok) {
+      if (!ok) return;
+      busy(btn, "Résiliation…");
+      api("POST", "/billing/cancel").then(function (r) { S.sub = r; idle(); render(); toast("Résiliation enregistrée."); })
+        .catch(function (e) { idle(); render(); failure(e); });
+    });
+  }
+
+  function resumePlan(btn) {
+    busy(btn, "Reprise…");
+    api("POST", "/billing/resume").then(function (r) { S.sub = r; idle(); render(); toast("Ton abonnement continue."); })
+      .catch(function (e) { idle(); render(); failure(e); });
+  }
+
+  function openPortal(btn) {
+    busy(btn, "Ouverture…");
+    api("POST", "/billing/portal").then(function (r) { navigate(r.url); }).catch(function (e) { idle(); render(); failure(e); });
+  }
+
+  function onboard(btn) {
+    busy(btn, "Redirection vers Stripe…");
+    api("POST", "/connect/onboarding").then(function (r) { navigate(r.url); }).catch(function (e) { idle(); render(); failure(e); });
+  }
+
+  function connectDashboard(btn) {
+    busy(btn, "Ouverture…");
+    api("POST", "/connect/dashboard-link").then(function (r) {
+      idle(); render();
+      try { window.open(r.url, "_blank", "noopener"); } catch (e) { navigate(r.url); }
+    }).catch(function (e) { idle(); render(); failure(e); });
+  }
+
+  root.addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b || b.disabled || S.busy) return;
+    if (b.dataset.plan) choosePlan(b.dataset.plan, b);
+    else if (b.hasAttribute("data-cancel")) cancelPlan(b);
+    else if (b.hasAttribute("data-resume")) resumePlan(b);
+    else if (b.hasAttribute("data-portal")) openPortal(b);
+    else if (b.hasAttribute("data-onboard")) onboard(b);
+    else if (b.hasAttribute("data-dashboard")) connectDashboard(b);
+    else if (b.hasAttribute("data-checkout-picked")) choosePlan(b.dataset.checkoutPicked, b);
+  });
+
+  // ============================================================
+  // Retours de Stripe et paramètres d'URL
+  // ============================================================
+  function loadInvoices() {
+    if (!S.me) return Promise.resolve();
+    return api("GET", "/billing/invoices").then(function (r) { S.invoices = r.items || []; renderAccount(); }).catch(function () {});
+  }
+
+  function waitForActivation() {
+    // Le retour navigateur ne prouve rien : on attend la confirmation de Stripe (webhook).
+    banner('<span><span class="spin"></span>Paiement reçu. Activation de ta formule en cours…</span>', "ink");
+    var tries = 0;
+    (function poll() {
+      api("GET", "/billing/subscription").then(function (r) {
+        if (r.subscription && r.plan.code !== "free") {
+          S.sub = r; render(); loadInvoices();
+          banner('<span>✓ Bienvenue sur <b>' + esc(r.plan.name) + '</b> ! Tes nouvelles fonctionnalités sont disponibles.</span>' +
+                 '<a class="btn sm" href="' + esc(site(CONFIG.BUILDER_URL)) + '" target="_top">Personnaliser ma vitrine</a>', "ok");
+          cleanUrl(["subscription", "session_id", "plan"]);
+          return;
+        }
+        if (++tries < 15) return setTimeout(poll, 2000);
+        banner("Ton paiement est bien reçu, l'activation prend un peu plus de temps que prévu. Rafraîchis cette page dans quelques minutes.", "ink");
+      }).catch(function () { if (++tries < 15) setTimeout(poll, 2000); });
+    })();
+  }
+
+  function handleParams() {
+    var p = params();
+    if (p.get("subscription") === "success" && S.me) return waitForActivation();
+    if (p.get("subscription") === "cancelled") {
+      banner("Paiement annulé : aucun montant n'a été débité. Tu peux choisir une formule quand tu veux.");
+      return cleanUrl(["subscription"]);
+    }
+    if (p.get("payments") === "return" || p.get("payments") === "refresh") {
+      cleanUrl(["payments"]);
+      if (p.get("payments") === "refresh") toast("Le lien d'activation a expiré : relance « Activer les paiements ».", 4500);
+      return;
+    }
+    var picked = p.get("plan");
+    var plan = S.plans.filter(function (x) { return x.code === picked && x.price_cents > 0; })[0];
+    if (plan && S.me && currentPlan() !== plan.code && S.billingReady) {
+      banner('<span>Tu as choisi <b>' + esc(plan.name) + '</b> (' + esc(eur(plan.price_cents)) + ' / mois).</span>' +
+             '<button type="button" class="btn sm" data-checkout-picked="' + esc(plan.code) + '">Continuer vers le paiement</button>', "ink");
+    }
+    if (S.me && S.sub && S.sub.subscription && S.sub.subscription.payment_issue) {
+      banner('<span>Le dernier paiement de ton abonnement a échoué. Mets à jour ta carte pour garder ta formule.</span>' +
+             '<button type="button" class="btn sm" data-portal>Mettre à jour ma carte</button>', "warn");
+    }
+  }
+
+  // ============================================================
+  // Hauteur de l'iframe = hauteur du contenu
+  // ============================================================
+  (function () {
+    if (window.parent === window) return;
+    var wrappers = [];
+    try {
+      if (frameEl) {
+        for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+        var st = document.createElement("style"); st.textContent = "html,body{overflow:hidden}"; document.head.appendChild(st);
+      }
+    } catch (e) {}
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height) + 2;
+      if (!h || h === last) return;
+      last = h;
+      if (frameEl) {
+        frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+        wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+      } else {
+        try { window.parent.postMessage({ type: "KITLY_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+      }
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+    window.addEventListener("load", report);
+  })();
+
+  // ============================================================
+  // Démarrage
+  // ============================================================
+  root.querySelectorAll("a[data-rel]").forEach(function (a) { a.href = site(a.getAttribute("href")); });
+  // Formules affichées tout de suite (valeurs de repli), puis remplacées par celles de l'API.
+  S.plans = [
+    { code: "free", name: "Free", tagline: "Pour créer sa première vitrine professionnelle.", price_cents: 0, limits: {},
+      features: ["Vitrine publique et adresse kitly.fr/ton-nom", "Présentation du profil", "Personnalisation de base", "Portfolio limité", "Quelques produits et prestations", "Formulaire de contact"] },
+    { code: "custom", name: "Custom", tagline: "Pour personnaliser et développer sa vitrine professionnelle.", price_cents: 700, limits: {},
+      features: ["Tout Free", "Nom de domaine personnalisé", "Personnalisation graphique avancée", "Plus de produits et prestations", "Rendez-vous et disponibilités", "Statistiques de fréquentation", "Sans la mention Kitly"] },
+    { code: "premium", name: "Premium+", tagline: "Pour développer son activité et accéder à la marketplace.", price_cents: 1490, limits: { marketplace: true },
+      features: ["Tout Custom", "Référencement sur la marketplace", "Présence dans les résultats de recherche", "Profil enrichi et mise en avant des prestations", "Statistiques d'acquisition"] }
+  ];
+  renderPlans();
+
+  var plansReq = api("GET", "/plans").then(function (r) { if (r.items && r.items.length) S.plans = r.items; }).catch(function () {});
+  var meReq = token()
+    ? Promise.all([api("GET", "/auth/me"), api("GET", "/billing/subscription")]).then(function (r) {
+        S.me = r[0]; S.sub = r[1];
+        var refresh = params().get("payments") === "return" ? "?refresh=true" : "";
+        return Promise.all([
+          api("GET", "/connect/status" + refresh).then(function (c) { S.connect = c; }).catch(function (e) { if (e.status === 503) S.billingReady = false; }),
+          loadInvoices()
+        ]);
+      }).catch(function (e) { if (e.status === 401) { try { localStorage.removeItem(CONFIG.TOKEN_KEY); } catch (x) {} } S.me = null; })
+    : Promise.resolve();
+  Promise.all([plansReq, meReq]).then(function () { render(); handleParams(); });
+})();
+</script>

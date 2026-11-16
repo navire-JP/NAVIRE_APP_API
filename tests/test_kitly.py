@@ -793,3 +793,58 @@ def test_export_includes_legal_records(client):
     assert legal["legal_profile"]["legal_name"] == "Léa Martin EI"
     assert legal["questionnaire_answers"]["general"]["answers"]["sells_to_consumers"] is True
     assert legal["terms_versions"][0]["articles"][0]["body"] == "Texte."
+
+
+def test_cors_split_between_navire_and_kitly(client):
+    from app.core.config import CORS_ORIGINS
+
+    pre = {"Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type,authorization"}
+    kitly_origin = "https://kitly.framer.website"
+    r = client.options("/kitly/auth/login", headers={"Origin": kitly_origin, **pre})
+    assert r.status_code == 200 and r.headers.get("access-control-allow-origin") == kitly_origin
+    assert "access-control-allow-credentials" not in r.headers
+    # Le site Kitly n'est pas autorisé sur les routes NAVIRE…
+    r = client.options("/auth/login", headers={"Origin": kitly_origin, **pre})
+    assert r.headers.get("access-control-allow-origin") != kitly_origin
+    # … ni une origine inconnue sur Kitly.
+    r = client.options("/kitly/auth/login", headers={"Origin": "https://evil.example", **pre})
+    assert r.headers.get("access-control-allow-origin") is None
+    # Une origine NAVIRE n'ouvre pas les routes Kitly.
+    for origin in CORS_ORIGINS:
+        if origin not in ("*",):
+            r = client.options("/kitly/auth/login", headers={"Origin": origin, **pre})
+            assert r.headers.get("access-control-allow-origin") != origin or origin in (
+                "https://kitly.fr", "https://www.kitly.fr", "https://kitly.framer.website")
+
+
+
+def test_stripe_errors_become_readable_502(client, monkeypatch):
+    import stripe
+    from app.kitly import config
+    from app.kitly.routers import billing
+
+    class Boom:
+        class billing_portal:
+            class sessions:
+                @staticmethod
+                def create(params=None):
+                    raise stripe.InvalidRequestError("No configuration provided", param=None)
+
+    email, h = register(client)
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyUser
+    with SessionLocal() as db:
+        db.query(KitlyUser).filter_by(email=email).one().stripe_customer_id = "cus_x"
+        db.commit()
+    monkeypatch.setattr(billing, "stripe_client", lambda: Boom)
+    r = client.post("/kitly/billing/portal", headers=h)
+    assert r.status_code == 502
+    assert r.json()["detail"]["code"] == "stripe_error" and "portail" in r.json()["detail"]["message"]
+
+
+def test_stripe_returns_point_to_subscribe_page():
+    from app.kitly import config
+
+    for url in (config.KITLY_BILLING_SUCCESS_URL, config.KITLY_BILLING_CANCEL_URL, config.KITLY_BILLING_RETURN_URL,
+                config.KITLY_CONNECT_RETURN_URL, config.KITLY_CONNECT_REFRESH_URL):
+        assert "/subscribe" in url

@@ -32,6 +32,7 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_BREVO_API_KEY` | non | Clé Brevo dédiée (à défaut : `BREVO_API_KEY`) |
 | `KITLY_CLOUDINARY_URL` | non | Compte Cloudinary dédié (à défaut : `CLOUDINARY_URL`, dossier `kitly/`) |
 | `KITLY_FRONTEND_URL` | non | Site Framer Kitly (défaut `https://kitly.fr`), base des retours Stripe |
+| `KITLY_CORS_ORIGINS` | non | Origines autorisées sur `/kitly/*`, séparées par des virgules (défaut : kitly.fr, www.kitly.fr, kitly.framer.website) |
 | `KITLY_PUBLIC_HOST` | non | Domaine des vitrines (défaut `kitly.fr`) |
 | `KITLY_PROFILE_URL_TEMPLATE` | non | Adresse publique d'une vitrine, `{slug}` remplacé (défaut `<KITLY_FRONTEND_URL>/profile?u={slug}`) |
 | `KITLY_PRIVACY_URL` | non | Politique de confidentialité citée par le formulaire de contact des vitrines |
@@ -39,7 +40,9 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_MARKETPLACE_COMMISSION_BPS` | non | Commission marketplace (défaut 1000 = 10 %) |
 | `KITLY_NEW_PROFILES_DAYS` / `KITLY_POPULAR_WINDOW_DAYS` | non | Fenêtres « nouveaux » (7 j) et « populaires » (30 j) |
 
-**CORS** : ajouter le domaine du site Framer Kitly à `CORS_ORIGINS`.
+**CORS séparé** (`app/kitly/cors.py`) : les routes `/kitly/*` n'acceptent que
+`KITLY_CORS_ORIGINS` (défaut : `https://kitly.fr,https://www.kitly.fr,https://kitly.framer.website`) ;
+les routes NAVIRE gardent `CORS_ORIGINS`, inchangé. Rien à ajouter dans `CORS_ORIGINS` pour Kitly.
 Le démarrage affiche `[kitly] ⚠️ Variables manquantes : …` sans bloquer NAVIRE.
 
 ## Stripe — mise en place
@@ -98,7 +101,8 @@ partagée (embeds marketplace et accueil)
 `/search?q=&category=&location=&kind=&budget_max_cents=&sort=relevance|new|popular|price_asc&page=` ·
 `/ranking-info` — les profils `sponsored` sont renvoyés à part et doivent être étiquetés « Sponsorisé ».
 
-**Embed 5 — Subscribe / paiements**
+**Embed 5 — Subscribe / paiements** (`embeds/kitly/subscribe.html` ; retours Stripe vers `/subscribe` ;
+les erreurs Stripe sont rendues en 502 `{"code": "stripe_error", "message": …}`)
 `GET /kitly/plans` · `GET /kitly/billing/subscription` · `POST /kitly/billing/checkout {"plan"}`
 (URL Stripe, ou changement de formule sur place si déjà abonné) · `POST /kitly/billing/portal` ·
 `POST /kitly/billing/cancel` · `POST /kitly/billing/resume` · `GET /kitly/billing/invoices` ·

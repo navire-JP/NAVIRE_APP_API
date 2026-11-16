@@ -10,6 +10,7 @@ Embeds du second site Framer, branchés sur les routes `/kitly/*` de l'API
 | `connexion.html` | `/connexion` | Embed HTML, largeur Fill, hauteur auto (l'embed agrandit son iframe) | Embed 4 : connexion, inscription (CGU et confidentialité en cases séparées), code de vérification email (collage du code accepté, « plus tard » possible), mot de passe oublié, écran « déjà connecté ». `?mode=inscription` ouvre l'inscription (boutons « Créer ma vitrine » de la landing) |
 | `profil.html` | `/profile?u=<adresse>` (et/ou page 404 de Framer pour `kitly.fr/<adresse>`) | Embed HTML, largeur Fill, hauteur auto | Embed 2 : vitrine publique. Lit l'adresse dans `?u=` ou dans le chemin (`kitly.fr/lea-martin`). Fiches offres, contact / devis / rendez-vous, réalisations, CGV du vendeur, signalement, comptage des visites. Modales placées sur la partie visible de la page. Adresse inconnue : « Cette vitrine n'existe pas » |
 | `marketplace.html` | `/marketplace` (et section « marketplace » de la landing en mode `showcase`) | Embed HTML, largeur Fill, hauteur auto | Embed 3 : recherche (sans accents), catégories, lieu, type d'offre, budget, tri ; « Les nouveaux sur Kitly », « Les profils populaires », encart « Sponsorisé » séparé du classement, « Voir plus », « Comment sont classés les résultats ? ». Filtres recopiés dans l'URL de la page (lien partageable). Les cartes ouvrent la vitrine avec `?src=marketplace`. Mode `showcase` : 8 profils + bouton vers la marketplace |
+| `subscribe.html` | `/subscribe` | Embed HTML, largeur Fill, hauteur auto | Abonnement (Stripe du compte Kitly) : formules lues dans l'API, « Commencer » → inscription puis retour ici formule présélectionnée, paiement Stripe, changement de formule sur place (prorata), résiliation en fin de période / reprise, carte et factures (portail Stripe), alerte d'échec de paiement, « Activer les paiements » (Stripe Connect). Après paiement, « activation en cours » jusqu'à la confirmation de Stripe |
 | `builder.html` | `/builder` | Embed HTML, largeur Fill, **hauteur 100vh** (ou Fill dans une section pleine hauteur, sous le header) | « Ma vitrine » : 4 étapes (Identité, Liens, Boutique, Style), aperçu téléphone en direct, sauvegarde automatique, ajout d'offres par type, publication avec confirmation d'email sur place. Mobile : onglets Modifier / Aperçu |
 
 ## Moteur de rendu partagé
@@ -50,8 +51,14 @@ mettre en place avant le lancement (changer alors `PROFILE_URL` / `PUBLIC_BASE` 
 
 ## Réglages (bloc CONFIG en haut de chaque script)
 
+Les liens vers les pages du site sont **relatifs** (`/builder`, `/profile?u=…`) et
+complétés automatiquement avec l'adresse du site qui affiche l'embed : les mêmes
+fichiers fonctionnent sur `https://kitly.framer.website` et sur `https://kitly.fr`,
+sans modification. Une URL complète (`https://…`) reste possible pour forcer un lien.
+
 - `API_BASE` : `https://navire-app-api.onrender.com`
-- `connexion.html` : `BUILDER_URL` (destination après connexion), `CGU_URL`, `PRIVACY_URL`
+- `connexion.html` : `BUILDER_URL` (destination après connexion, sauf `?next=/chemin` interne), `CGU_URL`, `PRIVACY_URL`
+- `subscribe.html` : `REGISTER_URL`, `BUILDER_URL`
 - `profil.html` : `KITLY_URL`, `PRIVACY_URL` (citée par le formulaire de contact), `MARKETPLACE_URL`,
   `RESERVED` (chemins du site qui ne sont jamais des vitrines)
 - `home.html` : `REGISTER_URL`, `LOGIN_URL`, `BUILDER_URL`, `PRICING_URL`, `PUBLIC_BASE`, `PROFILE_URL`
@@ -61,7 +68,8 @@ mettre en place avant le lancement (changer alors `PROFILE_URL` / `PUBLIC_BASE` 
 - `builder.html` : `LOGIN_URL`, `PRICING_URL`, `LEGAL_URL` (future page CGV vendeur),
   `PUBLIC_BASE` (vitrine publique = `PUBLIC_BASE` + slug)
 
-Le domaine du site Kitly doit figurer dans `CORS_ORIGINS` sur Render.
+Les domaines du site Kitly sont autorisés par `KITLY_CORS_ORIGINS` (propre à Kitly,
+distinct de `CORS_ORIGINS` de NAVIRE) : kitly.fr, www.kitly.fr et kitly.framer.website par défaut.
 
 ## Messages envoyés à la page
 

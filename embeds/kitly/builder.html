@@ -212,14 +212,26 @@
   // ============================================================
   var CONFIG = {
     API_BASE: "https://navire-app-api.onrender.com",
-    LOGIN_URL: "https://kitly.fr/connexion",     // embed connexion.html
-    PRICING_URL: "https://kitly.fr/subscribe",
-    LEGAL_URL: "https://kitly.fr/builder",       // future page « Mes CGV » (à créer)
-    PUBLIC_BASE: "https://kitly.fr/profile?u=",   // vitrine publique = PUBLIC_BASE + slug
+    LOGIN_URL: "/connexion",     // embed connexion.html
+    PRICING_URL: "/subscribe",
+    LEGAL_URL: "/builder",       // future page « Mes CGV » (à créer)
+    PUBLIC_BASE: "/profile?u=",   // vitrine publique = PUBLIC_BASE + slug
     TOKEN_KEY: "kitly_token",
     USER_KEY: "kitly_user",
     AUTOSAVE_MS: 700
   };
+  // Liens relatifs (« /builder ») complétés avec l'adresse du site qui affiche
+  // l'embed : fonctionne tel quel sur kitly.framer.website comme sur kitly.fr.
+  (function () {
+    var origin = "";
+    try { origin = window.top.location.origin; } catch (e) { try { origin = window.location.origin; } catch (e2) {} }
+    if (!origin || origin === "null") origin = "https://kitly.fr";
+    Object.keys(CONFIG).forEach(function (k) {
+      var v = CONFIG[k];
+      if (typeof v === "string" && v.charAt(0) === "/") CONFIG[k] = origin + v;
+    });
+  })();
+
 
   // ============================================================
   // Référentiels d'affichage
