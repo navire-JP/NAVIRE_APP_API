@@ -31,6 +31,7 @@ from app.kitly.models import (
     KitlyConnectedAccount,
     KitlyLead,
     KitlyOffer,
+    KitlyOrder,
     KitlyPlan,
     KitlyPlanGrant,
     KitlyProfile,
@@ -109,6 +110,11 @@ def overview(db: Session = Depends(get_db)):
         "views_30d": _count(db, select(KitlyProfileView.id).where(KitlyProfileView.day >= today() - timedelta(days=29))),
         "open_reports": _count(db, select(KitlyReport.id).where(KitlyReport.status == "open")),
         "connected_accounts_active": _count(db, select(KitlyConnectedAccount.id).where(KitlyConnectedAccount.charges_enabled.is_(True))),
+        "orders_30d": _count(db, select(KitlyOrder.id).where(KitlyOrder.status == "paid", KitlyOrder.paid_at >= d30)),
+        "sales_30d_cents": db.execute(select(func.coalesce(func.sum(KitlyOrder.amount_cents), 0))
+                                      .where(KitlyOrder.status == "paid", KitlyOrder.paid_at >= d30)).scalar_one(),
+        "commission_30d_cents": db.execute(select(func.coalesce(func.sum(KitlyOrder.commission_cents), 0))
+                                           .where(KitlyOrder.status == "paid", KitlyOrder.paid_at >= d30)).scalar_one(),
     }
 
 

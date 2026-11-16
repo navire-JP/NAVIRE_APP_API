@@ -480,6 +480,10 @@ def _already_processed(db: Session, event_id: str) -> bool:
 
 
 def handle_billing_event(db: Session, event) -> None:
+    from app.kitly.routers.shop import handle_order_event  # import local : shop dépend de ce module
+
+    if handle_order_event(db, event):
+        return  # vente sur une vitrine (Checkout en mode paiement, remboursement, litige)
     etype = event["type"]
     obj = event["data"]["object"]
     if etype == "checkout.session.completed":

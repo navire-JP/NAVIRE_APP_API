@@ -240,6 +240,17 @@
     ".kv-m .chk input{width:17px;height:17px;margin:1px 0 0;accent-color:#0a0a0a;flex-shrink:0}",
     ".kv-m .chk a{color:#0a0a0a;font-weight:700}",
     ".kv-m .err{color:#c2410c;font-size:13px;margin-top:10px}",
+    ".kv-m .opts{display:flex;flex-direction:column;gap:8px}",
+    ".kv-m .opt{display:flex;gap:10px;align-items:center;border:1px solid #e4e4e2;border-radius:12px;padding:11px 13px;font-size:13.5px;cursor:pointer}",
+    ".kv-m .opt:has(input:checked){border-color:#0a0a0a;box-shadow:0 0 0 1px #0a0a0a}",
+    ".kv-m .opt input{accent-color:#0a0a0a;margin:0;flex-shrink:0}",
+    ".kv-m .opt span{flex:1}.kv-m .opt b{white-space:nowrap}",
+    ".kv-m .opt small{display:block;color:#6f6f6c;font-size:12px}",
+    ".kv-m .tot{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #e4e4e2;margin-top:16px;padding-top:14px;font-size:14px}",
+    ".kv-m .tot b{font-size:22px;font-weight:900;letter-spacing:-.02em}",
+    ".kv-m .lnk{background:none;border:0;padding:0;font:inherit;color:#0a0a0a;font-weight:700;text-decoration:underline;cursor:pointer}",
+    ".kv-m .tpanel{max-height:220px;overflow:auto;border:1px solid #e4e4e2;border-radius:10px;padding:4px 12px 12px;margin-top:10px}",
+    ".kv-m .secure{text-align:center;font-size:11.5px;color:#6f6f6c;margin-top:10px}",
     ".kv-m .err:empty{display:none}",
     ".kv-m .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}",
     ".kv-m .done{text-align:center;padding:20px 0 6px}",
@@ -419,7 +430,7 @@
             '<div class="bd">' + (o.badge ? '<span class="kv-tg">' + esc(o.badge) + '</span>' : '') + (out ? '<span class="kv-tg out">Épuisé</span>' : '') +
             '<div class="tt">' + esc(o.title) + '</div><div class="pr">' + esc(o.price_label || "") + '</div>' +
             (o.description ? '<div class="ds">' + esc(o.description) + '</div>' : '') +
-            '<div class="ct">' + esc(out ? CTA_LABEL.contact : (CTA_LABEL[o.cta] || "Voir")) + ' →</div></div></button>';
+            '<div class="ct">' + esc(out ? CTA_LABEL.contact : o.buyable ? "Acheter" : (CTA_LABEL[o.cta] || "Voir")) + ' →</div></div></button>';
         }).join("") + '</div></div>';
       },
       portfolio: function () {
@@ -510,7 +521,7 @@
       '<div class="bd">' + (o.badge ? '<span class="kv-tg">' + esc(o.badge) + '</span>' : '') + (out ? '<span class="kv-tg out">Épuisé</span>' : '') +
       '<div class="tt">' + esc(o.title) + '</div><div class="pr">' + esc(o.price_label || "") + '</div>' +
       (o.description ? '<div class="ds">' + esc(o.description) + '</div>' : '') +
-      '<div class="ct">' + esc(out ? CTA_LABEL.contact : (CTA_LABEL[o.cta] || "Voir")) + ' →</div></div></button>';
+      '<div class="ct">' + esc(out ? CTA_LABEL.contact : o.buyable ? "Acheter" : (CTA_LABEL[o.cta] || "Voir")) + ' →</div></div></button>';
   }
   function serviceCard(o) {
     var sub = offerSub(o);
@@ -520,7 +531,7 @@
       '<div class="bd"><div class="top"><span class="tt">' + esc(o.title) + '</span><span class="pr">' + esc(o.price_label || "") + '</span></div>' +
       (sub ? '<div class="sb">' + esc(sub) + '</div>' : '') +
       (o.description ? '<p class="ds">' + esc(o.description) + '</p>' : '') +
-      '<span class="ct">' + esc(CTA_LABEL[o.cta] || "En savoir plus") + ' →</span></div></button>';
+      '<span class="ct">' + esc(o.buyable ? "Acheter" : (CTA_LABEL[o.cta] || "En savoir plus")) + ' →</span></div></button>';
   }
   function legalLines(p) {
     var seller = (p.legal || {}).seller, lines = [];
@@ -777,10 +788,124 @@
         '<h3>' + esc(o.title) + '</h3><div class="price">' + esc(o.price_label || "") + '</div>' +
         (o.description ? '<div class="desc">' + esc(o.description) + '</div>' : '') +
         (facts.length ? '<ul class="facts">' + facts.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join("") + '</ul>' : '') +
-        '<button type="button" class="cta" data-go>' + esc(soldOut ? CTA_LABEL.contact : (CTA_LABEL[o.cta] || "Me contacter")) + '</button>',
+        (o.buyable && !soldOut
+          ? '<button type="button" class="cta" data-buy>Acheter — ' + esc(money(o.price_cents)) + '</button>' +
+            '<button type="button" class="cta ghost" data-go>Poser une question</button>'
+          : '<button type="button" class="cta" data-go>' + esc(soldOut ? CTA_LABEL.contact : (CTA_LABEL[o.cta] || "Me contacter")) + '</button>'),
         function () { setHash(""); }
       );
-      m.el.querySelector("[data-go]").onclick = function () { m.close(); openContact(soldOut ? Object.assign({}, o, { cta: "contact" }) : o); };
+      var buy = m.el.querySelector("[data-buy]");
+      if (buy) buy.onclick = function () { m.close(); openBuy(o); };
+      m.el.querySelector("[data-go]").onclick = function () {
+        m.close();
+        openContact(soldOut || o.buyable ? Object.assign({}, o, { cta: "contact" }) : o);
+      };
+    }
+
+    function money(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",").replace(",00", "") + " €"; }
+
+    function pageUrl() {
+      try { return HOST.location.href.split("#")[0]; } catch (e) { return window.location.href.split("#")[0]; }
+    }
+    function goTo(url) {
+      try { if (HOST !== window) { HOST.location.href = url; return; } } catch (e) {}
+      try { if (window.top && window.top !== window) { window.top.location.href = url; return; } } catch (e) {}
+      window.location.href = url;
+    }
+
+    function openBuy(o) {
+      var d = o.details || {};
+      var variants = o.kind === "physical" ? (d.variants || []) : [];
+      var ships = o.kind === "physical" ? (d.shipping_options || []) : [];
+      var firstVariant = variants.filter(function (v) { return v.in_stock !== false; })[0];
+      var delivery = "";
+      if (o.kind === "physical") {
+        var opts = ships.map(function (sh, i) {
+          return '<label class="opt"><input type="radio" name="delivery" value="' + i + '"' + (i === 0 ? " checked" : "") + '><span>' + esc(sh.label) +
+            (sh.delay ? '<small>' + esc(sh.delay) + '</small>' : '') + '</span><b>' + (sh.price_cents ? esc(money(sh.price_cents)) : "Offerte") + '</b></label>';
+        });
+        if (!ships.length) opts.push('<label class="opt"><input type="radio" name="delivery" value="ship" checked><span>Livraison' +
+          (d.delivery_delay ? '<small>' + esc(d.delivery_delay) + '</small>' : '') + '</span><b>Incluse</b></label>');
+        if (d.pickup_available) opts.push('<label class="opt"><input type="radio" name="delivery" value="pickup"><span>Retrait sur place' +
+          (d.pickup_location ? '<small>' + esc(d.pickup_location) + '</small>' : '') + '</span><b>Gratuit</b></label>');
+        delivery = '<label class="lb">Livraison</label><div class="opts">' + opts.join("") + '</div>';
+      }
+      var m = modal(
+        '<h3>' + esc(o.title) + '</h3><p class="sub">Vendu par ' + esc(data.display_name) + ' · paiement sécurisé</p><form novalidate>' +
+        (variants.length ? '<label class="lb">Option</label><select name="variant">' + variants.map(function (v) {
+          return '<option value="' + esc(v.id) + '"' + (v.in_stock === false ? " disabled" : "") + (firstVariant && v.id === firstVariant.id ? " selected" : "") + '>' +
+            esc(v.label) + (v.price_cents != null ? " — " + esc(money(v.price_cents)) : "") + (v.in_stock === false ? " (épuisé)" : "") + '</option>';
+        }).join("") + '</select>' : '') +
+        (o.kind === "physical" ? '<label class="lb">Quantité</label><select name="qty">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+          return '<option>' + n + '</option>'; }).join("") + '</select>' : '') +
+        delivery +
+        '<div class="row"><div><label class="lb">Email</label><input type="email" name="email" autocomplete="email" placeholder="pour la confirmation"></div>' +
+        '<div><label class="lb">Nom</label><input type="text" name="name" autocomplete="name" maxlength="120"></div></div>' +
+        '<label class="chk"><input type="checkbox" name="terms"><span>J\'ai lu et j\'accepte les <button type="button" class="lnk" data-read>conditions générales de vente</button> de ' + esc(data.display_name) + '.</span></label>' +
+        '<div class="tpanel" hidden></div>' +
+        (o.kind === "digital" ? '<label class="chk"><input type="checkbox" name="waive"><span>Je demande l\'accès immédiat au contenu numérique et je reconnais perdre mon droit de rétractation dès sa fourniture.</span></label>' : '') +
+        (o.kind === "service" ? '<label class="chk"><input type="checkbox" name="early"><span>Je souhaite que la prestation commence avant la fin du délai de rétractation de 14 jours (facultatif). Si je me rétracte ensuite, je paierai la part déjà réalisée.</span></label>' : '') +
+        '<div class="tot"><span>Total TTC</span><b data-total></b></div>' +
+        '<div class="err"></div><button type="submit" class="cta" data-pay></button>' +
+        '<div class="secure">Paiement par carte via Stripe. ' + esc(data.display_name) + ' reçoit ta commande dès le paiement confirmé.</div></form>'
+      );
+      var form = m.el.querySelector("form"), err = form.querySelector(".err"), pay = form.querySelector("[data-pay]");
+      function val(n) { var x = form.querySelector('[name="' + n + '"]'); return x ? x.value : ""; }
+      function total() {
+        var v = variants.filter(function (x) { return x.id === val("variant"); })[0];
+        var unit = v && v.price_cents != null ? v.price_cents : (o.price_cents || 0);
+        var qty = parseInt(val("qty") || "1", 10);
+        var chosen = form.querySelector('[name="delivery"]:checked');
+        var ship = chosen && /^\d+$/.test(chosen.value) ? (ships[+chosen.value].price_cents || 0) : 0;
+        return unit * qty + ship;
+      }
+      function refresh() { var t = money(total()); form.querySelector("[data-total]").textContent = t; pay.textContent = "Payer " + t; }
+      form.addEventListener("change", refresh);
+      refresh();
+      form.querySelector("[data-read]").onclick = function () {
+        var panel = form.querySelector(".tpanel");
+        if (!panel.hidden) { panel.hidden = true; return; }
+        panel.hidden = false;
+        panel.innerHTML = '<p class="sub" style="margin:10px 0 0">Chargement…</p>';
+        call("GET", "/terms").then(function (r) {
+          panel.innerHTML = '<div class="terms">' + (r.terms.articles || []).map(function (a) { return '<h4>' + esc(a.title) + '</h4><p>' + esc(a.body) + '</p>'; }).join("") + '</div>';
+        }).catch(function (e) { panel.innerHTML = '<p class="sub" style="margin:10px 0 0">' + esc(e.message) + '</p>'; });
+      };
+      form.onsubmit = function (e) {
+        e.preventDefault();
+        var email = val("email").trim();
+        var chosen = form.querySelector('[name="delivery"]:checked');
+        if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email)) return (err.textContent = "Indique une adresse email valide.");
+        if (!form.querySelector('[name="terms"]').checked) return (err.textContent = "Merci d'accepter les conditions générales de vente.");
+        var waive = form.querySelector('[name="waive"]');
+        if (waive && !waive.checked) return (err.textContent = "Coche la case d'accès immédiat pour un produit numérique.");
+        var early = form.querySelector('[name="early"]');
+        var body = { email: email, name: val("name").trim(), accept_terms: true, source: source, return_url: pageUrl(),
+                     quantity: parseInt(val("qty") || "1", 10), waive_withdrawal: !!(waive && waive.checked), early_start: !!(early && early.checked) };
+        if (variants.length) body.variant_id = val("variant");
+        if (chosen) body.delivery = chosen.value;
+        pay.disabled = true; pay.textContent = "Redirection vers le paiement…"; err.textContent = "";
+        call("POST", "/offers/" + o.id + "/checkout", body).then(function (r) { goTo(r.url); })
+          .catch(function (e2) { pay.disabled = false; refresh(); err.textContent = e2.message; });
+      };
+    }
+
+    // Retour de Stripe : …?commande=ok&ref=K… (paiement confirmé) ou ?commande=annulee.
+    function orderReturn() {
+      var loc;
+      try { loc = HOST.location; } catch (e) { loc = window.location; }
+      var q = new URLSearchParams(loc.search || ""), state = q.get("commande");
+      if (!state) return;
+      var ref = q.get("ref") || "";
+      q.delete("commande"); q.delete("ref");
+      try { HOST.history.replaceState(HOST.history.state, "", loc.pathname + (q.toString() ? "?" + q.toString() : "") + loc.hash); } catch (e) {}
+      var m = modal(state === "ok"
+        ? '<div class="done"><b>Merci pour ta commande ✓</b><p class="sub">' + (ref ? 'Référence <span style="font-weight:800;color:#0a0a0a">' + esc(ref) + '</span>. ' : '') +
+          'Dès que Stripe a confirmé le paiement, tu reçois un email de confirmation et ' + esc(data.display_name) + ' est prévenu(e).</p>' +
+          '<button type="button" class="cta" data-ok>Fermer</button></div>'
+        : '<div class="done"><b>Paiement annulé</b><p class="sub">Aucun montant n\'a été débité. Tu peux réessayer quand tu veux.</p>' +
+          '<button type="button" class="cta" data-ok>Fermer</button></div>');
+      m.el.querySelector("[data-ok]").onclick = m.close;
     }
 
     function contactKind(offer) {
@@ -914,6 +1039,7 @@
       else if (t.hasAttribute("data-kv-report")) openReport();
     });
 
+    setTimeout(orderReturn, 200);
     try {
       var m0 = (HOST.location.hash || "").match(/^#offre-(\d+)$/);
       if (m0 && offersById[m0[1]]) setTimeout(function () { openOffer(offersById[m0[1]]); }, 300);

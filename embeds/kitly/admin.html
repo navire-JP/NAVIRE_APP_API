@@ -1,9 +1,11 @@
 <!--
   KITLY : console d'administration (/admin)
   =========================================
-  Réservée aux comptes Kitly administrateurs (adresses listées dans
-  KITLY_ADMIN_EMAILS sur Render, promues à la connexion). Totalement distincte
-  de la console NAVIRE.
+  Accès par email + mot de passe sur cette page (POST /kitly/auth/admin-login),
+  réservé aux adresses listées dans KITLY_ADMIN_EMAILS sur Render. La session
+  admin dure 8 h au plus et reste propre à l'onglet (sessionStorage) : fermer le
+  navigateur redemande le mot de passe. Une session ordinaire du site
+  (/connexion) n'ouvre jamais la console. Totalement distincte de NAVIRE.
 
   Onglets : Vue d'ensemble · Comptes · Vitrines · Signalements · Formules · Système.
   Actions sur un compte : formule offerte, confirmer l'email, déconnecter partout,
@@ -52,7 +54,7 @@
   #ka .kpi.alert b { color: var(--bad); }
 
   #ka .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
-  #ka input[type=text], #ka input[type=email], #ka input[type=number], #ka select, #ka textarea { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--ink); background: var(--paper); outline: none; }
+  #ka input[type=text], #ka input[type=email], #ka input[type=password], #ka input[type=number], #ka select, #ka textarea { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--ink); background: var(--paper); outline: none; }
   #ka input:focus, #ka select:focus, #ka textarea:focus { border-color: var(--ink); }
   #ka .bar input[type=text] { flex: 1; min-width: 220px; }
   #ka .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: 13px; padding: 9px 15px; border-radius: 999px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer; white-space: nowrap; text-decoration: none; }
@@ -115,6 +117,7 @@
   #ka .m h4 { font-size: 19px; font-weight: 900; margin: 0 0 6px; }
   #ka .m p { color: var(--mut); font-size: 14px; line-height: 1.5; margin: 0 0 14px; }
   #ka .m textarea, #ka .m input { width: 100%; }
+  #ka #ka-login { border: 1px solid var(--line); box-shadow: 0 20px 50px -30px rgba(0,0,0,.25); }
   #ka .m .acts { justify-content: flex-end; margin-top: 16px; }
   #ka .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 99px; font-size: 13px; font-weight: 600; transition: .25s; pointer-events: none; z-index: 70; max-width: calc(100% - 32px); text-align: center; }
   #ka .toast.show { opacity: 1; transform: translateX(-50%); }
@@ -145,11 +148,11 @@
   // ============================================================
   var CONFIG = {
     API_BASE: "https://navire-app-api.onrender.com",
-    LOGIN_URL: "/connexion",
     BUILDER_URL: "/builder",
     PROFILE_URL: "/profile?u={slug}",
-    TOKEN_KEY: "kitly_token",
-    ADMIN_TOKEN_KEY: "kitly_admin_token"
+    ADMIN_SESSION_KEY: "kitly_admin_session",           // session de la console (onglet courant)
+    TOKEN_KEY: "kitly_token",                           // session du site (utilisée par le mode support)
+    SUPPORT_RESTORE_KEY: "kitly_token_before_support"   // session du site mise de côté pendant le mode support
   };
   (function () {
     var origin = "";
@@ -165,7 +168,8 @@
     grant_plan: "Formule offerte", revoke_grant: "Formule offerte retirée", verify_email: "Email confirmé", deactivate: "Compte désactivé",
     reactivate: "Compte réactivé", logout_all: "Sessions coupées", impersonate: "Builder ouvert (support)", delete_user: "Compte supprimé",
     suspend_profile: "Vitrine suspendue", unsuspend_profile: "Vitrine rétablie", unpublish_profile: "Vitrine dépubliée",
-    report_status: "Signalement traité", update_plan: "Formule modifiée", email_check: "Vérification email", email_test: "Email de test"
+    report_status: "Signalement traité", update_plan: "Formule modifiée", email_check: "Vérification email", email_test: "Email de test",
+    admin_login: "Connexion à la console"
   };
   var REASON_LABEL = { fraud: "Arnaque ou fraude", illegal_content: "Contenu illicite", impersonation: "Usurpation d'identité",
     ip_infringement: "Atteinte aux droits", inappropriate: "Contenu inapproprié", other: "Autre" };
@@ -177,6 +181,13 @@
   function $(sel) { return root.querySelector(sel); }
   function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  function session(v) {
+    try {
+      if (v === undefined) return sessionStorage.getItem(CONFIG.ADMIN_SESSION_KEY);
+      v == null ? sessionStorage.removeItem(CONFIG.ADMIN_SESSION_KEY) : sessionStorage.setItem(CONFIG.ADMIN_SESSION_KEY, v);
+    } catch (e) { return null; }
+  }
+  function jwtClaims(t) { try { return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); } catch (e) { return {}; } }
   function navigate(url) { try { if (window.top && window.top !== window) { window.top.location.href = url; return; } } catch (e) {} window.location.href = url; }
   function eur(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",").replace(",00", "") + " €"; }
   function date(iso, withTime) {
@@ -187,13 +198,16 @@
   }
   function api(method, path, body) {
     return fetch(CONFIG.API_BASE + "/kitly" + path, {
-      method: method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + load(CONFIG.TOKEN_KEY) },
+      method: method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + session() },
       body: body ? JSON.stringify(body) : undefined
     }).then(function (r) {
       return r.json().catch(function () { return null; }).then(function (d) {
         if (!r.ok) {
           var det = d && d.detail, msg = typeof det === "string" ? det : (det && det.message) || (Array.isArray(det) && det[0] && det[0].msg) || "Erreur " + r.status;
-          var e = new Error(String(msg).replace(/^Value error, /, "")); e.status = r.status; throw e;
+          var e = new Error(String(msg).replace(/^Value error, /, "")); e.status = r.status;
+          if (r.status === 401 && path !== "/auth/admin-login") { session(null); loginScreen("Session admin expirée : reconnecte-toi."); }
+          else if (r.status === 403 && path.indexOf("/admin/") === 0) { session(null); loginScreen("Ce compte n'a pas (ou plus) accès à la console."); }
+          throw e;
         }
         return d;
       });
@@ -251,9 +265,11 @@
       TABS.map(function (t) {
         return '<button type="button" class="tab' + (S.tab === t[0] ? " on" : "") + '" data-tab="' + t[0] + '"><span>' + t[1] + '</span>' +
           (t[0] === "reports" && S.openReports ? '<span class="badge">' + S.openReports + '</span>' : '') + '</button>';
-      }).join("") + '<div class="me">Connecté en tant que<br><b>' + esc(S.me.user.email) + '</b></div></aside>' +
+      }).join("") + '<div class="me">Connecté en tant que<br><b>' + esc(S.me.user.email) + '</b><br>' +
+      '<button type="button" class="btn ghost" id="ka-logout" style="margin-top:10px">Se déconnecter</button></div></aside>' +
       '<section class="main" id="ka-main"></section><div class="toast"></div>';
     root.querySelector(".side").onclick = function (e) {
+      if (e.target.closest("#ka-logout")) { session(null); loginScreen("Tu es déconnecté de la console."); return; }
       var b = e.target.closest("[data-tab]"); if (!b) return;
       S.tab = b.dataset.tab; shell(); VIEW[S.tab]();
     };
@@ -281,7 +297,8 @@
       k("Emails confirmés", o.verified_users) + k("Vitrines en ligne", o.published_profiles + " / " + o.profiles) + k("Offres publiées", o.offers) +
       k("Abonnements actifs", o.active_subscriptions) + k("Revenu mensuel", eur(o.mrr_cents)) + k("Formules offertes", o.active_grants) +
       k("Demandes · 30 j", o.leads_30d) + k("Visites · 30 j", o.views_30d) + k("Signalements ouverts", o.open_reports, o.open_reports > 0) +
-      k("Vitrines suspendues", o.suspended_profiles) + k("Paiements activés", o.connected_accounts_active) + '</div>' +
+      k("Vitrines suspendues", o.suspended_profiles) + k("Paiements activés", o.connected_accounts_active) +
+      k("Ventes · 30 j", o.orders_30d) + k("Volume vendu · 30 j", eur(o.sales_30d_cents)) + k("Commission · 30 j", eur(o.commission_30d_cents)) + '</div>' +
       '<h3>Comptes par formule</h3><div class="kpis">' + plans + '</div>' +
       '<h3>Dernières actions</h3>' + actionsTable(acts));
   }
@@ -429,8 +446,10 @@
 
   function impersonate(userId) {
     api("POST", "/admin/users/" + userId + "/impersonate").then(function (r) {
-      // La session admin est mise de côté ; le builder propose d'y revenir.
-      store(CONFIG.ADMIN_TOKEN_KEY, load(CONFIG.TOKEN_KEY));
+      // La session du site (s'il y en a une) est mise de côté et rendue à la sortie du
+      // mode support ; la session de la console, elle, n'est pas touchée.
+      var current = load(CONFIG.TOKEN_KEY);
+      if (current && !jwtClaims(current).imp) store(CONFIG.SUPPORT_RESTORE_KEY, current);
       store(CONFIG.TOKEN_KEY, r.token);
       navigate(CONFIG.BUILDER_URL);
     }).catch(fail);
@@ -578,30 +597,40 @@
   // ============================================================
   // Démarrage
   // ============================================================
-  function denied(title, text, button) {
-    root.innerHTML = '<div class="center"><div><h1>' + title + '</h1><p>' + text + '</p>' + (button || "") + '</div></div>';
+  function loginScreen(notice) {
+    S.me = null;
+    root.innerHTML = '<div class="center"><form class="m" id="ka-login" style="text-align:left" novalidate>' +
+      '<div class="logo" style="padding:0 0 4px">kitly<i>.</i></div><h4>Console <em>admin</em></h4>' +
+      '<p>' + esc(notice || "Accès réservé à l'équipe Kitly.") + '</p>' +
+      '<label class="muted" for="ka-em">Email</label><input type="email" id="ka-em" name="email" autocomplete="username" style="margin:4px 0 12px">' +
+      '<label class="muted" for="ka-pw">Mot de passe</label><input type="password" id="ka-pw" name="password" autocomplete="current-password" style="margin-top:4px">' +
+      '<p class="err" style="color:var(--bad);font-size:13px;min-height:18px;margin:10px 0 0"></p>' +
+      '<div class="acts" style="justify-content:stretch"><button class="btn" type="submit" style="width:100%">Se connecter</button></div></form></div><div class="toast"></div>';
+    var form = $("#ka-login"), err = form.querySelector(".err");
+    form.email.focus();
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      var email = form.email.value.trim(), password = form.password.value;
+      if (!email || !password) { err.textContent = "Email et mot de passe requis."; return; }
+      var btn = form.querySelector("button"); btn.disabled = true; btn.textContent = "Connexion…"; err.textContent = "";
+      api("POST", "/auth/admin-login", { email: email, password: password }).then(function (r) {
+        session(r.token);
+        start();
+      }).catch(function (e2) { btn.disabled = false; btn.textContent = "Se connecter"; err.textContent = e2.message; form.password.value = ""; });
+    };
   }
-  if (!load(CONFIG.TOKEN_KEY)) {
-    denied("Console <em>admin</em>", "Connecte-toi avec un compte administrateur Kitly.", '<a class="btn" href="' + esc(CONFIG.LOGIN_URL) + '" target="_top">Se connecter</a>');
-    return;
+
+  function start() {
+    if (!session()) { loginScreen(); return; }
+    api("GET", "/auth/me").then(function (me) {
+      S.me = me;
+      shell();
+      VIEW.overview();
+    }).catch(function (e) {
+      if (e.status === 403) { session(null); loginScreen("Ce compte n'a pas accès à la console."); }
+      else if (e.status !== 401) loginScreen(e.message);
+    });
   }
-  api("GET", "/auth/me").then(function (me) {
-    S.me = me;
-    if (me.impersonated_by) {
-      denied("Mode support en cours", "Tu es connecté à la place de " + esc(me.user.email) + ". Reviens à ta session admin.",
-             '<button class="btn" id="ka-back">Revenir à ma session admin</button>');
-      $("#ka-back").onclick = function () { store(CONFIG.TOKEN_KEY, load(CONFIG.ADMIN_TOKEN_KEY)); store(CONFIG.ADMIN_TOKEN_KEY, null); location.reload(); };
-      return;
-    }
-    if (!me.user.is_admin) {
-      denied("Accès réservé", "Ce compte n'est pas administrateur Kitly. Les administrateurs sont les adresses listées dans la variable KITLY_ADMIN_EMAILS sur Render (droits appliqués à la prochaine connexion).");
-      return;
-    }
-    shell();
-    VIEW.overview();
-  }).catch(function (e) {
-    if (e.status === 401) denied("Session expirée", "Reconnecte-toi pour accéder à la console.", '<a class="btn" href="' + esc(CONFIG.LOGIN_URL) + '" target="_top">Se connecter</a>');
-    else denied("Oups", esc(e.message));
-  });
+  start();
 })();
 </script>

@@ -11,8 +11,9 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.kitly import codes, emails
-from app.kitly.config import KITLY_ADMIN_EMAILS, KITLY_CGU_VERSION, KITLY_PRIVACY_VERSION
+from app.kitly.config import KITLY_ADMIN_EMAILS, KITLY_ADMIN_SESSION_MINUTES, KITLY_CGU_VERSION, KITLY_PRIVACY_VERSION
 from app.kitly.models import (
+    KitlyAdminAction,
     KitlyLead,
     KitlyOffer,
     KitlyPortfolioProject,
@@ -31,7 +32,14 @@ from app.kitly.schemas import (
     RegisterIn,
     ResetIn,
 )
-from app.kitly.security import create_token, current_user, forbid_impersonation, hash_secret, verify_secret
+from app.kitly.security import (
+    create_token,
+    current_user,
+    forbid_impersonation,
+    hash_secret,
+    is_admin_email,
+    verify_secret,
+)
 from app.kitly.serializers import lead_out, offer_owner, portfolio_owner, profile_owner, user_out
 from app.kitly.utils import client_ip, now, rate_clear, rate_guard, rate_hit
 
@@ -112,6 +120,38 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
         user.is_admin = True
     db.commit()
     return _auth_payload(db, user)
+
+
+@router.post("/auth/admin-login")
+def admin_login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
+    """
+    Connexion à la console /admin, toujours par mot de passe. Seules les adresses
+    de KITLY_ADMIN_EMAILS peuvent l'ouvrir ; pour toute autre, la réponse est la
+    même qu'un mauvais mot de passe (rien n'indique qu'une console existe).
+    Rend un jeton « admin » de 8 h, seul accepté par /kitly/admin/*.
+    """
+    email = _norm(payload.email)
+    email_key = f"admin-login:email:{email}"
+    ip_key = f"admin-login:ip:{client_ip(request)}"
+    msg = "Trop de tentatives. Réessaie dans 15 minutes."
+    rate_guard(db, email_key, 5, LOGIN_WINDOW, msg)
+    rate_guard(db, ip_key, 10, LOGIN_WINDOW, msg)
+
+    user = db.execute(select(KitlyUser).where(KitlyUser.email == email)).scalar_one_or_none()
+    ok = verify_secret(payload.password, user.password_hash if user else _DUMMY_HASH)
+    if not user or not ok or not user.is_active or not is_admin_email(email):
+        rate_hit(db, email_key)
+        rate_hit(db, ip_key)
+        raise HTTPException(401, detail="Email ou mot de passe incorrect.")
+
+    rate_clear(db, email_key)
+    user.last_login_at = now()
+    user.is_admin = True
+    db.add(KitlyAdminAction(admin_id=user.id, admin_email=user.email, action="admin_login", target_type="system",
+                            target_id="", details={"ip": client_ip(request)}))
+    db.commit()
+    return {"token": create_token(user, admin_session=True), "user": user_out(user),
+            "expires_in_minutes": KITLY_ADMIN_SESSION_MINUTES}
 
 
 @router.post("/auth/logout")

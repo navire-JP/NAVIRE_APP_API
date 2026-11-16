@@ -29,6 +29,7 @@ from app.kitly.plans import get_plan
 from app.kitly.queries import get_public_profile, public_profiles, published_offers
 from app.kitly.schemas import LeadIn, ReportIn, ViewIn
 from app.kitly.security import optional_user
+from app.kitly.routers.shop import mark_buyable, offer_buyable, shop_ready
 from app.kitly.serializers import offer_public, portfolio_public, profile_public, terms_version_out
 from app.kitly.utils import client_ip, looks_like_bot, rate_guard, rate_hit, today, visitor_hash
 
@@ -51,11 +52,12 @@ def vitrine_payload(db: Session, profile: KitlyProfile) -> dict:
     limits = get_plan(db, profile.user.plan_code).limits or {}
     offers = published_offers(db, profile.id)
     portfolio = [p for p in profile.portfolio if p.is_visible]
-    return profile_public(
+    payload = profile_public(
         profile, offers, portfolio,
         show_branding=not limits.get("remove_branding", False),
         has_terms=_has_terms(profile),
     )
+    return mark_buyable(payload, profile, offers)
 
 
 @router.get("/profiles/{slug}")
@@ -69,7 +71,7 @@ def get_offer(slug: str, offer_id: int, db: Session = Depends(get_db)):
     offer = db.get(KitlyOffer, offer_id)
     if not offer or offer.profile_id != profile.id or offer.status != "published":
         raise HTTPException(404, detail="Offre introuvable.")
-    return {"offer": offer_public(offer), "seller": {"slug": profile.slug, "display_name": profile.display_name,
+    return {"offer": {**offer_public(offer), "buyable": offer_buyable(offer, shop_ready(profile))}, "seller": {"slug": profile.slug, "display_name": profile.display_name,
                                                      "avatar_url": profile.avatar_url}, "has_terms": _has_terms(profile)}
 
 

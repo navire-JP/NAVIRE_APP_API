@@ -385,6 +385,18 @@ class DigitalDetails(_Details):
     access_duration_days: Optional[int] = Field(default=None, ge=1, le=3650)
     download_limit: Optional[int] = Field(default=None, ge=1, le=100)
     license: str = Field(default="", max_length=300)
+    # Lien privé (Drive, Notion, Dropbox…) envoyé à l'acheteur après paiement ; jamais public.
+    delivery_url: str = Field(default="", max_length=500)
+
+    @field_validator("delivery_url")
+    @classmethod
+    def _url(cls, v: str) -> str:
+        v = (v or "").strip()
+        if v and not re.match(r"^https?://", v, re.I):
+            v = "https://" + v
+        if v and not re.match(r"^https?://[^\s/$.?#].[^\s]*$", v, re.I):
+            raise ValueError("Lien de livraison invalide.")
+        return v
 
 
 class ServiceDetails(_Details):
@@ -477,6 +489,27 @@ class LeadIn(_In):
     def _c(self):
         if not self.consent:
             raise ValueError("Merci d'accepter la transmission de ta demande au professionnel.")
+        return self
+
+
+class OrderCheckoutIn(_In):
+    """Achat d'une offre depuis une vitrine (Stripe Checkout, encaissé par le freelance)."""
+    email: EmailStr
+    name: str = Field(default="", max_length=120)
+    quantity: int = Field(default=1, ge=1, le=10)
+    variant_id: Optional[str] = Field(default=None, max_length=20)
+    # Index de l'option de livraison choisie, ou « pickup » (retrait sur place).
+    delivery: Optional[str] = Field(default=None, max_length=10)
+    accept_terms: bool = False
+    waive_withdrawal: bool = False   # contenu numérique : accès immédiat, renonciation au droit de rétractation
+    early_start: bool = False        # prestation : exécution demandée avant la fin du délai de rétractation
+    source: Literal["direct", "marketplace"] = "direct"
+    return_url: str = Field(default="", max_length=600)
+
+    @model_validator(mode="after")
+    def _terms(self):
+        if not self.accept_terms:
+            raise ValueError("Merci d'accepter les conditions générales de vente du vendeur.")
         return self
 
 
