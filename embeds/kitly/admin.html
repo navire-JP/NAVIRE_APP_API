@@ -171,6 +171,26 @@
   })();
 
   var root = document.getElementById("ka");
+
+  // Cadre Framer plus large que sa zone d'affichage (souvent sur téléphone) : on le
+  // ramène, lui et ses conteneurs trop larges, à la largeur disponible.
+  function fitToHost() {
+    try {
+      var el = window.frameElement;
+      if (!el) return;
+      var win = el.ownerDocument.defaultView;
+      for (var i = 0; i < 6 && el && el.parentElement && el !== el.ownerDocument.body; i++) {
+        var parent = el.parentElement, cs = win.getComputedStyle(parent);
+        var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+        if (room > 200 && el.getBoundingClientRect().width > room + 1) {
+          el.style.width = "100%"; el.style.maxWidth = "100%"; el.style.minWidth = "0"; el.style.flexShrink = "1";
+        }
+        el = parent;
+      }
+    } catch (e) {}
+  }
+  fitToHost(); setTimeout(fitToHost, 600); setTimeout(fitToHost, 2000);
+  try { window.parent.addEventListener("resize", function () { setTimeout(fitToHost, 50); }); } catch (e) {}
   var S = { me: null, tab: "overview", users: { q: "", plan: "", page: 1 }, profiles: { q: "", status: "", page: 1 }, reports: { status: "open" }, openReports: 0 };
   var PLAN_NAME = { free: "Free", custom: "Custom", premium: "Premium+" };
   var ACTION_LABEL = {

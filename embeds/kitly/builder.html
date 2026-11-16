@@ -270,6 +270,54 @@
   #kb .desk-scale { position: relative; overflow: hidden; }
   #kb .desk-inner { width: 1280px; transform-origin: 0 0; position: absolute; top: 0; left: 0; }
   #kb .desk-inner .kv { min-height: 760px; }
+
+  /* ── Téléphone : ajustements (≤ 560px) ── */
+  @media (max-width: 560px) {
+    /* 16px minimum : empêche le zoom automatique d'iOS au focus d'un champ */
+    #kb input, #kb textarea, #kb select, #kb .tm-art textarea { font-size: 16px; }
+    #kb .code input { font-size: 22px; }
+
+    /* barre du haut plus compacte */
+    #kb .top { padding: 8px 14px 0; }
+    #kb .top-in { gap: 8px; flex-wrap: nowrap; }
+    #kb .title { font-size: 17px; white-space: nowrap; }
+    #kb .meta { gap: 8px; font-size: 12px; flex-shrink: 0; }
+    #kb .steps { margin: 4px -14px 0; padding: 0 28px 0 8px; scroll-snap-type: x proximity;
+      -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent);
+              mask-image: linear-gradient(90deg, #000 82%, transparent); }
+    #kb .step { padding: 9px 9px 10px; font-size: 13px; scroll-snap-align: start; }
+
+    /* bascule Modifier / Aperçu */
+    #kb .mtabs { padding: 8px 14px 0; }
+    #kb .mtabs button { padding: 7px; font-size: 12.5px; }
+
+    /* zones de contenu */
+    #kb .edit { padding: 14px 14px 28px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    #kb .prev { padding: 14px 10px 28px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+    /* adresse de la vitrine : préfixe au-dessus, champ sur toute la largeur */
+    #kb .slug { flex-direction: column; align-items: stretch; }
+    #kb .slug span { padding: 8px 13px 0; font-size: 12px; white-space: normal; word-break: break-all; }
+    #kb .slug input { padding-left: 13px; padding-top: 4px; }
+
+    /* barre de publication sur une seule ligne */
+    #kb .pub { flex-wrap: nowrap; gap: 8px; padding: 8px 14px calc(8px + env(safe-area-inset-bottom)); }
+    #kb .pub-url { flex: 1; gap: 8px; }
+    #kb .pub-url > div, #kb .pub-url > span { min-width: 0; }
+    #kb .pub-url b { display: block; font-size: 12.5px; }
+    #kb .pub-url small { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #kb .pub-act { flex-shrink: 0; gap: 6px; }
+    #kb .pub-act .btn { padding: 8px 12px; font-size: 12.5px; }
+
+    /* modales en feuille du bas */
+    #kb .modal-bg { align-items: flex-end; padding: 0; }
+    #kb .modal { max-width: none; border-radius: 20px 20px 0 0; max-height: 92%;
+      padding: 20px 16px calc(16px + env(safe-area-inset-bottom)); }
+  }
+  @media (max-width: 380px) {
+    #kb .pub-url .dot { display: none; }
+    #kb .pub-act .btn { padding: 8px 10px; }
+  }
 </style>
 
 <div id="kb"><div class="center"><p>Chargement de ta vitrine…</p></div></div>
@@ -391,6 +439,28 @@
     window.location.href = url;
   }
   function openTab(url) { try { window.open(url, "_blank", "noopener"); } catch (e) {} }
+
+  // Cadre Framer plus large que la zone qui l'affiche (largeur « 100vw » ou fixe dans
+  // une section avec marges, fréquent sur téléphone) : l'embed est alors coupé des deux
+  // côtés. On ramène le cadre, et ses conteneurs trop larges, à la largeur disponible.
+  function fitToHost() {
+    try {
+      var el = window.frameElement;
+      if (!el) return;
+      var win = el.ownerDocument.defaultView;
+      for (var i = 0; i < 6 && el && el.parentElement && el !== el.ownerDocument.body; i++) {
+        var parent = el.parentElement, cs = win.getComputedStyle(parent);
+        var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+        if (room > 200 && el.getBoundingClientRect().width > room + 1) {
+          el.style.width = "100%"; el.style.maxWidth = "100%"; el.style.minWidth = "0"; el.style.flexShrink = "1";
+        }
+        el = parent;
+      }
+    } catch (e) {}
+  }
+  fitToHost();
+  setTimeout(fitToHost, 600); setTimeout(fitToHost, 2000);   // après la mise en page de Framer
+  try { window.parent.addEventListener("resize", function () { setTimeout(fitToHost, 50); }); } catch (e) {}
 
   var toastTimer;
   function toast(html, ms) {

@@ -1426,3 +1426,22 @@ def test_site_sections_and_gallery_blocks(client):
     assert len(gal["images"]) == 12 and all(u.startswith("https://") for u in gal["images"])
     keys = [s["key"] for s in pub["sections"]]
     assert keys.index("content") == keys.index("about") + 1  # nouvelle section placée à sa place par défaut
+
+
+def test_brevo_key_never_displayed_even_if_pasted_as_sender(client, monkeypatch):
+    from app.kitly import emails
+
+    key = "xkeysib-0123456789abcdef0123456789abcdef-AbCdEfGh"
+    monkeypatch.setattr(emails, "KITLY_BREVO_API_KEY", key)
+    monkeypatch.setattr(emails, "KITLY_SENDER_EMAIL", key)   # erreur de saisie sur Render
+    calls = []
+    monkeypatch.setattr(emails.httpx, "post", lambda *a, **k: calls.append(1))
+    monkeypatch.setattr(emails.httpx, "get", lambda *a, **k: calls.append(1))
+    st = emails.check_sender()
+    assert st["sender_ok"] is False and "KITLY_SENDER_EMAIL" in st["detail"]
+    res = emails.send_result("a@b.fr", "Test", "<p>x</p>")
+    assert res["sent"] is False and calls == []  # pas d'appel à Brevo avec un expéditeur invalide
+    public = json.dumps(client.get("/kitly/health").json())
+    for blob in (json.dumps(st), json.dumps(res), public, json.dumps(emails.mail_test())):
+        assert "0123456789abcdef" not in blob
+    assert emails.scrub(f"erreur {key} fin") == "erreur xkeysib-••• fin"

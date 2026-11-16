@@ -75,6 +75,10 @@ Les embeds sont réglés par défaut sur l'option 3 (`/profile?u=`). L'option 1 
 mettre en place avant le lancement (changer alors `PROFILE_URL` / `PUBLIC_BASE` et
 `KITLY_PROFILE_URL_TEMPLATE`).
 
+**Téléphone** : `builder.html` et `admin.html` vérifient au chargement (et à chaque redimensionnement) que leur
+cadre Framer ne dépasse pas de la zone qui l'affiche ; sinon ils le ramènent à la largeur disponible. Réglage
+conseillé dans Framer : composant Embed en largeur **Fill** (pas 100vw ni largeur fixe) sur le breakpoint mobile.
+
 ## Réglages (bloc CONFIG en haut de chaque script)
 
 Les liens vers les pages du site sont **relatifs** (`/builder`, `/profile?u=…`) et
