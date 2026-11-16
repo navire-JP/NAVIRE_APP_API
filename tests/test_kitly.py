@@ -815,3 +815,36 @@ def test_cors_split_between_navire_and_kitly(client):
             r = client.options("/kitly/auth/login", headers={"Origin": origin, **pre})
             assert r.headers.get("access-control-allow-origin") != origin or origin in (
                 "https://kitly.fr", "https://www.kitly.fr", "https://kitly.framer.website")
+
+
+
+def test_stripe_errors_become_readable_502(client, monkeypatch):
+    import stripe
+    from app.kitly import config
+    from app.kitly.routers import billing
+
+    class Boom:
+        class billing_portal:
+            class sessions:
+                @staticmethod
+                def create(params=None):
+                    raise stripe.InvalidRequestError("No configuration provided", param=None)
+
+    email, h = register(client)
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyUser
+    with SessionLocal() as db:
+        db.query(KitlyUser).filter_by(email=email).one().stripe_customer_id = "cus_x"
+        db.commit()
+    monkeypatch.setattr(billing, "stripe_client", lambda: Boom)
+    r = client.post("/kitly/billing/portal", headers=h)
+    assert r.status_code == 502
+    assert r.json()["detail"]["code"] == "stripe_error" and "portail" in r.json()["detail"]["message"]
+
+
+def test_stripe_returns_point_to_subscribe_page():
+    from app.kitly import config
+
+    for url in (config.KITLY_BILLING_SUCCESS_URL, config.KITLY_BILLING_CANCEL_URL, config.KITLY_BILLING_RETURN_URL,
+                config.KITLY_CONNECT_RETURN_URL, config.KITLY_CONNECT_REFRESH_URL):
+        assert "/subscribe" in url

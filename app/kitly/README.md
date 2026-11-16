@@ -101,7 +101,8 @@ partagée (embeds marketplace et accueil)
 `/search?q=&category=&location=&kind=&budget_max_cents=&sort=relevance|new|popular|price_asc&page=` ·
 `/ranking-info` — les profils `sponsored` sont renvoyés à part et doivent être étiquetés « Sponsorisé ».
 
-**Embed 5 — Subscribe / paiements**
+**Embed 5 — Subscribe / paiements** (`embeds/kitly/subscribe.html` ; retours Stripe vers `/subscribe` ;
+les erreurs Stripe sont rendues en 502 `{"code": "stripe_error", "message": …}`)
 `GET /kitly/plans` · `GET /kitly/billing/subscription` · `POST /kitly/billing/checkout {"plan"}`
 (URL Stripe, ou changement de formule sur place si déjà abonné) · `POST /kitly/billing/portal` ·
 `POST /kitly/billing/cancel` · `POST /kitly/billing/resume` · `GET /kitly/billing/invoices` ·

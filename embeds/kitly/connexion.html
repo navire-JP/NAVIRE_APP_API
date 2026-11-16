@@ -145,6 +145,20 @@
     try { window.dispatchEvent(new CustomEvent("kitly-auth-updated")); } catch (e) {}
   }
 
+  // Destination après connexion : ?next=/chemin (chemin interne uniquement, jamais
+  // un autre site), sinon le builder. Ex. /connexion?mode=inscription&next=/subscribe%3Fplan%3Dpremium
+  function nextUrl() {
+    var n = "";
+    try { n = new URLSearchParams((window.top || window).location.search).get("next") || ""; }
+    catch (e) { try { n = new URLSearchParams(window.location.search).get("next") || ""; } catch (e2) {} }
+    if (/^\/(?![\/\\])/.test(n)) {
+      var o = "";
+      try { o = window.top.location.origin; } catch (e) { try { o = window.location.origin; } catch (e2) {} }
+      if (o && o !== "null") return o + n;
+    }
+    return CONFIG.BUILDER_URL;
+  }
+
   function navigate(url) {
     try { if (window.top && window.top !== window) { window.top.location.href = url; return; } } catch (e) {}
     window.location.href = url;
@@ -290,7 +304,7 @@
         '<h1>Bonjour <em>' + esc(u.first_name || "") + '</em></h1>' +
         '<p class="sub">Tu es connecté(e) avec ' + esc(u.email || "") + '.</p>' +
         (u.email_verified ? '' : '<div class="ok-msg">Ton adresse n\'est pas encore confirmée. <button type="button" class="link" data-go="verify-send">Confirmer maintenant</button></div>') +
-        '<button type="button" class="btn" id="kt-dash">Aller à mon tableau de bord →</button>' +
+        '<button type="button" class="btn" id="kt-dash">' + (nextUrl() === CONFIG.BUILDER_URL ? "Aller à mon tableau de bord →" : "Continuer →") + '</button>' +
         '<button type="button" class="btn ghost" id="kt-logout">Se déconnecter</button>';
     }
   };
@@ -314,7 +328,7 @@
   // ============================================================
   function afterAuth(data) {
     saveSession(data);
-    navigate(CONFIG.BUILDER_URL);
+    navigate(nextUrl());
   }
 
   function submitLogin(btn) {
@@ -366,7 +380,7 @@
     api("POST", "/auth/verify-email", { code: code }).then(function (data) {
       store(CONFIG.USER_KEY, JSON.stringify(data.user || {}));
       btn.textContent = "Adresse confirmée ✓";
-      navigate(CONFIG.BUILDER_URL);
+      navigate(nextUrl());
     }).catch(function (e) {
       state.busy = false; btn.disabled = false; btn.textContent = "Valider";
       if (e.status === 401) return go("login", "Ta session a expiré, reconnecte-toi.");
@@ -464,9 +478,9 @@
         .catch(function (e) { showMsg("kt-msg", e.message); resend.disabled = false; });
     });
     var later = root.querySelector("#kt-later");
-    if (later) later.addEventListener("click", function () { navigate(CONFIG.BUILDER_URL); });
+    if (later) later.addEventListener("click", function () { navigate(nextUrl()); });
     var dash = root.querySelector("#kt-dash");
-    if (dash) dash.addEventListener("click", function () { navigate(CONFIG.BUILDER_URL); });
+    if (dash) dash.addEventListener("click", function () { navigate(nextUrl()); });
     var out = root.querySelector("#kt-logout");
     if (out) out.addEventListener("click", logout);
   }
