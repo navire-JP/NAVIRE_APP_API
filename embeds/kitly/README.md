@@ -77,7 +77,9 @@ mettre en place avant le lancement (changer alors `PROFILE_URL` / `PUBLIC_BASE` 
 
 **Téléphone** : `builder.html` et `admin.html` vérifient au chargement (et à chaque redimensionnement) que leur
 cadre Framer ne dépasse pas de la zone qui l'affiche ; sinon ils ramènent le cadre et tous ses conteneurs trop larges
-(largeurs fixes, 100vw, centrage par translateX) à la largeur disponible. Diagnostic : ajouter `?debug=kitly` à l'adresse
+(largeurs fixes, 100vw, centrage par translateX) à la largeur disponible. Si le cadre est servi depuis un autre domaine (page Framer inaccessible), le navigateur indique quelle partie du
+cadre est visible à l'écran et le contenu se place dans cette partie (marges `--vis-l` / `--vis-r`).
+Diagnostic : ajouter `?debug=kitly` à l'adresse
 de la page Framer affiche les largeurs mesurées de chaque conteneur. Réglage
 conseillé dans Framer : composant Embed en largeur **Fill** (pas 100vw ni largeur fixe) sur le breakpoint mobile.
 
