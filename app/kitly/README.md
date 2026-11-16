@@ -42,6 +42,10 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_MARKETPLACE_COMMISSION_BPS` | non | Commission marketplace (défaut 1000 = 10 %) |
 | `KITLY_NEW_PROFILES_DAYS` / `KITLY_POPULAR_WINDOW_DAYS` | non | Fenêtres « nouveaux » (7 j) et « populaires » (30 j) |
 
+**Aucune clé affichée** : l'expéditeur n'est montré (console admin, `/kitly/health`, journaux) que s'il s'agit
+d'une adresse email ; une clé Brevo collée par erreur dans `KITLY_SENDER_EMAIL` est masquée et signalée, et
+toute clé qui apparaîtrait dans une réponse de Brevo est remplacée par `xkeysib-•••`.
+
 **Console admin refusée (« Email ou mot de passe incorrect »)** : la raison exacte est dans Render → Logs
 (`[kitly] ⚠️ Connexion admin refusée pour jp***@… : …`) — adresse absente de `KITLY_ADMIN_EMAILS`, aucun compte
 Kitly avec cette adresse (le compte Kitly est distinct de NAVIRE : s'inscrire sur `/connexion`), ou mot de passe

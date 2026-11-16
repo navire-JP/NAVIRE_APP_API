@@ -54,6 +54,7 @@
   #kb .step b { font-family: var(--serif); font-style: italic; font-weight: 400; margin-right: 4px; }
   #kb .step.on { color: var(--ink); border-bottom-color: var(--ink); }
   #kb .step.extra { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+  #kb .step .short { display: none; }
   #kb .step .cnt { font-size: 10.5px; font-weight: 800; background: var(--bad); color: #fff; border-radius: 99px; padding: 1px 7px; }
   #kb .main.wide-mode { grid-template-columns: minmax(0, 1fr); }
   #kb .main.wide-mode .prev { display: none !important; }
@@ -270,6 +271,59 @@
   #kb .desk-scale { position: relative; overflow: hidden; }
   #kb .desk-inner { width: 1280px; transform-origin: 0 0; position: absolute; top: 0; left: 0; }
   #kb .desk-inner .kv { min-height: 760px; }
+
+  /* ── Téléphone : ajustements (≤ 560px) ── */
+  @media (max-width: 560px) {
+    /* 16px minimum : empêche le zoom automatique d'iOS au focus d'un champ */
+    #kb input, #kb textarea, #kb select, #kb .tm-art textarea { font-size: 16px; }
+    #kb .code input { font-size: 22px; }
+
+    /* barre du haut plus compacte */
+    #kb .top { padding: 8px 14px 0; }
+    #kb .top-in { gap: 8px; flex-wrap: nowrap; }
+    #kb .title { font-size: 17px; white-space: nowrap; }
+    #kb .meta { gap: 8px; font-size: 12px; flex-shrink: 0; }
+    /* les 5 onglets tiennent sur une ligne, sans défilement horizontal */
+    #kb .steps { display: grid; grid-template-columns: repeat(5, auto); justify-content: space-between; gap: 0;
+      margin: 4px 0 0; padding: 0; overflow: visible; }
+    #kb .step { padding: 9px 2px 10px; font-size: 12.5px; text-align: center; }
+    #kb .step b { display: none; }
+    #kb .step.extra { margin-left: 0; gap: 4px; }
+    #kb .step.extra .full { display: none; }
+    #kb .step.extra .short { display: inline; }
+    #kb .step .cnt { font-size: 9.5px; padding: 1px 5px; }
+
+    /* bascule Modifier / Aperçu */
+    #kb .mtabs { padding: 8px 14px 0; }
+    #kb .mtabs button { padding: 7px; font-size: 12.5px; }
+
+    /* zones de contenu */
+    #kb .edit { padding: 14px 14px 28px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    #kb .prev { padding: 14px 10px 28px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+    /* adresse de la vitrine : préfixe au-dessus, champ sur toute la largeur */
+    #kb .slug { flex-direction: column; align-items: stretch; }
+    #kb .slug span { padding: 8px 13px 0; font-size: 12px; white-space: normal; word-break: break-all; }
+    #kb .slug input { padding-left: 13px; padding-top: 4px; }
+
+    /* barre de publication sur une seule ligne */
+    #kb .pub { flex-wrap: nowrap; gap: 8px; padding: 8px 14px calc(8px + env(safe-area-inset-bottom)); }
+    #kb .pub-url { flex: 1; gap: 8px; }
+    #kb .pub-url > div, #kb .pub-url > span { min-width: 0; }
+    #kb .pub-url b { display: block; font-size: 12.5px; }
+    #kb .pub-url small { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #kb .pub-act { flex-shrink: 0; gap: 6px; }
+    #kb .pub-act .btn { padding: 8px 12px; font-size: 12.5px; }
+
+    /* modales en feuille du bas */
+    #kb .modal-bg { align-items: flex-end; padding: 0; }
+    #kb .modal { max-width: none; border-radius: 20px 20px 0 0; max-height: 92%;
+      padding: 20px 16px calc(16px + env(safe-area-inset-bottom)); }
+  }
+  @media (max-width: 380px) {
+    #kb .pub-url .dot { display: none; }
+    #kb .pub-act .btn { padding: 8px 10px; }
+  }
 </style>
 
 <div id="kb"><div class="center"><p>Chargement de ta vitrine…</p></div></div>
@@ -391,6 +445,28 @@
     window.location.href = url;
   }
   function openTab(url) { try { window.open(url, "_blank", "noopener"); } catch (e) {} }
+
+  // Cadre Framer plus large que la zone qui l'affiche (largeur « 100vw » ou fixe dans
+  // une section avec marges, fréquent sur téléphone) : l'embed est alors coupé des deux
+  // côtés. On ramène le cadre, et ses conteneurs trop larges, à la largeur disponible.
+  function fitToHost() {
+    try {
+      var el = window.frameElement;
+      if (!el) return;
+      var win = el.ownerDocument.defaultView;
+      for (var i = 0; i < 6 && el && el.parentElement && el !== el.ownerDocument.body; i++) {
+        var parent = el.parentElement, cs = win.getComputedStyle(parent);
+        var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+        if (room > 200 && el.getBoundingClientRect().width > room + 1) {
+          el.style.width = "100%"; el.style.maxWidth = "100%"; el.style.minWidth = "0"; el.style.flexShrink = "1";
+        }
+        el = parent;
+      }
+    } catch (e) {}
+  }
+  fitToHost();
+  setTimeout(fitToHost, 600); setTimeout(fitToHost, 2000);   // après la mise en page de Framer
+  try { window.parent.addEventListener("resize", function () { setTimeout(fitToHost, 50); }); } catch (e) {}
 
   var toastTimer;
   function toast(html, ms) {
@@ -1417,7 +1493,7 @@
       '<span class="save saved"><i></i><span>Enregistré</span></span>' +
       '<a class="plan" href="' + esc(CONFIG.PRICING_URL) + '" target="_top">' + esc(planName) + '</a></div></div>' +
       '<div class="steps">' + STEPS.map(function (s) {
-        return s.extra ? '<button type="button" class="step extra" data-go="' + s.n + '">' + s.label + '<span class="cnt" data-sales-badge hidden></span></button>'
+        return s.extra ? '<button type="button" class="step extra" data-go="' + s.n + '"><span class="full">' + s.label + '</span><span class="short">Ventes</span><span class="cnt" data-sales-badge hidden></span></button>'
                        : '<button type="button" class="step" data-go="' + s.n + '"><b>0' + s.n + '</b>' + s.label + '</button>';
       }).join("") + '</div></div>' +
       '<div class="mtabs"><button type="button" data-pane="edit" class="on">Modifier</button><button type="button" data-pane="prev">Aperçu</button></div>' +

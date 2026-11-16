@@ -8,6 +8,8 @@ authentifié), sinon Brevo accepte l'appel puis ne délivre rien.
 from __future__ import annotations
 
 import html as _html
+import re
+
 import httpx
 
 from app.kitly.config import (
@@ -18,6 +20,35 @@ from app.kitly.config import (
 )
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
+_KEY_RE = re.compile(r"\b(xkeysib|xsmtpsib)-[A-Za-z0-9-]{6,}", re.I)
+
+
+def scrub(text: str) -> str:
+    """Masque toute clé Brevo qui se glisserait dans un texte affiché ou journalisé."""
+    text = _KEY_RE.sub(lambda m: m.group(1) + "-•••", str(text or ""))
+    if KITLY_BREVO_API_KEY and len(KITLY_BREVO_API_KEY) >= 8:
+        text = text.replace(KITLY_BREVO_API_KEY, "•••")
+    return text
+
+
+def sender_valid() -> bool:
+    v = (KITLY_SENDER_EMAIL or "").strip()
+    return bool(_EMAIL_RE.match(v)) and not _KEY_RE.search(v)
+
+
+def sender_display() -> str:
+    """Expéditeur affichable : l'adresse si c'en est une, jamais une clé collée par erreur."""
+    return KITLY_SENDER_EMAIL.strip() if sender_valid() else "(valeur masquée : ce n'est pas une adresse email)"
+
+
+def _sender_name() -> str:
+    return "Kitly" if _KEY_RE.search(KITLY_SENDER_NAME or "") else (KITLY_SENDER_NAME or "Kitly")
+
+
+SENDER_INVALID = ("KITLY_SENDER_EMAIL ne contient pas une adresse email (on dirait une clé API). Mets-y l'adresse "
+                  "d'expéditeur validée chez Brevo (ex. no-reply@navire-ai.com) et la clé dans KITLY_BREVO_API_KEY.")
 
 
 def send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
@@ -30,8 +61,11 @@ def send_result(to: str, subject: str, html: str, reply_to: str | None = None) -
     if not KITLY_BREVO_API_KEY:
         print(f"[kitly] ⚠️  Email non envoyé ({subject}) : aucune clé Brevo (KITLY_BREVO_API_KEY ou BREVO_API_KEY).")
         return {"sent": False, "detail": "Aucune clé Brevo configurée."}
+    if not sender_valid():
+        print(f"[kitly] ⚠️  Email non envoyé ({subject}) : {SENDER_INVALID}")
+        return {"sent": False, "detail": SENDER_INVALID}
     payload: dict = {
-        "sender": {"email": KITLY_SENDER_EMAIL, "name": KITLY_SENDER_NAME},
+        "sender": {"email": KITLY_SENDER_EMAIL.strip(), "name": _sender_name()},
         "to": [{"email": to}],
         "subject": subject,
         "htmlContent": html,
@@ -47,12 +81,12 @@ def send_result(to: str, subject: str, html: str, reply_to: str | None = None) -
         )
         if r.status_code not in (200, 201, 202):
             # print : visible dans les logs Render (le logger n'y est pas branché).
-            print(f"[kitly] ⚠️  Brevo a refusé l'email « {subject} » (HTTP {r.status_code}) : {r.text[:300]}")
-            return {"sent": False, "detail": f"Brevo HTTP {r.status_code} : {r.text[:300]}"}
-        return {"sent": True, "detail": f"Accepté par Brevo (expéditeur {KITLY_SENDER_EMAIL})."}
+            print(f"[kitly] ⚠️  Brevo a refusé l'email « {subject} » (HTTP {r.status_code}) : {scrub(r.text[:300])}")
+            return {"sent": False, "detail": f"Brevo HTTP {r.status_code} : {scrub(r.text[:300])}"}
+        return {"sent": True, "detail": f"Accepté par Brevo (expéditeur {sender_display()})."}
     except Exception as exc:  # réseau, timeout…
-        print(f"[kitly] ⚠️  Envoi Brevo impossible (« {subject} ») : {exc}")
-        return {"sent": False, "detail": f"Brevo injoignable : {exc}"}
+        print(f"[kitly] ⚠️  Envoi Brevo impossible (« {subject} ») : {scrub(exc)}")
+        return {"sent": False, "detail": f"Brevo injoignable : {scrub(exc)}"}
 
 
 # ============================================================
@@ -71,8 +105,12 @@ def check_sender() -> dict:
     L'expéditeur Kitly est utilisable s'il figure parmi les expéditeurs actifs
     Brevo, ou si son domaine est authentifié chez Brevo. Ne lève jamais.
     """
-    out = {"checked": True, "api_key_present": bool(KITLY_BREVO_API_KEY), "sender": KITLY_SENDER_EMAIL,
-           "sender_name": KITLY_SENDER_NAME, "sender_ok": None, "detail": "", "usable": []}
+    out = {"checked": True, "api_key_present": bool(KITLY_BREVO_API_KEY), "sender": sender_display(),
+           "sender_name": _sender_name(), "sender_ok": None, "detail": "", "usable": []}
+    if not sender_valid():
+        out.update(sender_ok=False, detail=SENDER_INVALID)
+        EMAIL_STATUS.clear(); EMAIL_STATUS.update(out)
+        return out
     if not KITLY_BREVO_API_KEY:
         out.update(sender_ok=False, detail="Aucune clé Brevo configurée.")
         EMAIL_STATUS.clear(); EMAIL_STATUS.update(out)
@@ -98,10 +136,10 @@ def check_sender() -> dict:
             ok = sender in active or domain in domains
             out["sender_ok"] = ok
             out["detail"] = ("Expéditeur accepté par Brevo." if ok else
-                             f"{KITLY_SENDER_EMAIL} n'est ni un expéditeur validé ni sur un domaine authentifié chez Brevo : "
+                             f"{sender_display()} n'est ni un expéditeur validé ni sur un domaine authentifié chez Brevo : "
                              "les emails Kitly (codes, demandes de contact) ne partent pas.")
     except Exception as exc:
-        out["detail"] = f"Brevo injoignable : {exc}"
+        out["detail"] = f"Brevo injoignable : {scrub(exc)}"
     EMAIL_STATUS.clear(); EMAIL_STATUS.update(out)
     return out
 
@@ -297,5 +335,5 @@ def mail_profile_restored(first_name: str, slug: str) -> tuple[str, str]:
 
 def mail_test() -> tuple[str, str]:
     body = ("<p>Cet email de test confirme que l'envoi des emails Kitly fonctionne : clé Brevo valide et expéditeur "
-            f"accepté (<b>{_e(KITLY_SENDER_NAME)}</b> &lt;{_e(KITLY_SENDER_EMAIL)}&gt;).</p>")
+            f"accepté (<b>{_e(_sender_name())}</b> &lt;{_e(sender_display())}&gt;).</p>")
     return "Test d'envoi Kitly", layout("Les emails Kitly fonctionnent", body)
