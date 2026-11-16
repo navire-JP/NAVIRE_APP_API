@@ -1445,3 +1445,81 @@ def test_brevo_key_never_displayed_even_if_pasted_as_sender(client, monkeypatch)
     for blob in (json.dumps(st), json.dumps(res), public, json.dumps(emails.mail_test())):
         assert "0123456789abcdef" not in blob
     assert emails.scrub(f"erreur {key} fin") == "erreur xkeysib-••• fin"
+
+
+def test_stripe_refusal_reason_is_shown_and_logged(client, monkeypatch, capsys):
+    import stripe as stripe_lib
+    from app.kitly import config, plans
+    from app.kitly.routers import billing
+
+    class Boom:
+        class customers:
+            @staticmethod
+            def create(params=None):
+                return {"id": "cus_x"}
+
+        class checkout:
+            class sessions:
+                @staticmethod
+                def create(params=None):
+                    raise stripe_lib.InvalidRequestError("No such price: 'price_kitly_custom'", "line_items")
+
+    monkeypatch.setattr(billing, "stripe_client", lambda: Boom)
+    monkeypatch.setitem(config.KITLY_STRIPE_PRICES, "custom", "price_kitly_custom")
+    monkeypatch.setattr(plans, "KITLY_STRIPE_PRICES", config.KITLY_STRIPE_PRICES)
+    _, h = register(client)
+    r = client.post("/kitly/billing/checkout", json={"plan": "custom"}, headers=h)
+    assert r.status_code == 502 and "No such price" in r.json()["detail"]["stripe"]
+    assert "Stripe a refusé" in capsys.readouterr().out
+    from app.kitly.stripe_client import stripe_reason
+    assert "sk_live_" not in stripe_reason(Exception("Invalid API Key provided: sk_live_abcdefghijkl"))
+
+
+def test_admin_stripe_check_lists_what_to_fix(client, monkeypatch):
+    import stripe as stripe_lib
+    from app.kitly import config, stripe_client as sc
+    from app.kitly.routers import admin as admin_router
+
+    class Fake:
+        class accounts:
+            @staticmethod
+            def retrieve_current():
+                return {"id": "acct_kitly", "charges_enabled": True, "settings": {"dashboard": {"display_name": "Kitly"}}}
+
+            @staticmethod
+            def list(params=None):
+                raise stripe_lib.InvalidRequestError("You can only create new accounts if you've signed up for Connect", None)
+
+        class prices:
+            @staticmethod
+            def retrieve(pid):
+                return {"id": pid, "active": True, "unit_amount": 700, "currency": "eur", "recurring": {"interval": "month"}}
+
+        class webhook_endpoints:
+            @staticmethod
+            def list(params=None):
+                return {"data": [{"url": "https://navire-app-api.onrender.com/kitly/stripe/webhook", "status": "enabled",
+                                  "enabled_events": ["checkout.session.completed", "customer.subscription.updated"]}]}
+
+        class billing_portal:
+            class configurations:
+                @staticmethod
+                def list(params=None):
+                    return {"data": []}
+
+    monkeypatch.setattr(sc, "stripe_client", lambda: Fake)
+    monkeypatch.setattr(admin_router, "KITLY_STRIPE_SECRET_KEY", "sk_test_fake")
+    monkeypatch.setitem(admin_router.KITLY_STRIPE_PRICES, "custom", "price_c")
+    monkeypatch.setitem(admin_router.KITLY_STRIPE_PRICES, "premium", "")
+    monkeypatch.setattr(config, "KITLY_STRIPE_WEBHOOK_SECRET", "whsec_x")
+    _, ah = _make_admin(client)
+    r = client.post("/kitly/admin/system/stripe-check", headers=ah).json()
+    c = {x["key"]: x for x in r["checks"]}
+    assert r["ok"] is False and r["live"] is False
+    assert c["account"]["ok"] and not c["connect"]["ok"] and "Connect" in c["connect"]["fix"]
+    assert c["price_custom"]["ok"] and "7.00 EUR / month" in c["price_custom"]["detail"]
+    assert not c["price_premium"]["ok"] and "KITLY_STRIPE_PRICE_PREMIUM" in c["price_premium"]["detail"]
+    hook = c["/kitly/stripe/webhook"]
+    assert not hook["ok"] and "charge.refunded" in hook["fix"] and "checkout.session.expired" in hook["fix"]
+    assert not c["/kitly/stripe/connect-webhook"]["ok"] and "Comptes connectés" in c["/kitly/stripe/connect-webhook"]["fix"]
+    assert not c["portal"]["ok"]

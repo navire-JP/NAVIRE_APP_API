@@ -25,6 +25,9 @@
 
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: transparent !important; overflow: hidden; }
+  /* Partie réellement visible du cadre (mesurée sur téléphone) : voir fitToVisible(). */
+  #kb { margin-left: var(--vis-l, 0px); width: calc(100% - var(--vis-l, 0px) - var(--vis-r, 0px)); }
+  #kb .modal-bg, #kb .drawer-bg, #kb .mbg { left: var(--vis-l, 0px) !important; right: var(--vis-r, 0px) !important; }
   *, *::before, *::after { box-sizing: border-box; }
 
   #kb {
@@ -451,22 +454,85 @@
   // côtés. On ramène le cadre, et ses conteneurs trop larges, à la largeur disponible.
   function fitToHost() {
     try {
-      var el = window.frameElement;
-      if (!el) return;
-      var win = el.ownerDocument.defaultView;
-      for (var i = 0; i < 6 && el && el.parentElement && el !== el.ownerDocument.body; i++) {
-        var parent = el.parentElement, cs = win.getComputedStyle(parent);
-        var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
-        if (room > 200 && el.getBoundingClientRect().width > room + 1) {
-          el.style.width = "100%"; el.style.maxWidth = "100%"; el.style.minWidth = "0"; el.style.flexShrink = "1";
-        }
-        el = parent;
+      var fe = window.frameElement;
+      if (!fe) return;
+      var doc = fe.ownerDocument, win = doc.defaultView;
+      var chain = [];
+      for (var n = fe; n && n !== doc.body && n !== doc.documentElement; n = n.parentElement) chain.unshift(n);
+      // Du conteneur le plus extérieur vers le cadre : chaque bloc trop large pour son
+      // parent (ou qui sort de l'écran) est ramené à 100 % de la place disponible.
+      for (var pass = 0; pass < 2; pass++) {
+        var vw = doc.documentElement.clientWidth;
+        chain.forEach(function (el) {
+          var parent = el.parentElement, cs = win.getComputedStyle(parent), r = el.getBoundingClientRect();
+          var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+          if (room < 200) return;
+          if (r.width > room + 1 || r.width > vw + 1 || r.left < -1 || r.right > vw + 1) {
+            el.style.boxSizing = "border-box"; el.style.maxWidth = "100%"; el.style.minWidth = "0"; el.style.flexShrink = "1";
+            if (r.width > room + 1 || r.width > vw + 1) el.style.width = "100%";
+            var es = win.getComputedStyle(el);
+            // centrage Framer « left: 50% + translateX(-50%) » : on le neutralise si le bloc sort encore de l'écran
+            if (es.transform !== "none" && (el.getBoundingClientRect().left < -1)) { el.style.left = "0"; el.style.transform = "none"; }
+          }
+        });
       }
     } catch (e) {}
   }
+
+  // Diagnostic : ajouter ?debug=kitly à l'adresse de la page Framer affiche les mesures du cadre.
+  function debugPanel() {
+    var on = false;
+    try { on = /debug=kitly/.test(window.top.location.search); } catch (e) { on = /debug=kitly/.test(location.search); }
+    if (!on) return;
+    var lines = [], fe = null;
+    try { fe = window.frameElement; } catch (e) {}
+    lines.push("écran : " + (function () { try { return window.top.innerWidth; } catch (e) { return "?"; } })() + " px · embed : " + document.documentElement.clientWidth + " px");
+    if (!fe) lines.push("cadre inaccessible (autre origine) : réglage à faire dans Framer");
+    else {
+      var doc = fe.ownerDocument;
+      for (var n = fe, i = 0; n && n !== doc.body && i < 14; n = n.parentElement, i++) {
+        var r = n.getBoundingClientRect(), cs = doc.defaultView.getComputedStyle(n);
+        lines.push((n.tagName.toLowerCase()) + " " + Math.round(r.left) + "→" + Math.round(r.right) + " (" + Math.round(r.width) + ")" +
+          (cs.overflowX !== "visible" ? " ✂" : "") + (n.style.maxWidth ? " ✓ajusté" : ""));
+      }
+    }
+    var d = document.createElement("pre");
+    d.style.cssText = "position:fixed;left:6px;right:6px;bottom:70px;z-index:99;background:#0a0a0a;color:#fff;font:11px/1.4 monospace;padding:8px;border-radius:10px;white-space:pre-wrap;max-height:45%;overflow:auto";
+    d.textContent = lines.join("\n");
+    document.body.appendChild(d);
+  }
+  // Filet de sécurité qui marche même si le cadre Framer est d'un autre domaine (fitToHost
+  // n'a alors pas accès à la page) : le navigateur indique quelle partie du cadre est
+  // réellement visible à l'écran ; le contenu est placé dans cette partie seulement.
+  var visIO = null;
+  function fitToVisible() {
+    try {
+      if (!("IntersectionObserver" in window)) return;
+      var probe = document.getElementById("vis-probe");
+      if (!probe) {
+        probe = document.createElement("div");
+        probe.id = "vis-probe";
+        probe.style.cssText = "position:fixed;top:0;bottom:0;left:0;right:0;pointer-events:none;opacity:0;z-index:-1";
+        document.body.appendChild(probe);
+      }
+      if (visIO) visIO.disconnect();
+      visIO = new IntersectionObserver(function (entries) {
+        var e = entries[entries.length - 1], b = e.boundingClientRect, r = e.intersectionRect;
+        if (!e.isIntersecting || r.width < 200) return;
+        var l = Math.max(0, Math.round(r.left - b.left)), rr = Math.max(0, Math.round(b.right - r.right));
+        if (l > 80 || rr > 80 || b.width > 1100) { l = 0; rr = 0; }   // cadre simplement en partie hors écran (défilement) : ne rien changer
+        var host = document.getElementById("kb");
+        host.style.setProperty("--vis-l", l + "px");
+        host.style.setProperty("--vis-r", rr + "px");
+      }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+      visIO.observe(probe);
+    } catch (e) {}
+  }
   fitToHost();
-  setTimeout(fitToHost, 600); setTimeout(fitToHost, 2000);   // après la mise en page de Framer
+  setTimeout(fitToHost, 600); setTimeout(function () { fitToHost(); debugPanel(); }, 2000);   // après la mise en page de Framer
   try { window.parent.addEventListener("resize", function () { setTimeout(fitToHost, 50); }); } catch (e) {}
+  window.addEventListener("resize", function () { setTimeout(fitToVisible, 80); });
+  setTimeout(fitToVisible, 300); setTimeout(fitToVisible, 2300);
 
   var toastTimer;
   function toast(html, ms) {
@@ -485,7 +551,7 @@
     if (!data) return "Une erreur est survenue, réessaie.";
     var d = data.detail;
     if (typeof d === "string") return d;
-    if (d && typeof d.message === "string") return d.message;
+    if (d && typeof d.message === "string") return d.message + (d.stripe ? " (Stripe : " + d.stripe + ")" : "");
     if (Array.isArray(d) && d[0]) return String(d[0].msg || "").replace(/^Value error, /, "") || "Champ invalide.";
     return "Une erreur est survenue, réessaie.";
   }

@@ -22,6 +22,9 @@
 
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: transparent !important; overflow: hidden; }
+  /* Partie réellement visible du cadre (mesurée sur téléphone) : voir fitToVisible(). */
+  #ka { margin-left: var(--vis-l, 0px); width: calc(100% - var(--vis-l, 0px) - var(--vis-r, 0px)); }
+  #ka .modal-bg, #ka .drawer-bg, #ka .mbg { left: var(--vis-l, 0px) !important; right: var(--vis-r, 0px) !important; }
   *, *::before, *::after { box-sizing: border-box; }
   #ka {
     --ink: #0a0a0a; --paper: #ffffff; --grey: #f5f5f4; --line: #e4e4e2; --mut: #6f6f6c; --bad: #c2410c; --good: #15803d; --warn: #b45309;
@@ -176,21 +179,62 @@
   // ramène, lui et ses conteneurs trop larges, à la largeur disponible.
   function fitToHost() {
     try {
-      var el = window.frameElement;
-      if (!el) return;
-      var win = el.ownerDocument.defaultView;
-      for (var i = 0; i < 6 && el && el.parentElement && el !== el.ownerDocument.body; i++) {
-        var parent = el.parentElement, cs = win.getComputedStyle(parent);
-        var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
-        if (room > 200 && el.getBoundingClientRect().width > room + 1) {
-          el.style.width = "100%"; el.style.maxWidth = "100%"; el.style.minWidth = "0"; el.style.flexShrink = "1";
-        }
-        el = parent;
+      var fe = window.frameElement;
+      if (!fe) return;
+      var doc = fe.ownerDocument, win = doc.defaultView;
+      var chain = [];
+      for (var n = fe; n && n !== doc.body && n !== doc.documentElement; n = n.parentElement) chain.unshift(n);
+      // Du conteneur le plus extérieur vers le cadre : chaque bloc trop large pour son
+      // parent (ou qui sort de l'écran) est ramené à 100 % de la place disponible.
+      for (var pass = 0; pass < 2; pass++) {
+        var vw = doc.documentElement.clientWidth;
+        chain.forEach(function (el) {
+          var parent = el.parentElement, cs = win.getComputedStyle(parent), r = el.getBoundingClientRect();
+          var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+          if (room < 200) return;
+          if (r.width > room + 1 || r.width > vw + 1 || r.left < -1 || r.right > vw + 1) {
+            el.style.boxSizing = "border-box"; el.style.maxWidth = "100%"; el.style.minWidth = "0"; el.style.flexShrink = "1";
+            if (r.width > room + 1 || r.width > vw + 1) el.style.width = "100%";
+            var es = win.getComputedStyle(el);
+            // centrage Framer « left: 50% + translateX(-50%) » : on le neutralise si le bloc sort encore de l'écran
+            if (es.transform !== "none" && (el.getBoundingClientRect().left < -1)) { el.style.left = "0"; el.style.transform = "none"; }
+          }
+        });
       }
+    } catch (e) {}
+  }
+
+  // Filet de sécurité qui marche même si le cadre Framer est d'un autre domaine (fitToHost
+  // n'a alors pas accès à la page) : le navigateur indique quelle partie du cadre est
+  // réellement visible à l'écran ; le contenu est placé dans cette partie seulement.
+  var visIO = null;
+  function fitToVisible() {
+    try {
+      if (!("IntersectionObserver" in window)) return;
+      var probe = document.getElementById("vis-probe");
+      if (!probe) {
+        probe = document.createElement("div");
+        probe.id = "vis-probe";
+        probe.style.cssText = "position:fixed;top:0;bottom:0;left:0;right:0;pointer-events:none;opacity:0;z-index:-1";
+        document.body.appendChild(probe);
+      }
+      if (visIO) visIO.disconnect();
+      visIO = new IntersectionObserver(function (entries) {
+        var e = entries[entries.length - 1], b = e.boundingClientRect, r = e.intersectionRect;
+        if (!e.isIntersecting || r.width < 200) return;
+        var l = Math.max(0, Math.round(r.left - b.left)), rr = Math.max(0, Math.round(b.right - r.right));
+        if (l > 80 || rr > 80 || b.width > 1100) { l = 0; rr = 0; }   // cadre simplement en partie hors écran (défilement) : ne rien changer
+        var host = document.getElementById("ka");
+        host.style.setProperty("--vis-l", l + "px");
+        host.style.setProperty("--vis-r", rr + "px");
+      }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+      visIO.observe(probe);
     } catch (e) {}
   }
   fitToHost(); setTimeout(fitToHost, 600); setTimeout(fitToHost, 2000);
   try { window.parent.addEventListener("resize", function () { setTimeout(fitToHost, 50); }); } catch (e) {}
+  window.addEventListener("resize", function () { setTimeout(fitToVisible, 80); });
+  setTimeout(fitToVisible, 300); setTimeout(fitToVisible, 2300);
   var S = { me: null, tab: "overview", users: { q: "", plan: "", page: 1 }, profiles: { q: "", status: "", page: 1 }, reports: { status: "open" }, openReports: 0 };
   var PLAN_NAME = { free: "Free", custom: "Custom", premium: "Premium+" };
   var ACTION_LABEL = {
@@ -198,7 +242,7 @@
     reactivate: "Compte réactivé", logout_all: "Sessions coupées", impersonate: "Builder ouvert (support)", delete_user: "Compte supprimé",
     suspend_profile: "Vitrine suspendue", unsuspend_profile: "Vitrine rétablie", unpublish_profile: "Vitrine dépubliée",
     report_status: "Signalement traité", update_plan: "Formule modifiée", email_check: "Vérification email", email_test: "Email de test",
-    admin_login: "Connexion à la console", create_user: "Compte créé"
+    admin_login: "Connexion à la console", create_user: "Compte créé", stripe_check: "Vérification Stripe"
   };
   var REASON_LABEL = { fraud: "Arnaque ou fraude", illegal_content: "Contenu illicite", impersonation: "Usurpation d'identité",
     ip_infringement: "Atteinte aux droits", inappropriate: "Contenu inapproprié", other: "Autre" };
@@ -683,10 +727,25 @@
         '<div class="acts"><button class="btn ghost" id="ka-echeck">Revérifier l\'expéditeur</button><button class="btn" id="ka-etest">Envoyer un email de test</button></div>' +
         '<h3>Stripe</h3><dl class="kv"><dt>Clé secrète</dt><dd>' + flag(sy.stripe.secret_key) + (sy.stripe.live_mode ? ' <span class="pill warn">mode live</span>' : sy.stripe.secret_key ? ' <span class="pill">mode test</span>' : '') + '</dd>' +
         '<dt>Price Custom</dt><dd>' + flag(sy.stripe.prices.custom) + '</dd><dt>Price Premium+</dt><dd>' + flag(sy.stripe.prices.premium) + '</dd></dl>' +
+        '<div class="acts"><button class="btn" id="ka-scheck">Vérifier Stripe</button></div><div id="ka-sres"></div>' +
         '<h3>Site et accès</h3><dl class="kv"><dt>Adresse du site</dt><dd><code>' + esc(sy.frontend_url) + '</code></dd>' +
         '<dt>Origines autorisées (CORS)</dt><dd>' + sy.cors_origins.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(" ") + '</dd>' +
         '<dt>Variables manquantes</dt><dd>' + (sy.missing_env.length ? sy.missing_env.map(function (x) { return '<span class="pill bad">' + esc(x) + '</span>'; }).join(" ") : '<span class="pill ok">aucune</span>') + '</dd></dl>' +
         '<h3>Journal des actions</h3>' + actionsTable(r[1].items);
+      $("#ka-scheck").onclick = function () {
+        var box = $("#ka-sres"), btn = this;
+        btn.disabled = true; box.innerHTML = '<p class="muted">Vérification auprès de Stripe…</p>';
+        api("POST", "/admin/system/stripe-check").then(function (r) {
+          btn.disabled = false;
+          box.innerHTML = '<p>' + (r.ok ? '<span class="pill ok">tout est bon</span>' : '<span class="pill bad">à corriger</span>') +
+            (r.live === false ? ' <span class="pill">mode test</span>' : r.live ? ' <span class="pill warn">mode live</span>' : '') + '</p>' +
+            '<ul class="diag">' + r.checks.map(function (c) {
+              return '<li>' + (c.ok ? '<span class="pill ok">ok</span> ' : '<span class="pill bad">non</span> ') + '<b>' + esc(c.label) + '</b>' +
+                (c.detail ? ' <span class="muted">— ' + esc(c.detail) + '</span>' : '') +
+                (c.fix ? '<br><span style="color:var(--bad);font-size:12.5px">→ ' + esc(c.fix) + '</span>' : '') + '</li>';
+            }).join("") + '</ul>';
+        }).catch(function (e) { btn.disabled = false; box.innerHTML = ''; fail(e); });
+      };
       $("#ka-echeck").onclick = function () { api("POST", "/admin/system/email-check").then(function (st) { toast(st.detail || "Vérifié."); VIEW.system(); }).catch(fail); };
       $("#ka-etest").onclick = function () {
         dialog({ title: "Envoyer un email de test", text: "Adresse de réception (vide = ton email).", input: "text", placeholder: S.me.user.email, min: 0, ok: "Envoyer" }).then(function (to) {

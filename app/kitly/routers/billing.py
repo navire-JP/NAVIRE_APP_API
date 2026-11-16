@@ -37,7 +37,7 @@ from app.kitly.plans import PAID_PLANS, PLAN_RANK, get_plan, plan_for_price, pla
 from app.kitly.schemas import CheckoutIn
 from app.kitly.security import current_user, forbid_impersonation
 from app.kitly.serializers import public_url
-from app.kitly.stripe_client import is_kitly_object, kitly_metadata, stripe_client
+from app.kitly.stripe_client import is_kitly_object, kitly_metadata, stripe_client, stripe_reason
 from app.kitly.utils import iso
 
 logger = logging.getLogger(__name__)
@@ -79,9 +79,10 @@ def stripe_guard(message: str):
             try:
                 return fn(*args, **kwargs)
             except stripe.StripeError as exc:
-                logger.warning("[kitly] Stripe : %s (%s)", exc, fn.__name__)
-                raise HTTPException(502, detail={"message": message, "stripe": exc.user_message or "",
-                                                 "code": "stripe_error"})
+                reason = stripe_reason(exc)
+                # print : seul canal visible dans les journaux Render.
+                print(f"[kitly] ⚠️  Stripe a refusé ({fn.__name__}) : {reason}", flush=True)
+                raise HTTPException(502, detail={"message": message, "stripe": reason, "code": "stripe_error"})
         return wrapper
     return deco
 
