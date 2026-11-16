@@ -28,12 +28,14 @@ router.include_router(pages.router)
 @router.get("/health", tags=["kitly · meta"])
 def kitly_health():
     """Santé + diagnostic de configuration (aucune valeur secrète : seulement ce qui manque)."""
-    from app.kitly.config import KITLY_CORS_ORIGINS, KITLY_FRONTEND_URL
+    from app.kitly.config import KITLY_ADMIN_EMAILS, KITLY_CORS_ORIGINS, KITLY_FRONTEND_URL
 
     from app.kitly.emails import public_status
 
     return {"ok": True, "app": "kitly", "cors_origins": KITLY_CORS_ORIGINS,
-            "frontend_url": KITLY_FRONTEND_URL, "missing_env": missing_env(), "email": public_status()}
+            "frontend_url": KITLY_FRONTEND_URL, "missing_env": missing_env(), "email": public_status(),
+            # Nombre d'adresses autorisées sur la console /admin (jamais les adresses elles-mêmes).
+            "admin_emails_configured": len(KITLY_ADMIN_EMAILS)}
 
 
 @router.get("/catalog", tags=["kitly · meta"])

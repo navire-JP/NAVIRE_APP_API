@@ -950,7 +950,7 @@ def _make_admin(client):
     return email, {"Authorization": f"Bearer {r.json()['token']}"}
 
 
-def test_admin_console_requires_password_session(client):
+def test_admin_console_requires_password_session(client, capsys):
     from app.db.database import SessionLocal
     from app.kitly.config import KITLY_ADMIN_EMAILS
     from app.kitly.models import KitlyUser
@@ -963,6 +963,13 @@ def test_admin_console_requires_password_session(client):
     assert client.get("/kitly/admin/overview", headers=h).status_code == 403
     r = client.post("/kitly/auth/admin-login", json={"email": email, "password": PWD})
     assert r.status_code == 401 and r.json()["detail"] == "Email ou mot de passe incorrect."
+
+    # Diagnostic : la raison du refus est écrite dans les journaux du serveur, jamais renvoyée.
+    out = capsys.readouterr().out
+    assert "Connexion admin refusée" in out and "absente de KITLY_ADMIN_EMAILS" in out and email not in out
+    from app.kitly.config import _emails
+    assert _emails('"Chef@Kitly.fr"; autre@kitly.fr') == {"chef@kitly.fr", "autre@kitly.fr"}
+    assert "admin_emails_configured" in client.get("/kitly/health").json()
 
     # Adresse autorisée : la session ordinaire du site ne suffit pas, il faut la connexion admin.
     KITLY_ADMIN_EMAILS.add(email)
