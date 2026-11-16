@@ -26,7 +26,11 @@ router.include_router(pages.router)
 
 @router.get("/health", tags=["kitly · meta"])
 def kitly_health():
-    return {"ok": True, "app": "kitly"}
+    """Santé + diagnostic de configuration (aucune valeur secrète : seulement ce qui manque)."""
+    from app.kitly.config import KITLY_CORS_ORIGINS, KITLY_FRONTEND_URL
+
+    return {"ok": True, "app": "kitly", "cors_origins": KITLY_CORS_ORIGINS,
+            "frontend_url": KITLY_FRONTEND_URL, "missing_env": missing_env()}
 
 
 @router.get("/catalog", tags=["kitly · meta"])

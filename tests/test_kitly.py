@@ -848,3 +848,17 @@ def test_stripe_returns_point_to_subscribe_page():
     for url in (config.KITLY_BILLING_SUCCESS_URL, config.KITLY_BILLING_CANCEL_URL, config.KITLY_BILLING_RETURN_URL,
                 config.KITLY_CONNECT_RETURN_URL, config.KITLY_CONNECT_REFRESH_URL):
         assert "/subscribe" in url
+
+
+
+def test_cors_origins_are_normalized():
+    from app.kitly.config import _origins
+
+    assert _origins(" https://Kitly.framer.website/ , https://kitly.fr/page,'https://www.kitly.fr' ,https://kitly.fr") == [
+        "https://kitly.framer.website", "https://kitly.fr", "https://www.kitly.fr"]
+
+
+def test_health_exposes_config_diagnostic_without_secrets(client):
+    r = client.get("/kitly/health").json()
+    assert r["ok"] and isinstance(r["cors_origins"], list) and isinstance(r["missing_env"], list)
+    assert not any(k in str(r).lower() for k in ("sk_", "whsec", "secret_key="))
