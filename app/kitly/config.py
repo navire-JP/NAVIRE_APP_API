@@ -40,7 +40,23 @@ KITLY_PUBLIC_HOST = os.getenv("KITLY_PUBLIC_HOST", "kitly.fr")
 KITLY_PROFILE_URL_TEMPLATE = os.getenv("KITLY_PROFILE_URL_TEMPLATE", f"{KITLY_FRONTEND_URL}/profile?u={{slug}}")
 # Origines autorisées à appeler /kitly/* depuis un navigateur (CORS propre à
 # Kitly, distinct de CORS_ORIGINS de NAVIRE). Liste séparée par des virgules.
-KITLY_CORS_ORIGINS = _csv(os.getenv(
+def _origins(value: str) -> list[str]:
+    """
+    Normalise les origines : le navigateur envoie « https://kitly.framer.website »
+    (minuscules, sans « / » final ni chemin). Une valeur saisie avec un « / »
+    final, un chemin ou des majuscules ne correspondrait jamais.
+    """
+    out = []
+    for item in _csv(value):
+        item = item.strip().strip('"').strip("'").lower()
+        scheme, sep, rest = item.partition("://")
+        origin = f"{scheme}://{rest.split('/', 1)[0]}" if sep else item.rstrip("/")
+        if origin and origin not in out:
+            out.append(origin)
+    return out
+
+
+KITLY_CORS_ORIGINS = _origins(os.getenv(
     "KITLY_CORS_ORIGINS", "https://kitly.fr,https://www.kitly.fr,https://kitly.framer.website"
 ))
 # Politique de confidentialité Kitly (citée par le formulaire de contact des vitrines)

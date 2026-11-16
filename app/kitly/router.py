@@ -26,7 +26,13 @@ router.include_router(pages.router)
 
 @router.get("/health", tags=["kitly · meta"])
 def kitly_health():
-    return {"ok": True, "app": "kitly"}
+    """Santé + diagnostic de configuration (aucune valeur secrète : seulement ce qui manque)."""
+    from app.kitly.config import KITLY_CORS_ORIGINS, KITLY_FRONTEND_URL
+
+    from app.kitly.emails import public_status
+
+    return {"ok": True, "app": "kitly", "cors_origins": KITLY_CORS_ORIGINS,
+            "frontend_url": KITLY_FRONTEND_URL, "missing_env": missing_env(), "email": public_status()}
 
 
 @router.get("/catalog", tags=["kitly · meta"])
@@ -59,6 +65,21 @@ def kitly_startup() -> None:
         print(f"[kitly] ⚠️  Variables manquantes : {', '.join(missing)}")
     else:
         print("[kitly] ✅ Configuration complète.")
+    def _email_check():
+        from app.kitly.emails import check_sender
+
+        st = check_sender()
+        if st["sender_ok"]:
+            print(f"[kitly] ✅ Email — expéditeur {st['sender']} accepté par Brevo.")
+        else:
+            print(f"[kitly] ⚠️  Email — {st['detail']}")
+            if st["usable"]:
+                print(f"[kitly]    Expéditeurs utilisables chez Brevo : {', '.join(st['usable'])}")
+
+    import threading
+
+    threading.Thread(target=_email_check, daemon=True, name="kitly-email-check").start()
+
     db = SessionLocal()
     try:
         seed_plans(db)

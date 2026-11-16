@@ -968,7 +968,8 @@
     root.appendChild(bg);
     var inputs = bg.querySelectorAll("[data-c]");
     var err = bg.querySelector("#kb-v-err");
-    api("POST", "/auth/resend-code").catch(function (e) { if (e.status !== 429) err.textContent = e.message; });
+    api("POST", "/auth/resend-code").then(function (r) { if (r && r.sent === false) err.textContent = "L'email n'a pas pu partir pour le moment. Réessaie dans quelques minutes."; })
+      .catch(function (e) { if (e.status !== 429) err.textContent = e.message; });
     inputs.forEach(function (inp, i) {
       inp.oninput = function () {
         var v = inp.value.replace(/\D/g, "");
@@ -985,7 +986,10 @@
     inputs[0].focus();
     bg.querySelector("[data-close]").onclick = function () { bg.remove(); };
     bg.querySelector("[data-resend]").onclick = function () {
-      api("POST", "/auth/resend-code").then(function () { err.style.color = "var(--good)"; err.textContent = "Code renvoyé."; })
+      api("POST", "/auth/resend-code").then(function (r) {
+        if (r && r.sent === false) { err.style.color = "var(--bad)"; err.textContent = "L'email n'a pas pu partir pour le moment. Réessaie dans quelques minutes."; return; }
+        err.style.color = "var(--good)"; err.textContent = "Code renvoyé.";
+      })
         .catch(function (e) { err.style.color = "var(--bad)"; err.textContent = e.message; });
     };
     bg.querySelector("[data-ok]").onclick = function () {

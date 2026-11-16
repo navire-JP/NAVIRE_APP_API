@@ -848,3 +848,48 @@ def test_stripe_returns_point_to_subscribe_page():
     for url in (config.KITLY_BILLING_SUCCESS_URL, config.KITLY_BILLING_CANCEL_URL, config.KITLY_BILLING_RETURN_URL,
                 config.KITLY_CONNECT_RETURN_URL, config.KITLY_CONNECT_REFRESH_URL):
         assert "/subscribe" in url
+
+
+
+def test_cors_origins_are_normalized():
+    from app.kitly.config import _origins
+
+    assert _origins(" https://Kitly.framer.website/ , https://kitly.fr/page,'https://www.kitly.fr' ,https://kitly.fr") == [
+        "https://kitly.framer.website", "https://kitly.fr", "https://www.kitly.fr"]
+
+
+def test_health_exposes_config_diagnostic_without_secrets(client):
+    r = client.get("/kitly/health").json()
+    assert r["ok"] and isinstance(r["cors_origins"], list) and isinstance(r["missing_env"], list)
+    assert not any(k in str(r).lower() for k in ("sk_", "whsec", "secret_key="))
+
+
+def test_sender_diagnostic(monkeypatch):
+    from app.kitly import emails
+
+    class R:
+        def __init__(self, data, code=200):
+            self.status_code, self._d = code, data
+
+        def json(self):
+            return self._d
+
+    def fake_get(senders, domains):
+        return lambda url, headers=None, timeout=None: R({"domains": domains}) if url.endswith("/domains") else R({"senders": senders})
+
+    monkeypatch.setattr(emails, "KITLY_BREVO_API_KEY", "xkeysib-test")
+    monkeypatch.setattr(emails, "KITLY_SENDER_EMAIL", "no-reply@kitly.fr")
+    # Domaine authentifié : toute adresse du domaine est acceptée.
+    monkeypatch.setattr(emails.httpx, "get", fake_get([], [{"domain_name": "kitly.fr", "authenticated": True}]))
+    assert emails.check_sender()["sender_ok"] is True
+    # Expéditeur validé individuellement.
+    monkeypatch.setattr(emails.httpx, "get", fake_get([{"email": "No-Reply@kitly.fr", "active": True}], []))
+    assert emails.check_sender()["sender_ok"] is True
+    # Ni l'un ni l'autre : diagnostic explicite et liste des adresses utilisables (logs uniquement).
+    monkeypatch.setattr(emails.httpx, "get", fake_get([{"email": "no-reply@navire-ai.com", "active": True}], []))
+    st = emails.check_sender()
+    assert st["sender_ok"] is False and "no-reply@navire-ai.com" in st["usable"]
+    pub = emails.public_status()
+    assert pub["sender_ok"] is False and "usable" not in pub
+    monkeypatch.setattr(emails, "KITLY_BREVO_API_KEY", "")
+    assert emails.check_sender()["sender_ok"] is False

@@ -274,7 +274,9 @@
     },
     verify: function () {
       return '<h1>Confirme ton <em>email</em></h1>' +
-        '<p class="sub">Un code à 6 chiffres vient d\'être envoyé à <b>' + esc(state.user ? state.user.email : state.email) + '</b>.</p>' +
+        (state.mailFailed
+          ? '<div class="ok-msg">L\'email de vérification n\'a pas pu être envoyé pour le moment. Tu peux créer ta vitrine dès maintenant (« Plus tard ») et confirmer ton adresse ensuite avec « Renvoyer le code ».</div>'
+          : '<p class="sub">Un code à 6 chiffres vient d\'être envoyé à <b>' + esc(state.user ? state.user.email : state.email) + '</b>.</p>') +
         '<form id="kt-form" novalidate>' + codeInputs() +
         '<div class="msg" id="kt-msg" style="text-align:center"></div>' +
         '<button class="btn" type="submit" id="kt-submit">Valider</button></form>' +
@@ -365,6 +367,7 @@
     setBusy(btn, "Création du compte…");
     api("POST", "/auth/register", body).then(function (data) {
       saveSession(data);
+      state.mailFailed = data.verification_email_sent === false;
       go("verify");
     }).catch(function (e) {
       state.busy = false; btn.disabled = false; btn.textContent = "Créer mon compte";
@@ -425,7 +428,9 @@
         var email = root.querySelector('[name="email"]');
         if (email) state.email = email.value.trim();
         if (target === "verify-send") {
-          api("POST", "/auth/resend-code").catch(function () {}); return go("verify");
+          state.mailFailed = false;
+          api("POST", "/auth/resend-code").then(function (r) { if (r && r.sent === false) { state.mailFailed = true; go("verify"); } }).catch(function () {});
+          return go("verify");
         }
         go(target);
       });
@@ -474,7 +479,10 @@
     var resend = root.querySelector("#kt-resend");
     if (resend) resend.addEventListener("click", function () {
       resend.disabled = true;
-      api("POST", "/auth/resend-code").then(function () { showMsg("kt-msg", ""); resend.textContent = "Code renvoyé ✓"; })
+      api("POST", "/auth/resend-code").then(function (r) {
+        if (r && r.sent === false) { showMsg("kt-msg", "L'email n'a pas pu partir pour le moment. Réessaie dans quelques minutes."); resend.disabled = false; return; }
+        showMsg("kt-msg", ""); resend.textContent = "Code renvoyé ✓";
+      })
         .catch(function (e) { showMsg("kt-msg", e.message); resend.disabled = false; });
     });
     var later = root.querySelector("#kt-later");
