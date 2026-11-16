@@ -31,7 +31,7 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_SENDER_EMAIL` / `KITLY_SENDER_NAME` | oui | Expéditeur validé chez Brevo (défaut `no-reply@kitly.fr` / `Kitly`) |
 | `KITLY_BREVO_API_KEY` | non | Clé Brevo dédiée (à défaut : `BREVO_API_KEY`) |
 | `KITLY_CLOUDINARY_URL` | non | Compte Cloudinary dédié (à défaut : `CLOUDINARY_URL`, dossier `kitly/`) |
-| `KITLY_FRONTEND_URL` | non | Site Framer Kitly (défaut `https://kitly.fr`), base des retours Stripe |
+| `KITLY_FRONTEND_URL` | non | Site Framer Kitly (défaut `https://kitly.framer.website` ; passer à `https://kitly.fr` une fois le domaine relié). Liens des emails et des pages servies par l'API. Les retours Stripe suivent automatiquement le domaine du visiteur (s'il figure dans `KITLY_CORS_ORIGINS`), sauf si `KITLY_BILLING_*` / `KITLY_CONNECT_*` sont fixées |
 | `KITLY_CORS_ORIGINS` | non | Origines autorisées sur `/kitly/*`, séparées par des virgules (défaut : kitly.fr, www.kitly.fr, kitly.framer.website) |
 | `KITLY_PUBLIC_HOST` | non | Domaine des vitrines (défaut `kitly.fr`) |
 | `KITLY_PROFILE_URL_TEMPLATE` | non | Adresse publique d'une vitrine, `{slug}` remplacé (défaut `<KITLY_FRONTEND_URL>/profile?u={slug}`) |

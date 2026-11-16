@@ -160,7 +160,7 @@
   var ORIGIN = (function () {
     var o = "";
     try { o = window.top.location.origin; } catch (e) { try { o = window.location.origin; } catch (e2) {} }
-    return o && o !== "null" ? o : "https://kitly.fr";
+    return o && o !== "null" ? o : "https://kitly.framer.website";
   })();
   function site(path) { return /^https?:/.test(path) ? path : ORIGIN + path; }
 

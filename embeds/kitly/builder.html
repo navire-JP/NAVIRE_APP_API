@@ -225,7 +225,7 @@
   (function () {
     var origin = "";
     try { origin = window.top.location.origin; } catch (e) { try { origin = window.location.origin; } catch (e2) {} }
-    if (!origin || origin === "null") origin = "https://kitly.fr";
+    if (!origin || origin === "null") origin = "https://kitly.framer.website";
     Object.keys(CONFIG).forEach(function (k) {
       var v = CONFIG[k];
       if (typeof v === "string" && v.charAt(0) === "/") CONFIG[k] = origin + v;
@@ -485,11 +485,12 @@
     var cats = ((S.catalog && S.catalog.categories) || []).map(function (c) {
       return '<option value="' + esc(c.key) + '"' + (p.category === c.key ? " selected" : "") + '>' + esc(c.label) + '</option>';
     }).join("");
-    var host = (S.catalog && S.catalog.public_host) || "kitly.fr";
+    // Adresse réelle de la vitrine sur le site affiché (kitly.framer.website ou kitly.fr).
+    var host = CONFIG.PUBLIC_BASE.replace(/^https?:\/\//, "");
     return verifyBanner() +
       '<div class="sec"><h3>Ta présentation</h3>' +
       fieldText("display_name", "Nom ou nom commercial", { max: 80, ph: "Léa Martin" }) +
-      '<div class="field"><label>Adresse de ta vitrine</label><div class="slug"><span>' + esc(host) + '/</span><input type="text" id="kb-slug" value="' + esc(p.slug) + '" maxlength="40" autocomplete="off" spellcheck="false"></div><div class="note" id="kb-slug-note">Lettres minuscules, chiffres et tirets.</div></div>' +
+      '<div class="field"><label>Adresse de ta vitrine</label><div class="slug"><span>' + esc(host) + '</span><input type="text" id="kb-slug" value="' + esc(p.slug) + '" maxlength="40" autocomplete="off" spellcheck="false"></div><div class="note" id="kb-slug-note">Lettres minuscules, chiffres et tirets.</div></div>' +
       '<div class="row">' + fieldText("headline", "Métier", { max: 120, ph: "Designer graphique" }) +
       '<div class="field"><label>Catégorie</label><select data-f="category"><option value="">Choisir…</option>' + cats + '</select></div></div>' +
       fieldText("location", "Localisation", { max: 120, ph: "Lyon · ou « À distance »" }) +

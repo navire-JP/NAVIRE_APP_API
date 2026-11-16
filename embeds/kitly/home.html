@@ -116,7 +116,7 @@
   (function () {
     var origin = "";
     try { origin = window.top.location.origin; } catch (e) { try { origin = window.location.origin; } catch (e2) {} }
-    if (!origin || origin === "null") origin = "https://kitly.fr";
+    if (!origin || origin === "null") origin = "https://kitly.framer.website";
     Object.keys(CONFIG).forEach(function (k) {
       var v = CONFIG[k];
       if (typeof v === "string" && v.charAt(0) === "/") CONFIG[k] = origin + v;
