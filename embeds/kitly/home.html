@@ -103,14 +103,26 @@
   // ============================================================
   var CONFIG = {
     API_BASE: "https://navire-app-api.onrender.com",
-    REGISTER_URL: "https://kitly.fr/connexion?mode=inscription",
-    LOGIN_URL: "https://kitly.fr/connexion",
-    BUILDER_URL: "https://kitly.fr/builder",
-    PRICING_URL: "https://kitly.fr/subscribe",
-    PUBLIC_BASE: "https://kitly.fr/profile?u=",     // vitrine = PUBLIC_BASE + slug
-    PROFILE_URL: "https://kitly.fr/profile?u={slug}", // liens des cartes marketplace
+    REGISTER_URL: "/connexion?mode=inscription",
+    LOGIN_URL: "/connexion",
+    BUILDER_URL: "/builder",
+    PRICING_URL: "/subscribe",
+    PUBLIC_BASE: "/profile?u=",     // vitrine = PUBLIC_BASE + slug
+    PROFILE_URL: "/profile?u={slug}", // liens des cartes marketplace
     TOKEN_KEY: "kitly_token"
   };
+  // Liens relatifs (« /builder ») complétés avec l'adresse du site qui affiche
+  // l'embed : fonctionne tel quel sur kitly.framer.website comme sur kitly.fr.
+  (function () {
+    var origin = "";
+    try { origin = window.top.location.origin; } catch (e) { try { origin = window.location.origin; } catch (e2) {} }
+    if (!origin || origin === "null") origin = "https://kitly.fr";
+    Object.keys(CONFIG).forEach(function (k) {
+      var v = CONFIG[k];
+      if (typeof v === "string" && v.charAt(0) === "/") CONFIG[k] = origin + v;
+    });
+  })();
+
 
   var root = document.getElementById("kh");
   var top = document.getElementById("kh-top");

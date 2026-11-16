@@ -50,6 +50,11 @@ mettre en place avant le lancement (changer alors `PROFILE_URL` / `PUBLIC_BASE` 
 
 ## Réglages (bloc CONFIG en haut de chaque script)
 
+Les liens vers les pages du site sont **relatifs** (`/builder`, `/profile?u=…`) et
+complétés automatiquement avec l'adresse du site qui affiche l'embed : les mêmes
+fichiers fonctionnent sur `https://kitly.framer.website` et sur `https://kitly.fr`,
+sans modification. Une URL complète (`https://…`) reste possible pour forcer un lien.
+
 - `API_BASE` : `https://navire-app-api.onrender.com`
 - `connexion.html` : `BUILDER_URL` (destination après connexion), `CGU_URL`, `PRIVACY_URL`
 - `profil.html` : `KITLY_URL`, `PRIVACY_URL` (citée par le formulaire de contact), `MARKETPLACE_URL`,
