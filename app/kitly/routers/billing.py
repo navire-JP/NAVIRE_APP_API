@@ -35,7 +35,7 @@ from app.kitly.config import (
 from app.kitly.models import KitlyConnectedAccount, KitlyStripeEvent, KitlySubscription, KitlyUser
 from app.kitly.plans import PAID_PLANS, PLAN_RANK, get_plan, plan_for_price, plan_out, stripe_price_for
 from app.kitly.schemas import CheckoutIn
-from app.kitly.security import current_user
+from app.kitly.security import current_user, forbid_impersonation
 from app.kitly.serializers import public_url
 from app.kitly.stripe_client import is_kitly_object, kitly_metadata, stripe_client
 from app.kitly.utils import iso
@@ -130,12 +130,27 @@ def _user_for(db: Session, obj) -> KitlyUser | None:
 
 
 def _recompute_plan(db: Session, user: KitlyUser) -> None:
-    """Formule effective = la plus haute parmi les abonnements encore ouverts."""
+    """
+    Formule effective = la plus haute parmi les abonnements Stripe encore ouverts
+    et les formules offertes par un admin (non révoquées, non expirées).
+    """
+    from app.kitly.models import KitlyPlanGrant
+    from app.kitly.utils import aware, now
+
     live = db.execute(
         select(KitlySubscription).where(KitlySubscription.user_id == user.id,
                                         KitlySubscription.status.in_(LIVE_STATUSES))
     ).scalars().all()
-    user.plan_code = max((s.plan_code for s in live), key=lambda c: PLAN_RANK.get(c, 0), default="free")
+    grants = db.execute(
+        select(KitlyPlanGrant).where(KitlyPlanGrant.user_id == user.id, KitlyPlanGrant.revoked_at.is_(None))
+    ).scalars().all()
+    codes = [s.plan_code for s in live] + [g.plan_code for g in grants if g.expires_at is None or aware(g.expires_at) > now()]
+    user.plan_code = max(codes, key=lambda c: PLAN_RANK.get(c, 0), default="free")
+
+
+def recompute_plan(db: Session, user: KitlyUser) -> None:
+    """Point d'entrée public (back-office, tâche planifiée)."""
+    _recompute_plan(db, user)
 
 
 def sync_subscription(db: Session, sub) -> KitlySubscription | None:
@@ -221,6 +236,7 @@ def checkout(payload: CheckoutIn, request: Request, user: KitlyUser = Depends(cu
     Pas encore abonné : rend l'URL de la page de paiement Stripe.
     Déjà abonné : change de formule sur place (prorata), sans nouveau paiement à saisir.
     """
+    forbid_impersonation(user)
     plan = get_plan(db, payload.plan)
     price = stripe_price_for(plan)
     if not price:
@@ -266,6 +282,7 @@ def checkout(payload: CheckoutIn, request: Request, user: KitlyUser = Depends(cu
 @stripe_guard("Le portail de gestion de l'abonnement est indisponible pour le moment.")
 def billing_portal(request: Request, user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """Portail Stripe : carte bancaire, factures, résiliation."""
+    forbid_impersonation(user)
     if not user.stripe_customer_id:
         raise HTTPException(404, detail="Aucun abonnement à gérer.")
     session = stripe_client().billing_portal.sessions.create(params={
@@ -275,6 +292,7 @@ def billing_portal(request: Request, user: KitlyUser = Depends(current_user), db
 
 
 def _set_cancel(db: Session, user: KitlyUser, cancel: bool) -> dict:
+    forbid_impersonation(user)
     sub = _current_sub(db, user)
     if sub is None:
         raise HTTPException(404, detail="Aucun abonnement en cours.")
@@ -396,6 +414,7 @@ def connect_onboarding(request: Request, user: KitlyUser = Depends(current_user)
     ⚠️ Les responsabilités ci-dessous (frais et pertes portés par Kitly, tableau
     de bord Express) sont à valider selon le montage juridique retenu.
     """
+    forbid_impersonation(user)
     if not user.email_verified_at:
         raise HTTPException(403, detail="Confirme ton adresse email avant d'activer les paiements.")
     client = stripe_client()
@@ -434,6 +453,7 @@ def connect_onboarding(request: Request, user: KitlyUser = Depends(current_user)
 @stripe_guard('Le tableau de bord des paiements est indisponible pour le moment.')
 def connect_dashboard(user: KitlyUser = Depends(current_user)):
     """Accès au tableau de bord Stripe Express (paiements, reversements)."""
+    forbid_impersonation(user)
     acc = user.connected_account
     if not acc or not acc.details_submitted:
         raise HTTPException(404, detail="Active d'abord les paiements.")

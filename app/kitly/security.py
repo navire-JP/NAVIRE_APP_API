@@ -41,7 +41,12 @@ def verify_secret(value: str, hashed: str) -> bool:
         return False
 
 
-def create_token(user: KitlyUser) -> str:
+def create_token(user: KitlyUser, ttl_minutes: int | None = None, impersonator: KitlyUser | None = None) -> str:
+    """
+    Jeton de session. `impersonator` : jeton court émis pour un admin qui agit
+    à la place du compte (support) — marqué « imp », il ne permet ni paiement,
+    ni changement de mot de passe, ni suppression du compte.
+    """
     issued = now()
     payload = {
         "sub": str(user.id),
@@ -49,8 +54,11 @@ def create_token(user: KitlyUser) -> str:
         "iss": "kitly",
         "tv": user.token_version,
         "iat": int(issued.timestamp()),
-        "exp": int((issued + timedelta(minutes=KITLY_TOKEN_TTL_MINUTES)).timestamp()),
+        "exp": int((issued + timedelta(minutes=ttl_minutes or KITLY_TOKEN_TTL_MINUTES)).timestamp()),
     }
+    if impersonator is not None:
+        payload["imp"] = impersonator.id
+        payload["imp_email"] = impersonator.email
     return jwt.encode(payload, KITLY_JWT_SECRET, algorithm=KITLY_JWT_ALGO)
 
 
@@ -76,7 +84,15 @@ def _user_from_token(db: Session, token: str) -> KitlyUser | None:
         return None
     if int(payload.get("tv", -1)) != user.token_version:
         return None  # session révoquée (déconnexion partout, mot de passe changé)
+    # Attribut transitoire (non stocké) : session ouverte par un admin à la place du compte.
+    user._kitly_impersonator = payload.get("imp_email") if payload.get("imp") else None
     return user
+
+
+def forbid_impersonation(user: KitlyUser) -> None:
+    """Actions réservées au titulaire du compte, interdites en mode admin « à sa place »."""
+    if getattr(user, "_kitly_impersonator", None):
+        raise HTTPException(403, detail="Action réservée au titulaire du compte (session ouverte par l'équipe Kitly).")
 
 
 def current_user(

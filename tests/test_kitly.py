@@ -247,6 +247,18 @@ def test_theme_and_plan_gates(client):
                         headers=h).status_code == 422
 
 
+def test_layout_site_or_links(client):
+    """Mise en page : « site » (mini-site, par défaut) ou « links » (page de liens), dispo dès Free."""
+    _, h = register(client)
+    slug = make_vitrine(client, h)
+    assert client.get(f"/kitly/public/profiles/{slug}").json()["theme"]["layout"] == "site"
+    r = client.patch("/kitly/me/profile", json={"theme": {"layout": "links"}}, headers=h)
+    assert r.status_code == 200 and r.json()["profile"]["theme"]["layout"] == "links"
+    assert client.get(f"/kitly/public/profiles/{slug}").json()["theme"]["layout"] == "links"
+    assert client.patch("/kitly/me/profile", json={"theme": {"layout": "magazine"}}, headers=h).status_code == 422
+    assert "site" in client.get("/kitly/catalog").json()["layouts"]
+
+
 def test_blocks_linktree(client):
     _, h = register(client)
     slug = make_vitrine(client, h)
@@ -925,3 +937,131 @@ def test_default_site_is_framer_until_kitly_fr_is_linked():
     assert config.KITLY_FRONTEND_URL == "https://kitly.framer.website"
     _, html = mail_new_lead("Léa", "contact", "Camille", "c@x.fr", "Bonjour", None)
     assert "https://kitly.framer.website/builder" in html and "/dashboard" not in html
+
+
+# ============================================================
+# Back-office /kitly/admin
+# ============================================================
+
+def _make_admin(client):
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyUser
+
+    email, h = register(client)
+    with SessionLocal() as db:
+        db.query(KitlyUser).filter_by(email=email).one().is_admin = True
+        db.commit()
+    return email, h
+
+
+def _uid(client, h):
+    return client.get("/kitly/auth/me", headers=h).json()["user"]["id"]
+
+
+def test_admin_routes_are_forbidden_to_regular_accounts(client):
+    _, h = register(client)
+    for method, path in [("GET", "/kitly/admin/overview"), ("GET", "/kitly/admin/users"), ("GET", "/kitly/admin/system"),
+                         ("POST", "/kitly/admin/users/1/impersonate"), ("GET", "/kitly/admin/actions")]:
+        assert client.request(method, path, headers=h).status_code == 403
+
+
+def test_admin_grant_plan_and_marketplace(client):
+    _, ah = _make_admin(client)
+    email, h = register(client)
+    tag = uuid.uuid4().hex[:8]
+    slug = make_vitrine(client, h, headline=f"Grant {tag}")
+    uid = _uid(client, h)
+    assert client.get("/kitly/marketplace/search", params={"q": tag}).json()["total"] == 0  # Free : absent
+    r = client.post(f"/kitly/admin/users/{uid}/grant", json={"plan": "premium", "reason": "Partenaire", "days": 30}, headers=ah)
+    assert r.status_code == 200 and r.json()["plan"] == "premium" and r.json()["grant"]["expires_at"]
+    assert client.get("/kitly/auth/me", headers=h).json()["plan"]["code"] == "premium"
+    found = client.get("/kitly/marketplace/search", params={"q": tag}).json()
+    assert [c["slug"] for c in found["items"]] == [slug]  # Premium+ offert : présent
+    detail = client.get(f"/kitly/admin/users/{uid}", headers=ah).json()
+    assert detail["grant"]["plan"] == "premium" and detail["actions"][0]["action"] == "grant_plan"
+    assert client.request("DELETE", f"/kitly/admin/users/{uid}/grant", headers=ah).json()["plan"] == "free"
+    # Formule offerte expirée : la tâche quotidienne remet le compte en Free.
+    client.post(f"/kitly/admin/users/{uid}/grant", json={"plan": "custom", "reason": "Test"}, headers=ah)
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyPlanGrant
+    from app.kitly.router import kitly_purge_job
+    from app.kitly.utils import now
+    from datetime import timedelta
+    with SessionLocal() as db:
+        g = db.query(KitlyPlanGrant).filter_by(user_id=uid, revoked_at=None).one()
+        g.expires_at = now() - timedelta(minutes=1)
+        db.commit()
+    kitly_purge_job()
+    assert client.get("/kitly/auth/me", headers=h).json()["plan"]["code"] == "free"
+
+
+def test_admin_search_verify_deactivate(client):
+    _, ah = _make_admin(client)
+    email, h = register(client, verify=False)
+    slug = make_vitrine(client, h, publish=False)
+    uid = _uid(client, h)
+    items = client.get("/kitly/admin/users", params={"q": email.split("@")[0]}, headers=ah).json()["items"]
+    assert [i["email"] for i in items] == [email] and items[0]["profile"]["slug"] == slug
+    assert client.post(f"/kitly/admin/users/{uid}/verify-email", headers=ah).json()["user"]["email_verified"] is True
+    assert client.post("/kitly/me/profile/publish", headers=h).status_code == 200
+    assert client.get(f"/kitly/public/profiles/{slug}").status_code == 200
+    assert client.post(f"/kitly/admin/users/{uid}/deactivate", json={"reason": "Fraude"}, headers=ah).status_code == 200
+    assert client.get("/kitly/auth/me", headers=h).status_code == 401           # sessions coupées
+    assert client.post("/kitly/auth/login", json={"email": email, "password": PWD}).status_code == 401
+    assert client.get(f"/kitly/public/profiles/{slug}").status_code == 404      # vitrine masquée
+    client.post(f"/kitly/admin/users/{uid}/reactivate", headers=ah)
+    assert client.post("/kitly/auth/login", json={"email": email, "password": PWD}).status_code == 200
+
+
+def test_admin_impersonation_is_limited(client, monkeypatch):
+    admin_email, ah = _make_admin(client)
+    _, h = register(client)
+    make_vitrine(client, h, publish=False)
+    uid = _uid(client, h)
+    r = client.post(f"/kitly/admin/users/{uid}/impersonate", headers=ah).json()
+    ih = {"Authorization": f"Bearer {r['token']}"}
+    me = client.get("/kitly/auth/me", headers=ih).json()
+    assert me["user"]["id"] == uid and me["impersonated_by"] == admin_email
+    assert client.patch("/kitly/me/profile", json={"bio": "Corrigé par le support"}, headers=ih).status_code == 200
+    # Interdit en session « à sa place » : mot de passe, suppression, paiements.
+    assert client.post("/kitly/account/password", json={"current_password": PWD, "new_password": "nouveau123"},
+                       headers=ih).status_code == 403
+    assert client.request("DELETE", "/kitly/account", json={"password": PWD, "confirm": "SUPPRIMER"}, headers=ih).status_code == 403
+    assert client.post("/kitly/billing/checkout", json={"plan": "custom"}, headers=ih).status_code == 403
+    assert client.post("/kitly/billing/cancel", headers=ih).status_code == 403
+    assert client.get("/kitly/auth/me", headers=h).json()["impersonated_by"] is None
+    log_ = client.get("/kitly/admin/actions", headers=ah).json()["items"]
+    assert any(a["action"] == "impersonate" and a["target_id"] == str(uid) for a in log_)
+
+
+def test_admin_suspend_notifies_owner(client, _isolation):
+    _, ah = _make_admin(client)
+    email, h = register(client)
+    slug = make_vitrine(client, h)
+    pid = client.get("/kitly/me/profile", headers=h).json()["profile"]["id"]
+    r = client.post(f"/kitly/admin/profiles/{pid}/suspend", json={"reason": "Contenu trompeur"}, headers=ah)
+    assert r.status_code == 200
+    assert any(to == email and "suspendue" in subj for to, subj in _isolation)
+    assert client.get(f"/kitly/public/profiles/{slug}").status_code == 404
+    listed = client.get("/kitly/admin/profiles", params={"status": "suspended", "q": slug}, headers=ah).json()["items"]
+    assert listed[0]["slug"] == slug and listed[0]["suspended_reason"] == "Contenu trompeur"
+    client.post(f"/kitly/admin/profiles/{pid}/unsuspend", headers=ah)
+    assert client.get(f"/kitly/public/profiles/{slug}").status_code == 200
+
+
+def test_admin_delete_user_and_system(client, monkeypatch):
+    from app.kitly import emails
+
+    _, ah = _make_admin(client)
+    email, h = register(client)
+    uid = _uid(client, h)
+    assert client.request("DELETE", f"/kitly/admin/users/{uid}", json={"confirm": "OUI", "reason": "x"}, headers=ah).status_code == 422
+    assert client.request("DELETE", f"/kitly/admin/users/{uid}", json={"confirm": "SUPPRIMER", "reason": "Demande RGPD"},
+                          headers=ah).status_code == 200
+    assert client.post("/kitly/auth/login", json={"email": email, "password": PWD}).status_code == 401
+    ov = client.get("/kitly/admin/overview", headers=ah).json()
+    assert {"users", "mrr_cents", "open_reports", "views_30d"} <= set(ov)
+    sysinfo = client.get("/kitly/admin/system", headers=ah).json()
+    assert "stripe" in sysinfo and not any(k in str(sysinfo) for k in ("sk_live_", "sk_test_", "whsec_"))
+    monkeypatch.setattr(emails, "send_result", lambda to, s, html, reply_to=None: {"sent": True, "detail": "ok"})
+    assert client.post("/kitly/admin/system/email-test", json={}, headers=ah).json()["sent"] is True

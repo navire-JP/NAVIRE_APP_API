@@ -188,6 +188,7 @@ class ThemeBackgroundIn(_In):
 
 class ThemeIn(_In):
     template: Optional[str] = None
+    layout: Optional[str] = None
     colors: Optional[ThemeColorsIn] = None
     font_heading: Optional[str] = None
     font_body: Optional[str] = None
@@ -199,6 +200,13 @@ class ThemeIn(_In):
     def _tpl(cls, v):
         if v is not None and v not in catalog.TEMPLATE_KEYS:
             raise ValueError("Template inconnu.")
+        return v
+
+    @field_validator("layout")
+    @classmethod
+    def _layout(cls, v):
+        if v is not None and v not in catalog.LAYOUTS:
+            raise ValueError("Mise en page inconnue (site, links).")
         return v
 
     @field_validator("font_heading", "font_body")
@@ -582,3 +590,26 @@ class AdminPlanIn(_In):
 
 class SuspendIn(_In):
     reason: str = Field(min_length=3, max_length=300)
+
+
+# ============================================================
+# Back-office
+# ============================================================
+
+class GrantIn(_In):
+    plan: Literal["custom", "premium"]
+    reason: str = Field(min_length=3, max_length=300)
+    days: Optional[int] = Field(default=None, ge=1, le=3650)  # vide = sans date de fin
+
+
+class ReasonIn(_In):
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class AdminDeleteIn(_In):
+    confirm: Literal["SUPPRIMER"]
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class EmailTestIn(_In):
+    to: Optional[EmailStr] = None

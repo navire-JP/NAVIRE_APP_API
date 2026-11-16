@@ -559,3 +559,42 @@ class KitlyTermsAcceptance(Base):
     visitor_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     user_agent: Mapped[str] = mapped_column(String(300), default="", nullable=False)
     accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+# ============================================================
+# Back-office
+# ============================================================
+
+class KitlyPlanGrant(Base):
+    """
+    Formule offerte par un admin (geste commercial, partenaire, test), avec ou
+    sans date de fin. La formule effective d'un compte est la plus haute entre
+    ses abonnements Stripe actifs et ses formules offertes en cours.
+    """
+
+    __tablename__ = "kitly_plan_grants"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("kitly_users.id", ondelete="CASCADE"), index=True, nullable=False)
+    plan_code: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    granted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)  # id du compte admin
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class KitlyAdminAction(Base):
+    """Journal des actions du back-office : qui a fait quoi, sur quoi, quand."""
+
+    __tablename__ = "kitly_admin_actions"
+    __table_args__ = (Index("ix_kitly_admin_action_target", "target_type", "target_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    admin_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    admin_email: Mapped[str] = mapped_column(String(320), default="", nullable=False)
+    action: Mapped[str] = mapped_column(String(40), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(20), default="", nullable=False)  # user | profile | report | plan | system
+    target_id: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    details: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True, nullable=False)

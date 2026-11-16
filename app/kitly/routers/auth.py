@@ -31,7 +31,7 @@ from app.kitly.schemas import (
     RegisterIn,
     ResetIn,
 )
-from app.kitly.security import create_token, current_user, hash_secret, verify_secret
+from app.kitly.security import create_token, current_user, forbid_impersonation, hash_secret, verify_secret
 from app.kitly.serializers import lead_out, offer_owner, portfolio_owner, profile_owner, user_out
 from app.kitly.utils import client_ip, now, rate_clear, rate_guard, rate_hit
 
@@ -123,6 +123,7 @@ def logout(user: KitlyUser = Depends(current_user)):
 @router.post("/auth/logout-all")
 def logout_all(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
     """Révoque toutes les sessions (tous appareils) et rend un nouveau jeton pour celle-ci."""
+    forbid_impersonation(user)
     user.token_version += 1
     db.commit()
     return {"ok": True, "token": create_token(user)}
@@ -219,6 +220,8 @@ def me(user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
         "counts": counts,
         "onboarding": onboarding,
         "onboarding_progress": round(100 * sum(s["done"] for s in onboarding) / len(onboarding)),
+        # Session ouverte par un admin à la place du compte (support) : bandeau dans le builder.
+        "impersonated_by": getattr(user, "_kitly_impersonator", None),
     }
 
 
@@ -236,6 +239,7 @@ def update_account(payload: AccountUpdateIn, user: KitlyUser = Depends(current_u
 
 @router.post("/account/password")
 def change_password(payload: PasswordChangeIn, user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
+    forbid_impersonation(user)
     if not verify_secret(payload.current_password, user.password_hash):
         raise HTTPException(400, detail="Mot de passe actuel incorrect.")
     user.password_hash = hash_secret(payload.new_password)
@@ -286,6 +290,7 @@ def delete_account(payload: AccountDeleteIn, user: KitlyUser = Depends(current_u
     Suppression définitive : l'abonnement Stripe est résilié immédiatement,
     puis le compte, la vitrine, les offres et les demandes sont effacés.
     """
+    forbid_impersonation(user)
     if not verify_secret(payload.password, user.password_hash):
         raise HTTPException(400, detail="Mot de passe incorrect.")
 

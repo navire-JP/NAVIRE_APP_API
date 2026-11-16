@@ -22,9 +22,14 @@ BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 def send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
     """Envoie un email. Ne lève jamais : renvoie False en cas d'échec (journalisé)."""
+    return send_result(to, subject, html, reply_to)["sent"]
+
+
+def send_result(to: str, subject: str, html: str, reply_to: str | None = None) -> dict:
+    """Comme send(), avec le détail de la réponse de Brevo (diagnostic du back-office)."""
     if not KITLY_BREVO_API_KEY:
         print(f"[kitly] ⚠️  Email non envoyé ({subject}) : aucune clé Brevo (KITLY_BREVO_API_KEY ou BREVO_API_KEY).")
-        return False
+        return {"sent": False, "detail": "Aucune clé Brevo configurée."}
     payload: dict = {
         "sender": {"email": KITLY_SENDER_EMAIL, "name": KITLY_SENDER_NAME},
         "to": [{"email": to}],
@@ -43,11 +48,11 @@ def send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
         if r.status_code not in (200, 201, 202):
             # print : visible dans les logs Render (le logger n'y est pas branché).
             print(f"[kitly] ⚠️  Brevo a refusé l'email « {subject} » (HTTP {r.status_code}) : {r.text[:300]}")
-            return False
-        return True
+            return {"sent": False, "detail": f"Brevo HTTP {r.status_code} : {r.text[:300]}"}
+        return {"sent": True, "detail": f"Accepté par Brevo (expéditeur {KITLY_SENDER_EMAIL})."}
     except Exception as exc:  # réseau, timeout…
         print(f"[kitly] ⚠️  Envoi Brevo impossible (« {subject} ») : {exc}")
-        return False
+        return {"sent": False, "detail": f"Brevo injoignable : {exc}"}
 
 
 # ============================================================
@@ -175,3 +180,28 @@ def mail_new_lead(
         f'<a href="{KITLY_FRONTEND_URL}/builder" style="color:#0a0a0a;font-weight:700">tableau de bord</a>.</p>'
     )
     return f"{label} — {name}", layout(label, body)
+
+
+def mail_profile_suspended(first_name: str, slug: str, reason: str, contact: str) -> tuple[str, str]:
+    """Exposé des motifs d'une suspension (article 17 du règlement sur les services numériques)."""
+    body = (
+        f"<p>Bonjour {_e(first_name) or ''},</p>"
+        f"<p>Ta vitrine <b>{_e(slug)}</b> a été suspendue par l'équipe Kitly : elle n'est plus visible publiquement "
+        "ni dans la marketplace.</p>"
+        f'<div style="border-left:3px solid #0a0a0a;padding:4px 0 4px 12px;margin:14px 0;white-space:pre-wrap"><b>Motif :</b> {_e(reason)}</div>'
+        "<p>Tes données ne sont pas supprimées. Tu peux contester cette décision dans un délai de 6 mois en répondant "
+        f"à cet email ou en écrivant à {_e(contact)}. Ta demande sera examinée par une personne de l'équipe.</p>"
+    )
+    return "Ta vitrine Kitly a été suspendue", layout("Vitrine suspendue", body)
+
+
+def mail_profile_restored(first_name: str, slug: str) -> tuple[str, str]:
+    body = (f"<p>Bonjour {_e(first_name) or ''},</p><p>La suspension de ta vitrine <b>{_e(slug)}</b> est levée. "
+            "Elle est de nouveau visible si elle est publiée.</p>")
+    return "Ta vitrine Kitly est rétablie", layout("Vitrine rétablie", body)
+
+
+def mail_test() -> tuple[str, str]:
+    body = ("<p>Cet email de test confirme que l'envoi des emails Kitly fonctionne : clé Brevo valide et expéditeur "
+            f"accepté (<b>{_e(KITLY_SENDER_NAME)}</b> &lt;{_e(KITLY_SENDER_EMAIL)}&gt;).</p>")
+    return "Test d'envoi Kitly", layout("Les emails Kitly fonctionnent", body)

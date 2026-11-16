@@ -19,7 +19,7 @@
  */
 (function (global) {
   "use strict";
-  if (global.KitlyVitrine && global.KitlyVitrine.version >= 1) return;
+  if (global.KitlyVitrine && global.KitlyVitrine.version >= 2) return;
 
   // ============================================================
   // Styles (injectés une fois)
@@ -29,6 +29,7 @@
     ".kv *,.kv-mbg,.kv-mbg *{box-sizing:border-box}",
     ".kv a{color:inherit}",
     ".kv.bg-blobs::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(38% 22% at 15% 12%,color-mix(in srgb,var(--bg) 72%,#000) 0 60%,transparent 61%),radial-gradient(30% 18% at 92% 30%,color-mix(in srgb,var(--bg) 72%,#000) 0 60%,transparent 61%),radial-gradient(42% 20% at 8% 58%,color-mix(in srgb,var(--bg) 72%,#000) 0 60%,transparent 61%),radial-gradient(36% 18% at 85% 82%,color-mix(in srgb,var(--bg) 72%,#000) 0 60%,transparent 61%)}",
+    ".kv>*{position:relative}",   // le contenu passe au-dessus des décors de fond (::before)
     ".kv.bg-gradient{background:linear-gradient(180deg,var(--bg),color-mix(in srgb,var(--bg) 70%,var(--acc)))}",
     ".kv.bg-image{background:var(--bg) center/cover}",
     ".kv-col{position:relative;max-width:620px;margin:0 auto;padding-bottom:28px}",
@@ -104,6 +105,113 @@
     ".kv.t-bold .kv-banner+.kv-hero .kv-av{margin-top:-75px}",
     ".kv.t-bold .kv-meta,.kv.t-bold .kv-bio{color:color-mix(in srgb,var(--fg) 75%,transparent)}",
     "@media(min-width:700px){.kv.wide .kv-name{font-size:32px}.kv.wide.t-bold .kv-name{font-size:60px}.kv.wide .kv-offers:not(.list){grid-template-columns:repeat(3,1fr)}.kv.wide .kv-projs{grid-template-columns:repeat(3,1fr)}}",
+    /* ── rendu « site » ── */
+    ".kv.lay-site{min-height:100%}",
+    ".kv-wrap{max-width:1120px;margin:0 auto;padding:0 20px}",
+    ".kv-wrap.narrow{max-width:640px}",
+    ".kv.lay-site .kv-s{padding:40px 0}",
+    ".kv.lay-site .kv-s:nth-of-type(even){background:color-mix(in srgb,var(--fg) 3.5%,transparent)}",
+    ".kv-h{font-family:var(--fh);font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:0 0 22px}",
+    ".kv-it{opacity:.7}",
+    ".kv.lay-site .kv-nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line2)}",
+    ".kv-nav-in{display:flex;align-items:center;justify-content:space-between;height:62px;gap:16px}",
+    ".kv-brandmark{display:flex;align-items:center;gap:10px;background:none;border:0;color:var(--fg);font:800 16px var(--fh);cursor:pointer;padding:0;min-width:0}",
+    ".kv-brandmark span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".kv-av-xs{width:32px;height:32px;border-radius:50%;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;flex-shrink:0}",
+    ".kv-menu{display:none;gap:2px}",
+    ".kv-menu button,.kv-drawer button,.kv-foot-top nav button{background:none;border:0;color:var(--fg);font:600 14px var(--fb);padding:8px 12px;border-radius:99px;cursor:pointer;opacity:.78}",
+    ".kv-menu button:hover{opacity:1;background:color-mix(in srgb,var(--fg) 8%,transparent)}",
+    ".kv-nav-act{display:flex;gap:8px;align-items:center}",
+    ".kv-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--acc);color:var(--btn-fg);border:1.5px solid var(--acc);border-radius:var(--r-btn);padding:13px 22px;font:700 15px var(--fb);cursor:pointer;text-decoration:none;transition:transform .15s}",
+    ".kv-btn:hover{transform:translateY(-1px)}",
+    ".kv-btn.ghost{background:transparent;color:var(--fg);border-color:var(--line2)}",
+    ".kv-btn.sm{padding:8px 16px;font-size:13.5px}",
+    ".kv-burger{width:40px;height:40px;border-radius:50%;border:1px solid var(--line2);background:none;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;padding:0}",
+    ".kv-burger i{display:block;width:16px;height:2px;background:var(--fg);border-radius:2px}",
+    ".kv-drawer{display:none;flex-direction:column;padding:6px 14px 14px;border-top:1px solid var(--line2)}",
+    ".kv.nav-open .kv-drawer{display:flex}",
+    ".kv-drawer button{text-align:left;padding:12px 8px;font-size:15px;border-radius:12px}",
+    ".kv.lay-site:not(.is-wide) .kv-nav-act .kv-btn{display:none}",
+    ".kv.lay-site .kv-hero2{padding:36px 0 30px;text-align:center}",
+    ".kv-hero-grid{display:grid;gap:28px}",
+    ".kv-av-mob{width:104px;height:104px;border-radius:50%;margin:0 auto 18px;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900}",
+    ".kv.t-bold .kv-av-mob{width:150px;height:150px}",
+    ".kv-kick{font-size:12.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);margin:0 0 10px}",
+    ".kv.lay-site .kv-name{font-size:36px}",
+    ".kv.lay-site.t-bold .kv-name{font-size:48px}",
+    ".kv-lead{font-size:16px;line-height:1.55;color:var(--mut2);margin:14px auto 0;max-width:540px;white-space:pre-wrap;overflow-wrap:anywhere}",
+    ".kv-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:24px}",
+    ".kv.lay-site:not(.is-wide) .kv-actions .kv-btn{flex:1 1 100%}",
+    ".kv-hero2 .kv-socials{margin-top:18px}",
+    ".kv-hero-media{display:none}",
+    ".kv-av-big{width:min(380px,100%);aspect-ratio:1;border-radius:36px;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:130px;font-weight:900;box-shadow:0 30px 60px -32px rgba(0,0,0,.4)}",
+    ".kv-hero-media.banner{width:100%;aspect-ratio:4/3;border-radius:30px;background:color-mix(in srgb,var(--fg) 10%,var(--bg)) center/cover;position:relative;box-shadow:0 30px 60px -32px rgba(0,0,0,.4)}",
+    ".kv-av3{position:absolute;left:-22px;bottom:-22px;width:116px;height:116px;border-radius:50%;background:var(--acc) center/cover;box-shadow:0 0 0 6px var(--bg);color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:42px;font-weight:900}",
+    ".kv-about-grid{display:grid;gap:24px;align-items:start}",
+    ".kv.lay-site .kv-about{font-size:16px;line-height:1.7;margin:0;color:var(--mut2);white-space:pre-wrap}",
+    ".kv-about-grid .kv-stats{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}",
+    ".kv-svc-grid{display:grid;gap:12px}",
+    ".kv-svc{display:flex;flex-direction:column;text-align:left;border:1px solid var(--line2);border-radius:18px;background:color-mix(in srgb,var(--bg) 94%,var(--fg));padding:0;overflow:hidden;font:inherit;color:inherit;width:100%}",
+    ".kv.live .kv-svc{cursor:pointer;transition:transform .15s,border-color .15s}",
+    ".kv.live .kv-svc:hover{transform:translateY(-2px);border-color:var(--fg)}",
+    ".kv-svc .im{height:150px;background:center/cover}",
+    ".kv-svc .bd{padding:18px 20px 20px;display:flex;flex-direction:column;gap:6px;flex:1}",
+    ".kv-svc .top{display:flex;justify-content:space-between;gap:12px;align-items:baseline}",
+    ".kv-svc .tt{font-family:var(--fh);font-weight:800;font-size:17px;overflow-wrap:anywhere}",
+    ".kv-svc .pr{font-weight:800;white-space:nowrap}",
+    ".kv-svc .sb{font-size:12.5px;color:var(--mut2);font-weight:600}",
+    ".kv-svc .ds{font-size:14px;line-height:1.5;color:var(--mut2);margin:4px 0 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}",
+    ".kv-svc .ct{margin-top:auto;padding-top:10px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}",
+    ".kv-contact-grid{display:grid;gap:26px;align-items:start}",
+    ".kv-contact-txt p{font-size:16px;color:var(--mut2);line-height:1.55;margin:0}",
+    ".kv-coords{list-style:none;padding:0;margin:20px 0;display:flex;flex-direction:column;gap:10px}",
+    ".kv-coords li{display:flex;gap:12px;font-size:14.5px;overflow-wrap:anywhere}",
+    ".kv-coords span{width:92px;flex-shrink:0;color:var(--mut2);font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;padding-top:3px}",
+    ".kv-coords a{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--line2)}",
+    ".kv-contact-txt .kv-socials{justify-content:flex-start}",
+    ".kv-form{background:#fff;color:#0a0a0a;border-radius:22px;padding:22px;box-shadow:0 22px 50px -30px rgba(0,0,0,.35);border:1px solid rgba(10,10,10,.08)}",
+    ".kv-form label.lb{display:block;font-size:12px;font-weight:700;color:#6f6f6c;margin:12px 0 5px}",
+    ".kv-form label.lb:first-child{margin-top:0}",
+    ".kv-form input[type=text],.kv-form input[type=email],.kv-form input[type=tel],.kv-form textarea{width:100%;border:1px solid #e4e4e2;border-radius:11px;padding:12px 13px;font:15px var(--fb);color:#0a0a0a;background:#fff;outline:none}",
+    ".kv-form input:focus,.kv-form textarea:focus{border-color:#0a0a0a}",
+    ".kv-form textarea{resize:vertical;line-height:1.5}",
+    ".kv-form .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
+    ".kv-form .row label.lb{margin-top:0}",
+    ".kv-form .chk{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;line-height:1.45;color:#333;margin:14px 0 0}",
+    ".kv-form .chk input{width:17px;height:17px;margin:1px 0 0;accent-color:#0a0a0a;flex-shrink:0}",
+    ".kv-form .chk a{color:#0a0a0a;font-weight:700}",
+    ".kv-form .err{color:#c2410c;font-size:13px;margin-top:10px}.kv-form .err:empty{display:none}",
+    ".kv-form .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}",
+    ".kv-form .cta{display:block;width:100%;margin-top:16px;border:0;border-radius:999px;padding:15px;font:800 15px var(--fb);background:#0a0a0a;color:#fff;cursor:pointer}",
+    ".kv-form .cta:disabled{opacity:.5;cursor:default}",
+    ".kv-form .done{text-align:center;padding:30px 0}.kv-form .done b{display:block;font-size:20px;margin-bottom:6px}.kv-form .done p{color:#6f6f6c;margin:0}",
+    ".kv-foot2{border-top:1px solid var(--line2);padding:28px 0 36px;font-size:12.5px;color:var(--mut2)}",
+    ".kv-foot-top{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-bottom:10px}",
+    ".kv-foot-top b{color:var(--fg);font-family:var(--fh);font-size:15px}",
+    ".kv-foot-top nav{display:flex;flex-wrap:wrap}.kv-foot-top nav button{font-size:12.5px;padding:4px 8px}",
+    ".kv-foot-legal{line-height:1.7}",
+    ".kv-foot-links{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px}",
+    ".kv-foot-links button{background:none;border:0;padding:0;color:var(--mut2);text-decoration:underline;cursor:pointer;font:inherit}",
+    ".kv.lay-site .kv-brand{text-align:left;margin-top:14px}",
+    ".kv.lay-site .kv-offers{grid-template-columns:1fr 1fr}",
+    ".kv.is-wide .kv-menu{display:flex}.kv.is-wide .kv-burger,.kv.is-wide .kv-drawer{display:none!important}",
+    ".kv.is-wide .kv-s{padding:68px 0}",
+    ".kv.is-wide .kv-h{font-size:38px;margin-bottom:28px}",
+    ".kv.is-wide .kv-hero2{padding:80px 0;text-align:left}",
+    ".kv.is-wide .kv-hero-grid{grid-template-columns:1.1fr .9fr;align-items:center;gap:60px}",
+    ".kv.is-wide .kv-av-mob{display:none}",
+    ".kv.is-wide .kv-hero-media{display:flex;justify-content:center;align-items:center}",
+    ".kv.is-wide .kv-name{font-size:60px;line-height:1.02}",
+    ".kv.is-wide.t-bold .kv-name{font-size:84px;line-height:.92}",
+    ".kv.is-wide .kv-lead{margin-left:0;font-size:18px}",
+    ".kv.is-wide .kv-actions,.kv.is-wide .kv-hero2 .kv-socials{justify-content:flex-start}",
+    ".kv.is-wide .kv-about-grid{grid-template-columns:1.4fr 1fr;gap:48px}",
+    ".kv.is-wide .kv-svc-grid{grid-template-columns:repeat(2,1fr);gap:16px}",
+    ".kv.is-wide .kv-shop-grid{grid-template-columns:repeat(4,1fr);gap:16px}",
+    ".kv.is-wide .kv-shop-grid .kv-offer .im{height:180px}",
+    ".kv.is-wide .kv-projs{grid-template-columns:repeat(3,1fr);gap:16px}",
+    ".kv.is-wide .kv-contact-grid{grid-template-columns:1fr 1.1fr;gap:56px}",
+    "@media(max-width:460px){.kv-form .row{grid-template-columns:1fr}}",
     /* modales — toujours lisibles : fond blanc, texte noir, quel que soit le thème */
     ".kv-mbg{position:fixed;inset:0;z-index:2147483000;background:rgba(10,10,10,.55);display:flex;align-items:flex-end;justify-content:center;padding:0;font-family:var(--fb)}",
     "@media(min-width:620px){.kv-mbg{align-items:center;padding:20px}}",
@@ -252,7 +360,7 @@
   // ============================================================
   // Rendu
   // ============================================================
-  function render(data, opts) {
+  function renderLinks(data, opts) {
     opts = opts || {};
     var p = data || {};
     var th = themeVars(p.theme);
@@ -364,6 +472,201 @@
     return '<div class="' + cls + '" style="' + th.style + '"><div class="kv-col">' + html + foot + brand + '</div></div>';
   }
 
+
+  // ============================================================
+  // Rendu « site » : mini-site à sections (navigation, hero, à propos,
+  // prestations, boutique, réalisations, contact, pied de page). Sur un bloc
+  // étroit (téléphone), il se replie en colonne façon page de liens.
+  // ============================================================
+  function render(data, opts) {
+    var layout = (data && data.theme && data.theme.layout) || "site";
+    return layout === "links" ? renderLinks(data, opts) : renderSite(data, opts);
+  }
+
+  function initials(name) { return esc((name || "?").charAt(0).toUpperCase()); }
+  function avatarHtml(p, cls) {
+    return '<div class="' + cls + '" role="img" aria-label="' + esc(p.display_name) + '" style="background-image:' + cssUrl(p.avatar_url) + '">' + (p.avatar_url ? "" : initials(p.display_name)) + '</div>';
+  }
+  function socialsHtml(p) {
+    var soc = (p.socials || []).filter(function (s) { return s.url; });
+    return soc.length ? '<div class="kv-socials">' + soc.map(function (s) {
+      return '<a class="kv-soc" href="' + esc(safeUrl(s.url)) + '" target="_blank" rel="noopener nofollow" title="' + esc(s.network) + '" aria-label="' + esc(s.network) + '">' + esc(SOCIAL_ABBR[s.network] || "•") + '</a>';
+    }).join("") + '</div>' : "";
+  }
+  function blocksHtml(p) {
+    var blocks = (p.blocks || []).filter(function (b) { return b.visible !== false && b.type !== "offer"; });
+    return blocks.map(function (b) {
+      if (b.type === "link") return '<a class="kv-link' + (b.icon ? "" : " no-ico") + '" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener nofollow">' + (b.icon ? svg(b.icon) : "") + '<span>' + esc(b.label || "Mon lien") + '</span></a>';
+      if (b.type === "video") { var t = b.thumbnail_url || ytThumb(b.url); return '<a class="kv-video" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener nofollow" style="' + (t ? "background-image:" + cssUrl(t) : "") + '"><span class="play"></span>' + (b.label ? '<span class="cap">' + esc(b.label) + '</span>' : '') + '</a>'; }
+      if (b.type === "text") return '<div class="kv-text">' + (b.title ? '<h5>' + esc(b.title) + '</h5>' : '') + '<p>' + esc(b.body || "") + '</p></div>';
+      if (b.type === "header") return '<h3 class="kv-header">' + esc(b.title || "") + '</h3>';
+      return "";
+    }).join("");
+  }
+  function productCard(o) {
+    var img = o.images && o.images[0];
+    var out = o.details && o.details.in_stock === false;
+    return '<button type="button" class="kv-offer" data-kv-offer="' + o.id + '"><div class="im" style="background-image:' + cssUrl(img) + '">' + (img ? "" : svg(KIND_ICON[o.kind])) + '</div>' +
+      '<div class="bd">' + (o.badge ? '<span class="kv-tg">' + esc(o.badge) + '</span>' : '') + (out ? '<span class="kv-tg out">Épuisé</span>' : '') +
+      '<div class="tt">' + esc(o.title) + '</div><div class="pr">' + esc(o.price_label || "") + '</div>' +
+      (o.description ? '<div class="ds">' + esc(o.description) + '</div>' : '') +
+      '<div class="ct">' + esc(out ? CTA_LABEL.contact : (CTA_LABEL[o.cta] || "Voir")) + ' →</div></div></button>';
+  }
+  function serviceCard(o) {
+    var sub = offerSub(o);
+    var img = o.images && o.images[0];
+    return '<button type="button" class="kv-svc" data-kv-offer="' + o.id + '">' +
+      (img ? '<div class="im" style="background-image:' + cssUrl(img) + '"></div>' : '') +
+      '<div class="bd"><div class="top"><span class="tt">' + esc(o.title) + '</span><span class="pr">' + esc(o.price_label || "") + '</span></div>' +
+      (sub ? '<div class="sb">' + esc(sub) + '</div>' : '') +
+      (o.description ? '<p class="ds">' + esc(o.description) + '</p>' : '') +
+      '<span class="ct">' + esc(CTA_LABEL[o.cta] || "En savoir plus") + ' →</span></div></button>';
+  }
+  function legalLines(p) {
+    var seller = (p.legal || {}).seller, lines = [];
+    if (!seller) return lines;
+    lines.push(esc([seller.legal_name || seller.name, seller.legal_form].filter(Boolean).join(" — ")));
+    var ids = [seller.siren ? "SIREN " + seller.siren : "", seller.vat_number ? "TVA " + seller.vat_number : ""].filter(Boolean).join(" · ");
+    if (ids) lines.push(esc(ids));
+    if (seller.address) lines.push(esc(seller.address));
+    if (seller.email) lines.push('<a href="mailto:' + esc(seller.email) + '">' + esc(seller.email) + '</a>');
+    if (seller.mediator_name) lines.push("Médiateur de la consommation : " + (seller.mediator_url ? '<a href="' + esc(safeUrl(seller.mediator_url)) + '" target="_blank" rel="noopener">' + esc(seller.mediator_name) + '</a>' : esc(seller.mediator_name)));
+    return lines;
+  }
+  function contactFields(kind, prefill, name, privacyUrl, disabled) {
+    var dis = disabled ? " disabled" : "";
+    var privacy = privacyUrl ? ' (<a href="' + esc(privacyUrl) + '" target="_blank" rel="noopener">politique de confidentialité</a>)' : "";
+    return '<div class="row"><div><label class="lb">Nom</label><input type="text" name="name" autocomplete="name" maxlength="120"' + dis + '></div>' +
+      '<div><label class="lb">Email</label><input type="email" name="email" autocomplete="email"' + dis + '></div></div>' +
+      (kind === "quote" ? '<div class="row"><div><label class="lb">Téléphone (facultatif)</label><input type="tel" name="phone" autocomplete="tel" maxlength="40"' + dis + '></div><div><label class="lb">Budget (facultatif)</label><input type="text" name="budget" maxlength="60" placeholder="ex. 500 €"' + dis + '></div></div>'
+        : '<label class="lb">Téléphone (facultatif)</label><input type="tel" name="phone" autocomplete="tel" maxlength="40"' + dis + '>') +
+      '<label class="lb">Message</label><textarea name="message" rows="5" maxlength="5000"' + dis + '>' + esc(prefill || "") + '</textarea>' +
+      '<input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+      '<label class="chk"><input type="checkbox" name="consent"' + dis + '><span>J\'accepte que ma demande et mes coordonnées soient transmises à ' + esc(name) + ' pour qu\'il ou elle me réponde' + privacy + '.</span></label>' +
+      '<div class="err"></div><button type="submit" class="cta"' + dis + '>Envoyer</button>';
+  }
+
+  function renderSite(data, opts) {
+    opts = opts || {};
+    var p = data || {};
+    var th = themeVars(p.theme);
+    var offers = p.offers || [];
+    var services = offers.filter(function (o) { return o.kind === "service" || o.kind === "appointment"; });
+    var products = offers.filter(function (o) { return o.kind === "physical" || o.kind === "digital"; });
+    var portfolio = p.portfolio || [];
+    var contact = p.contact || {};
+    var stats = (p.stats || []).filter(function (s) { return s.label || s.value; });
+    var tags = (p.skills || []).concat(p.languages || []);
+    var links = blocksHtml(p);
+    var order = (p.sections && p.sections.length ? p.sections : ["hero", "links", "about", "offers", "products", "portfolio", "contact"].map(function (k) { return { key: k, visible: true }; }))
+      .filter(function (x) { return x.visible !== false; }).map(function (x) { return x.key; });
+
+    var has = {
+      links: !!links, about: !!(p.about || stats.length || tags.length), offers: services.length > 0,
+      products: products.length > 0, portfolio: portfolio.length > 0, contact: true
+    };
+    var NAV = { links: ["kv-links", "Liens"], about: ["kv-about", "À propos"], offers: ["kv-offers", "Prestations"],
+                products: ["kv-shop", "Boutique"], portfolio: ["kv-work", "Réalisations"], contact: ["kv-contact", "Contact"] };
+    var navItems = order.filter(function (k) { return NAV[k] && has[k] && k !== "links"; })
+      .map(function (k) { return '<button type="button" data-kv-nav="' + NAV[k][0] + '">' + NAV[k][1] + '</button>'; }).join("");
+    var firstOffers = has.offers ? "kv-offers" : has.products ? "kv-shop" : "";
+    var meta = [p.headline, p.location].filter(Boolean).join(" · ");
+
+    var parts = {
+      links: function () {
+        return '<section class="kv-s kv-s-links" id="kv-links"><div class="kv-wrap narrow"><div class="kv-links">' + links + '</div></div></section>';
+      },
+      about: function () {
+        return '<section class="kv-s" id="kv-about"><div class="kv-wrap"><h2 class="kv-h">À propos</h2><div class="kv-about-grid"><div>' +
+          (p.about ? '<p class="kv-about">' + esc(p.about) + '</p>' : (p.bio ? '<p class="kv-about">' + esc(p.bio) + '</p>' : '')) +
+          (tags.length ? '<div class="kv-tags">' + tags.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join("") + '</div>' : '') +
+          '</div>' + (stats.length ? '<div class="kv-stats">' + stats.map(function (x) {
+            return '<div class="kv-stat"><b>' + esc(x.value) + '</b><small>' + esc(x.label) + '</small></div>';
+          }).join("") + '</div>' : '') + '</div></div></section>';
+      },
+      offers: function () {
+        return '<section class="kv-s" id="kv-offers"><div class="kv-wrap"><h2 class="kv-h">Prestations</h2><div class="kv-svc-grid">' +
+          services.map(serviceCard).join("") + '</div></div></section>';
+      },
+      products: function () {
+        return '<section class="kv-s" id="kv-shop"><div class="kv-wrap"><h2 class="kv-h">Boutique</h2><div class="kv-offers kv-shop-grid">' +
+          products.map(productCard).join("") + '</div></div></section>';
+      },
+      portfolio: function () {
+        return '<section class="kv-s" id="kv-work"><div class="kv-wrap"><h2 class="kv-h">Réalisations</h2><div class="kv-projs">' + portfolio.map(function (it) {
+          var cover = it.cover_url || (it.media && it.media[0] && it.media[0].type === "image" ? it.media[0].url : "");
+          return '<button type="button" class="kv-proj" data-kv-project="' + it.id + '"><div class="im" style="background-image:' + cssUrl(cover) + '"></div><div class="tt">' + esc(it.title) + '</div></button>';
+        }).join("") + '</div></div></section>';
+      },
+      contact: function () {
+        var info = [];
+        if (contact.email) info.push('<li><span>Email</span><a href="mailto:' + esc(contact.email) + '">' + esc(contact.email) + '</a></li>');
+        if (contact.phone) info.push('<li><span>Téléphone</span><a href="tel:' + esc(String(contact.phone).replace(/[^\d+]/g, "")) + '">' + esc(contact.phone) + '</a></li>');
+        if (contact.website) info.push('<li><span>Site</span><a href="' + esc(safeUrl(contact.website)) + '" target="_blank" rel="noopener">' + esc(String(contact.website).replace(/^https?:\/\//, "").replace(/\/$/, "")) + '</a></li>');
+        if (p.location) info.push('<li><span>Lieu</span>' + esc(p.location) + '</li>');
+        return '<section class="kv-s kv-s-contact" id="kv-contact"><div class="kv-wrap kv-contact-grid"><div class="kv-contact-txt">' +
+          '<h2 class="kv-h">Travaillons <span class="kv-it">ensemble</span></h2>' +
+          '<p>Un projet, une question ? Écris-moi : je te réponds directement par email.</p>' +
+          (info.length ? '<ul class="kv-coords">' + info.join("") + '</ul>' : '') + socialsHtml(p) + '</div>' +
+          '<form class="kv-form" data-kv-inline-form novalidate>' + contactFields("contact", "", p.display_name, opts.privacyUrl, !opts.live) + '</form></div></section>';
+      }
+    };
+
+    var body = order.filter(function (k) { return parts[k] && has[k]; }).map(function (k) { return parts[k](); }).join("");
+    if (opts.emptyHint && !offers.length && !links && !p.bio) {
+      body += '<section class="kv-s"><div class="kv-wrap kv-empty">' + esc(opts.emptyHint) + '</div></section>';
+    }
+
+    var legal = p.legal || {};
+    var lines = legalLines(p);
+    var flinks = [];
+    if (legal.has_terms) flinks.push('<button type="button" data-kv-terms>Conditions générales de vente</button>');
+    if (opts.footer) flinks.push('<button type="button" data-kv-report>Signaler ce profil</button>');
+    var brand = p.show_kitly_branding
+      ? '<div class="kv-brand">' + (opts.kitlyUrl ? '<a href="' + esc(opts.kitlyUrl) + '" target="_blank" rel="noopener">Propulsé par <b>kitly.</b></a>' : 'Propulsé par <b>kitly.</b>') + '</div>'
+      : "";
+
+    var mediaSide = p.banner_url
+      ? '<div class="kv-hero-media banner" style="background-image:' + cssUrl(p.banner_url) + '">' + avatarHtml(p, "kv-av3") + '</div>'
+      : '<div class="kv-hero-media">' + avatarHtml(p, "kv-av-big") + '</div>';
+
+    var html =
+      '<header class="kv-nav"><div class="kv-wrap kv-nav-in">' +
+        '<button type="button" class="kv-brandmark" data-kv-nav="kv-top">' + avatarHtml(p, "kv-av-xs") + '<span>' + esc(p.display_name || "Ton nom") + '</span></button>' +
+        '<nav class="kv-menu">' + navItems + '</nav>' +
+        '<div class="kv-nav-act"><button type="button" class="kv-btn sm" data-kv-contact-scroll>Me contacter</button>' +
+        (navItems ? '<button type="button" class="kv-burger" data-kv-burger aria-label="Menu"><i></i><i></i></button>' : '') + '</div>' +
+      '</div><nav class="kv-drawer">' + navItems + '</nav></header>' +
+      '<section class="kv-s kv-hero2" id="kv-top"><div class="kv-wrap kv-hero-grid">' +
+        '<div class="kv-hero-txt">' + avatarHtml(p, "kv-av-mob") +
+          (meta ? '<p class="kv-kick">' + esc(meta) + '</p>' : '') +
+          '<h1 class="kv-name">' + esc(p.display_name || "Ton nom") + '</h1>' +
+          (p.bio ? '<p class="kv-lead">' + esc(p.bio) + '</p>' : '') +
+          '<div class="kv-actions"><button type="button" class="kv-btn" data-kv-contact-scroll>Me contacter</button>' +
+          (firstOffers ? '<button type="button" class="kv-btn ghost" data-kv-nav="' + firstOffers + '">Voir mes offres</button>' : '') + '</div>' +
+          socialsHtml(p) +
+        '</div>' + mediaSide +
+      '</div></section>' + body +
+      '<footer class="kv-foot2"><div class="kv-wrap"><div class="kv-foot-top"><b>' + esc(p.display_name || "") + '</b>' +
+        (navItems ? '<nav>' + navItems + '</nav>' : '') + '</div>' +
+        (lines.length ? '<div class="kv-foot-legal">' + lines.join(" · ") + '</div>' : '') +
+        (flinks.length ? '<div class="kv-foot-links">' + flinks.join("") + '</div>' : '') + brand +
+      '</div></footer>';
+
+    var cls = "kv lay-site t-" + th.tpl + " bg-" + th.bg + (opts.live ? " live" : "") + (opts.wideNow ? " is-wide" : "");
+    return '<div class="' + cls + '" style="' + th.style + '">' + html + '</div>';
+  }
+
+  // Adapte le rendu à la largeur réelle de son bloc (et non de l'écran) : le
+  // builder peut ainsi afficher la même vitrine en « Mobile » et « Ordinateur ».
+  function fit(root) {
+    var kv = root && (root.classList && root.classList.contains("kv") ? root : root.querySelector(".kv"));
+    if (!kv) return;
+    var apply = function () { kv.classList.toggle("is-wide", kv.getBoundingClientRect().width / (kv.__scale || 1) >= 860 || kv.offsetWidth >= 860); };
+    apply();
+    try { new ResizeObserver(apply).observe(kv); } catch (e) { window.addEventListener("resize", apply); }
+  }
+
   // ============================================================
   // Interactions (page publique)
   // ============================================================
@@ -373,8 +676,30 @@
     var apiBase = (opts.apiBase || "").replace(/\/$/, "");
     var slug = data.slug;
     var source = opts.source === "marketplace" ? "marketplace" : "direct";
-    el.innerHTML = render(data, { wide: opts.wide !== false, live: true, footer: true, kitlyUrl: opts.kitlyUrl });
+    el.innerHTML = render(data, { wide: opts.wide !== false, live: true, footer: true, kitlyUrl: opts.kitlyUrl, privacyUrl: opts.privacyUrl });
     var root = el.querySelector(".kv");
+    fit(root);
+    var HOST = window, frameEl = null;
+    try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+
+    // Défilement vers une section, y compris depuis un embed (c'est la page Framer qui défile).
+    function scrollToId(id) {
+      var target = root.querySelector("#" + id);
+      if (!target) return;
+      var offset = root.classList.contains("lay-site") ? 70 : 10;
+      try {
+        if (frameEl) {
+          var fr = frameEl.getBoundingClientRect(), r = target.getBoundingClientRect();
+          HOST.scrollTo({ top: HOST.scrollY + fr.top + r.top - (id === "kv-top" ? 0 : 10), behavior: "smooth" });
+          return;
+        }
+      } catch (e) {}
+      window.scrollTo({ top: window.scrollY + target.getBoundingClientRect().top - (id === "kv-top" ? 0 : offset), behavior: "smooth" });
+    }
+    // Lien direct vers une fiche offre : …#offre-12 (partageable).
+    function setHash(h) {
+      try { HOST.history.replaceState(HOST.history.state, "", HOST.location.pathname + HOST.location.search + (h ? "#" + h : "")); } catch (e) {}
+    }
     var offersById = {};
     (data.offers || []).forEach(function (o) { offersById[o.id] = o; });
     var projectsById = {};
@@ -396,7 +721,7 @@
       }, function () { throw new Error("Connexion impossible, réessaie."); });
     }
 
-    function modal(html) {
+    function modal(html, onClose) {
       var bg = document.createElement("div");
       bg.className = "kv-mbg";
       bg.setAttribute("style", root.getAttribute("style"));  // typographies du thème
@@ -410,7 +735,7 @@
       var prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
       if (opts.lockScroll) opts.lockScroll(true);
-      function close() { bg.remove(); document.body.style.overflow = prevOverflow; if (opts.lockScroll) opts.lockScroll(false); document.removeEventListener("keydown", onKey); }
+      function close() { bg.remove(); document.body.style.overflow = prevOverflow; if (opts.lockScroll) opts.lockScroll(false); document.removeEventListener("keydown", onKey); if (onClose) onClose(); }
       function onKey(e) { if (e.key === "Escape") close(); }
       document.addEventListener("keydown", onKey);
       bg.addEventListener("click", function (e) { if (e.target === bg) close(); });
@@ -445,38 +770,25 @@
       var soldOut = o.details && o.details.in_stock === false;
       var imgs = (o.images || []).map(function (u) { return '<img src="' + esc(u) + '" alt="" loading="lazy">'; }).join("");
       var facts = offerFacts(o);
+      setHash("offre-" + o.id);
       var m = modal(
         (imgs ? '<div class="gal">' + imgs + '</div>' : '') +
         (o.badge ? '<span class="kv-tg" style="--acc:#0a0a0a;--btn-fg:#fff">' + esc(o.badge) + '</span>' : '') +
         '<h3>' + esc(o.title) + '</h3><div class="price">' + esc(o.price_label || "") + '</div>' +
         (o.description ? '<div class="desc">' + esc(o.description) + '</div>' : '') +
         (facts.length ? '<ul class="facts">' + facts.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join("") + '</ul>' : '') +
-        '<button type="button" class="cta" data-go>' + esc(soldOut ? CTA_LABEL.contact : (CTA_LABEL[o.cta] || "Me contacter")) + '</button>'
+        '<button type="button" class="cta" data-go>' + esc(soldOut ? CTA_LABEL.contact : (CTA_LABEL[o.cta] || "Me contacter")) + '</button>',
+        function () { setHash(""); }
       );
       m.el.querySelector("[data-go]").onclick = function () { m.close(); openContact(soldOut ? Object.assign({}, o, { cta: "contact" }) : o); };
     }
 
-    function openContact(offer) {
-      var kind = !offer ? "contact" : offer.cta === "quote" ? "quote" : offer.cta === "book" ? "booking" : "contact";
-      var titles = { contact: "Me contacter", quote: "Demander un devis", booking: "Demander un rendez-vous" };
-      var prefill = "";
-      if (offer && offer.cta === "order") prefill = "Bonjour, je souhaite commander « " + offer.title + " ».";
-      else if (offer && kind === "booking") prefill = "Bonjour, je souhaite réserver « " + offer.title + " ». Mes disponibilités : ";
-      else if (offer) prefill = "Bonjour, je suis intéressé(e) par « " + offer.title + " ». ";
-      var privacy = opts.privacyUrl ? ' (<a href="' + esc(opts.privacyUrl) + '" target="_blank" rel="noopener">politique de confidentialité</a>)' : "";
-      var m = modal(
-        '<h3>' + titles[kind] + '</h3><p class="sub">' + esc(data.display_name) + ' te répondra directement par email.</p>' +
-        '<form novalidate>' +
-        '<div class="row"><div><label class="lb">Nom</label><input type="text" name="name" autocomplete="name" maxlength="120"></div>' +
-        '<div><label class="lb">Email</label><input type="email" name="email" autocomplete="email"></div></div>' +
-        (kind === "quote" ? '<div class="row"><div><label class="lb">Téléphone (facultatif)</label><input type="tel" name="phone" autocomplete="tel" maxlength="40"></div><div><label class="lb">Budget (facultatif)</label><input type="text" name="budget" maxlength="60" placeholder="ex. 500 €"></div></div>'
-          : '<label class="lb">Téléphone (facultatif)</label><input type="tel" name="phone" autocomplete="tel" maxlength="40">') +
-        '<label class="lb">Message</label><textarea name="message" rows="5" maxlength="5000">' + esc(prefill) + '</textarea>' +
-        '<input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">' +
-        '<label class="chk"><input type="checkbox" name="consent"><span>J\'accepte que ma demande et mes coordonnées soient transmises à ' + esc(data.display_name) + ' pour qu\'il ou elle me réponde' + privacy + '.</span></label>' +
-        '<div class="err"></div><button type="submit" class="cta">Envoyer</button></form>'
-      );
-      var form = m.el.querySelector("form"), err = m.el.querySelector(".err");
+    function contactKind(offer) {
+      return !offer ? "contact" : offer.cta === "quote" ? "quote" : offer.cta === "book" ? "booking" : "contact";
+    }
+
+    function bindContact(form, kind, offer, onDone) {
+      var err = form.querySelector(".err");
       form.onsubmit = function (e) {
         e.preventDefault();
         var g = function (n) { var x = form.querySelector('[name="' + n + '"]'); return x ? x.value.trim() : ""; };
@@ -488,12 +800,28 @@
         if (!body.message) return (err.textContent = "Écris ton message.");
         if (!body.consent) return (err.textContent = "Merci d'accepter la transmission de ta demande.");
         var btn = form.querySelector(".cta"); btn.disabled = true; btn.textContent = "Envoi…"; err.textContent = "";
-        call("POST", "/leads", body).then(function () {
-          m.el.innerHTML = '<button type="button" class="x" aria-label="Fermer">✕</button><div class="done"><b>Message envoyé ✓</b><p class="sub">' +
-            esc(data.display_name) + ' a bien reçu ta demande et te répondra à ' + esc(body.email) + '.</p><button type="button" class="cta" data-ok>Fermer</button></div>';
-          m.el.querySelector(".x").onclick = m.close; m.el.querySelector("[data-ok]").onclick = m.close;
-        }).catch(function (e2) { btn.disabled = false; btn.textContent = "Envoyer"; err.textContent = e2.message; });
+        call("POST", "/leads", body).then(function () { onDone(body.email); })
+          .catch(function (e2) { btn.disabled = false; btn.textContent = "Envoyer"; err.textContent = e2.message; });
       };
+    }
+
+    function openContact(offer) {
+      var kind = contactKind(offer);
+      var titles = { contact: "Me contacter", quote: "Demander un devis", booking: "Demander un rendez-vous" };
+      var prefill = "";
+      if (offer && offer.cta === "order") prefill = "Bonjour, je souhaite commander « " + offer.title + " ».";
+      else if (offer && kind === "booking") prefill = "Bonjour, je souhaite réserver « " + offer.title + " ». Mes disponibilités : ";
+      else if (offer) prefill = "Bonjour, je suis intéressé(e) par « " + offer.title + " ». ";
+      var m = modal(
+        '<h3>' + titles[kind] + '</h3><p class="sub">' + esc(data.display_name) + ' te répondra directement par email.</p>' +
+        '<form novalidate>' + contactFields(kind, prefill, data.display_name, opts.privacyUrl, false) + '</form>'
+      );
+      var form = m.el.querySelector("form");
+      bindContact(form, kind, offer, function (email) {
+        m.el.innerHTML = '<button type="button" class="x" aria-label="Fermer">✕</button><div class="done"><b>Message envoyé ✓</b><p class="sub">' +
+          esc(data.display_name) + ' a bien reçu ta demande et te répondra à ' + esc(email) + '.</p><button type="button" class="cta" data-ok>Fermer</button></div>';
+        m.el.querySelector(".x").onclick = m.close; m.el.querySelector("[data-ok]").onclick = m.close;
+      });
       setTimeout(function () { var f = form.querySelector('[name="name"]'); if (f && window.innerWidth > 700) f.focus(); }, 50);
     }
 
@@ -555,7 +883,27 @@
       };
     }
 
+    var inline = root.querySelector("[data-kv-inline-form]");
+    if (inline) bindContact(inline, "contact", null, function (email) {
+      inline.innerHTML = '<div class="done"><b>Message envoyé ✓</b><p>' + esc(data.display_name) + ' te répondra à ' + esc(email) + '.</p></div>';
+    });
+
     root.addEventListener("click", function (e) {
+      var nav = e.target.closest("[data-kv-nav],[data-kv-burger],[data-kv-contact-scroll]");
+      if (nav) {
+        e.preventDefault();
+        if (nav.hasAttribute("data-kv-burger")) { root.classList.toggle("nav-open"); return; }
+        root.classList.remove("nav-open");
+        if (nav.hasAttribute("data-kv-contact-scroll")) {
+          if (inline && root.querySelector("#kv-contact")) {
+            scrollToId("kv-contact");
+            setTimeout(function () { var f = inline.querySelector('[name="name"]'); if (f) try { f.focus({ preventScroll: true }); } catch (x) {} }, 500);
+          } else openContact(null);
+          return;
+        }
+        scrollToId(nav.getAttribute("data-kv-nav"));
+        return;
+      }
       var t = e.target.closest("[data-kv-offer],[data-kv-project],[data-kv-contact],[data-kv-terms],[data-kv-report]");
       if (!t) return;
       e.preventDefault();
@@ -566,6 +914,11 @@
       else if (t.hasAttribute("data-kv-report")) openReport();
     });
 
+    try {
+      var m0 = (HOST.location.hash || "").match(/^#offre-(\d+)$/);
+      if (m0 && offersById[m0[1]]) setTimeout(function () { openOffer(offersById[m0[1]]); }, 300);
+    } catch (e) {}
+
     if (opts.countView !== false && slug) {
       // Une visite par visiteur et par jour, comptée côté serveur.
       call("POST", "/view", { source: source }).catch(function () {});
@@ -574,8 +927,9 @@
   }
 
   global.KitlyVitrine = {
-    version: 1,
+    version: 2,
     render: function (data, opts) { injectCss(); return render(data, opts); },
+    fit: fit,
     mount: mount,
     themeVars: themeVars,
     presets: TEMPLATE_PRESET,
