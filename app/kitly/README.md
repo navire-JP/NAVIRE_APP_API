@@ -136,7 +136,9 @@ les erreurs Stripe sont rendues en 502 `{"code": "stripe_error", "message": …}
 - La commande passe « payée » sur le webhook (`checkout.session.completed`) : stock
   décrémenté, email au vendeur (adresse de livraison) et à l'acheteur (lien de livraison
   pour un produit numérique : `details.delivery_url`, jamais public). Remboursement et
-  litige mettent à jour le statut. `GET /kitly/me/orders` : ventes du freelance.
+  litige mettent à jour le statut. `GET /kitly/me/orders?status=todo|refunded|…` : ventes du
+  freelance et résumé (à traiter, ventes et net sur 30 jours) ; `PATCH /kitly/me/orders/{ref}`
+  `{fulfilled, tracking, notify}` : marquée expédiée / prête / traitée, email à l'acheteur (une seule fois).
 - CGV : `GET /kitly/me/terms/template` rend un modèle pré-rempli (identité du vendeur,
   types d'offres) ; la publication est refusée tant qu'il reste « [à compléter] ».
 

@@ -53,6 +53,41 @@
   #kb .step { border: 0; background: none; padding: 10px 12px 12px; font-size: 13.5px; font-weight: 700; color: var(--mut); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
   #kb .step b { font-family: var(--serif); font-style: italic; font-weight: 400; margin-right: 4px; }
   #kb .step.on { color: var(--ink); border-bottom-color: var(--ink); }
+  #kb .step.extra { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+  #kb .step .cnt { font-size: 10.5px; font-weight: 800; background: var(--bad); color: #fff; border-radius: 99px; padding: 1px 7px; }
+  #kb .main.wide-mode { grid-template-columns: minmax(0, 1fr); }
+  #kb .main.wide-mode .prev { display: none !important; }
+  #kb .main.wide-mode .edit { display: block !important; }
+  #kb .main.wide-mode .edit-in { max-width: 860px; }
+  #kb.wide-mode .mtabs { display: none !important; }
+  #kb .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
+  #kb .kpi { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  #kb .kpi b { display: block; font-size: 22px; font-weight: 900; letter-spacing: -.03em; }
+  #kb .kpi small { font-size: 11px; color: var(--mut); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  #kb .kpi.hot { border-color: var(--ink); }
+  #kb .order { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+  #kb .order.todo { border-color: var(--ink); }
+  #kb .order-h { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  #kb .order-h .t { font-weight: 800; font-size: 14.5px; }
+  #kb .order-h .m { font-size: 12px; color: var(--mut); margin-top: 2px; }
+  #kb .order-h .amt { text-align: right; font-weight: 900; font-size: 16px; white-space: nowrap; }
+  #kb .order-h .amt small { display: block; font-weight: 600; font-size: 11.5px; color: var(--mut); }
+  #kb .order-b { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; margin-top: 10px; line-height: 1.45; }
+  #kb .order-b .lb { margin: 0 0 2px; }
+  #kb .order-b a { color: var(--ink); }
+  #kb .order-a { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  #kb .st { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; background: var(--grey); color: var(--mut); vertical-align: 2px; margin-left: 6px; }
+  #kb .st.todo { background: var(--ink); color: var(--paper); }
+  #kb .st.done { background: #e7f5ec; color: var(--good); }
+  #kb .st.bad { background: #fdece4; color: var(--bad); }
+  @media (max-width: 560px) {
+    #kb .kpis { gap: 6px; }
+    #kb .kpi { padding: 10px; }
+    #kb .kpi b { font-size: 16px; }
+    #kb .kpi small { font-size: 9.5px; }
+    #kb .order-b { grid-template-columns: 1fr; }
+    #kb .step.extra { margin-left: 0; }
+  }
 
   /* ── zone principale ── */
   #kb .main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 440px; }
@@ -513,7 +548,8 @@
     { n: 1, key: "identity", label: "Identité", title: "Ton <em>identité</em>" },
     { n: 2, key: "links", label: "Liens", title: "Tes <em>liens</em>" },
     { n: 3, key: "shop", label: "Boutique", title: "Tes <em>offres</em>" },
-    { n: 4, key: "style", label: "Style", title: "Ton <em>style</em>" }
+    { n: 4, key: "style", label: "Style", title: "Ton <em>style</em>" },
+    { n: 5, key: "sales", label: "Mes ventes", title: "Mes <em>ventes</em>", extra: true }   // hors parcours, pleine largeur
   ];
 
   function fieldText(f, label, opts) {
@@ -642,7 +678,7 @@
     ]).then(function (r) {
       S.sell = { connect: r[0], terms: r[1].current };
       S.sellLoading = false;
-      if (S.step === 3) renderStep();
+      if (S.step === 3 || S.step === 5) renderStep();
     });
   }
   function sellPanel(needsTerms) {
@@ -743,6 +779,98 @@
           .catch(function (e) { btn.disabled = false; err.textContent = e.message; });
       };
     }
+  }
+
+  // ── Mes ventes ──────────────────────────────────────────────
+  var ORDER_STATUS = { paid: "Payée", refunded: "Remboursée", disputed: "Litige", canceled: "Annulée" };
+  function eur(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",").replace(",00", "") + " €"; }
+  function loadSales() {
+    S.salesLoading = true;
+    var f = S.salesFilter == null ? "" : S.salesFilter;
+    return api("GET", "/me/orders" + (f ? "?status=" + f : "")).then(function (r) {
+      S.sales = r; S.salesLoading = false;
+      if (S.salesFilter == null) {   // première ouverture : « À traiter » s'il y a du travail
+        S.salesFilter = r.summary.to_fulfill ? "todo" : "";
+        if (S.salesFilter) return loadSales();
+      }
+      var badge = $("[data-sales-badge]");
+      if (badge) { badge.hidden = !r.summary.to_fulfill; badge.textContent = r.summary.to_fulfill; }
+      if (S.step === 5) renderStep();
+    }).catch(function (e) { S.salesLoading = false; S.sales = { error: e.message }; if (S.step === 5) renderStep(); });
+  }
+  function orderCard(o) {
+    var it = o.item || {}, todo = o.status === "paid" && !o.fulfilled_at;
+    var label = { physical: it.pickup ? "Retrait sur place" : "Livraison", digital: "Produit numérique", service: "Prestation" }[it.kind] || "";
+    var where = "";
+    if (it.kind === "physical" && it.pickup) where = esc(it.pickup_location || "Sur place");
+    else if (it.kind === "physical") {
+      var a = it.shipping_address || {};
+      where = [a.name, a.line1, a.line2, [a.postal_code, a.city].filter(Boolean).join(" "), a.country].filter(Boolean).map(esc).join("<br>") || "—";
+      if (it.shipping_label) where += '<br><span class="note">' + esc(it.shipping_label) + ' · ' + eur(it.shipping_cents) + '</span>';
+    } else if (it.kind === "digital") where = "Lien de livraison envoyé automatiquement (s'il est renseigné sur l'offre)";
+    else where = "À organiser avec le client";
+    var st = o.status !== "paid" ? '<span class="st bad">' + esc(ORDER_STATUS[o.status] || o.status) + '</span>'
+      : todo ? '<span class="st todo">À traiter</span>'
+      : '<span class="st done">' + (it.kind === "physical" ? (it.pickup ? "Remise" : "Expédiée") : "Traitée") + '</span>';
+    var doneLabel = it.kind === "physical" ? (it.pickup ? "Marquer comme prête" : "Marquer comme expédiée") : "Marquer comme traitée";
+    return '<div class="order' + (todo ? " todo" : "") + '"><div class="order-h"><div><div class="t">' + esc(it.title || "") +
+      (it.variant ? ' — ' + esc(it.variant) : '') + ((it.quantity || 1) > 1 ? ' × ' + it.quantity : '') + st + '</div>' +
+      '<div class="m">' + esc(o.ref) + ' · ' + new Date(o.paid_at || o.created_at).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) +
+      (o.channel === "marketplace" ? ' · via la marketplace' : '') + '</div></div>' +
+      '<div class="amt">' + eur(o.amount_cents) + (o.commission_cents ? '<small>' + eur(o.net_cents) + ' pour toi</small>' : '') + '</div></div>' +
+      '<div class="order-b"><div><div class="lb">Client</div>' + esc(o.buyer.name || "—") + '<br><a href="mailto:' + esc(o.buyer.email) + '?subject=' +
+      encodeURIComponent("Ta commande " + o.ref) + '">' + esc(o.buyer.email) + '</a>' + (it.phone ? '<br>' + esc(it.phone) : '') + '</div>' +
+      '<div><div class="lb">' + label + '</div>' + where + '</div></div>' +
+      (o.status === "paid" ? '<div class="order-a">' + (todo
+        ? '<button type="button" class="btn sm dark" data-fulfill="' + esc(o.ref) + '">' + doneLabel + '</button>'
+        : '<span class="note">' + (o.tracking ? 'Suivi : ' + esc(o.tracking) + ' · ' : '') + 'le ' + new Date(o.fulfilled_at).toLocaleDateString("fr-FR") + '</span>' +
+          '<button type="button" class="btn sm" data-unfulfill="' + esc(o.ref) + '">Remettre à traiter</button>') + '</div>' : '') + '</div>';
+  }
+  VIEWS.sales = function () {
+    if (!S.sales) { if (!S.salesLoading) loadSales(); return '<p class="lead">Chargement de tes ventes…</p>'; }
+    if (S.sales.error) return '<div class="banner soft"><span>' + esc(S.sales.error) + '</span></div>';
+    if (!S.sell && !S.sellLoading) loadSell();
+    var sm = S.sales.summary, f = S.salesFilter || "";
+    var ready = S.sell && S.sell.connect && S.sell.connect.charges_enabled && S.sell.terms;
+    var filters = [["todo", "À traiter" + (sm.to_fulfill ? " (" + sm.to_fulfill + ")" : "")], ["", "Toutes"], ["refunded", "Remboursées"]];
+    var list = S.sales.items.map(orderCard).join("");
+    var empty = f === "todo" ? "Rien à traiter : tout est à jour ✓"
+      : sm.orders_total ? "Aucune vente ici."
+      : "Pas encore de vente." + (ready ? " Partage le lien de ta vitrine pour te lancer !" : " Active les paiements et publie tes CGV (étape Boutique → Vente en ligne) pour encaisser en ligne.");
+    return '<div class="kpis"><div class="kpi' + (sm.to_fulfill ? " hot" : "") + '"><b>' + sm.to_fulfill + '</b><small>À traiter</small></div>' +
+      '<div class="kpi"><b>' + sm.orders_30d + '</b><small>Ventes · 30 j</small></div>' +
+      '<div class="kpi"><b>' + eur(sm.net_30d_cents) + '</b><small>Pour toi · 30 j</small></div></div>' +
+      '<div class="seg" style="margin-bottom:16px">' + filters.map(function (x) {
+        return '<button type="button" data-sales-filter="' + x[0] + '" class="' + (f === x[0] ? "on" : "") + '">' + x[1] + '</button>';
+      }).join("") + '</div>' +
+      (list || '<div class="banner soft"><span>' + esc(empty) + '</span>' + (!ready && !sm.orders_total ? '<button type="button" class="btn sm" data-step="3">Aller à la Boutique</button>' : '') + '</div>') +
+      (S.sales.has_more ? '<p class="note">Seules les 50 dernières ventes sont affichées ici.</p>' : '') +
+      '<div class="sec" style="margin-top:22px"><h3>Paiements et virements</h3><p class="lead">Montants versés, virements vers ton compte bancaire, remboursements : tout est dans ton espace Stripe.' +
+      ' Montants « pour toi » hors frais Stripe.</p><button type="button" class="btn sm" data-stripe-dash' + (S.me.impersonated_by ? ' disabled title="Réservé au titulaire du compte"' : '') + '>Ouvrir mon espace Stripe</button></div>';
+  };
+  function fulfillOrder(ref) {
+    var o = S.sales.items.filter(function (x) { return x.ref === ref; })[0];
+    if (!o) return;
+    var it = o.item || {}, shipping = it.kind === "physical" && !it.pickup;
+    var bg = document.createElement("div");
+    bg.className = "modal-bg";
+    bg.innerHTML = '<div class="modal"><button type="button" class="icon-btn x" data-close>✕</button>' +
+      '<h4>' + (shipping ? "Commande <em>expédiée</em>" : it.pickup ? "Commande <em>prête</em>" : "Commande <em>traitée</em>") + '</h4>' +
+      '<p class="note" style="margin-bottom:14px">' + esc(o.ref) + ' — ' + esc(it.title || "") + '</p>' +
+      (shipping ? '<div class="field"><label>Numéro ou lien de suivi (facultatif)</label><input type="text" data-tracking maxlength="120" placeholder="6A12345678901"></div>' : '') +
+      '<label class="check"><input type="checkbox" data-notify checked>Prévenir ' + esc(o.buyer.name || o.buyer.email) + ' par email</label>' +
+      '<p class="note bad" data-err></p><div class="modal-foot"><button type="button" class="btn" data-close>Annuler</button>' +
+      '<button type="button" class="btn dark" data-ok>Confirmer</button></div></div>';
+    root.appendChild(bg);
+    bg.addEventListener("click", function (e) { if (e.target === bg) bg.remove(); });
+    bg.querySelectorAll("[data-close]").forEach(function (b) { b.onclick = function () { bg.remove(); }; });
+    bg.querySelector("[data-ok]").onclick = function () {
+      var t = bg.querySelector("[data-tracking]"), btn = this;
+      btn.disabled = true;
+      api("PATCH", "/me/orders/" + encodeURIComponent(ref), { fulfilled: true, tracking: t ? t.value.trim() : "", notify: bg.querySelector("[data-notify]").checked })
+        .then(function (r) { bg.remove(); toast(r.buyer_notified ? "C'est noté ✓ Ton client est prévenu." : "C'est noté ✓"); loadSales(); })
+        .catch(function (e) { btn.disabled = false; bg.querySelector("[data-err]").textContent = e.message; });
+    };
   }
 
   VIEWS.style = function () {
@@ -850,6 +978,10 @@
       if (!b || b.disabled) return;
       var d = b.dataset;
       if (d.step) { goStep(+d.step); }
+      else if (d.salesFilter !== undefined) { S.salesFilter = d.salesFilter; S.sales = null; renderStep(); }
+      else if (d.fulfill) { fulfillOrder(d.fulfill); }
+      else if (d.unfulfill) { api("PATCH", "/me/orders/" + encodeURIComponent(d.unfulfill), { fulfilled: false }).then(function () { toast("Remise à traiter."); loadSales(); }).catch(function (e2) { toast(esc(e2.message)); }); }
+      else if (d.stripeDash !== undefined) { api("POST", "/connect/dashboard-link").then(function (r) { openTab(r.url); }).catch(function (e2) { toast(esc(e2.message)); }); }
       else if (d.publish !== undefined) { togglePublish(); }
       else if (d.verify !== undefined) { openVerify(); }
       else if (d.upload) {
@@ -1179,6 +1311,10 @@
   // ============================================================
   function goStep(n) {
     S.step = n;
+    var wide = !!STEPS[n - 1].extra;
+    $(".main").classList.toggle("wide-mode", wide);
+    root.classList.toggle("wide-mode", wide);
+    if (wide) S.sales = null;   // données fraîches à chaque ouverture de l'onglet
     renderTop(); renderStep();
     var edit = $(".edit"); if (edit) edit.scrollTop = 0;
   }
@@ -1220,7 +1356,10 @@
       '<div class="top"><div class="top-in"><h2 class="title"></h2><div class="meta">' +
       '<span class="save saved"><i></i><span>Enregistré</span></span>' +
       '<a class="plan" href="' + esc(CONFIG.PRICING_URL) + '" target="_top">' + esc(planName) + '</a></div></div>' +
-      '<div class="steps">' + STEPS.map(function (s) { return '<button type="button" class="step" data-go="' + s.n + '"><b>0' + s.n + '</b>' + s.label + '</button>'; }).join("") + '</div></div>' +
+      '<div class="steps">' + STEPS.map(function (s) {
+        return s.extra ? '<button type="button" class="step extra" data-go="' + s.n + '">' + s.label + '<span class="cnt" data-sales-badge hidden></span></button>'
+                       : '<button type="button" class="step" data-go="' + s.n + '"><b>0' + s.n + '</b>' + s.label + '</button>';
+      }).join("") + '</div></div>' +
       '<div class="mtabs"><button type="button" data-pane="edit" class="on">Modifier</button><button type="button" data-pane="prev">Aperçu</button></div>' +
       '<div class="main" data-pane="edit"><div class="edit"><div class="edit-in"></div></div>' +
       '<div class="prev"><div class="pv-head"><span class="pv-label">Aperçu en direct</span><div class="seg pv-dev">' +
@@ -1287,6 +1426,7 @@
       }).then(function (r) {
         S.offers = r.items;
         renderApp();
+        loadSales();   // compteur « à traiter » sur l'onglet Mes ventes
         if (!S.me.profile) toast("Ta vitrine est créée : complète-la, tout est enregistré automatiquement.", 5000);
       });
     }).catch(function (e) { if (e.status !== 401) showError(e.message); });

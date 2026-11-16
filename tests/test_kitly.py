@@ -1279,3 +1279,49 @@ def test_terms_template_prefilled_and_publish_guard(client):
     assert "Léa Martin EI" in t["articles"][0]["body"] and "293 B" in t["articles"][1]["body"] and "CM2C" in t["articles"][-1]["body"]
     client.put("/kitly/me/terms/draft", json={"articles": [{k: a[k] for k in ("key", "title", "body")} for a in t["articles"]]}, headers=h)
     assert client.post("/kitly/me/terms/draft/publish", json={"accept": True}, headers=h).status_code == 200
+
+
+def test_seller_sales_tab_summary_and_fulfillment(client, monkeypatch):
+    from app.kitly import emails
+    from app.kitly.routers import billing, shop
+
+    fake = _FakeShopStripe()
+    monkeypatch.setattr(shop, "stripe_client", lambda: fake)
+    monkeypatch.setattr(billing, "KITLY_STRIPE_WEBHOOK_SECRET", "whsec_kitly_test")
+    mails = []
+    monkeypatch.setattr(emails, "send", lambda to, subject, html, reply_to=None: mails.append((to, subject, html)) or True)
+    _, h = register(client)
+    slug = _seller_ready(client, h)
+    offer = client.post("/kitly/me/offers", json={"kind": "physical", "title": "Vase", "price_cents": 4000, "status": "published",
+                                                  "details": {"shipping_options": [{"label": "Colissimo", "price_cents": 600}]}},
+                        headers=h).json()["item"]
+    buyer = f"acheteur-{uuid.uuid4().hex[:6]}@exemple.fr"
+    r = client.post(f"/kitly/public/profiles/{slug}/offers/{offer['id']}/checkout",
+                    json={"email": buyer, "accept_terms": True, "delivery": "0", "source": "marketplace"})
+    ref = r.json()["ref"]
+    session = {"id": "cs_v", "mode": "payment", "payment_status": "paid", "payment_intent": f"pi_{uuid.uuid4().hex[:10]}",
+               "metadata": fake.calls[-1]["metadata"], "customer_details": {"email": buyer, "name": "Alex"}}
+    event = {"id": f"evt_{uuid.uuid4().hex}", "type": "checkout.session.completed", "data": {"object": session}}
+    b, hd = _signed(event, "whsec_kitly_test")
+    assert client.post("/kitly/stripe/webhook", content=b, headers=hd).status_code == 200
+
+    r = client.get("/kitly/me/orders", headers=h).json()
+    assert r["summary"]["to_fulfill"] == 1 and r["summary"]["orders_30d"] == 1
+    assert r["summary"]["net_30d_cents"] == 4600 - 460  # commission marketplace déduite
+    assert [o["ref"] for o in client.get("/kitly/me/orders?status=todo", headers=h).json()["items"]] == [ref]
+
+    # Un autre vendeur ne voit ni ne modifie cette vente.
+    _, h2 = register(client)
+    assert client.patch(f"/kitly/me/orders/{ref}", json={"fulfilled": True}, headers=h2).status_code == 404
+
+    mails.clear()
+    r = client.patch(f"/kitly/me/orders/{ref}", json={"fulfilled": True, "tracking": "6A12345678901"}, headers=h).json()
+    assert r["buyer_notified"] and r["order"]["fulfilled_at"] and r["order"]["tracking"] == "6A12345678901"
+    assert mails[0][0] == buyer and "expédiée" in mails[0][1] and "6A12345678901" in mails[0][2]
+    assert client.get("/kitly/me/orders?status=todo", headers=h).json()["items"] == []
+    # Re-marquer ne renvoie pas d'email ; annuler le marquage la remet « à traiter ».
+    mails.clear()
+    client.patch(f"/kitly/me/orders/{ref}", json={"fulfilled": True, "tracking": "6A12345678901"}, headers=h)
+    assert mails == []
+    client.patch(f"/kitly/me/orders/{ref}", json={"fulfilled": False}, headers=h)
+    assert client.get("/kitly/me/orders", headers=h).json()["summary"]["to_fulfill"] == 1

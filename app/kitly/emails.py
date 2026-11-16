@@ -242,6 +242,26 @@ def mail_order_buyer(seller_name: str, ref: str, snap: dict, amount_cents: int, 
     return f"Ta commande {ref} est confirmée", layout("Commande confirmée", body)
 
 
+def mail_order_fulfilled(seller_name: str, ref: str, snap: dict, tracking: str, seller_email: str) -> tuple[str, str]:
+    kind = snap.get("kind")
+    if kind == "physical" and snap.get("pickup"):
+        what, title = "Ta commande est prête : tu peux venir la retirer" + (
+            f" ({_e(snap.get('pickup_location'))})" if snap.get("pickup_location") else "") + ".", "Commande prête"
+    elif kind == "physical":
+        what, title = "Ta commande a été expédiée.", "Commande expédiée"
+    elif kind == "digital":
+        what, title = "Ta commande a été livrée.", "Commande livrée"
+    else:
+        what, title = "Ta commande a été traitée.", "Commande traitée"
+    track = ""
+    if tracking:
+        track = (f'<p><b>Suivi :</b> <a href="{_e(tracking)}" style="color:#0a0a0a">{_e(tracking)}</a></p>'
+                 if tracking.startswith(("http://", "https://")) else f"<p><b>Numéro de suivi :</b> {_e(tracking)}</p>")
+    body = (f"<p>Bonjour,</p><p>{what}</p><p><b>Référence :</b> {_e(ref)}</p>{_order_lines(snap)}{track}"
+            f"<p>Une question ? Écris à {_e(seller_name)} : {_e(seller_email)} (ou réponds à cet email).</p>")
+    return f"{title} — {ref}", layout(title, body)
+
+
 def mail_profile_suspended(first_name: str, slug: str, reason: str, contact: str) -> tuple[str, str]:
     """Exposé des motifs d'une suspension (article 17 du règlement sur les services numériques)."""
     body = (

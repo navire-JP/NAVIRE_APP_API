@@ -513,6 +513,13 @@ class OrderCheckoutIn(_In):
         return self
 
 
+class OrderFulfillIn(_In):
+    """Vente marquée expédiée / traitée par le freelance."""
+    fulfilled: bool = True
+    tracking: str = Field(default="", max_length=120)   # numéro ou lien de suivi du colis
+    notify: bool = True                                 # prévenir l'acheteur par email
+
+
 class LeadUpdateIn(_In):
     status: Literal["new", "read", "replied", "archived", "spam"]
 

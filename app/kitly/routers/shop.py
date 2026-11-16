@@ -18,6 +18,7 @@ navigateur.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 import stripe
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -38,11 +39,11 @@ from app.kitly.models import (
     KitlyUser,
 )
 from app.kitly.queries import get_public_profile
-from app.kitly.schemas import OrderCheckoutIn
+from app.kitly.schemas import OrderCheckoutIn, OrderFulfillIn
 from app.kitly.security import current_user
 from app.kitly.serializers import public_url
 from app.kitly.stripe_client import is_kitly_object, kitly_metadata, stripe_client
-from app.kitly.utils import client_ip, iso, now, rate_guard, rate_hit, today, visitor_hash
+from app.kitly.utils import aware, client_ip, iso, now, rate_guard, rate_hit, today, visitor_hash
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["kitly · ventes"])
@@ -351,20 +352,77 @@ def handle_order_event(db: Session, event) -> bool:
 # ============================================================
 
 def order_out(o: KitlyOrder) -> dict:
+    snap = o.offer_snapshot or {}
     return {
         "ref": o.public_ref, "status": o.status, "channel": o.channel, "amount_cents": o.amount_cents,
-        "commission_cents": o.commission_cents, "currency": o.currency, "item": o.offer_snapshot,
+        "commission_cents": o.commission_cents, "net_cents": o.amount_cents - o.commission_cents, "currency": o.currency,
+        "item": snap, "fulfilled_at": snap.get("fulfilled_at"), "tracking": snap.get("tracking", ""),
         "buyer": {"name": o.buyer_name, "email": o.buyer_email}, "created_at": iso(o.created_at), "paid_at": iso(o.paid_at),
     }
+
+
+def _is_todo(o: KitlyOrder) -> bool:
+    return o.status == "paid" and not (o.offer_snapshot or {}).get("fulfilled_at")
 
 
 @router.get("/me/orders")
 def my_orders(status: str = "", page: int = Query(1, ge=1), user: KitlyUser = Depends(current_user),
               db: Session = Depends(get_db)):
-    """Ventes de la vitrine (les commandes en attente de paiement ne sont pas listées par défaut)."""
+    """
+    Ventes de la vitrine. `status` : vide (toutes, sauf les paiements non aboutis),
+    `todo` (payées, pas encore marquées expédiées / traitées) ou un statut précis.
+    `summary` : chiffres affichés en tête de l'onglet « Mes ventes ».
+    """
+    empty = {"to_fulfill": 0, "orders_30d": 0, "net_30d_cents": 0, "net_total_cents": 0, "orders_total": 0}
     if not user.profile:
-        return {"items": [], "total": 0}
-    q = select(KitlyOrder).where(KitlyOrder.profile_id == user.profile.id)
-    q = q.where(KitlyOrder.status == status) if status else q.where(KitlyOrder.status != "pending")
-    rows = db.execute(q.order_by(KitlyOrder.created_at.desc()).offset((page - 1) * 50).limit(50)).scalars().all()
-    return {"items": [order_out(o) for o in rows]}
+        return {"items": [], "summary": empty, "page": page, "has_more": False}
+    rows = db.execute(select(KitlyOrder).where(KitlyOrder.profile_id == user.profile.id,
+                                               KitlyOrder.status.not_in(("pending", "canceled")))
+                      .order_by(KitlyOrder.created_at.desc())).scalars().all()
+    since = now() - timedelta(days=30)
+    paid = [o for o in rows if o.status == "paid"]
+    recent = [o for o in paid if o.paid_at and aware(o.paid_at) >= since]
+    summary = {
+        "to_fulfill": sum(1 for o in rows if _is_todo(o)),
+        "orders_30d": len(recent),
+        "net_30d_cents": sum(o.amount_cents - o.commission_cents for o in recent),
+        "orders_total": len(paid),
+        "net_total_cents": sum(o.amount_cents - o.commission_cents for o in paid),
+    }
+    if status == "todo":
+        rows = [o for o in rows if _is_todo(o)]
+    elif status:
+        rows = [o for o in rows if o.status == status]
+    start = (page - 1) * 50
+    return {"items": [order_out(o) for o in rows[start:start + 50]], "summary": summary, "page": page,
+            "has_more": len(rows) > start + 50}
+
+
+@router.patch("/me/orders/{ref}")
+def update_order(ref: str, payload: OrderFulfillIn, user: KitlyUser = Depends(current_user), db: Session = Depends(get_db)):
+    """
+    Marque une vente comme expédiée / traitée (ou annule ce marquage), avec un
+    numéro de suivi facultatif ; l'acheteur est prévenu par email si `notify`.
+    """
+    order = db.execute(select(KitlyOrder).where(KitlyOrder.public_ref == ref)).scalar_one_or_none()
+    if not order or not user.profile or order.profile_id != user.profile.id:
+        raise HTTPException(404, detail="Commande introuvable.")
+    if order.status != "paid":
+        raise HTTPException(409, detail="Seule une commande payée peut être marquée comme traitée.")
+    snap = dict(order.offer_snapshot or {})
+    first_time = payload.fulfilled and not snap.get("fulfilled_at")
+    if payload.fulfilled:
+        snap["fulfilled_at"] = snap.get("fulfilled_at") or iso(now())
+        snap["tracking"] = payload.tracking
+    else:
+        snap.pop("fulfilled_at", None)
+        snap.pop("tracking", None)
+    order.offer_snapshot = snap  # nouvel objet : modification du JSON détectée
+    db.commit()
+    notified = False
+    if first_time and payload.notify:
+        profile = user.profile
+        seller_email = profile.contact_email or user.email
+        subject, html = emails.mail_order_fulfilled(profile.display_name, order.public_ref, snap, payload.tracking, seller_email)
+        notified = emails.send(order.buyer_email, subject, html, seller_email)
+    return {"order": order_out(order), "buyer_notified": bool(notified)}
