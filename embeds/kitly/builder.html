@@ -485,7 +485,7 @@
     if (!data) return "Une erreur est survenue, réessaie.";
     var d = data.detail;
     if (typeof d === "string") return d;
-    if (d && typeof d.message === "string") return d.message;
+    if (d && typeof d.message === "string") return d.message + (d.stripe ? " (Stripe : " + d.stripe + ")" : "");
     if (Array.isArray(d) && d[0]) return String(d[0].msg || "").replace(/^Value error, /, "") || "Champ invalide.";
     return "Une erreur est survenue, réessaie.";
   }

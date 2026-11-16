@@ -507,6 +507,108 @@ def email_check(admin: KitlyUser = Depends(admin_user), db: Session = Depends(ge
     return st
 
 
+PLATFORM_EVENTS = ["checkout.session.completed", "checkout.session.expired", "checkout.session.async_payment_succeeded",
+                   "checkout.session.async_payment_failed", "customer.subscription.created",
+                   "customer.subscription.updated", "customer.subscription.deleted", "invoice.payment_failed",
+                   "charge.refunded", "charge.dispute.created"]
+CONNECT_EVENTS = ["account.updated", "account.application.deauthorized"]
+
+
+@router.post("/system/stripe-check")
+def stripe_check(admin: KitlyUser = Depends(admin_user), db: Session = Depends(get_db)):
+    """
+    Vérifie la configuration Stripe de Kitly, point par point, sans rien modifier :
+    clé, compte, Connect, Prices des formules, webhooks et leurs événements, portail client.
+    """
+    import stripe
+
+    from app.kitly.config import (
+        KITLY_STRIPE_CONNECT_WEBHOOK_SECRET,
+        KITLY_STRIPE_WEBHOOK_SECRET,
+    )
+    from app.kitly.stripe_client import stripe_client, stripe_reason
+
+    checks: list[dict] = []
+
+    def add(key, label, ok, detail="", fix=""):
+        checks.append({"key": key, "label": label, "ok": ok, "detail": detail, "fix": fix})
+
+    def attempt(fn):
+        try:
+            return fn(), None
+        except stripe.StripeError as exc:
+            return None, stripe_reason(exc)
+
+    if not KITLY_STRIPE_SECRET_KEY:
+        add("key", "Clé secrète", False, "KITLY_STRIPE_SECRET_KEY absente.", "Ajoute la clé secrète du compte Stripe Kitly sur Render.")
+        return {"ok": False, "checks": checks}
+    live = KITLY_STRIPE_SECRET_KEY.startswith(("sk_live", "rk_live"))
+    add("key", "Clé secrète", True, "Mode live (vrais paiements)." if live else "Mode test : aucun vrai paiement.")
+    client = stripe_client()
+
+    acct, err = attempt(lambda: client.accounts.retrieve_current())
+    if err:
+        add("account", "Compte Stripe", False, err, "La clé est refusée : recopie la clé secrète du compte Kitly (Développeurs → Clés API).")
+        return {"ok": False, "checks": checks}
+    name = ((acct.get("settings") or {}).get("dashboard") or {}).get("display_name") or acct.get("business_profile", {}).get("name") or ""
+    add("account", "Compte Stripe", bool(acct.get("charges_enabled")),
+        f"{name or acct.get('id')} — paiements {'activés' if acct.get('charges_enabled') else 'NON activés'}.",
+        "" if acct.get("charges_enabled") else "Termine l'activation du compte Stripe Kitly (Paramètres → Compte).")
+
+    _, err = attempt(lambda: client.accounts.list(params={"limit": 1}))
+    add("connect", "Stripe Connect (paiements des freelances)", err is None, err or "Activé.",
+        "" if err is None else "Active Connect sur le compte Kitly (menu Connect → Commencer), type « Plateforme / marketplace ».")
+
+    for code, label in (("custom", "Custom"), ("premium", "Premium+")):
+        pid = KITLY_STRIPE_PRICES.get(code) or ""
+        if not pid:
+            add(f"price_{code}", f"Prix {label}", False, f"KITLY_STRIPE_PRICE_{code.upper()} absente.", "Crée le produit mensuel dans Stripe et copie son Price ID (price_…) sur Render.")
+            continue
+        price, err = attempt(lambda: client.prices.retrieve(pid))
+        if err:
+            add(f"price_{code}", f"Prix {label}", False, err, "Price ID introuvable sur ce compte (mauvais compte ou mode test/live inversé).")
+            continue
+        rec = price.get("recurring") or {}
+        ok = bool(price.get("active")) and bool(rec)
+        add(f"price_{code}", f"Prix {label}", ok,
+            f"{(price.get('unit_amount') or 0) / 100:.2f} {str(price.get('currency', '')).upper()} / {rec.get('interval', 'paiement unique')}"
+            + ("" if price.get("active") else " — archivé"),
+            "" if ok else "Le prix doit être actif et récurrent (mensuel).")
+
+    hooks, err = attempt(lambda: client.webhook_endpoints.list(params={"limit": 100}))
+    if err:
+        add("webhooks", "Webhooks", False, err)
+    else:
+        items = hooks.get("data") or []
+        for path, events, secret, label in (("/kitly/stripe/webhook", PLATFORM_EVENTS, KITLY_STRIPE_WEBHOOK_SECRET, "Webhook du compte"),
+                                            ("/kitly/stripe/connect-webhook", CONNECT_EVENTS, KITLY_STRIPE_CONNECT_WEBHOOK_SECRET, "Webhook des comptes connectés")):
+            ep = next((h for h in items if str(h.get("url", "")).rstrip("/").endswith(path)), None)
+            if not ep:
+                add(path, label, False, f"Aucun endpoint vers …{path}.",
+                    f"Développeurs → Webhooks → Ajouter un endpoint : https://navire-app-api.onrender.com{path}"
+                    + (" (onglet « Comptes connectés »)" if "connect" in path else "") + ".")
+                continue
+            enabled = ep.get("enabled_events") or []
+            missing = [] if "*" in enabled else [e for e in events if e not in enabled]
+            ok = ep.get("status") == "enabled" and not missing and bool(secret)
+            detail = ep.get("url", "") + (" — désactivé" if ep.get("status") != "enabled" else "")
+            fix = []
+            if missing:
+                fix.append("Ajoute les événements : " + ", ".join(missing) + ".")
+            if not secret:
+                fix.append("Copie son secret de signature (whsec_…) dans " + ("KITLY_STRIPE_CONNECT_WEBHOOK_SECRET" if "connect" in path else "KITLY_STRIPE_WEBHOOK_SECRET") + " sur Render.")
+            add(path, label, ok, detail, " ".join(fix))
+
+    portal, err = attempt(lambda: client.billing_portal.configurations.list(params={"limit": 1}))
+    add("portal", "Portail client (factures, carte, résiliation)", bool(portal and portal.get("data")),
+        err or ("Configuré." if portal and portal.get("data") else "Pas encore configuré."),
+        "" if portal and portal.get("data") else "Paramètres → Facturation → Portail client : enregistre la configuration.")
+
+    log(db, admin, "stripe_check", "system", "", ok=all(c["ok"] for c in checks))
+    db.commit()
+    return {"ok": all(c["ok"] for c in checks), "live": live, "checks": checks}
+
+
 @router.post("/system/email-test")
 def email_test(payload: EmailTestIn, admin: KitlyUser = Depends(admin_user), db: Session = Depends(get_db)):
     to = str(payload.to or admin.email)

@@ -42,7 +42,7 @@ from app.kitly.queries import get_public_profile
 from app.kitly.schemas import OrderCheckoutIn, OrderFulfillIn
 from app.kitly.security import current_user
 from app.kitly.serializers import public_url
-from app.kitly.stripe_client import is_kitly_object, kitly_metadata, stripe_client
+from app.kitly.stripe_client import is_kitly_object, kitly_metadata, stripe_client, stripe_reason
 from app.kitly.utils import aware, client_ip, iso, now, rate_guard, rate_hit, today, visitor_hash
 
 logger = logging.getLogger(__name__)
@@ -278,9 +278,10 @@ def checkout_offer(slug: str, offer_id: int, payload: OrderCheckoutIn, request: 
         session = stripe_client().checkout.sessions.create(params=params)
     except stripe.StripeError as exc:
         db.rollback()
-        logger.warning("[kitly] Stripe (achat %s) : %s", offer.id, exc)
+        reason = stripe_reason(exc)
+        print(f"[kitly] ⚠️  Stripe a refusé le paiement de l'offre {offer.id} : {reason}", flush=True)
         raise HTTPException(502, detail={"message": "Le paiement n'a pas pu être préparé. Réessaie dans un instant.",
-                                         "stripe": exc.user_message or "", "code": "stripe_error"})
+                                         "stripe": reason, "code": "stripe_error"})
     order.stripe_checkout_session_id = session["id"]
     db.commit()
     return {"url": session["url"], "ref": order.public_ref}

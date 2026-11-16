@@ -198,7 +198,7 @@
     reactivate: "Compte réactivé", logout_all: "Sessions coupées", impersonate: "Builder ouvert (support)", delete_user: "Compte supprimé",
     suspend_profile: "Vitrine suspendue", unsuspend_profile: "Vitrine rétablie", unpublish_profile: "Vitrine dépubliée",
     report_status: "Signalement traité", update_plan: "Formule modifiée", email_check: "Vérification email", email_test: "Email de test",
-    admin_login: "Connexion à la console", create_user: "Compte créé"
+    admin_login: "Connexion à la console", create_user: "Compte créé", stripe_check: "Vérification Stripe"
   };
   var REASON_LABEL = { fraud: "Arnaque ou fraude", illegal_content: "Contenu illicite", impersonation: "Usurpation d'identité",
     ip_infringement: "Atteinte aux droits", inappropriate: "Contenu inapproprié", other: "Autre" };
@@ -683,10 +683,25 @@
         '<div class="acts"><button class="btn ghost" id="ka-echeck">Revérifier l\'expéditeur</button><button class="btn" id="ka-etest">Envoyer un email de test</button></div>' +
         '<h3>Stripe</h3><dl class="kv"><dt>Clé secrète</dt><dd>' + flag(sy.stripe.secret_key) + (sy.stripe.live_mode ? ' <span class="pill warn">mode live</span>' : sy.stripe.secret_key ? ' <span class="pill">mode test</span>' : '') + '</dd>' +
         '<dt>Price Custom</dt><dd>' + flag(sy.stripe.prices.custom) + '</dd><dt>Price Premium+</dt><dd>' + flag(sy.stripe.prices.premium) + '</dd></dl>' +
+        '<div class="acts"><button class="btn" id="ka-scheck">Vérifier Stripe</button></div><div id="ka-sres"></div>' +
         '<h3>Site et accès</h3><dl class="kv"><dt>Adresse du site</dt><dd><code>' + esc(sy.frontend_url) + '</code></dd>' +
         '<dt>Origines autorisées (CORS)</dt><dd>' + sy.cors_origins.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(" ") + '</dd>' +
         '<dt>Variables manquantes</dt><dd>' + (sy.missing_env.length ? sy.missing_env.map(function (x) { return '<span class="pill bad">' + esc(x) + '</span>'; }).join(" ") : '<span class="pill ok">aucune</span>') + '</dd></dl>' +
         '<h3>Journal des actions</h3>' + actionsTable(r[1].items);
+      $("#ka-scheck").onclick = function () {
+        var box = $("#ka-sres"), btn = this;
+        btn.disabled = true; box.innerHTML = '<p class="muted">Vérification auprès de Stripe…</p>';
+        api("POST", "/admin/system/stripe-check").then(function (r) {
+          btn.disabled = false;
+          box.innerHTML = '<p>' + (r.ok ? '<span class="pill ok">tout est bon</span>' : '<span class="pill bad">à corriger</span>') +
+            (r.live === false ? ' <span class="pill">mode test</span>' : r.live ? ' <span class="pill warn">mode live</span>' : '') + '</p>' +
+            '<ul class="diag">' + r.checks.map(function (c) {
+              return '<li>' + (c.ok ? '<span class="pill ok">ok</span> ' : '<span class="pill bad">non</span> ') + '<b>' + esc(c.label) + '</b>' +
+                (c.detail ? ' <span class="muted">— ' + esc(c.detail) + '</span>' : '') +
+                (c.fix ? '<br><span style="color:var(--bad);font-size:12.5px">→ ' + esc(c.fix) + '</span>' : '') + '</li>';
+            }).join("") + '</ul>';
+        }).catch(function (e) { btn.disabled = false; box.innerHTML = ''; fail(e); });
+      };
       $("#ka-echeck").onclick = function () { api("POST", "/admin/system/email-check").then(function (st) { toast(st.detail || "Vérifié."); VIEW.system(); }).catch(fail); };
       $("#ka-etest").onclick = function () {
         dialog({ title: "Envoyer un email de test", text: "Adresse de réception (vide = ton email).", input: "text", placeholder: S.me.user.email, min: 0, ok: "Envoyer" }).then(function (to) {

@@ -45,3 +45,17 @@ def is_kitly_object(obj) -> bool:
         return (obj.get("metadata") or {}).get("app") == "kitly"
     except Exception:
         return False
+
+
+_SECRET_RE = None
+
+
+def stripe_reason(exc) -> str:
+    """Raison lisible d'une erreur Stripe (ex. « No such price: … »), sans aucune clé."""
+    import re
+
+    global _SECRET_RE
+    if _SECRET_RE is None:
+        _SECRET_RE = re.compile(r"\b(sk|rk|pk)_(live|test)_[A-Za-z0-9]{6,}|\bwhsec_[A-Za-z0-9]{6,}")
+    msg = getattr(exc, "user_message", None) or getattr(exc, "_message", None) or str(exc) or exc.__class__.__name__
+    return _SECRET_RE.sub("•••", str(msg))[:400]

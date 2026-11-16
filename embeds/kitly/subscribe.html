@@ -202,6 +202,7 @@
         return r.json().catch(function () { return null; }).then(function (d) {
           if (!r.ok) {
             var det = d && d.detail, msg = typeof det === "string" ? det : (det && det.message) || "Une erreur est survenue, réessaie.";
+            if (det && det.stripe) msg += " (Stripe : " + det.stripe + ")";   // raison exacte donnée par Stripe
             var e = new Error(msg); e.status = r.status; e.data = d; throw e;
           }
           return d;

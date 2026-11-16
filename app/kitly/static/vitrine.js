@@ -788,7 +788,7 @@
           if (!res.ok) {
             var msg = d && d.detail;
             if (Array.isArray(msg)) msg = String((msg[0] && msg[0].msg) || "").replace(/^Value error, /, "");
-            if (msg && typeof msg === "object") msg = msg.message;
+            if (msg && typeof msg === "object") msg = msg.message + (msg.stripe ? " (Stripe : " + msg.stripe + ")" : "");
             throw new Error(msg || "Une erreur est survenue, réessaie.");
           }
           return d;
