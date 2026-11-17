@@ -7,17 +7,24 @@
   réalisations, CGV du vendeur, signalement, comptage des visites.
 
   Quelle vitrine afficher :
-    1. paramètre d'URL ?u=<adresse> (ou ?slug=) — ex. page Framer /vitrine?u=lea-martin ;
-    2. sinon le chemin de la page — ex. sur la page 404 de Framer, kitly.fr/lea-martin
+    1. le hash de l'adresse — page Framer /profile#lea-martin (réglage par défaut) ;
+       une fiche offre s'ouvre avec /profile#lea-martin/offre-12 ;
+    2. l'ancien format ?u=<adresse> (ou ?slug=), réécrit aussitôt en /profile#<adresse> ;
+    3. sinon le chemin de la page — ex. sur la page 404 de Framer, kitly.fr/lea-martin
        affiche la vitrine « lea-martin ».
-  Ajoute ?src=marketplace aux liens de la marketplace (statistiques d'acquisition).
+  Les liens de la marketplace ajoutent ?src=marketplace (statistiques d'acquisition).
+
+  Page Framer : SANS le header ni le footer du site. La vitrine a son propre en-tête
+  (photo, « Contacter », partager) et son pied de page (CGV, mentions légales,
+  confidentialité, signalement), et elle peint le fond choisi sur toute la page.
 
   ⚠️ Partage sur les réseaux : l'aperçu (photo, nom) d'un lien collé sur WhatsApp
   ou LinkedIn n'est lu que dans une page servie avec ses balises. La version
   complète est servie par l'API : GET /kitly/p/<adresse> — voir README.
 
   Composant Framer : Embed HTML, largeur Fill, hauteur auto (l'embed agrandit son
-  iframe à la hauteur de la vitrine). Réglages : bloc CONFIG.
+  iframe à la hauteur de la vitrine), collé en haut de la page, sans marge autour.
+  Réglages : bloc CONFIG.
 -->
 
 <style>
@@ -28,17 +35,17 @@
   #kp .kp-state em { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; }
   #kp .kp-state p { color: #6f6f6c; margin: 0 0 18px; font-size: 15px; }
   #kp .kp-state a { display: inline-block; background: #0a0a0a; color: #fff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 22px; border-radius: 99px; }
-  #kp .kp-skel { max-width: 420px; margin: 40px auto; padding: 0 20px; }
-  #kp .kp-skel i { display: block; background: #f0f0ee; border-radius: 12px; margin: 0 auto 12px; animation: kp-pulse 1.2s infinite; }
+  #kp .kp-skel { max-width: 640px; margin: 0 auto; padding: 0 14px 40px; }
+  #kp .kp-skel i { display: block; background: rgba(10,10,10,.07); border-radius: 12px; margin: 0 auto 12px; animation: kp-pulse 1.2s infinite; }
   @keyframes kp-pulse { 50% { opacity: .5; } }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 
 <div id="kp">
   <div class="kp-skel">
-    <i style="width:92px;height:92px;border-radius:50%"></i>
-    <i style="width:60%;height:24px"></i><i style="width:40%;height:14px"></i>
-    <i style="height:54px;border-radius:99px;margin-top:28px"></i><i style="height:54px;border-radius:99px"></i>
+    <i style="width:88px;height:88px;border-radius:50%;margin-top:90px"></i>
+    <i style="width:60%;height:34px"></i><i style="width:40%;height:16px"></i>
+    <i style="height:96px;border-radius:22px;margin-top:30px"></i><i style="height:96px;border-radius:22px"></i>
   </div>
 </div>
 
@@ -75,14 +82,29 @@
   try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
   var loc = (function () { try { return HOST.location; } catch (e) { return window.location; } })();
 
+  var SLUG_RE = /^[a-z0-9-]{3,40}$/;
+  // → { slug, hash } : hash = true quand l'adresse est (ou devient) /profile#<adresse>.
   function readSlug() {
+    var raw = "";
+    try { raw = decodeURIComponent((loc.hash || "").replace(/^#!?\/?/, "")); } catch (e) {}
+    var h = raw.split(/[\/?&]/)[0].toLowerCase();
+    if (SLUG_RE.test(h) && !/^offre-\d+$/.test(h)) return { slug: h, hash: true };
     var params = new URLSearchParams(loc.search);
-    var q = params.get("u") || params.get("slug");
-    if (q) return q.trim().toLowerCase();
+    var q = (params.get("u") || params.get("slug") || "").trim().toLowerCase();
+    if (q) {
+      // Ancien lien /profile?u=lea-martin(#offre-12) → /profile#lea-martin(/offre-12)
+      params.delete("u"); params.delete("slug");
+      var offer = (loc.hash || "").match(/^#(offre-\d+)$/);
+      try {
+        HOST.history.replaceState(HOST.history.state, "", loc.pathname + (params.toString() ? "?" + params.toString() : "") +
+          "#" + q + (offer ? "/" + offer[1] : ""));
+      } catch (e) { return { slug: q, hash: false }; }
+      return { slug: q, hash: true };
+    }
     var seg = loc.pathname.replace(/\/+$/, "").split("/").pop() || "";
-    seg = decodeURIComponent(seg).toLowerCase();
-    if (CONFIG.RESERVED.indexOf(seg) >= 0 || !/^[a-z0-9-]{3,40}$/.test(seg)) return "";
-    return seg;
+    try { seg = decodeURIComponent(seg).toLowerCase(); } catch (e) { seg = ""; }
+    if (CONFIG.RESERVED.indexOf(seg) >= 0 || !SLUG_RE.test(seg)) return { slug: "", hash: false };
+    return { slug: seg, hash: false };
   }
   function readSource() {
     try {
@@ -136,8 +158,12 @@
     try { HOST.document.title = data.display_name + (data.headline ? " — " + data.headline : "") + " | Kitly"; } catch (e) {}
   }
 
+  var current = "", mounted = null, source = readSource();
   function boot() {
-    var slug = readSlug();
+    var r = readSlug(), slug = r.slug;
+    current = slug;
+    if (mounted && mounted.destroy) mounted.destroy();
+    mounted = null;
     if (!slug) return notFound();
     Promise.all([
       loadEngine(),
@@ -148,13 +174,22 @@
       })
     ]).then(function (res) {
       var data = res[1];
+      if (slug !== current) return;   // une autre vitrine a été demandée entre-temps
       setMeta(data);
-      window.KitlyVitrine.mount(root, data, {
-        apiBase: CONFIG.API_BASE, source: readSource(), privacyUrl: CONFIG.PRIVACY_URL, kitlyUrl: CONFIG.KITLY_URL,
-        frameViewport: frameEl ? frameViewport : null, lockScroll: lockScroll
+      mounted = window.KitlyVitrine.mount(root, data, {
+        apiBase: CONFIG.API_BASE, source: source, privacyUrl: CONFIG.PRIVACY_URL, kitlyUrl: CONFIG.KITLY_URL,
+        hashBase: r.hash ? slug : "", frameViewport: frameEl ? frameViewport : null, lockScroll: lockScroll
       });
-    }).catch(function (e) { if (e.status === 404) notFound(); else failed(); });
+    }).catch(function (e) { if (slug !== current) return; if (e.status === 404) notFound(); else failed(); });
   }
+
+  // /profile#lea → /profile#paul sur la même page : on affiche la nouvelle vitrine.
+  try {
+    HOST.addEventListener("hashchange", function () {
+      var s = readSlug().slug;
+      if (s && s !== current) { try { HOST.scrollTo(0, 0); } catch (e) {} boot(); }
+    });
+  } catch (e) {}
 
   // ============================================================
   // Hauteur de l'iframe = hauteur de la vitrine

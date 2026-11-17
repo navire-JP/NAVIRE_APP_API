@@ -108,6 +108,11 @@ def vitrine_page(slug: str, db: Session = Depends(get_db)):
     desc = data["bio"] or data["headline"] or f"La vitrine de {data['display_name']} sur Kitly."
     image = data["banner_url"] or data["avatar_url"]
     bg = background_color(data["theme"])
+    # Une adresse en /profile#<adresse> ne désigne pas une page à part pour les moteurs
+    # ni pour les aperçus de partage : on ne la déclare alors ni canonique ni og:url.
+    url = data["url"]
+    canonical = f'<link rel="canonical" href="{_e(url)}">\n' if "#" not in url else ""
+    og_url = f'<meta property="og:url" content="{_e(url)}">\n' if "#" not in url else ""
     page = f"""<!doctype html>
 <html lang="fr">
 <head>
@@ -115,14 +120,12 @@ def vitrine_page(slug: str, db: Session = Depends(get_db)):
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{_e(title)} | Kitly</title>
 <meta name="description" content="{_e(desc[:300])}">
-<link rel="canonical" href="{_e(data['url'])}">
-<meta name="theme-color" content="{_e(bg)}">
+{canonical}<meta name="theme-color" content="{_e(bg)}">
 <meta property="og:type" content="profile">
 <meta property="og:site_name" content="Kitly">
 <meta property="og:title" content="{_e(title)}">
 <meta property="og:description" content="{_e(desc[:300])}">
-<meta property="og:url" content="{_e(data['url'])}">
-{f'<meta property="og:image" content="{_e(image)}">' if image else ''}
+{og_url}{f'<meta property="og:image" content="{_e(image)}">' if image else ''}
 <meta name="twitter:card" content="{'summary_large_image' if data['banner_url'] else 'summary'}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

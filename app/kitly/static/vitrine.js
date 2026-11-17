@@ -12,91 +12,136 @@
  *   KitlyVitrine.render(data)                  → HTML (aperçu, sans interactions)
  *   KitlyVitrine.mount(el, data, opts)         → rendu + interactions (fiches offres,
  *       contact / devis, portfolio, CGV, signalement, comptage de visite)
- *       opts = { apiBase, slug, source: "direct"|"marketplace", privacyUrl, kitlyUrl, countView }
+ *       opts = { apiBase, source: "direct"|"marketplace", privacyUrl, kitlyUrl, countView,
+ *               hashBase,   // adresse lue dans le hash (/profile#<adresse>) : conservée dans l'URL
+ *               page,       // false : ne pas peindre le fond de la page qui affiche la vitrine
+ *               frameViewport, lockScroll }   // embed : modales sur la partie visible
+ *     → { openContact, openOffer, destroy }
  *
  * `data` a la forme de GET /kitly/public/profiles/{slug}.
  * Tout texte vient des freelances : il est systématiquement échappé.
  */
 (function (global) {
   "use strict";
-  if (global.KitlyVitrine && global.KitlyVitrine.version >= 2) return;
+  if (global.KitlyVitrine && global.KitlyVitrine.version >= 3) return;
 
   // ============================================================
   // Styles (injectés une fois)
   // ============================================================
   var CSS = [
-    ".kv{--bg:#fff;--fg:#0a0a0a;--mut2:rgba(10,10,10,.6);--acc:#0a0a0a;--btn-fg:#fff;--line2:rgba(10,10,10,.12);--r-btn:999px;--fh:'Inter',sans-serif;--fb:'Inter',sans-serif;background:var(--bg);color:var(--fg);font-family:var(--fb);position:relative;overflow:hidden;-webkit-font-smoothing:antialiased;min-height:100%}",
+    ".kv{--bg:#fff;--fg:#0a0a0a;--mut2:rgba(10,10,10,.6);--acc:#0a0a0a;--btn-fg:#fff;--line2:rgba(10,10,10,.12);--card:#f3f3f3;--inner:#f9f9f9;--card-line:rgba(10,10,10,.07);--r-btn:999px;--fh:'Inter',sans-serif;--fb:'Inter',sans-serif;--maxw:640px;--cover-h:300px;background:var(--bg);color:var(--fg);font-family:var(--fb);position:relative;overflow:hidden;overflow:clip;container-type:inline-size;-webkit-font-smoothing:antialiased;min-height:100%}",
+    "@supports (width:1cqw){.kv{--cover-h:clamp(220px,74cqw,360px)}}",
     ".kv *,.kv-mbg,.kv-mbg *{box-sizing:border-box}",
     ".kv a{color:inherit}",
     ".kv.bg-blobs::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(38% 22% at 15% 12%,color-mix(in srgb,var(--bg) 72%,#000) 0 60%,transparent 61%),radial-gradient(30% 18% at 92% 30%,color-mix(in srgb,var(--bg) 72%,#000) 0 60%,transparent 61%),radial-gradient(42% 20% at 8% 58%,color-mix(in srgb,var(--bg) 72%,#000) 0 60%,transparent 61%),radial-gradient(36% 18% at 85% 82%,color-mix(in srgb,var(--bg) 72%,#000) 0 60%,transparent 61%)}",
     ".kv>*{position:relative}",   // le contenu passe au-dessus des décors de fond (::before)
     ".kv.bg-gradient{background:linear-gradient(180deg,var(--bg),color-mix(in srgb,var(--bg) 70%,var(--acc)))}",
     ".kv.bg-image{background:var(--bg) center/cover}",
-    ".kv-col{position:relative;max-width:620px;margin:0 auto;padding-bottom:28px}",
-    ".kv-banner{height:130px;background:color-mix(in srgb,var(--fg) 8%,var(--bg)) center/cover}",
-    ".kv.wide .kv-banner{height:190px;border-radius:0 0 22px 22px}",
-    ".kv-hero{text-align:center;padding:0 22px}",
-    ".kv-av{width:92px;height:92px;border-radius:50%;margin:26px auto 14px;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:900;box-shadow:0 0 0 4px var(--bg)}",
-    ".kv-banner+.kv-hero .kv-av{margin-top:-46px}",
-    ".kv-name{font-family:var(--fh);font-size:25px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:0;overflow-wrap:anywhere}",
-    ".kv-meta{font-size:13px;color:var(--mut2);font-weight:600;margin-top:6px}",
-    ".kv-bio{font-size:14px;line-height:1.5;margin:12px auto 0;max-width:320px;color:var(--mut2);white-space:pre-wrap;overflow-wrap:anywhere}",
-    ".kv-socials{display:flex;justify-content:center;gap:8px;margin-top:14px;flex-wrap:wrap}",
-    ".kv-soc{width:34px;height:34px;border-radius:50%;border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;color:var(--fg);text-decoration:none}",
+    /* page publique : le fond est peint sur toute la page qui affiche la vitrine (voir mount) */
+    ".kv.page{background:transparent!important}.kv.page::before{display:none}",
+    ".kv.lay-site.is-wide{--maxw:1080px}",
+    ".kv.is-wide{--cover-h:420px}",
+    /* ── en-tête personnel : photo, nom, partager, contacter ── */
+    ".kv>.kv-top{position:sticky;top:0;z-index:30;height:64px;margin-bottom:-64px;transition:background-color .2s,box-shadow .2s}",
+    ".kv-top-in{max-width:var(--maxw);height:100%;margin:0 auto;padding:0 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}",
+    ".kv-top.stuck{background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 1px 0 var(--line2)}",
+    ".kv-top-id{display:flex;align-items:center;gap:10px;min-width:0;background:none;border:0;padding:0;color:var(--fg);font:800 15.5px var(--fh);cursor:pointer;opacity:0;transform:translateY(4px);transition:opacity .2s,transform .2s;pointer-events:none}",
+    ".kv-top.stuck .kv-top-id{opacity:1;transform:none;pointer-events:auto}",
+    ".kv-top-id span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".kv-av-xs{width:36px;height:36px;border-radius:50%;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;flex-shrink:0}",
+    ".kv-top-act{display:flex;gap:8px;align-items:center;flex-shrink:0}",
+    ".kv-top-btn{height:40px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 16px;border-radius:999px;border:1px solid var(--line2);background:color-mix(in srgb,var(--bg) 80%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:var(--fg);font:700 14px var(--fb);cursor:pointer;white-space:nowrap}",
+    ".kv-top-btn.ico{width:40px;padding:0}.kv-top-btn svg{width:18px;height:18px}",
+    ".kv-top-btn.pri{background:var(--acc);color:var(--btn-fg);border-color:transparent}",
+    ".kv-menu{display:none;gap:2px;padding:4px;border-radius:999px;border:1px solid var(--line2);background:color-mix(in srgb,var(--bg) 80%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);min-width:0;overflow:hidden}",
+    ".kv-menu button{background:none;border:0;color:var(--fg);font:600 13.5px var(--fb);padding:7px 12px;border-radius:99px;cursor:pointer;opacity:.8;white-space:nowrap}",
+    ".kv-menu button:hover{opacity:1;background:color-mix(in srgb,var(--fg) 8%,transparent)}",
+    ".kv.is-wide .kv-menu{display:flex}",
+    ".kv.is-wide .kv-top-in{padding:0 20px}",
+    /* ── en-tête de page : bannière fondue dans le fond, photo, nom ── */
+    ".kv-hero3{text-align:center;padding:84px 20px 4px}",
+    ".kv-cover{position:absolute;top:0;left:0;right:0;height:var(--cover-h);background:color-mix(in srgb,var(--fg) 8%,var(--bg)) center/cover no-repeat;-webkit-mask-image:linear-gradient(180deg,#000 45%,transparent 100%);mask-image:linear-gradient(180deg,#000 45%,transparent 100%)}",
+    ".kv.has-cover .kv-hero3{padding-top:calc(var(--cover-h) - 72px)}",
+    ".kv-hero-in{position:relative;max-width:640px;margin:0 auto}",
+    ".kv-av2{width:88px;height:88px;border-radius:50%;margin:0 auto 16px;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:900;box-shadow:0 0 0 4px var(--bg),0 10px 28px -12px rgba(0,0,0,.45)}",
+    ".kv-name{font-family:var(--fh);font-size:36px;font-size:clamp(30px,9cqw,46px);font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:0;overflow-wrap:anywhere}",
+    ".kv-head{font-size:17px;line-height:1.4;margin:10px 0 0;color:color-mix(in srgb,var(--fg) 82%,transparent);font-weight:500;overflow-wrap:anywhere}",
+    ".kv-loc{display:inline-flex;align-items:center;gap:5px;font-size:13.5px;color:var(--mut2);font-weight:600;margin:8px 0 0}.kv-loc svg{width:15px;height:15px}",
+    ".kv-bio{font-size:15px;line-height:1.55;margin:12px auto 0;max-width:460px;color:var(--mut2);white-space:pre-wrap;overflow-wrap:anywhere}",
+    ".kv-socials{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:14px;flex-wrap:wrap}",
+    ".kv-soc{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--fg);text-decoration:none;font-size:11px;font-weight:800;transition:background .15s}",
+    ".kv-soc svg{width:26px;height:26px}",
+    ".kv-soc.txt{width:34px;height:34px;margin:5px;border:1.5px solid currentColor}",
     ".kv-soc:hover{background:color-mix(in srgb,var(--fg) 8%,transparent)}",
-    ".kv-sec{padding:0 18px;margin-top:22px}",
-    ".kv-sec-t{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--mut2);margin:0 0 10px 4px}",
-    ".kv-links{display:flex;flex-direction:column;gap:10px}",
-    ".kv-link{display:flex;align-items:center;gap:12px;background:var(--acc);color:var(--btn-fg)!important;border-radius:var(--r-btn);padding:15px 18px;font-weight:700;font-size:15px;text-decoration:none;min-height:54px;transition:transform .15s}",
+    ".kv-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px}",
+    ".kv:not(.is-wide) .kv-actions .kv-btn{flex:1 1 0;min-width:0}",
+    ".kv.is-wide .kv-av2{width:104px;height:104px;font-size:40px}",
+    ".kv.is-wide .kv-name{font-size:48px}",
+    ".kv.lay-site.is-wide .kv-name{font-size:60px}",
+    ".kv.is-wide .kv-head{font-size:19px}",
+    /* ── encarts : chaque section est une carte, à distance des bords de la page ── */
+    ".kv-main{max-width:var(--maxw);margin:0 auto;padding:24px 14px 0;display:flex;flex-direction:column;gap:14px}",
+    ".kv-card{background:var(--card);border:1px solid var(--card-line);border-radius:22px;padding:22px 20px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px -22px rgba(0,0,0,.35);min-width:0}",
+    ".kv-card.flush{padding:0;overflow:hidden}",
+    ".kv-card-t{font-family:var(--fh);font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1.15;margin:0 0 16px}",
+    ".kv-card .kv-offer,.kv-card .kv-svc,.kv-card .kv-row,.kv-card .kv-proj,.kv-card .kv-stat,.kv-card .kv-tags span{background:var(--inner);border-color:var(--card-line)}",
+    ".kv-card .kv-form{box-shadow:none}",
+    ".kv.is-wide .kv-main{padding-top:32px;gap:18px}",
+    ".kv.lay-site.is-wide .kv-card{padding:34px 38px;border-radius:26px}",
+    ".kv.lay-site.is-wide .kv-card.flush{padding:0}",
+    ".kv.lay-site.is-wide .kv-card-t{font-size:30px;margin-bottom:22px}",
+    ".kv-header{font-family:var(--fh);font-size:19px;font-weight:800;text-align:center;margin:10px 0 0}",
+    ".kv-bigtitle{font-family:var(--fh);font-size:30px;font-weight:900;letter-spacing:-.03em;line-height:1.1;margin:14px 0 0;text-align:center}",
+    /* liens (boutons du thème) et vidéos */
+    ".kv-links{display:flex;flex-direction:column;gap:12px}",
+    ".kv-link{display:flex;align-items:center;gap:12px;background:var(--acc);color:var(--btn-fg)!important;border-radius:var(--r-btn);padding:15px 18px;font-weight:700;font-size:15px;text-decoration:none;min-height:56px;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.06)}",
     ".kv-link:hover{transform:translateY(-2px)}",
     ".kv-link svg{width:20px;height:20px;flex-shrink:0}",
     ".kv-link span{flex:1;text-align:center;padding-right:32px;overflow-wrap:anywhere}",
     ".kv-link.no-ico span{padding-right:0}",
-    ".kv-video{border-radius:min(var(--r-btn),22px);overflow:hidden;position:relative;aspect-ratio:16/10;background:linear-gradient(160deg,#f6b26b,#e8743b) center/cover;display:block;text-decoration:none}",
-    ".kv-video .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center}",
-    ".kv-video .play::after{content:'';border-left:17px solid #e8743b;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:5px}",
-    ".kv-video .cap{position:absolute;left:14px;bottom:10px;color:#fff;font-weight:700;font-size:15px;text-shadow:0 1px 8px rgba(0,0,0,.4)}",
-    ".kv-text h5{font-family:var(--fh);font-size:17px;margin:4px 0 6px}",
-    ".kv-text p{font-size:14px;line-height:1.55;color:var(--mut2);margin:0;white-space:pre-wrap;overflow-wrap:anywhere}",
-    ".kv-header{font-family:var(--fh);font-size:18px;font-weight:800;text-align:center;margin:8px 0 0}",
+    ".kv-video{border-radius:22px;overflow:hidden;position:relative;aspect-ratio:16/10;background:linear-gradient(160deg,#3a3a3a,#111) center/cover;display:block;text-decoration:none;box-shadow:0 10px 30px -22px rgba(0,0,0,.5)}",
+    ".kv-video .play{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:50%;background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center}",
+    ".kv-video .play::after{content:'';border-left:17px solid #fff;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:5px}",
+    ".kv-video .cap{position:absolute;left:0;right:0;bottom:0;padding:48px 16px 16px;text-align:center;color:#fff;font-family:var(--fh);font-weight:700;font-size:17px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.65))}",
+    ".kv.lay-site.is-wide .kv-links-wrap .kv-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}",
+    ".kv.lay-site.is-wide .kv-links-wrap .kv-video,.kv.lay-site.is-wide .kv-links-wrap .kv-header{grid-column:1/-1}",
     /* sections de contenu (texte + image, galerie…) */
     ".kv-cb{display:flex;flex-direction:column;gap:18px;text-align:left}",
-    ".kv-cb-img{width:100%;border-radius:min(var(--r-btn),22px);overflow:hidden;background:color-mix(in srgb,var(--fg) 8%,var(--bg))}",
+    ".kv-cb-img{width:100%;border-radius:16px;overflow:hidden;background:color-mix(in srgb,var(--fg) 8%,var(--bg))}",
     ".kv-cb-img img{display:block;width:100%;height:auto;max-height:520px;object-fit:cover}",
-    ".kv-cb-tx h3{font-family:var(--fh);font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.15;margin:0 0 10px}",
+    ".kv-cb-tx h3{font-family:var(--fh);font-size:23px;font-weight:800;letter-spacing:-.02em;line-height:1.15;margin:0 0 10px}",
     ".kv-cb-tx p{font-size:15px;line-height:1.7;color:var(--mut2);margin:0;white-space:pre-wrap;overflow-wrap:anywhere}",
     ".kv-cb-tx .kv-btn{margin-top:18px;color:var(--btn-fg)!important}",
-    ".kv-gal h3{font-family:var(--fh);font-size:24px;font-weight:800;letter-spacing:-.02em;margin:0 0 14px}",
+    ".kv-gal h3{font-family:var(--fh);font-size:23px;font-weight:800;letter-spacing:-.02em;margin:0 0 14px}",
     ".kv-gal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}",
     ".kv-gal-grid button{border:0;padding:0;background:color-mix(in srgb,var(--fg) 8%,var(--bg)) center/cover;aspect-ratio:1;border-radius:12px;cursor:zoom-in}",
-    ".kv-figure{margin:0}.kv-figure img{display:block;width:100%;border-radius:min(var(--r-btn),22px)}",
-    ".kv-figure figcaption{font-size:13px;color:var(--mut2);margin-top:8px;text-align:center}",
-    ".kv-bigtitle{font-family:var(--fh);font-size:30px;font-weight:900;letter-spacing:-.03em;line-height:1.1;margin:0;text-align:center}",
-    ".kv.is-wide .kv-cb.has-img{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}",
+    ".kv-figure{margin:0}.kv-figure img{display:block;width:100%}",
+    ".kv-figure figcaption{font-size:13px;color:var(--mut2);padding:12px 16px 14px;text-align:center}",
+    ".kv.is-wide .kv-cb.has-img{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}",
     ".kv.is-wide .kv-cb.has-img.left .kv-cb-img{order:-1}",
     ".kv.is-wide .kv-cb.has-img.right .kv-cb-img{order:2}",
-    ".kv.is-wide .kv-cb-tx h3,.kv.is-wide .kv-gal h3{font-size:clamp(28px,3vw,40px)}",
+    ".kv.lay-site.is-wide .kv-cb-tx h3,.kv.lay-site.is-wide .kv-gal h3{font-size:clamp(28px,3vw,38px)}",
     ".kv.is-wide .kv-cb:not(.has-img) .kv-cb-tx{max-width:760px}",
-    ".kv.is-wide .kv-gal-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}",
-    ".kv.is-wide .kv-bigtitle{font-size:clamp(34px,4vw,52px)}",
-    /* liens en grille sur un site large */
-    ".kv.lay-site.is-wide .kv-s-links .kv-wrap.narrow{max-width:1120px}",
-    ".kv.lay-site.is-wide .kv-s-links .kv-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}",
-    ".kv.lay-site.is-wide .kv-s-links .kv-video,.kv.lay-site.is-wide .kv-s-links .kv-cb,.kv.lay-site.is-wide .kv-s-links .kv-text{grid-column:1/-1}",
-    ".kv:not(.lay-site) .kv-links .kv-cb,.kv:not(.lay-site) .kv-gal,.kv:not(.lay-site) .kv-figure{margin:6px 0}",
-    ".kv-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}",
-    ".kv-stat{border:1px solid var(--line2);border-radius:12px;padding:11px 4px;text-align:center}",
-    ".kv-stat b{display:block;font-family:var(--fh);font-size:17px;font-weight:800}",
+    ".kv.lay-site.is-wide .kv-gal-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}",
+    ".kv.lay-site.is-wide .kv-bigtitle{font-size:clamp(34px,4vw,48px)}",
+    /* à propos */
+    ".kv-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px}",
+    ".kv-stat{border:1px solid var(--line2);border-radius:14px;padding:12px 6px;text-align:center}",
+    ".kv-stat b{display:block;font-family:var(--fh);font-size:18px;font-weight:800}",
     ".kv-stat small{font-size:9.5px;color:var(--mut2);font-weight:700;text-transform:uppercase;letter-spacing:.05em}",
-    ".kv-about{font-size:14px;line-height:1.6;color:var(--mut2);white-space:pre-wrap;margin-top:12px;overflow-wrap:anywhere}",
-    ".kv-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}",
-    ".kv-tags span{font-size:11.5px;font-weight:700;border:1px solid var(--line2);border-radius:99px;padding:4px 10px}",
+    ".kv-about{font-size:15px;line-height:1.65;color:var(--mut2);white-space:pre-wrap;margin:0;overflow-wrap:anywhere}",
+    ".kv-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}",
+    ".kv-tags span{font-size:12px;font-weight:700;border:1px solid var(--line2);border-radius:99px;padding:5px 11px}",
+    ".kv-about-grid{display:grid;gap:18px;align-items:start}",
+    ".kv.lay-site.is-wide .kv-about-grid{grid-template-columns:1.4fr 1fr;gap:44px}",
+    ".kv.lay-site.is-wide .kv-about{font-size:16.5px;line-height:1.7}",
+    /* offres */
     ".kv-offers{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
     ".kv-offers.list{grid-template-columns:1fr}",
-    ".kv-offer{border:1px solid var(--line2);border-radius:14px;overflow:hidden;background:color-mix(in srgb,var(--bg) 92%,var(--fg));text-align:left;font:inherit;color:inherit;padding:0;width:100%;cursor:default;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}",
+    ".kv-offer{border:1px solid var(--line2);border-radius:16px;overflow:hidden;background:color-mix(in srgb,var(--bg) 92%,var(--fg));text-align:left;font:inherit;color:inherit;padding:0;width:100%;cursor:default;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}",
     ".kv.live .kv-offer,.kv.live .kv-row,.kv.live .kv-proj{cursor:pointer;transition:transform .15s,border-color .15s}",
     ".kv.live .kv-offer:hover,.kv.live .kv-row:hover,.kv.live .kv-proj:hover{transform:translateY(-2px);border-color:var(--fg)}",
-    ".kv-offer .im{height:110px;background:color-mix(in srgb,var(--fg) 7%,var(--bg)) center/cover;display:flex;align-items:center;justify-content:center;color:var(--mut2)}",
+    ".kv-offer .im{height:120px;background:color-mix(in srgb,var(--fg) 7%,var(--bg)) center/cover;display:flex;align-items:center;justify-content:center;color:var(--mut2)}",
     ".kv-offer .im svg{width:24px;height:24px;opacity:.6}",
     ".kv-offer .bd{padding:10px 12px 12px}",
     ".kv-tg{display:inline-block;font-size:9px;font-weight:800;padding:3px 8px;border-radius:99px;background:var(--acc);color:var(--btn-fg);text-transform:uppercase;letter-spacing:.06em;margin:0 4px 6px 0}",
@@ -105,76 +150,14 @@
     ".kv-offer .pr{font-weight:800;font-size:13px;margin-top:3px}",
     ".kv-offer .ds{font-size:11.5px;color:var(--mut2);margin-top:4px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}",
     ".kv-offer .ct{font-size:10.5px;font-weight:800;margin-top:8px;text-transform:uppercase;letter-spacing:.06em}",
-    ".kv-row{display:flex;gap:12px;align-items:center;border:1px solid var(--line2);border-radius:14px;padding:12px 14px;text-align:left;font:inherit;color:inherit;background:none;width:100%}",
-    ".kv-row .tt{font-weight:700;font-size:14px;overflow-wrap:anywhere}",
-    ".kv-row .ds{font-size:12px;color:var(--mut2);margin-top:2px}",
+    ".kv-row{display:flex;gap:12px;align-items:center;border:1px solid var(--line2);border-radius:16px;padding:13px 15px;text-align:left;font:inherit;color:inherit;background:none;width:100%}",
+    ".kv-row .tt{font-weight:700;font-size:14.5px;overflow-wrap:anywhere}",
+    ".kv-row .ds{font-size:12.5px;color:var(--mut2);margin-top:2px}",
     ".kv-row .pr{font-weight:800;font-size:13.5px;white-space:nowrap}",
     ".kv-projs{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
-    ".kv-proj{border:1px solid var(--line2);border-radius:14px;overflow:hidden;padding:0;background:none;text-align:left;font:inherit;color:inherit;width:100%;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}",
+    ".kv-proj{border:1px solid var(--line2);border-radius:16px;overflow:hidden;padding:0;background:none;text-align:left;font:inherit;color:inherit;width:100%;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}",
     ".kv-proj .im{aspect-ratio:4/3;background:color-mix(in srgb,var(--fg) 7%,var(--bg)) center/cover}",
     ".kv-proj .tt{padding:9px 12px 11px;font-weight:700;font-size:13px}",
-    ".kv-contact{display:block;width:100%;text-align:center;border:1.5px solid var(--fg);color:var(--fg);background:none;border-radius:var(--r-btn);padding:14px;font:800 14.5px var(--fb);text-decoration:none;cursor:pointer}",
-    ".kv.live .kv-contact:hover{background:var(--fg);color:var(--bg)}",
-    ".kv-cinfo{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:12.5px;color:var(--mut2)}",
-    ".kv-cinfo a{text-decoration:none;border-bottom:1px solid var(--line2)}",
-    ".kv-foot{margin:30px 18px 0;padding-top:16px;border-top:1px solid var(--line2);font-size:11.5px;color:var(--mut2);text-align:center;line-height:1.6}",
-    ".kv-foot .lk{display:flex;justify-content:center;flex-wrap:wrap;gap:4px 14px;margin-top:6px}",
-    ".kv-foot button,.kv-foot a{background:none;border:0;padding:0;font:inherit;color:var(--mut2);text-decoration:underline;cursor:pointer}",
-    ".kv-brand{text-align:center;font-size:11px;color:var(--mut2);margin-top:18px;font-weight:600}",
-    ".kv-brand a{text-decoration:none}.kv-brand b{color:var(--fg)}",
-    ".kv-empty{text-align:center;color:var(--mut2);font-size:13px;padding:10px 0}",
-    ".kv.t-cadre{box-shadow:inset 0 0 0 5px var(--fg)}",
-    ".kv.t-noir .kv-offer,.kv.t-noir .kv-row,.kv.t-noir .kv-stat{border-color:rgba(255,255,255,.16)}",
-    ".kv.t-bold .kv-name{text-transform:uppercase;font-size:46px;color:var(--acc);letter-spacing:-.01em;line-height:.95;margin-top:4px}",
-    ".kv.t-bold .kv-av{width:150px;height:150px;box-shadow:none}",
-    ".kv.t-bold .kv-banner+.kv-hero .kv-av{margin-top:-75px}",
-    ".kv.t-bold .kv-meta,.kv.t-bold .kv-bio{color:color-mix(in srgb,var(--fg) 75%,transparent)}",
-    "@media(min-width:700px){.kv.wide .kv-name{font-size:32px}.kv.wide.t-bold .kv-name{font-size:60px}.kv.wide .kv-offers:not(.list){grid-template-columns:repeat(3,1fr)}.kv.wide .kv-projs{grid-template-columns:repeat(3,1fr)}}",
-    /* ── rendu « site » ── */
-    ".kv.lay-site{min-height:100%}",
-    ".kv-wrap{max-width:1120px;margin:0 auto;padding:0 20px}",
-    ".kv-wrap.narrow{max-width:640px}",
-    ".kv.lay-site .kv-s{padding:40px 0}",
-    ".kv.lay-site .kv-s:nth-of-type(even){background:color-mix(in srgb,var(--fg) 3.5%,transparent)}",
-    ".kv-h{font-family:var(--fh);font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:0 0 22px}",
-    ".kv-it{opacity:.7}",
-    ".kv.lay-site .kv-nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line2)}",
-    ".kv-nav-in{display:flex;align-items:center;justify-content:space-between;height:62px;gap:16px}",
-    ".kv-brandmark{display:flex;align-items:center;gap:10px;background:none;border:0;color:var(--fg);font:800 16px var(--fh);cursor:pointer;padding:0;min-width:0}",
-    ".kv-brandmark span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-    ".kv-av-xs{width:32px;height:32px;border-radius:50%;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;flex-shrink:0}",
-    ".kv-menu{display:none;gap:2px}",
-    ".kv-menu button,.kv-drawer button,.kv-foot-top nav button{background:none;border:0;color:var(--fg);font:600 14px var(--fb);padding:8px 12px;border-radius:99px;cursor:pointer;opacity:.78}",
-    ".kv-menu button:hover{opacity:1;background:color-mix(in srgb,var(--fg) 8%,transparent)}",
-    ".kv-nav-act{display:flex;gap:8px;align-items:center}",
-    ".kv-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--acc);color:var(--btn-fg);border:1.5px solid var(--acc);border-radius:var(--r-btn);padding:13px 22px;font:700 15px var(--fb);cursor:pointer;text-decoration:none;transition:transform .15s}",
-    ".kv-btn:hover{transform:translateY(-1px)}",
-    ".kv-btn.ghost{background:transparent;color:var(--fg);border-color:var(--line2)}",
-    ".kv-btn.sm{padding:8px 16px;font-size:13.5px}",
-    ".kv-burger{width:40px;height:40px;border-radius:50%;border:1px solid var(--line2);background:none;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;padding:0}",
-    ".kv-burger i{display:block;width:16px;height:2px;background:var(--fg);border-radius:2px}",
-    ".kv-drawer{display:none;flex-direction:column;padding:6px 14px 14px;border-top:1px solid var(--line2)}",
-    ".kv.nav-open .kv-drawer{display:flex}",
-    ".kv-drawer button{text-align:left;padding:12px 8px;font-size:15px;border-radius:12px}",
-    ".kv.lay-site:not(.is-wide) .kv-nav-act .kv-btn{display:none}",
-    ".kv.lay-site .kv-hero2{padding:36px 0 30px;text-align:center}",
-    ".kv-hero-grid{display:grid;gap:28px}",
-    ".kv-av-mob{width:104px;height:104px;border-radius:50%;margin:0 auto 18px;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900}",
-    ".kv.t-bold .kv-av-mob{width:150px;height:150px}",
-    ".kv-kick{font-size:12.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);margin:0 0 10px}",
-    ".kv.lay-site .kv-name{font-size:36px}",
-    ".kv.lay-site.t-bold .kv-name{font-size:48px}",
-    ".kv-lead{font-size:16px;line-height:1.55;color:var(--mut2);margin:14px auto 0;max-width:540px;white-space:pre-wrap;overflow-wrap:anywhere}",
-    ".kv-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:24px}",
-    ".kv.lay-site:not(.is-wide) .kv-actions .kv-btn{flex:1 1 100%}",
-    ".kv-hero2 .kv-socials{margin-top:18px}",
-    ".kv-hero-media{display:none}",
-    ".kv-av-big{width:min(380px,100%);aspect-ratio:1;border-radius:36px;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:130px;font-weight:900;box-shadow:0 30px 60px -32px rgba(0,0,0,.4)}",
-    ".kv-hero-media.banner{width:100%;aspect-ratio:4/3;border-radius:30px;background:color-mix(in srgb,var(--fg) 10%,var(--bg)) center/cover;position:relative;box-shadow:0 30px 60px -32px rgba(0,0,0,.4)}",
-    ".kv-av3{position:absolute;left:-22px;bottom:-22px;width:116px;height:116px;border-radius:50%;background:var(--acc) center/cover;box-shadow:0 0 0 6px var(--bg);color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:42px;font-weight:900}",
-    ".kv-about-grid{display:grid;gap:24px;align-items:start}",
-    ".kv.lay-site .kv-about{font-size:16px;line-height:1.7;margin:0;color:var(--mut2);white-space:pre-wrap}",
-    ".kv-about-grid .kv-stats{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}",
     ".kv-svc-grid{display:grid;gap:12px}",
     ".kv-svc{display:flex;flex-direction:column;text-align:left;border:1px solid var(--line2);border-radius:18px;background:color-mix(in srgb,var(--bg) 94%,var(--fg));padding:0;overflow:hidden;font:inherit;color:inherit;width:100%}",
     ".kv.live .kv-svc{cursor:pointer;transition:transform .15s,border-color .15s}",
@@ -187,14 +170,29 @@
     ".kv-svc .sb{font-size:12.5px;color:var(--mut2);font-weight:600}",
     ".kv-svc .ds{font-size:14px;line-height:1.5;color:var(--mut2);margin:4px 0 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}",
     ".kv-svc .ct{margin-top:auto;padding-top:10px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}",
-    ".kv-contact-grid{display:grid;gap:26px;align-items:start}",
-    ".kv-contact-txt p{font-size:16px;color:var(--mut2);line-height:1.55;margin:0}",
-    ".kv-coords{list-style:none;padding:0;margin:20px 0;display:flex;flex-direction:column;gap:10px}",
+    ".kv.is-wide .kv-offers:not(.list){grid-template-columns:repeat(3,1fr)}",
+    ".kv.is-wide .kv-projs{grid-template-columns:repeat(3,1fr)}",
+    ".kv.lay-site.is-wide .kv-svc-grid{grid-template-columns:repeat(2,1fr);gap:16px}",
+    ".kv.lay-site.is-wide .kv-shop-grid{grid-template-columns:repeat(4,1fr);gap:16px}",
+    ".kv.lay-site.is-wide .kv-shop-grid .kv-offer .im{height:180px}",
+    ".kv.lay-site.is-wide .kv-projs{gap:16px}",
+    /* contact */
+    ".kv-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--acc);color:var(--btn-fg);border:1.5px solid var(--acc);border-radius:var(--r-btn);padding:13px 22px;font:700 15px var(--fb);cursor:pointer;text-decoration:none;transition:transform .15s}",
+    ".kv-btn:hover{transform:translateY(-1px)}",
+    ".kv-btn.ghost{background:transparent;color:var(--fg);border-color:var(--line2)}",
+    ".kv-btn.full{display:flex;width:100%}",
+    ".kv-c-txt{font-size:15px;color:var(--mut2);line-height:1.55;margin:-6px 0 18px}",
+    ".kv-cinfo{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 16px;margin-top:14px;font-size:13px;color:var(--mut2)}",
+    ".kv-cinfo a{text-decoration:none;border-bottom:1px solid var(--line2)}",
+    ".kv-contact-grid{display:grid;gap:22px;align-items:start}",
+    ".kv-contact-txt .kv-c-txt{margin:-6px 0 0}",
+    ".kv-coords{list-style:none;padding:0;margin:18px 0;display:flex;flex-direction:column;gap:10px}",
     ".kv-coords li{display:flex;gap:12px;font-size:14.5px;overflow-wrap:anywhere}",
     ".kv-coords span{width:92px;flex-shrink:0;color:var(--mut2);font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;padding-top:3px}",
     ".kv-coords a{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--line2)}",
-    ".kv-contact-txt .kv-socials{justify-content:flex-start}",
-    ".kv-form{background:#fff;color:#0a0a0a;border-radius:22px;padding:22px;box-shadow:0 22px 50px -30px rgba(0,0,0,.35);border:1px solid rgba(10,10,10,.08)}",
+    ".kv-contact-txt .kv-socials{justify-content:flex-start;margin-left:-8px}",
+    ".kv.lay-site.is-wide .kv-contact-grid{grid-template-columns:1fr 1.1fr;gap:48px}",
+    ".kv-form{background:#fff;color:#0a0a0a;border-radius:20px;padding:22px;box-shadow:0 22px 50px -30px rgba(0,0,0,.35);border:1px solid rgba(10,10,10,.08)}",
     ".kv-form label.lb{display:block;font-size:12px;font-weight:700;color:#6f6f6c;margin:12px 0 5px}",
     ".kv-form label.lb:first-child{margin-top:0}",
     ".kv-form input[type=text],.kv-form input[type=email],.kv-form input[type=tel],.kv-form textarea{width:100%;border:1px solid #e4e4e2;border-radius:11px;padding:12px 13px;font:15px var(--fb);color:#0a0a0a;background:#fff;outline:none}",
@@ -210,33 +208,22 @@
     ".kv-form .cta{display:block;width:100%;margin-top:16px;border:0;border-radius:999px;padding:15px;font:800 15px var(--fb);background:#0a0a0a;color:#fff;cursor:pointer}",
     ".kv-form .cta:disabled{opacity:.5;cursor:default}",
     ".kv-form .done{text-align:center;padding:30px 0}.kv-form .done b{display:block;font-size:20px;margin-bottom:6px}.kv-form .done p{color:#6f6f6c;margin:0}",
-    ".kv-foot2{border-top:1px solid var(--line2);padding:28px 0 36px;font-size:12.5px;color:var(--mut2)}",
-    ".kv-foot-top{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-bottom:10px}",
-    ".kv-foot-top b{color:var(--fg);font-family:var(--fh);font-size:15px}",
-    ".kv-foot-top nav{display:flex;flex-wrap:wrap}.kv-foot-top nav button{font-size:12.5px;padding:4px 8px}",
-    ".kv-foot-legal{line-height:1.7}",
-    ".kv-foot-links{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px}",
-    ".kv-foot-links button{background:none;border:0;padding:0;color:var(--mut2);text-decoration:underline;cursor:pointer;font:inherit}",
-    ".kv.lay-site .kv-brand{text-align:left;margin-top:14px}",
-    ".kv.lay-site .kv-offers{grid-template-columns:1fr 1fr}",
-    ".kv.is-wide .kv-menu{display:flex}.kv.is-wide .kv-burger,.kv.is-wide .kv-drawer{display:none!important}",
-    ".kv.is-wide .kv-s{padding:68px 0}",
-    ".kv.is-wide .kv-h{font-size:38px;margin-bottom:28px}",
-    ".kv.is-wide .kv-hero2{padding:80px 0;text-align:left}",
-    ".kv.is-wide .kv-hero-grid{grid-template-columns:1.1fr .9fr;align-items:center;gap:60px}",
-    ".kv.is-wide .kv-av-mob{display:none}",
-    ".kv.is-wide .kv-hero-media{display:flex;justify-content:center;align-items:center}",
-    ".kv.is-wide .kv-name{font-size:60px;line-height:1.02}",
-    ".kv.is-wide.t-bold .kv-name{font-size:84px;line-height:.92}",
-    ".kv.is-wide .kv-lead{margin-left:0;font-size:18px}",
-    ".kv.is-wide .kv-actions,.kv.is-wide .kv-hero2 .kv-socials{justify-content:flex-start}",
-    ".kv.is-wide .kv-about-grid{grid-template-columns:1.4fr 1fr;gap:48px}",
-    ".kv.is-wide .kv-svc-grid{grid-template-columns:repeat(2,1fr);gap:16px}",
-    ".kv.is-wide .kv-shop-grid{grid-template-columns:repeat(4,1fr);gap:16px}",
-    ".kv.is-wide .kv-shop-grid .kv-offer .im{height:180px}",
-    ".kv.is-wide .kv-projs{grid-template-columns:repeat(3,1fr);gap:16px}",
-    ".kv.is-wide .kv-contact-grid{grid-template-columns:1fr 1.1fr;gap:56px}",
     "@media(max-width:460px){.kv-form .row{grid-template-columns:1fr}}",
+    /* ── pied de page : CGV, mentions légales, confidentialité, signalement ── */
+    ".kv-foot3{max-width:var(--maxw);margin:0 auto;padding:40px 20px 44px;text-align:center;font-size:14px;color:color-mix(in srgb,var(--fg) 82%,transparent)}",
+    ".kv-foot-lk{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 8px;line-height:1.6}",
+    ".kv-foot-lk button,.kv-foot-lk a{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:none}",
+    ".kv-foot-lk button:hover,.kv-foot-lk a:hover{text-decoration:underline}",
+    ".kv-foot-lk span{opacity:.55}",
+    ".kv-brand{margin-top:14px;font-size:13px;color:var(--mut2);font-weight:600}",
+    ".kv-brand a{text-decoration:none}.kv-brand b{color:var(--fg)}",
+    ".kv-empty{text-align:center;color:var(--mut2);font-size:13.5px}",
+    /* templates */
+    ".kv.t-cadre .kv-card{border:2px solid var(--fg);box-shadow:none}",
+    ".kv.t-cadre .kv-av2{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--fg)}",
+    ".kv.t-bold .kv-name{text-transform:uppercase;font-size:44px;font-size:clamp(36px,11cqw,58px);color:var(--acc);letter-spacing:-.01em;line-height:.95}",
+    ".kv.t-bold.is-wide .kv-name{font-size:64px}.kv.t-bold.lay-site.is-wide .kv-name{font-size:84px}",
+    ".kv.t-bold .kv-head,.kv.t-bold .kv-bio{color:color-mix(in srgb,var(--fg) 78%,transparent)}",
     /* modales — toujours lisibles : fond blanc, texte noir, quel que soit le thème */
     ".kv-mbg{position:fixed;inset:0;z-index:2147483000;background:rgba(10,10,10,.55);display:flex;align-items:flex-end;justify-content:center;padding:0;font-family:var(--fb)}",
     "@media(min-width:620px){.kv-mbg{align-items:center;padding:20px}}",
@@ -311,7 +298,25 @@
     sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>',
     box: '<path d="m3 7 9-4 9 4v10l-9 4-9-4z"/><path d="m3 7 9 4 9-4M12 11v10"/>',
     file: '<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h6"/>',
-    brief: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>'
+    brief: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
+    share: '<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'
+  };
+  // Icônes des réseaux (trait) ; les autres réseaux gardent leur abréviation.
+  var SOCIAL_ICON = {
+    instagram: '<rect x="3" y="3" width="18" height="18" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/>',
+    tiktok: '<path d="M14.5 3v11.2a3.8 3.8 0 1 1-3.8-3.8"/><path d="M14.5 3c.4 2.9 2.3 4.7 5.2 5"/>',
+    youtube: '<rect x="2" y="5" width="20" height="14" rx="4.5"/><path d="m10 9 5 3-5 3z" fill="currentColor"/>',
+    linkedin: '<rect x="3" y="3" width="18" height="18" rx="3.5"/><path d="M8 10.5V17M8 7.3v.01M12 17v-6.5M12 13.5a2.5 2.5 0 0 1 5 0V17"/>',
+    facebook: '<path d="M14.5 3.5H13a3.5 3.5 0 0 0-3.5 3.5v3H7v3.5h2.5V21h3.5v-7.5h2.6l.4-3.5h-3V7.6c0-.6.4-1 1-1h1.5z"/>',
+    x: '<path d="M4 4h4.3L20 20h-4.3z"/><path d="M19.5 4l-6.6 7.3M4.5 20l6.6-7.3"/>',
+    spotify: '<circle cx="12" cy="12" r="9.5"/><path d="M7.2 9.6c3.4-1 6.8-.7 9.6.9M7.7 12.7c2.8-.8 5.5-.5 7.8.8M8.2 15.7c2.1-.6 4.1-.4 5.9.6"/>',
+    whatsapp: '<path d="M3.5 20.5l1.4-4.2a8.5 8.5 0 1 1 3.3 3z"/><path d="M9 8.8c.2 3 3 5.9 6 6.1l1.2-1.5-2-1.1-1 .7a4.6 4.6 0 0 1-2.4-2.4l.7-1-1.1-2z"/>',
+    github: '<path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/>',
+    twitch: '<path d="M20 3H4v14h4v4l4-4h4l4-4z"/><path d="M11 8v4M15.5 8v4"/>',
+    pinterest: '<circle cx="12" cy="12" r="9.5"/><path d="M10.5 20.5 12 13.5M12 13.5c3.6 1 6-1.4 6-4.3C18 6.2 15.4 4.7 12.5 4.7 9 4.7 7 7 7 9.5c0 1.2.5 2.3 1.3 2.7"/>',
+    website: '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.7 3 2.7 16 0 19M12 2.5c-2.7 3-2.7 16 0 19"/>'
   };
   function svg(name) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || ICONS.link) + '</svg>';
@@ -363,6 +368,19 @@
     return m ? "https://img.youtube.com/vi/" + m[1] + "/hqdefault.jpg" : "";
   }
 
+  function lightness(hex) {
+    var h = String(hex || "").replace("#", "");
+    if (h.length === 3) h = h.replace(/./g, "$&$&");
+    if (!/^[0-9a-f]{6}$/i.test(h)) return 1;
+    return (0.2126 * parseInt(h.substr(0, 2), 16) + 0.7152 * parseInt(h.substr(2, 2), 16) + 0.0722 * parseInt(h.substr(4, 2), 16)) / 255;
+  }
+  // Fond « formes » du template Bold (mêmes taches que .kv.bg-blobs::before).
+  function blobs(col) {
+    return [[38, 22, 15, 12], [30, 18, 92, 30], [42, 20, 8, 58], [36, 18, 85, 82]].map(function (b) {
+      return "radial-gradient(" + b[0] + "% " + b[1] + "% at " + b[2] + "% " + b[3] + "%," + col + " 0 60%,transparent 61%)";
+    }).join(",");
+  }
+
   function themeVars(theme) {
     theme = theme || {};
     var tpl = TEMPLATE_PRESET[theme.template] ? theme.template : "blanc";
@@ -373,11 +391,17 @@
     var fb = custom && theme.font_body ? theme.font_body : "inter";
     var bg = custom ? ((theme.background && theme.background.type) || preset.bg) : "solid";
     ensureFont("inter"); ensureFont(fh); ensureFont(fb);
+    // Encarts : un ton plus clair que le fond (gris très léger sur un fond blanc).
+    var L = lightness(c.background);
+    var card = L > 0.97 ? "color-mix(in srgb," + c.background + " 95%," + c.text + ")"
+      : L > 0.5 ? "color-mix(in srgb," + c.background + " 45%,#fff)"
+      : "color-mix(in srgb," + c.background + " 88%,#fff)";
     var radius = { pill: "999px", rounded: "14px", square: "4px" }[theme.button_shape || "pill"] || "999px";
     return {
       tpl: tpl, bg: bg, colors: c,
       style: "--bg:" + c.background + ";--fg:" + c.text + ";--acc:" + c.accent + ";--btn-fg:" + c.button_text +
         ";--mut2:color-mix(in srgb," + c.text + " 62%,transparent);--line2:color-mix(in srgb," + c.text + " 14%,transparent)" +
+        ";--card:" + card + ";--inner:color-mix(in srgb," + card + " 50%," + c.background + ");--card-line:color-mix(in srgb," + c.text + " 8%,transparent)" +
         ";--r-btn:" + radius + ";--fh:'" + FONT_FAMILY[fh] + "',sans-serif;--fb:'" + FONT_FAMILY[fb] + "',sans-serif;" +
         (bg === "image" && theme.background && theme.background.image_url ? "background-image:" + cssUrl(theme.background.image_url) + ";" : "")
     };
@@ -396,128 +420,16 @@
   // ============================================================
   // Rendu
   // ============================================================
-  function renderLinks(data, opts) {
-    opts = opts || {};
-    var p = data || {};
-    var th = themeVars(p.theme);
-    var offers = p.offers || [];
-    var services = offers.filter(function (o) { return o.kind === "service" || o.kind === "appointment"; });
-    var products = offers.filter(function (o) { return o.kind === "physical" || o.kind === "digital"; });
-    var contact = p.contact || {};
-
-    var parts = {
-      hero: function () {
-        var soc = (p.socials || []).filter(function (s) { return s.url; });
-        var meta = [p.headline, p.location].filter(Boolean).join(" · ");
-        return (p.banner_url ? '<div class="kv-banner" style="background-image:' + cssUrl(p.banner_url) + '"></div>' : '') +
-          '<div class="kv-hero"><div class="kv-av" role="img" aria-label="' + esc(p.display_name) + '" style="background-image:' + cssUrl(p.avatar_url) + '">' + (p.avatar_url ? "" : esc((p.display_name || "?").charAt(0).toUpperCase())) + '</div>' +
-          '<h1 class="kv-name">' + esc(p.display_name || "Ton nom") + '</h1>' +
-          (meta ? '<div class="kv-meta">' + esc(meta) + '</div>' : '') +
-          (p.bio ? '<p class="kv-bio">' + esc(p.bio) + '</p>' : '') +
-          (soc.length ? '<div class="kv-socials">' + soc.map(function (s) {
-            return '<a class="kv-soc" href="' + esc(safeUrl(s.url)) + '" target="_blank" rel="noopener nofollow" title="' + esc(s.network) + '" aria-label="' + esc(s.network) + '">' + esc(SOCIAL_ABBR[s.network] || "•") + '</a>';
-          }).join("") + '</div>' : '') + '</div>';
-      },
-      links: function () {
-        var blocks = (p.blocks || []).filter(function (b) { return b.visible !== false && b.type !== "offer"; });
-        if (!blocks.length) return "";
-        return '<div class="kv-sec"><div class="kv-links">' + blocks.map(function (b) {
-          if (b.type === "link") return '<a class="kv-link' + (b.icon ? "" : " no-ico") + '" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener nofollow">' + (b.icon ? svg(b.icon) : "") + '<span>' + esc(b.label || "Mon lien") + '</span></a>';
-          if (b.type === "video") { var t = b.thumbnail_url || ytThumb(b.url); return '<a class="kv-video" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener nofollow" style="' + (t ? "background-image:" + cssUrl(t) : "") + '"><span class="play"></span>' + (b.label ? '<span class="cap">' + esc(b.label) + '</span>' : '') + '</a>'; }
-          if (b.type === "text") return '<div class="kv-text">' + (b.title ? '<h5>' + esc(b.title) + '</h5>' : '') + '<p>' + esc(b.body || "") + '</p></div>';
-          if (b.type === "header") return '<h2 class="kv-header">' + esc(b.title || "") + '</h2>';
-          if (b.type === "section" || b.type === "gallery" || b.type === "image") return contentBlockHtml(b);
-          return "";
-        }).join("") + '</div></div>';
-      },
-      about: function () {
-        var stats = (p.stats || []).filter(function (s) { return s.label || s.value; });
-        var tags = (p.skills || []).concat(p.languages || []);
-        if (!stats.length && !p.about && !tags.length) return "";
-        return '<div class="kv-sec">' + (stats.length ? '<div class="kv-stats">' + stats.map(function (s) {
-          return '<div class="kv-stat"><b>' + esc(s.value) + '</b><small>' + esc(s.label) + '</small></div>';
-        }).join("") + '</div>' : '') + (p.about ? '<div class="kv-about">' + esc(p.about) + '</div>' : '') +
-          (tags.length ? '<div class="kv-tags">' + tags.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join("") + '</div>' : '') + '</div>';
-      },
-      offers: function () {
-        if (!services.length) return "";
-        return '<div class="kv-sec"><div class="kv-sec-t">Prestations</div><div class="kv-offers list">' + services.map(function (o) {
-          var sub = offerSub(o) || (o.description || "").slice(0, 90);
-          return '<button type="button" class="kv-row" data-kv-offer="' + o.id + '"><div style="flex:1;min-width:0"><div class="tt">' + esc(o.title) + '</div>' +
-            (sub ? '<div class="ds">' + esc(sub) + '</div>' : '') + '</div><div class="pr">' + esc(o.price_label || "") + '</div></button>';
-        }).join("") + '</div></div>';
-      },
-      products: function () {
-        if (!products.length) return "";
-        return '<div class="kv-sec"><div class="kv-sec-t">Boutique</div><div class="kv-offers">' + products.map(function (o) {
-          var img = o.images && o.images[0];
-          var out = o.details && o.details.in_stock === false;
-          return '<button type="button" class="kv-offer" data-kv-offer="' + o.id + '"><div class="im" style="background-image:' + cssUrl(img) + '">' + (img ? "" : svg(KIND_ICON[o.kind])) + '</div>' +
-            '<div class="bd">' + (o.badge ? '<span class="kv-tg">' + esc(o.badge) + '</span>' : '') + (out ? '<span class="kv-tg out">Épuisé</span>' : '') +
-            '<div class="tt">' + esc(o.title) + '</div><div class="pr">' + esc(o.price_label || "") + '</div>' +
-            (o.description ? '<div class="ds">' + esc(o.description) + '</div>' : '') +
-            '<div class="ct">' + esc(out ? CTA_LABEL.contact : o.buyable ? "Acheter" : (CTA_LABEL[o.cta] || "Voir")) + ' →</div></div></button>';
-        }).join("") + '</div></div>';
-      },
-      portfolio: function () {
-        var items = p.portfolio || [];
-        if (!items.length) return "";
-        return '<div class="kv-sec"><div class="kv-sec-t">Réalisations</div><div class="kv-projs">' + items.map(function (it) {
-          var cover = it.cover_url || (it.media && it.media[0] && it.media[0].type === "image" ? it.media[0].url : "");
-          return '<button type="button" class="kv-proj" data-kv-project="' + it.id + '"><div class="im" style="background-image:' + cssUrl(cover) + '"></div><div class="tt">' + esc(it.title) + '</div></button>';
-        }).join("") + '</div></div>';
-      },
-      contact: function () {
-        var info = [];
-        if (contact.website) info.push('<a href="' + esc(safeUrl(contact.website)) + '" target="_blank" rel="noopener">' + esc(String(contact.website).replace(/^https?:\/\//, "").replace(/\/$/, "")) + '</a>');
-        if (contact.phone) info.push('<a href="tel:' + esc(String(contact.phone).replace(/[^\d+]/g, "")) + '">' + esc(contact.phone) + '</a>');
-        return '<div class="kv-sec"><button type="button" class="kv-contact" data-kv-contact>Me contacter</button>' +
-          (info.length ? '<div class="kv-cinfo">' + info.join("") + '</div>' : '') + '</div>';
-      }
-    };
-
-    var order = p.sections && p.sections.length ? p.sections : Object.keys(parts).map(function (k) { return { key: k, visible: true }; });
-    var html = order.filter(function (s) { return s.visible !== false && parts[s.key]; }).map(function (s) { return parts[s.key](); }).join("");
-    if (opts.emptyHint && !offers.length && !(p.blocks || []).length && !p.bio) {
-      html += '<div class="kv-sec kv-empty">' + esc(opts.emptyHint) + '</div>';
-    }
-
-    // Pied de vitrine : identité du vendeur, CGV, signalement, Kitly
-    var legal = p.legal || {};
-    var seller = legal.seller;
-    var foot = "";
-    if (seller || legal.has_terms || opts.footer) {
-      var lines = [];
-      if (seller) {
-        lines.push(esc([seller.legal_name || seller.name, seller.legal_form].filter(Boolean).join(" — ")));
-        var ids = [seller.siren ? "SIREN " + seller.siren : "", seller.vat_number ? "TVA " + seller.vat_number : ""].filter(Boolean).join(" · ");
-        if (ids) lines.push(esc(ids));
-        if (seller.address) lines.push(esc(seller.address));
-        if (seller.email) lines.push('<a href="mailto:' + esc(seller.email) + '">' + esc(seller.email) + '</a>');
-        if (seller.mediator_name) lines.push("Médiateur de la consommation : " + (seller.mediator_url ? '<a href="' + esc(safeUrl(seller.mediator_url)) + '" target="_blank" rel="noopener">' + esc(seller.mediator_name) + '</a>' : esc(seller.mediator_name)));
-      }
-      var links = [];
-      if (legal.has_terms) links.push('<button type="button" data-kv-terms>Conditions générales de vente</button>');
-      if (opts.footer) links.push('<button type="button" data-kv-report>Signaler ce profil</button>');
-      foot = '<div class="kv-foot">' + lines.join("<br>") + (links.length ? '<div class="lk">' + links.join("") + '</div>' : '') + '</div>';
-    }
-    var brand = p.show_kitly_branding
-      ? '<div class="kv-brand">' + (opts.kitlyUrl ? '<a href="' + esc(opts.kitlyUrl) + '" target="_blank" rel="noopener">Propulsé par <b>kitly.</b></a>' : 'Propulsé par <b>kitly.</b>') + '</div>'
-      : "";
-
-    var cls = "kv t-" + th.tpl + " bg-" + th.bg + (opts.wide ? " wide" : "") + (opts.live ? " live" : "");
-    return '<div class="' + cls + '" style="' + th.style + '"><div class="kv-col">' + html + foot + brand + '</div></div>';
-  }
-
-
-  // ============================================================
-  // Rendu « site » : mini-site à sections (navigation, hero, à propos,
-  // prestations, boutique, réalisations, contact, pied de page). Sur un bloc
-  // étroit (téléphone), il se replie en colonne façon page de liens.
-  // ============================================================
+  // Structure commune aux deux mises en page (« Site complet » et « Page de liens ») :
+  //   1. en-tête personnel : photo et nom (au défilement), « Partager », « Contacter » ;
+  //   2. bannière fondue dans le fond de la page, photo de profil, nom, accroche, réseaux ;
+  //   3. chaque section dans un encart (carte), à distance des bords de la page ;
+  //   4. pied de page : CGV, mentions légales, confidentialité, signalement.
+  // « Site complet » ajoute le menu des sections sur grand écran, des grilles plus
+  // larges et le formulaire de contact intégré ; « Page de liens » reste une colonne.
   function render(data, opts) {
     var layout = (data && data.theme && data.theme.layout) || "site";
-    return layout === "links" ? renderLinks(data, opts) : renderSite(data, opts);
+    return renderPage(data || {}, opts || {}, layout === "links" ? "links" : "site");
   }
 
   function initials(name) { return esc((name || "?").charAt(0).toUpperCase()); }
@@ -527,7 +439,9 @@
   function socialsHtml(p) {
     var soc = (p.socials || []).filter(function (s) { return s.url; });
     return soc.length ? '<div class="kv-socials">' + soc.map(function (s) {
-      return '<a class="kv-soc" href="' + esc(safeUrl(s.url)) + '" target="_blank" rel="noopener nofollow" title="' + esc(s.network) + '" aria-label="' + esc(s.network) + '">' + esc(SOCIAL_ABBR[s.network] || "•") + '</a>';
+      var ico = SOCIAL_ICON[s.network];
+      return '<a class="kv-soc' + (ico ? "" : " txt") + '" href="' + esc(safeUrl(s.url)) + '" target="_blank" rel="noopener nofollow" title="' + esc(s.network) + '" aria-label="' + esc(s.network) + '">' +
+        (ico ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ico + '</svg>' : esc(SOCIAL_ABBR[s.network] || "•")) + '</a>';
     }).join("") + '</div>' : "";
   }
   var CONTENT_BLOCKS = { section: 1, gallery: 1, image: 1, text: 1, header: 1 };
@@ -556,15 +470,18 @@
     if (b.type === "header") return '<h2 class="kv-bigtitle">' + esc(b.title || "") + '</h2>';
     return "";
   }
-  function blocksHtml(p) {
-    var blocks = (p.blocks || []).filter(function (b) { return b.visible !== false && b.type !== "offer"; });
-    return blocks.map(function (b) {
-      if (b.type === "link") return '<a class="kv-link' + (b.icon ? "" : " no-ico") + '" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener nofollow">' + (b.icon ? svg(b.icon) : "") + '<span>' + esc(b.label || "Mon lien") + '</span></a>';
-      if (b.type === "video") { var t = b.thumbnail_url || ytThumb(b.url); return '<a class="kv-video" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener nofollow" style="' + (t ? "background-image:" + cssUrl(t) : "") + '"><span class="play"></span>' + (b.label ? '<span class="cap">' + esc(b.label) + '</span>' : '') + '</a>'; }
-      if (b.type === "text") return '<div class="kv-text">' + (b.title ? '<h5>' + esc(b.title) + '</h5>' : '') + '<p>' + esc(b.body || "") + '</p></div>';
-      if (b.type === "header") return '<h3 class="kv-header">' + esc(b.title || "") + '</h3>';
-      return "";
-    }).join("");
+  // Un bloc de contenu dans son encart (le titre seul reste hors carte).
+  function contentCard(b, id) {
+    var inner = contentBlockHtml(b);
+    if (!inner) return "";
+    var attr = id ? ' id="' + id + '"' : "";
+    if (b.type === "header") return '<div class="kv-titlebar"' + attr + '>' + inner + '</div>';
+    return '<section class="kv-card' + (b.type === "image" ? " flush" : "") + '"' + attr + '>' + inner + '</section>';
+  }
+  function linkHtml(b) {
+    if (b.type === "link") return '<a class="kv-link' + (b.icon ? "" : " no-ico") + '" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener nofollow">' + (b.icon ? svg(b.icon) : "") + '<span>' + esc(b.label || "Mon lien") + '</span></a>';
+    if (b.type === "video") { var t = b.thumbnail_url || ytThumb(b.url); return '<a class="kv-video" href="' + esc(safeUrl(b.url)) + '" target="_blank" rel="noopener nofollow" style="' + (t ? "background-image:" + cssUrl(t) : "") + '"><span class="play"></span>' + (b.label ? '<span class="cap">' + esc(b.label) + '</span>' : '') + '</a>'; }
+    return "";
   }
   function productCard(o) {
     var img = o.images && o.images[0];
@@ -584,6 +501,15 @@
       (sub ? '<div class="sb">' + esc(sub) + '</div>' : '') +
       (o.description ? '<p class="ds">' + esc(o.description) + '</p>' : '') +
       '<span class="ct">' + esc(o.buyable ? "Acheter" : (CTA_LABEL[o.cta] || "En savoir plus")) + ' →</span></div></button>';
+  }
+  function serviceRow(o) {
+    var sub = offerSub(o) || (o.description || "").slice(0, 90);
+    return '<button type="button" class="kv-row" data-kv-offer="' + o.id + '"><div style="flex:1;min-width:0"><div class="tt">' + esc(o.title) + '</div>' +
+      (sub ? '<div class="ds">' + esc(sub) + '</div>' : '') + '</div><div class="pr">' + esc(o.price_label || "") + '</div></button>';
+  }
+  function projectCard(it) {
+    var cover = it.cover_url || (it.media && it.media[0] && it.media[0].type === "image" ? it.media[0].url : "");
+    return '<button type="button" class="kv-proj" data-kv-project="' + it.id + '"><div class="im" style="background-image:' + cssUrl(cover) + '"></div><div class="tt">' + esc(it.title) + '</div></button>';
   }
   function legalLines(p) {
     var seller = (p.legal || {}).seller, lines = [];
@@ -609,10 +535,10 @@
       '<div class="err"></div><button type="submit" class="cta"' + dis + '>Envoyer</button>';
   }
 
-  function renderSite(data, opts) {
-    opts = opts || {};
-    var p = data || {};
+  function renderPage(p, opts, layout) {
     var th = themeVars(p.theme);
+    var site = layout === "site";
+    var name = p.display_name || "Ton nom";
     var offers = p.offers || [];
     var services = offers.filter(function (o) { return o.kind === "service" || o.kind === "appointment"; });
     var products = offers.filter(function (o) { return o.kind === "physical" || o.kind === "digital"; });
@@ -620,116 +546,134 @@
     var contact = p.contact || {};
     var stats = (p.stats || []).filter(function (s) { return s.label || s.value; });
     var tags = (p.skills || []).concat(p.languages || []);
-    var links = blocksHtml({ blocks: (p.blocks || []).filter(function (b) { return !CONTENT_BLOCKS[b.type]; }) });
-    var content = (p.blocks || []).filter(function (b) { return b.visible !== false && CONTENT_BLOCKS[b.type]; });
-    var order = (p.sections && p.sections.length ? p.sections : ["hero", "about", "content", "offers", "products", "portfolio", "links", "contact"].map(function (k) { return { key: k, visible: true }; }))
+    var blocks = (p.blocks || []).filter(function (b) { return b.visible !== false && b.type !== "offer"; });
+    // « Site complet » : liens et vidéos d'un côté, sections de contenu de l'autre.
+    // « Page de liens » : tous les blocs dans l'ordre choisi, dans la section Liens.
+    var linkBlocks = site ? blocks.filter(function (b) { return !CONTENT_BLOCKS[b.type]; }) : blocks;
+    var content = site ? blocks.filter(function (b) { return CONTENT_BLOCKS[b.type]; }) : [];
+    var defaults = site ? ["about", "content", "offers", "products", "portfolio", "links", "contact"]
+                        : ["links", "about", "offers", "products", "portfolio", "contact"];
+    var order = (p.sections && p.sections.length ? p.sections : defaults.map(function (k) { return { key: k, visible: true }; }))
       .filter(function (x) { return x.visible !== false; }).map(function (x) { return x.key; });
+    if (site && order.indexOf("content") < 0 && content.length) order.splice(Math.max(0, order.indexOf("about") + 1), 0, "content");
 
-    if (order.indexOf("content") < 0 && content.length) order.splice(Math.max(0, order.indexOf("about") + 1), 0, "content");
+    var linksHtml = linkBlocks.map(function (b) {
+      if (b.type === "link" || b.type === "video") return linkHtml(b);
+      if (b.type === "header") return '<h2 class="kv-header">' + esc(b.title || "") + '</h2>';
+      return contentCard(b);
+    }).join("");
     var has = {
-      content: content.length > 0, links: !!links, about: !!(p.about || stats.length || tags.length), offers: services.length > 0,
-      products: products.length > 0, portfolio: portfolio.length > 0, contact: true
+      content: content.length > 0, links: !!linksHtml, about: !!(p.about || stats.length || tags.length),
+      offers: services.length > 0, products: products.length > 0, portfolio: portfolio.length > 0, contact: true
     };
-    var NAV = { links: ["kv-links", "Liens"], about: ["kv-about", "À propos"], offers: ["kv-offers", "Prestations"],
-                products: ["kv-shop", "Boutique"], portfolio: ["kv-work", "Réalisations"], contact: ["kv-contact", "Contact"] };
-    var contentNav = content.filter(function (b) { return b.type === "section" && b.title; }).slice(0, 3);
-    var navItems = order.filter(function (k) { return (NAV[k] && has[k] && k !== "links") || (k === "content" && has.content); })
+
+    // Menu des sections (« Site complet », grand écran)
+    var NAV = { about: ["kv-about", "À propos"], offers: ["kv-offers", "Prestations"], products: ["kv-shop", "Boutique"],
+                portfolio: ["kv-work", "Réalisations"], contact: ["kv-contact", "Contact"] };
+    var contentNav = content.filter(function (b) { return b.type === "section" && b.title; }).slice(0, 2);
+    var navItems = !site ? "" : order.filter(function (k) { return (NAV[k] && has[k] && k !== "contact") || (k === "content" && has.content); })
       .map(function (k) {
-        if (k === "content") return contentNav.map(function (b) { return '<button type="button" data-kv-nav="kv-b-' + esc(b.id) + '">' + esc(b.title.length > 22 ? b.title.slice(0, 21) + "…" : b.title) + '</button>'; }).join("");
+        if (k === "content") return contentNav.map(function (b) { return '<button type="button" data-kv-nav="kv-b-' + esc(b.id) + '">' + esc(b.title.length > 20 ? b.title.slice(0, 19) + "…" : b.title) + '</button>'; }).join("");
         return '<button type="button" data-kv-nav="' + NAV[k][0] + '">' + NAV[k][1] + '</button>';
       }).join("");
     var firstOffers = has.offers ? "kv-offers" : has.products ? "kv-shop" : "";
-    var meta = [p.headline, p.location].filter(Boolean).join(" · ");
 
     var parts = {
       content: function () {
-        return content.map(function (b, i) {
-          var inner = contentBlockHtml(b);
-          return inner ? '<section class="kv-s kv-s-content" id="' + (b.id ? "kv-b-" + esc(b.id) : "kv-content-" + i) + '"><div class="kv-wrap">' + inner + '</div></section>' : "";
-        }).join("");
+        return content.map(function (b, i) { return contentCard(b, b.id ? "kv-b-" + esc(b.id) : "kv-content-" + i); }).join("");
       },
       links: function () {
-        return '<section class="kv-s kv-s-links" id="kv-links"><div class="kv-wrap narrow"><div class="kv-links">' + links + '</div></div></section>';
+        return '<div class="kv-links-wrap" id="kv-links"><div class="kv-links">' + linksHtml + '</div></div>';
       },
       about: function () {
-        return '<section class="kv-s" id="kv-about"><div class="kv-wrap"><h2 class="kv-h">À propos</h2><div class="kv-about-grid"><div>' +
-          (p.about ? '<p class="kv-about">' + esc(p.about) + '</p>' : (p.bio ? '<p class="kv-about">' + esc(p.bio) + '</p>' : '')) +
-          (tags.length ? '<div class="kv-tags">' + tags.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join("") + '</div>' : '') +
-          '</div>' + (stats.length ? '<div class="kv-stats">' + stats.map(function (x) {
-            return '<div class="kv-stat"><b>' + esc(x.value) + '</b><small>' + esc(x.label) + '</small></div>';
-          }).join("") + '</div>' : '') + '</div></div></section>';
+        var txt = p.about ? '<p class="kv-about">' + esc(p.about) + '</p>' : "";
+        var tg = tags.length ? '<div class="kv-tags">' + tags.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join("") + '</div>' : "";
+        var st = stats.length ? '<div class="kv-stats">' + stats.map(function (x) {
+          return '<div class="kv-stat"><b>' + esc(x.value) + '</b><small>' + esc(x.label) + '</small></div>';
+        }).join("") + '</div>' : "";
+        return '<section class="kv-card" id="kv-about"><h2 class="kv-card-t">À propos</h2>' +
+          (site ? '<div class="kv-about-grid"><div>' + txt + tg + '</div>' + st + '</div>' : st + (st && txt ? '<div style="height:16px"></div>' : '') + txt + tg) + '</section>';
       },
       offers: function () {
-        return '<section class="kv-s" id="kv-offers"><div class="kv-wrap"><h2 class="kv-h">Prestations</h2><div class="kv-svc-grid">' +
-          services.map(serviceCard).join("") + '</div></div></section>';
+        return '<section class="kv-card" id="kv-offers"><h2 class="kv-card-t">Prestations</h2>' +
+          (site ? '<div class="kv-svc-grid">' + services.map(serviceCard).join("") + '</div>'
+                : '<div class="kv-offers list">' + services.map(serviceRow).join("") + '</div>') + '</section>';
       },
       products: function () {
-        return '<section class="kv-s" id="kv-shop"><div class="kv-wrap"><h2 class="kv-h">Boutique</h2><div class="kv-offers kv-shop-grid">' +
-          products.map(productCard).join("") + '</div></div></section>';
+        return '<section class="kv-card" id="kv-shop"><h2 class="kv-card-t">Boutique</h2><div class="kv-offers kv-shop-grid">' +
+          products.map(productCard).join("") + '</div></section>';
       },
       portfolio: function () {
-        return '<section class="kv-s" id="kv-work"><div class="kv-wrap"><h2 class="kv-h">Réalisations</h2><div class="kv-projs">' + portfolio.map(function (it) {
-          var cover = it.cover_url || (it.media && it.media[0] && it.media[0].type === "image" ? it.media[0].url : "");
-          return '<button type="button" class="kv-proj" data-kv-project="' + it.id + '"><div class="im" style="background-image:' + cssUrl(cover) + '"></div><div class="tt">' + esc(it.title) + '</div></button>';
-        }).join("") + '</div></div></section>';
+        return '<section class="kv-card" id="kv-work"><h2 class="kv-card-t">Réalisations</h2><div class="kv-projs">' +
+          portfolio.map(projectCard).join("") + '</div></section>';
       },
       contact: function () {
-        var info = [];
-        if (contact.email) info.push('<li><span>Email</span><a href="mailto:' + esc(contact.email) + '">' + esc(contact.email) + '</a></li>');
-        if (contact.phone) info.push('<li><span>Téléphone</span><a href="tel:' + esc(String(contact.phone).replace(/[^\d+]/g, "")) + '">' + esc(contact.phone) + '</a></li>');
-        if (contact.website) info.push('<li><span>Site</span><a href="' + esc(safeUrl(contact.website)) + '" target="_blank" rel="noopener">' + esc(String(contact.website).replace(/^https?:\/\//, "").replace(/\/$/, "")) + '</a></li>');
-        if (p.location) info.push('<li><span>Lieu</span>' + esc(p.location) + '</li>');
-        return '<section class="kv-s kv-s-contact" id="kv-contact"><div class="kv-wrap kv-contact-grid"><div class="kv-contact-txt">' +
-          '<h2 class="kv-h">Travaillons <span class="kv-it">ensemble</span></h2>' +
-          '<p>Un projet, une question ? Écris-moi : je te réponds directement par email.</p>' +
-          (info.length ? '<ul class="kv-coords">' + info.join("") + '</ul>' : '') + socialsHtml(p) + '</div>' +
+        var phone = contact.phone ? String(contact.phone).replace(/[^\d+]/g, "") : "";
+        var site_ = contact.website ? String(contact.website).replace(/^https?:\/\//, "").replace(/\/$/, "") : "";
+        if (!site) {
+          var info = [];
+          if (contact.website) info.push('<a href="' + esc(safeUrl(contact.website)) + '" target="_blank" rel="noopener">' + esc(site_) + '</a>');
+          if (contact.phone) info.push('<a href="tel:' + esc(phone) + '">' + esc(contact.phone) + '</a>');
+          return '<section class="kv-card" id="kv-contact"><h2 class="kv-card-t">Me contacter</h2>' +
+            '<p class="kv-c-txt">Un projet, une question ? Écris-moi : je te réponds directement par email.</p>' +
+            '<button type="button" class="kv-btn full" data-kv-contact>Envoyer un message</button>' +
+            (info.length ? '<div class="kv-cinfo">' + info.join("") + '</div>' : '') + '</section>';
+        }
+        var coords = [];
+        if (contact.email) coords.push('<li><span>Email</span><a href="mailto:' + esc(contact.email) + '">' + esc(contact.email) + '</a></li>');
+        if (contact.phone) coords.push('<li><span>Téléphone</span><a href="tel:' + esc(phone) + '">' + esc(contact.phone) + '</a></li>');
+        if (contact.website) coords.push('<li><span>Site</span><a href="' + esc(safeUrl(contact.website)) + '" target="_blank" rel="noopener">' + esc(site_) + '</a></li>');
+        if (p.location) coords.push('<li><span>Lieu</span>' + esc(p.location) + '</li>');
+        return '<section class="kv-card" id="kv-contact"><div class="kv-contact-grid"><div class="kv-contact-txt">' +
+          '<h2 class="kv-card-t">Travaillons ensemble</h2>' +
+          '<p class="kv-c-txt">Un projet, une question ? Écris-moi : je te réponds directement par email.</p>' +
+          (coords.length ? '<ul class="kv-coords">' + coords.join("") + '</ul>' : '') + socialsHtml(p) + '</div>' +
           '<form class="kv-form" data-kv-inline-form novalidate>' + contactFields("contact", "", p.display_name, opts.privacyUrl, !opts.live) + '</form></div></section>';
       }
     };
 
     var body = order.filter(function (k) { return parts[k] && has[k]; }).map(function (k) { return parts[k](); }).join("");
-    if (opts.emptyHint && !offers.length && !links && !p.bio) {
-      body += '<section class="kv-s"><div class="kv-wrap kv-empty">' + esc(opts.emptyHint) + '</div></section>';
+    if (opts.emptyHint && !offers.length && !blocks.length && !p.bio) {
+      body += '<section class="kv-card kv-empty">' + esc(opts.emptyHint) + '</section>';
     }
 
+    // En-tête personnel
+    var top = '<header class="kv-top"><div class="kv-top-in">' +
+      '<button type="button" class="kv-top-id" data-kv-nav="kv-top" tabindex="-1">' + avatarHtml(p, "kv-av-xs") + '<span>' + esc(name) + '</span></button>' +
+      (navItems ? '<nav class="kv-menu">' + navItems + '</nav>' : '') +
+      '<div class="kv-top-act"><button type="button" class="kv-top-btn ico" data-kv-share aria-label="Partager" title="Partager">' + svg("share") + '</button>' +
+      '<button type="button" class="kv-top-btn pri" data-kv-contact-scroll>Contacter</button></div></div></header>';
+
+    // Bannière, photo, nom
+    var hero = '<section class="kv-hero3" id="kv-top">' +
+      (p.banner_url ? '<div class="kv-cover" style="background-image:' + cssUrl(p.banner_url) + '"></div>' : '') +
+      '<div class="kv-hero-in">' + avatarHtml(p, "kv-av2") +
+        '<h1 class="kv-name">' + esc(name) + '</h1>' +
+        (p.headline ? '<p class="kv-head">' + esc(p.headline) + '</p>' : '') +
+        (p.location ? '<p class="kv-loc">' + svg("pin") + esc(p.location) + '</p>' : '') +
+        (p.bio ? '<p class="kv-bio">' + esc(p.bio) + '</p>' : '') +
+        socialsHtml(p) +
+        (site ? '<div class="kv-actions"><button type="button" class="kv-btn" data-kv-contact-scroll>Me contacter</button>' +
+          (firstOffers ? '<button type="button" class="kv-btn ghost" data-kv-nav="' + firstOffers + '">Voir mes offres</button>' : '') + '</div>' : '') +
+      '</div></section>';
+
+    // Pied de page
     var legal = p.legal || {};
-    var lines = legalLines(p);
     var flinks = [];
-    if (legal.has_terms) flinks.push('<button type="button" data-kv-terms>Conditions générales de vente</button>');
-    if (opts.footer) flinks.push('<button type="button" data-kv-report>Signaler ce profil</button>');
+    if (legal.has_terms) flinks.push('<button type="button" data-kv-terms>CGV</button>');
+    if (legalLines(p).length) flinks.push('<button type="button" data-kv-legal>Mentions légales</button>');
+    if (opts.privacyUrl) flinks.push('<a href="' + esc(opts.privacyUrl) + '" target="_blank" rel="noopener">Confidentialité</a>');
+    if (opts.footer) flinks.push('<button type="button" data-kv-report>Signaler</button>');
     var brand = p.show_kitly_branding
       ? '<div class="kv-brand">' + (opts.kitlyUrl ? '<a href="' + esc(opts.kitlyUrl) + '" target="_blank" rel="noopener">Propulsé par <b>kitly.</b></a>' : 'Propulsé par <b>kitly.</b>') + '</div>'
       : "";
+    var foot = (flinks.length || brand)
+      ? '<footer class="kv-foot3">' + (flinks.length ? '<div class="kv-foot-lk">' + flinks.join('<span aria-hidden="true">·</span>') + '</div>' : '') + brand + '</footer>'
+      : '<div style="height:40px"></div>';
 
-    var mediaSide = p.banner_url
-      ? '<div class="kv-hero-media banner" style="background-image:' + cssUrl(p.banner_url) + '">' + avatarHtml(p, "kv-av3") + '</div>'
-      : '<div class="kv-hero-media">' + avatarHtml(p, "kv-av-big") + '</div>';
-
-    var html =
-      '<header class="kv-nav"><div class="kv-wrap kv-nav-in">' +
-        '<button type="button" class="kv-brandmark" data-kv-nav="kv-top">' + avatarHtml(p, "kv-av-xs") + '<span>' + esc(p.display_name || "Ton nom") + '</span></button>' +
-        '<nav class="kv-menu">' + navItems + '</nav>' +
-        '<div class="kv-nav-act"><button type="button" class="kv-btn sm" data-kv-contact-scroll>Me contacter</button>' +
-        (navItems ? '<button type="button" class="kv-burger" data-kv-burger aria-label="Menu"><i></i><i></i></button>' : '') + '</div>' +
-      '</div><nav class="kv-drawer">' + navItems + '</nav></header>' +
-      '<section class="kv-s kv-hero2" id="kv-top"><div class="kv-wrap kv-hero-grid">' +
-        '<div class="kv-hero-txt">' + avatarHtml(p, "kv-av-mob") +
-          (meta ? '<p class="kv-kick">' + esc(meta) + '</p>' : '') +
-          '<h1 class="kv-name">' + esc(p.display_name || "Ton nom") + '</h1>' +
-          (p.bio ? '<p class="kv-lead">' + esc(p.bio) + '</p>' : '') +
-          '<div class="kv-actions"><button type="button" class="kv-btn" data-kv-contact-scroll>Me contacter</button>' +
-          (firstOffers ? '<button type="button" class="kv-btn ghost" data-kv-nav="' + firstOffers + '">Voir mes offres</button>' : '') + '</div>' +
-          socialsHtml(p) +
-        '</div>' + mediaSide +
-      '</div></section>' + body +
-      '<footer class="kv-foot2"><div class="kv-wrap"><div class="kv-foot-top"><b>' + esc(p.display_name || "") + '</b>' +
-        (navItems ? '<nav>' + navItems + '</nav>' : '') + '</div>' +
-        (lines.length ? '<div class="kv-foot-legal">' + lines.join(" · ") + '</div>' : '') +
-        (flinks.length ? '<div class="kv-foot-links">' + flinks.join("") + '</div>' : '') + brand +
-      '</div></footer>';
-
-    var cls = "kv lay-site t-" + th.tpl + " bg-" + th.bg + (opts.live ? " live" : "") + (opts.wideNow ? " is-wide" : "");
-    return '<div class="' + cls + '" style="' + th.style + '">' + html + '</div>';
+    var cls = "kv lay-" + layout + " t-" + th.tpl + " bg-" + th.bg + (p.banner_url ? " has-cover" : "") +
+      (opts.live ? " live" : "") + (opts.page ? " page" : "") + (opts.wideNow ? " is-wide" : "");
+    return '<div class="' + cls + '" style="' + th.style + '">' + top + hero + '<main class="kv-main">' + body + '</main>' + foot + '</div>';
   }
 
   // Adapte le rendu à la largeur réelle de son bloc (et non de l'écran) : le
@@ -751,29 +695,110 @@
     var apiBase = (opts.apiBase || "").replace(/\/$/, "");
     var slug = data.slug;
     var source = opts.source === "marketplace" ? "marketplace" : "direct";
-    el.innerHTML = render(data, { wide: opts.wide !== false, live: true, footer: true, kitlyUrl: opts.kitlyUrl, privacyUrl: opts.privacyUrl });
+    var page = opts.page !== false;
+    // Adresse de la vitrine dans le hash (/profile#lea-martin) : les fiches offres
+    // deviennent #lea-martin/offre-12, et le retour de paiement garde #lea-martin.
+    var hashBase = opts.hashBase || "";
+    el.innerHTML = render(data, { live: true, footer: true, page: page, kitlyUrl: opts.kitlyUrl, privacyUrl: opts.privacyUrl });
     var root = el.querySelector(".kv");
     fit(root);
     var HOST = window, frameEl = null;
     try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+    var th = themeVars(data.theme);
+    if (page) paintPage();
+
+    // Le fond choisi (couleur, dégradé, formes, image) couvre toute la page qui
+    // affiche la vitrine — la page Framer entière quand elle est dans un embed.
+    function paintPage() {
+      try {
+        var doc = HOST.document, html = doc.documentElement, c = th.colors, img = "", size = "100% 100%";
+        var bgImg = data.theme && data.theme.background && data.theme.background.image_url;
+        if (th.bg === "gradient") img = "linear-gradient(180deg," + c.background + ",color-mix(in srgb," + c.background + " 70%," + c.accent + "))";
+        else if (th.bg === "blobs") img = blobs("color-mix(in srgb," + c.background + " 72%,#000)");
+        else if (th.bg === "image" && bgImg) { img = cssUrl(bgImg); size = "cover"; }
+        html.style.backgroundColor = c.background;
+        html.style.backgroundImage = img || "none";
+        html.style.backgroundSize = size;
+        html.style.backgroundPosition = "center";
+        html.style.backgroundRepeat = "no-repeat";
+        html.style.backgroundAttachment = "fixed";
+        doc.body.style.background = "transparent";
+        // Les conteneurs Framer autour de l'embed laissent voir ce fond.
+        if (frameEl) for (var n = frameEl.parentElement; n && n !== doc.body && n !== html; n = n.parentElement) n.style.background = "transparent";
+        var meta = doc.querySelector('meta[name="theme-color"]');
+        if (!meta) { meta = doc.createElement("meta"); meta.name = "theme-color"; doc.head.appendChild(meta); }
+        meta.content = c.background;
+      } catch (e) {}
+    }
+
+    // En-tête personnel : reste en haut de l'écran pendant le défilement. Dans un
+    // embed (iframe à la hauteur du contenu), c'est la page parente qui défile :
+    // on le décale de la partie de la vitrine déjà passée au-dessus de l'écran.
+    var bar = root.querySelector(".kv-top"), raf = 0;
+    function syncBar() {
+      raf = 0;
+      if (!bar || !root.isConnected) return;
+      var y, rootTop = root.getBoundingClientRect().top;
+      try {
+        if (frameEl) {
+          y = -(frameEl.getBoundingClientRect().top + rootTop);
+          bar.style.transform = "translateY(" + Math.max(0, Math.min(y, root.offsetHeight - bar.offsetHeight)) + "px)";
+        } else y = -rootTop;
+      } catch (e) { return; }
+      var name = root.querySelector(".kv-hero3 .kv-name");
+      var at = name ? name.getBoundingClientRect().top - rootTop - 64 : 80;
+      bar.classList.toggle("stuck", y > at);
+    }
+    function onScroll() { if (!raf) raf = requestAnimationFrame(syncBar); }
+    try { HOST.addEventListener("scroll", onScroll, { passive: true }); HOST.addEventListener("resize", onScroll); } catch (e) {}
+    syncBar();
+    function destroy() {
+      try { HOST.removeEventListener("scroll", onScroll); HOST.removeEventListener("resize", onScroll); } catch (e) {}
+    }
 
     // Défilement vers une section, y compris depuis un embed (c'est la page Framer qui défile).
     function scrollToId(id) {
       var target = root.querySelector("#" + id);
       if (!target) return;
-      var offset = root.classList.contains("lay-site") ? 70 : 10;
+      var offset = id === "kv-top" ? 0 : 76;   // sous l'en-tête personnel
       try {
         if (frameEl) {
           var fr = frameEl.getBoundingClientRect(), r = target.getBoundingClientRect();
-          HOST.scrollTo({ top: HOST.scrollY + fr.top + r.top - (id === "kv-top" ? 0 : 10), behavior: "smooth" });
+          HOST.scrollTo({ top: HOST.scrollY + fr.top + r.top - offset, behavior: "smooth" });
           return;
         }
       } catch (e) {}
-      window.scrollTo({ top: window.scrollY + target.getBoundingClientRect().top - (id === "kv-top" ? 0 : offset), behavior: "smooth" });
+      window.scrollTo({ top: window.scrollY + target.getBoundingClientRect().top - offset, behavior: "smooth" });
     }
-    // Lien direct vers une fiche offre : …#offre-12 (partageable).
+    // Lien direct vers une fiche offre : …#offre-12, ou #lea-martin/offre-12 (partageable).
     function setHash(h) {
-      try { HOST.history.replaceState(HOST.history.state, "", HOST.location.pathname + HOST.location.search + (h ? "#" + h : "")); } catch (e) {}
+      var full = hashBase ? hashBase + (h ? "/" + h : "") : h;
+      try { HOST.history.replaceState(HOST.history.state, "", HOST.location.pathname + HOST.location.search + (full ? "#" + full : "")); } catch (e) {}
+    }
+    // Lien à partager : la page actuelle, sans paramètres ni fiche offre ouverte.
+    function shareUrl() {
+      try { var l = HOST.location; return l.origin + l.pathname + (hashBase ? "#" + hashBase : ""); } catch (e) { return data.url || ""; }
+    }
+    function copyText(text) {
+      try { if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text); } catch (e) {}
+      return new Promise(function (resolve, reject) {
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) {}
+        ta.remove();
+        if (ok) resolve(); else reject(new Error("copy"));
+      });
+    }
+    function share(btn) {
+      var url = shareUrl();
+      if (navigator.share) { navigator.share({ title: data.display_name + " | Kitly", url: url }).catch(function () {}); return; }
+      copyText(url).then(function () {
+        var html = btn.innerHTML;
+        btn.innerHTML = svg("check"); btn.title = "Lien copié";
+        setTimeout(function () { btn.innerHTML = html; btn.title = "Partager"; }, 1600);
+      }, function () { window.prompt("Copie le lien de la vitrine :", url); });
     }
     var offersById = {};
     (data.offers || []).forEach(function (o) { offersById[o.id] = o; });
@@ -869,7 +894,9 @@
     function money(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",").replace(",00", "") + " €"; }
 
     function pageUrl() {
-      try { return HOST.location.href.split("#")[0]; } catch (e) { return window.location.href.split("#")[0]; }
+      var base;
+      try { base = HOST.location.href.split("#")[0]; } catch (e) { base = window.location.href.split("#")[0]; }
+      return base + (hashBase ? "#" + hashBase : "");
     }
     function goTo(url) {
       try { if (HOST !== window) { HOST.location.href = url; return; } } catch (e) {}
@@ -1053,6 +1080,12 @@
       w.document.close(); w.focus(); w.print();
     }
 
+    function openLegal() {
+      modal('<h3>Mentions légales</h3><p class="sub">Vendeur des offres présentées sur cette vitrine</p>' +
+        '<div class="desc">' + legalLines(data).join("<br>") + '</div>' +
+        '<div class="disc">Vitrine publiée et hébergée par Kitly. Kitly n\'est pas le vendeur des offres présentées.</div>');
+    }
+
     function openReport() {
       var m = modal('<h3>Signaler ce profil</h3><p class="sub">L\'équipe Kitly examinera ton signalement.</p><form novalidate>' +
         '<label class="lb">Motif</label><select name="reason">' + Object.keys(REPORT_REASONS).map(function (k) { return '<option value="' + k + '">' + REPORT_REASONS[k] + '</option>'; }).join("") + '</select>' +
@@ -1095,7 +1128,9 @@
       }
       var zoom = e.target.closest("[data-kv-img]");
       if (zoom) { e.preventDefault(); modal('<img src="' + esc(zoom.getAttribute("data-kv-img")) + '" alt="" style="display:block;width:100%;border-radius:14px;margin-top:26px">'); return; }
-      var t = e.target.closest("[data-kv-offer],[data-kv-project],[data-kv-contact],[data-kv-terms],[data-kv-report]");
+      var sh = e.target.closest("[data-kv-share]");
+      if (sh) { e.preventDefault(); share(sh); return; }
+      var t = e.target.closest("[data-kv-offer],[data-kv-project],[data-kv-contact],[data-kv-terms],[data-kv-report],[data-kv-legal]");
       if (!t) return;
       e.preventDefault();
       if (t.hasAttribute("data-kv-offer")) { var o = offersById[t.getAttribute("data-kv-offer")]; if (o) openOffer(o); }
@@ -1103,11 +1138,12 @@
       else if (t.hasAttribute("data-kv-contact")) openContact(null);
       else if (t.hasAttribute("data-kv-terms")) openTerms();
       else if (t.hasAttribute("data-kv-report")) openReport();
+      else if (t.hasAttribute("data-kv-legal")) openLegal();
     });
 
     setTimeout(orderReturn, 200);
     try {
-      var m0 = (HOST.location.hash || "").match(/^#offre-(\d+)$/);
+      var m0 = (HOST.location.hash || "").match(/^#(?:[a-z0-9-]+\/)?offre-(\d+)$/i);
       if (m0 && offersById[m0[1]]) setTimeout(function () { openOffer(offersById[m0[1]]); }, 300);
     } catch (e) {}
 
@@ -1115,11 +1151,11 @@
       // Une visite par visiteur et par jour, comptée côté serveur.
       call("POST", "/view", { source: source }).catch(function () {});
     }
-    return { openContact: openContact, openOffer: function (id) { if (offersById[id]) openOffer(offersById[id]); } };
+    return { openContact: openContact, openOffer: function (id) { if (offersById[id]) openOffer(offersById[id]); }, destroy: destroy };
   }
 
   global.KitlyVitrine = {
-    version: 2,
+    version: 3,
     render: function (data, opts) { injectCss(); return render(data, opts); },
     fit: fit,
     mount: mount,

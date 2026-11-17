@@ -34,7 +34,7 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_FRONTEND_URL` | non | Site Framer Kitly (défaut `https://kitly.framer.website` ; passer à `https://kitly.fr` une fois le domaine relié). Liens des emails et des pages servies par l'API. Les retours Stripe suivent automatiquement le domaine du visiteur (s'il figure dans `KITLY_CORS_ORIGINS`), sauf si `KITLY_BILLING_*` / `KITLY_CONNECT_*` sont fixées |
 | `KITLY_CORS_ORIGINS` | non | Origines autorisées sur `/kitly/*`, séparées par des virgules (défaut : kitly.fr, www.kitly.fr, kitly.framer.website) |
 | `KITLY_PUBLIC_HOST` | non | Domaine des vitrines (défaut `kitly.fr`) |
-| `KITLY_PROFILE_URL_TEMPLATE` | non | Adresse publique d'une vitrine, `{slug}` remplacé (défaut `<KITLY_FRONTEND_URL>/profile?u={slug}`) |
+| `KITLY_PROFILE_URL_TEMPLATE` | non | Adresse publique d'une vitrine, `{slug}` remplacé (défaut `<KITLY_FRONTEND_URL>/profile#{slug}` ; balises canonical / og:url omises tant que l'adresse contient un `#`) |
 | `KITLY_PRIVACY_URL` | non | Politique de confidentialité citée par le formulaire de contact des vitrines |
 | `KITLY_ADMIN_EMAILS` | non | Seules adresses autorisées à ouvrir la console `/admin` (séparées par des virgules), par email + mot de passe. Retirer une adresse coupe l'accès aussitôt |
 | `KITLY_ADMIN_SESSION_MINUTES` | non | Durée d'une session de la console admin (défaut 480 = 8 h) |

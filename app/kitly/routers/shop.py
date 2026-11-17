@@ -18,6 +18,7 @@ navigateur.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import timedelta
 
 import stripe
@@ -141,6 +142,9 @@ def mark_buyable(payload: dict, profile: KitlyProfile, offers: list[KitlyOffer])
 # Paiement
 # ============================================================
 
+_FRAGMENT_SLUG = re.compile(r"[a-z0-9-]{3,40}")
+
+
 def _safe_return(request: Request, url: str, fallback: str) -> str:
     """Page de retour : celle d'où vient l'acheteur, si elle est sur un domaine Kitly connu."""
     try:
@@ -149,7 +153,9 @@ def _safe_return(request: Request, url: str, fallback: str) -> str:
         api_origin = str(request.base_url).rstrip("/").lower()
         if parts.scheme in ("http", "https") and (origin in KITLY_CORS_ORIGINS or origin == api_origin):
             query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k not in ("commande", "ref")]
-            return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
+            # Le hash garde l'adresse de la vitrine (/profile#lea-martin), rien d'autre.
+            fragment = parts.fragment if _FRAGMENT_SLUG.fullmatch(parts.fragment or "") else ""
+            return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), fragment))
     except Exception:
         pass
     return fallback
