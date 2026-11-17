@@ -37,8 +37,9 @@
     ".kv>*{position:relative}",   // le contenu passe au-dessus des décors de fond (::before)
     ".kv.bg-gradient{background:linear-gradient(180deg,var(--bg),color-mix(in srgb,var(--bg) 70%,var(--acc)))}",
     ".kv.bg-image{background:var(--bg) center/cover}",
-    /* page publique : le fond est peint sur toute la page qui affiche la vitrine (voir mount) */
-    ".kv.page{background:transparent!important}.kv.page::before{display:none}",
+    /* page publique : la vitrine garde son propre fond (toujours lisible, même si la page
+       Framer a un calque de fond au-dessus du sien) et le fond est aussi peint sur toute
+       la page qui l'affiche (voir mount) : aucune bande d'une autre couleur autour. */
     ".kv.lay-site.is-wide{--maxw:1080px}",
     ".kv.is-wide{--cover-h:420px}",
     /* ── en-tête personnel : photo, nom, partager, contacter ── */
