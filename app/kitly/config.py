@@ -40,9 +40,9 @@ KITLY_FRONTEND_URL = os.getenv("KITLY_FRONTEND_URL", "https://kitly.framer.websi
 # Domaine affiché dans les URLs de vitrine (kitly.fr/<slug>).
 KITLY_PUBLIC_HOST = os.getenv("KITLY_PUBLIC_HOST", "kitly.fr")
 # Adresse publique d'une vitrine ({slug} remplacé) : lien partagé, balise canonical,
-# aperçus de partage. Page Framer /profile?u=<slug> par défaut ; passer à
+# aperçus de partage. Page Framer /profile#<slug> par défaut ; passer à
 # https://kitly.fr/{slug} une fois le proxy en place (voir embeds/kitly/README.md).
-KITLY_PROFILE_URL_TEMPLATE = os.getenv("KITLY_PROFILE_URL_TEMPLATE", f"{KITLY_FRONTEND_URL}/profile?u={{slug}}")
+KITLY_PROFILE_URL_TEMPLATE = os.getenv("KITLY_PROFILE_URL_TEMPLATE", f"{KITLY_FRONTEND_URL}/profile#{{slug}}")
 # Origines autorisées à appeler /kitly/* depuis un navigateur (CORS propre à
 # Kitly, distinct de CORS_ORIGINS de NAVIRE). Liste séparée par des virgules.
 def _origins(value: str) -> list[str]:

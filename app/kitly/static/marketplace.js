@@ -65,7 +65,10 @@
     }
     function profileUrl(slug) {
       var u = opts.profileUrl.replace("{slug}", encodeURIComponent(slug));
-      return u + (u.indexOf("?") >= 0 ? "&" : "?") + "src=marketplace";
+      // ?src=marketplace avant le hash : /profile?src=marketplace#lea-martin
+      var i = u.indexOf("#"), hash = i >= 0 ? u.slice(i) : "";
+      if (i >= 0) u = u.slice(0, i);
+      return u + (u.indexOf("?") >= 0 ? "&" : "?") + "src=marketplace" + hash;
     }
     function catLabel(key) {
       for (var i = 0; i < S.categories.length; i++) if (S.categories[i].key === key) return S.categories[i].label;

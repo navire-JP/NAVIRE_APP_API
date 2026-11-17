@@ -8,7 +8,7 @@ Embeds du second site Framer, branchés sur les routes `/kitly/*` de l'API
 |---|---|---|---|
 | `home.html` | Home (`/`) | Embed HTML, largeur Fill, hauteur auto | Accueil simple : « Crée ta vitrine » en haut, adapté à la personne (visiteur : « Créer ma vitrine gratuitement » + 3 étapes ; connecté : progression et « Continuer ma vitrine » ; vitrine en ligne : lien, visites, demandes, Gérer / Voir / Copier), puis la marketplace complète en dessous |
 | `connexion.html` | `/connexion` | Embed HTML, largeur Fill, hauteur auto (l'embed agrandit son iframe) | Embed 4 : connexion, inscription (CGU et confidentialité en cases séparées), code de vérification email (collage du code accepté, « plus tard » possible), mot de passe oublié, écran « déjà connecté ». `?mode=inscription` ouvre l'inscription (boutons « Créer ma vitrine » de la landing). `?mode=activation&email=…` : activation d'un compte créé par l'équipe (code par email, mot de passe, CGU) |
-| `profil.html` | `/profile?u=<adresse>` (et/ou page 404 de Framer pour `kitly.fr/<adresse>`) | Embed HTML, largeur Fill, hauteur auto | Embed 2 : vitrine publique. Lit l'adresse dans `?u=` ou dans le chemin (`kitly.fr/lea-martin`). Fiches offres,| `profil.html` | `/profile?u=<adresse>` (et/ou page 404 de Framer pour `kitly.fr/<adresse>`) | Embed HTML, largeur Fill, hauteur auto | Embed 2 : vitrine publique. Lit l'adresse dans `?u=` ou dans le chemin (`kitly.fr/lea-martin`). Fiches offres, achat en ligne (récapitulatif, CGV, paiement Stripe, confirmation au retour), contact / devis / rendez-vous, réalisations, CGV du vendeur, signalement, comptage des visites. Modales placées sur la partie visible de la page. Adresse inconnue : « Cette vitrine n'existe pas » |
+| `profil.html` | `/profile#<adresse>` (et/ou page 404 de Framer pour `kitly.fr/<adresse>`) — **page Framer sans header ni footer** | Embed HTML, largeur Fill, hauteur auto, collé en haut de la page sans marge | Embed 2 : vitrine publique. Lit l'adresse dans le hash (`/profile#lea-martin`, fiche offre : `#lea-martin/offre-12`) ; les anciens liens `?u=` sont réécrits en `#`, et le chemin (`kitly.fr/lea-martin`) reste accepté. Mise en page façon page de liens : en-tête propre à la personne (sa photo et son nom au défilement, « Partager », « Contacter »), bannière fondue dans le fond, photo de profil, chaque section dans un encart, pied de page CGV · Mentions légales · Confidentialité · Signaler. **Le fond choisi est peint sur toute la page Framer** (couleur, dégradé, formes ou image, et couleur de la barre du navigateur). Fiches offres, achat en ligne (récapitulatif, CGV, paiement Stripe, confirmation au retour), contact / devis / rendez-vous, réalisations, signalement, comptage des visites. Modales placées sur la partie visible de la page. Adresse inconnue : « Cette vitrine n'existe pas » |
 | `marketplace.html` | `/marketplace` (et section « marketplace » de la landing en mode `showcase`) | Embed HTML, largeur Fill, hauteur auto | Embed 3 : recherche (sans accents), catégories, lieu, type d'offre, budget, tri ; « Les nouveaux sur Kitly », « Les profils populaires », encart « Sponsorisé » séparé du classement, « Voir plus », « Comment sont classés les résultats ? ». Filtres recopiés dans l'URL de la page (lien partageable). Les cartes ouvrent la vitrine avec `?src=marketplace`. Mode `showcase` : 8 profils + bouton vers la marketplace |
 | `subscribe.html` | `/subscribe` | Embed HTML, largeur Fill, hauteur auto | Abonnement (Stripe du compte Kitly) : formules lues dans l'API, « Commencer » → inscription puis retour ici formule présélectionnée, paiement Stripe, changement de formule sur place (prorata), résiliation en fin de période / reprise, carte et factures (portail Stripe), alerte d'échec de paiement, « Activer les paiements » (Stripe Connect). Après paiement, « activation en cours » jusqu'à la confirmation de Stripe |
 | `builder.html` | `/builder` | Embed HTML, largeur Fill, **hauteur 100vh** (ou Fill dans une section pleine hauteur, sous le header) | « Ma vitrine » : 4 étapes (Identité, Contenu, Boutique, Style), aperçu en direct Mobile / Ordinateur, étape « Contenu » (sections texte + image, galeries, images, titres, liens, vidéos), mise en page « Site complet » ou « Page de liens », sauvegarde automatique, ajout d'offres par type, bloc « Vente en ligne » (activer les paiements, rédiger et publier ses CGV à partir d'un modèle pré-rempli), onglet « Mes ventes » (commandes à traiter, adresse de livraison, marquer comme expédiée / prête / traitée avec numéro de suivi et email au client, montants sur 30 jours, accès à l'espace Stripe), publication avec confirmation d'email sur place. Mobile : onglets Modifier / Aperçu. Bandeau « Mode support » quand l'équipe ouvre le builder d'un compte |
@@ -52,7 +52,14 @@ il appelle l'API NAVIRE. La page `/home` reçoit `embeds/kitly/home.html`.
   Sur mobile : une colonne façon page de liens, avec menu burger.
 - `links` : la page de liens d'origine, une colonne partout.
 Le passage d'une disposition à l'autre suit la largeur réelle de l'embed (≥ 860 px), pas celle
-de l'écran. Lien direct vers une offre : `#offre-<id>`.
+de l'écran. Lien direct vers une offre : `#<adresse>/offre-<id>` (ou `#offre-<id>` sur `kitly.fr/<adresse>`).
+
+**Structure commune aux deux mises en page** : en-tête propre à la personne (photo et nom
+quand on a défilé, « Partager », « Contacter »), qui reste en haut de l'écran même dans un embed ;
+bannière fondue dans le fond ; photo de profil ; chaque section dans un encart (carte d'un ton plus
+clair que le fond) pour que rien ne touche les bords de l'embed ; pied de page CGV · Mentions
+légales (identité du vendeur) · Confidentialité · Signaler · « Propulsé par kitly. ». Sur la page
+publique (`profil.html`, `/kitly/p/<adresse>`), le fond est peint sur toute la page.
 ## Servir `kitly.fr/<adresse>` : trois options
 
 Framer ne sait pas créer une page pour chaque adresse de freelance. Au choix :
@@ -67,11 +74,13 @@ Framer ne sait pas créer une page pour chaque adresse de freelance. Au choix :
 2. **Sans infrastructure — page 404 de Framer** : y placer `profil.html`, qui lit
    l'adresse dans le chemin. Fonctionne pour les visiteurs, mais Framer répond
    « 404 » (mauvais pour Google) et les liens partagés n'ont pas d'aperçu.
-3. **Page Framer `/profile`** avec `profil.html` et des liens `kitly.fr/profile?u=<adresse>`
-   (réglage par défaut des embeds et de `KITLY_PROFILE_URL_TEMPLATE`) : simple, mais URL moins
-   belle, mêmes limites que l'option 2.
+3. **Page Framer `/profile`** avec `profil.html` et des liens `kitly.fr/profile#<adresse>`
+   (réglage par défaut des embeds et de `KITLY_PROFILE_URL_TEMPLATE`) : simple, une seule page
+   Framer. Le hash n'est jamais envoyé au serveur : Google et les aperçus de partage ne voient
+   que la page `/profile` (pas de photo ni de nom dans l'aperçu d'un lien collé).
 
-Les embeds sont réglés par défaut sur l'option 3 (`/profile?u=`). L'option 1 est à
+Les embeds sont réglés par défaut sur l'option 3 (`/profile#`). Les anciens liens
+`/profile?u=<adresse>` continuent de fonctionner (réécrits en `#<adresse>` à l'ouverture). L'option 1 est à
 mettre en place avant le lancement (changer alors `PROFILE_URL` / `PUBLIC_BASE` et
 `KITLY_PROFILE_URL_TEMPLATE`).
 
@@ -81,7 +90,7 @@ conseillé dans Framer : composant Embed en largeur **Fill** (pas 100vw ni large
 
 ## Réglages (bloc CONFIG en haut de chaque script)
 
-Les liens vers les pages du site sont **relatifs** (`/builder`, `/profile?u=…`) et
+Les liens vers les pages du site sont **relatifs** (`/builder`, `/profile#…`) et
 complétés automatiquement avec l'adresse du site qui affiche l'embed : les mêmes
 fichiers fonctionnent sur `https://kitly.framer.website` et sur `https://kitly.fr`,
 sans modification. Une URL complète (`https://…`) reste possible pour forcer un lien.
@@ -93,7 +102,8 @@ sans modification. Une URL complète (`https://…`) reste possible pour forcer 
   `RESERVED` (chemins du site qui ne sont jamais des vitrines)
 - `home.html` : `REGISTER_URL`, `LOGIN_URL`, `BUILDER_URL`, `PRICING_URL`, `PUBLIC_BASE`, `PROFILE_URL`
 - `marketplace.html` : `MODE` (`full` / `showcase`), `PROFILE_URL` (lien d'une vitrine, `{slug}` remplacé :
-  `https://kitly.fr/{slug}` avec l'option 1 ou 2 ci-dessus, `https://kitly.fr/vitrine?u={slug}` avec l'option 3),
+  `https://kitly.fr/{slug}` avec l'option 1 ou 2 ci-dessus, `/profile#{slug}` avec l'option 3 ; `?src=marketplace` est
+  inséré avant le hash),
   `MARKETPLACE_URL`, `REGISTER_URL`, `PAGE_SIZE`, `SHOWCASE_COUNT`
 - `builder.html` : `LOGIN_URL`, `PRICING_URL`, `LEGAL_URL` (future page CGV vendeur),
   `PUBLIC_BASE` (vitrine publique = `PUBLIC_BASE` + slug), `ADMIN_URL` (retour du mode support)

@@ -740,7 +740,8 @@ def test_vitrine_page_meta_and_escaping(client):
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
     page = r.text
     assert '<meta property="og:title" content="Léa &quot;Studio&quot; &lt;/script&gt;' in page
-    assert f'<link rel="canonical" href="https://kitly.framer.website/profile?u={slug}">' in page
+    # Adresse publique par défaut /profile#<adresse> : ni canonical ni og:url (le hash n'est pas une page à part).
+    assert 'rel="canonical"' not in page and 'property="og:url"' not in page
     assert '<script src="/kitly/static/vitrine.js"></script>' in page
     # Le nom piégé n'ouvre jamais de balise : ni dans les <meta>, ni dans le JSON embarqué.
     assert page.count("<script>alert(1)") == 0
@@ -1217,6 +1218,14 @@ def test_shop_checkout_paid_by_webhook(client, monkeypatch, _isolation):
     assert "application_fee_amount" not in fake.calls[-1]["payment_intent_data"]
     assert "shipping_address_collection" not in fake.calls[-1]
     assert not fake.calls[-1]["success_url"].startswith("https://evil.example")
+    # Vitrine ouverte en /profile#<adresse> : le retour de paiement garde l'adresse dans le hash,
+    # mais jamais autre chose (fiche offre, contenu arbitraire).
+    client.post(url, json={**body, "delivery": "pickup", "return_url": f"https://kitly.framer.website/profile?src=marketplace#{slug}"})
+    ok_url = fake.calls[-1]["success_url"]
+    assert ok_url.startswith("https://kitly.framer.website/profile?src=marketplace&commande=ok&ref=") and ok_url.endswith(f"#{slug}")
+    assert fake.calls[-1]["cancel_url"] == f"https://kitly.framer.website/profile?src=marketplace&commande=annulee#{slug}"
+    client.post(url, json={**body, "delivery": "pickup", "return_url": f"https://kitly.framer.website/profile#{slug}/<script>"})
+    assert fake.calls[-1]["cancel_url"] == "https://kitly.framer.website/profile?commande=annulee"
 
     # Le paiement n'est confirmé que par le webhook Stripe.
     ref = r.json()["ref"]
