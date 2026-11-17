@@ -216,7 +216,8 @@
     ".kv-foot-lk button:hover,.kv-foot-lk a:hover{text-decoration:underline}",
     ".kv-foot-lk span{opacity:.55}",
     ".kv-brand{margin-top:14px;font-size:13px;color:var(--mut2);font-weight:600}",
-    ".kv-brand a{text-decoration:none}.kv-brand b{color:var(--fg)}",
+    ".kv-brand a,.kv-brand span{display:inline-flex;align-items:center;gap:6px;text-decoration:none}.kv-brand b{color:var(--fg)}",
+    ".kv-logo{width:28px;height:28px;object-fit:contain;flex-shrink:0;border-radius:8px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}",   // icône lisible sur tous les fonds
     ".kv-empty{text-align:center;color:var(--mut2);font-size:13.5px}",
     /* templates */
     ".kv.t-cadre .kv-card{border:2px solid var(--fg);box-shadow:none}",
@@ -303,6 +304,12 @@
     check: '<path d="M20 6 9 17l-5-5"/>',
     pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'
   };
+  // Logo Kitly : fichier servi par l'API (app/kitly/static/logo.png), à côté de ce script.
+  var LOGO_SRC = (function () {
+    try { var src = document.currentScript && document.currentScript.src; if (src) return new URL("logo.png", src).href; } catch (e) {}
+    return "/kitly/static/logo.png";
+  })();
+  var LOGO = '<img class="kv-logo" src="' + LOGO_SRC + '" alt="" onerror="this.remove()">';
   // Icônes des réseaux (trait) ; les autres réseaux gardent leur abréviation.
   var SOCIAL_ICON = {
     instagram: '<rect x="3" y="3" width="18" height="18" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/>',
@@ -664,8 +671,9 @@
     if (legalLines(p).length) flinks.push('<button type="button" data-kv-legal>Mentions légales</button>');
     if (opts.privacyUrl) flinks.push('<a href="' + esc(opts.privacyUrl) + '" target="_blank" rel="noopener">Confidentialité</a>');
     if (opts.footer) flinks.push('<button type="button" data-kv-report>Signaler</button>');
+    var mark = 'Propulsé par ' + LOGO + '<b>kitly.</b>';
     var brand = p.show_kitly_branding
-      ? '<div class="kv-brand">' + (opts.kitlyUrl ? '<a href="' + esc(opts.kitlyUrl) + '" target="_blank" rel="noopener">Propulsé par <b>kitly.</b></a>' : 'Propulsé par <b>kitly.</b>') + '</div>'
+      ? '<div class="kv-brand">' + (opts.kitlyUrl ? '<a href="' + esc(opts.kitlyUrl) + '" target="_blank" rel="noopener">' + mark + '</a>' : '<span>' + mark + '</span>') + '</div>'
       : "";
     var foot = (flinks.length || brand)
       ? '<footer class="kv-foot3">' + (flinks.length ? '<div class="kv-foot-lk">' + flinks.join('<span aria-hidden="true">·</span>') + '</div>' : '') + brand + '</footer>'
@@ -706,6 +714,25 @@
     try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
     var th = themeVars(data.theme);
     if (page) paintPage();
+    // Cadre Framer plus large que la zone qui l'affiche (fréquent sur téléphone) :
+    // on le ramène, lui et ses conteneurs trop larges, à la largeur disponible.
+    function fitToHost() {
+      try {
+        var f = frameEl, win = f.ownerDocument.defaultView;
+        for (var i = 0; i < 6 && f && f.parentElement && f !== f.ownerDocument.body; i++) {
+          var parent = f.parentElement, cs = win.getComputedStyle(parent);
+          var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+          if (room > 200 && f.getBoundingClientRect().width > room + 1) {
+            f.style.width = "100%"; f.style.maxWidth = "100%"; f.style.minWidth = "0"; f.style.flexShrink = "1";
+          }
+          f = parent;
+        }
+      } catch (e) {}
+    }
+    if (frameEl && page) {
+      fitToHost(); setTimeout(fitToHost, 600); setTimeout(fitToHost, 2000);
+      try { HOST.addEventListener("resize", function () { setTimeout(fitToHost, 50); }); } catch (e) {}
+    }
 
     // Le fond choisi (couleur, dégradé, formes, image) couvre toute la page qui
     // affiche la vitrine — la page Framer entière quand elle est dans un embed.

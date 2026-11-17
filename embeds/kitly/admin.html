@@ -270,7 +270,8 @@
     });
   }
 
-  function profileLink(p) { return p.url || CONFIG.PROFILE_URL.replace("{slug}", encodeURIComponent(p.slug)); }
+  // Lien sur le site qui affiche la console (/profile#<adresse>), quel que soit le réglage de l'API.
+  function profileLink(p) { return p.slug ? CONFIG.PROFILE_URL.replace("{slug}", encodeURIComponent(p.slug)) : (p.url || "#"); }
   var DURATIONS = [["30", "1 mois"], ["7", "7 jours"], ["90", "3 mois"], ["180", "6 mois"], ["365", "1 an"], ["", "Sans date de fin"], ["date", "Jusqu'au…"]];
   function durationFields() {
     return '<select name="dur">' + DURATIONS.map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join("") + '</select>' +
