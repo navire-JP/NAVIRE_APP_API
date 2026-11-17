@@ -17,6 +17,9 @@
  *               page,       // false : ne pas peindre le fond de la page qui affiche la vitrine
  *               frameViewport, lockScroll }   // embed : modales sur la partie visible
  *     → { openContact, openOffer, destroy }
+ *   Publie aussi la vitrine ouverte pour le header du site : window.__kitlyProfile et
+ *   l'événement « kitly:profile » sur la page qui affiche l'embed (detail = { slug,
+ *   display_name, name_lines: [prénom, nom], avatar_url, headline }, ou null).
  *
  * `data` a la forme de GET /kitly/public/profiles/{slug}.
  * Tout texte vient des freelances : il est systématiquement échappé.
@@ -42,27 +45,11 @@
        la page qui l'affiche (voir mount) : aucune bande d'une autre couleur autour. */
     ".kv.lay-site.is-wide{--maxw:1080px}",
     ".kv.is-wide{--cover-h:420px}",
-    /* ── en-tête personnel : photo, nom, partager, contacter ── */
-    ".kv>.kv-top{position:sticky;top:0;z-index:30;height:64px;margin-bottom:-64px;transition:background-color .2s,box-shadow .2s}",
-    ".kv-top-in{max-width:var(--maxw);height:100%;margin:0 auto;padding:0 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}",
-    ".kv-top.stuck{background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 1px 0 var(--line2)}",
-    ".kv-top-id{display:flex;align-items:center;gap:10px;min-width:0;background:none;border:0;padding:0;color:var(--fg);font:800 15.5px var(--fh);cursor:pointer;opacity:0;transform:translateY(4px);transition:opacity .2s,transform .2s;pointer-events:none}",
-    ".kv-top.stuck .kv-top-id{opacity:1;transform:none;pointer-events:auto}",
-    ".kv-top-id span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-    ".kv-av-xs{width:36px;height:36px;border-radius:50%;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;flex-shrink:0}",
-    ".kv-top-act{display:flex;gap:8px;align-items:center;flex-shrink:0}",
-    ".kv-top-btn{height:40px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 16px;border-radius:999px;border:1px solid var(--line2);background:color-mix(in srgb,var(--bg) 80%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:var(--fg);font:700 14px var(--fb);cursor:pointer;white-space:nowrap}",
-    ".kv-top-btn.ico{width:40px;padding:0}.kv-top-btn svg{width:18px;height:18px}",
-    ".kv-top-btn.pri{background:var(--acc);color:var(--btn-fg);border-color:transparent}",
-    ".kv-menu{display:none;gap:2px;padding:4px;border-radius:999px;border:1px solid var(--line2);background:color-mix(in srgb,var(--bg) 80%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);min-width:0;overflow:hidden}",
-    ".kv-menu button{background:none;border:0;color:var(--fg);font:600 13.5px var(--fb);padding:7px 12px;border-radius:99px;cursor:pointer;opacity:.8;white-space:nowrap}",
-    ".kv-menu button:hover{opacity:1;background:color-mix(in srgb,var(--fg) 8%,transparent)}",
-    ".kv.is-wide .kv-menu{display:flex}",
-    ".kv.is-wide .kv-top-in{padding:0 20px}",
-    /* ── en-tête de page : bannière fondue dans le fond, photo, nom ── */
-    ".kv-hero3{text-align:center;padding:84px 20px 4px}",
+    /* ── haut de la vitrine : bannière fondue dans le fond, photo, nom ──
+       (pas d'en-tête propre : c'est le header du site Framer qui reste affiché) */
+    ".kv-hero3{text-align:center;padding:32px 20px 4px}",
     ".kv-cover{position:absolute;top:0;left:0;right:0;height:var(--cover-h);background:color-mix(in srgb,var(--fg) 8%,var(--bg)) center/cover no-repeat;-webkit-mask-image:linear-gradient(180deg,#000 45%,transparent 100%);mask-image:linear-gradient(180deg,#000 45%,transparent 100%)}",
-    ".kv.has-cover .kv-hero3{padding-top:calc(var(--cover-h) - 72px)}",
+    ".kv.has-cover .kv-hero3{padding-top:calc(var(--cover-h) - 60px)}",
     ".kv-hero-in{position:relative;max-width:640px;margin:0 auto}",
     ".kv-av2{width:88px;height:88px;border-radius:50%;margin:0 auto 16px;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:900;box-shadow:0 0 0 4px var(--bg),0 10px 28px -12px rgba(0,0,0,.45)}",
     ".kv-name{font-family:var(--fh);font-size:36px;font-size:clamp(30px,9cqw,46px);font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:0;overflow-wrap:anywhere}",
@@ -301,8 +288,6 @@
     box: '<path d="m3 7 9-4 9 4v10l-9 4-9-4z"/><path d="m3 7 9 4 9-4M12 11v10"/>',
     file: '<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h6"/>',
     brief: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
-    share: '<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
-    check: '<path d="M20 6 9 17l-5-5"/>',
     pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'
   };
   // Logo Kitly : fichier servi par l'API (app/kitly/static/logo.png), à côté de ce script.
@@ -429,12 +414,13 @@
   // Rendu
   // ============================================================
   // Structure commune aux deux mises en page (« Site complet » et « Page de liens ») :
-  //   1. en-tête personnel : photo et nom (au défilement), « Partager », « Contacter » ;
-  //   2. bannière fondue dans le fond de la page, photo de profil, nom, accroche, réseaux ;
-  //   3. chaque section dans un encart (carte), à distance des bords de la page ;
-  //   4. pied de page : CGV, mentions légales, confidentialité, signalement.
-  // « Site complet » ajoute le menu des sections sur grand écran, des grilles plus
-  // larges et le formulaire de contact intégré ; « Page de liens » reste une colonne.
+  //   1. bannière fondue dans le fond de la page, photo de profil, nom, accroche, réseaux ;
+  //   2. chaque section dans un encart (carte), à distance des bords de la page ;
+  //   3. pied de page : CGV, mentions légales, confidentialité, signalement.
+  // Pas d'en-tête propre : le header du site Framer reste affiché et montre la photo et
+  // le nom de la vitrine (publiés par mount, voir « kitly:profile »).
+  // « Site complet » ajoute des grilles plus larges et le formulaire de contact intégré ;
+  // « Page de liens » reste une colonne.
   function render(data, opts) {
     var layout = (data && data.theme && data.theme.layout) || "site";
     return renderPage(data || {}, opts || {}, layout === "links" ? "links" : "site");
@@ -575,15 +561,6 @@
       offers: services.length > 0, products: products.length > 0, portfolio: portfolio.length > 0, contact: true
     };
 
-    // Menu des sections (« Site complet », grand écran)
-    var NAV = { about: ["kv-about", "À propos"], offers: ["kv-offers", "Prestations"], products: ["kv-shop", "Boutique"],
-                portfolio: ["kv-work", "Réalisations"], contact: ["kv-contact", "Contact"] };
-    var contentNav = content.filter(function (b) { return b.type === "section" && b.title; }).slice(0, 2);
-    var navItems = !site ? "" : order.filter(function (k) { return (NAV[k] && has[k] && k !== "contact") || (k === "content" && has.content); })
-      .map(function (k) {
-        if (k === "content") return contentNav.map(function (b) { return '<button type="button" data-kv-nav="kv-b-' + esc(b.id) + '">' + esc(b.title.length > 20 ? b.title.slice(0, 19) + "…" : b.title) + '</button>'; }).join("");
-        return '<button type="button" data-kv-nav="' + NAV[k][0] + '">' + NAV[k][1] + '</button>';
-      }).join("");
     var firstOffers = has.offers ? "kv-offers" : has.products ? "kv-shop" : "";
 
     var parts = {
@@ -645,13 +622,6 @@
       body += '<section class="kv-card kv-empty">' + esc(opts.emptyHint) + '</section>';
     }
 
-    // En-tête personnel
-    var top = '<header class="kv-top"><div class="kv-top-in">' +
-      '<button type="button" class="kv-top-id" data-kv-nav="kv-top" tabindex="-1">' + avatarHtml(p, "kv-av-xs") + '<span>' + esc(name) + '</span></button>' +
-      (navItems ? '<nav class="kv-menu">' + navItems + '</nav>' : '') +
-      '<div class="kv-top-act"><button type="button" class="kv-top-btn ico" data-kv-share aria-label="Partager" title="Partager">' + svg("share") + '</button>' +
-      '<button type="button" class="kv-top-btn pri" data-kv-contact-scroll>Contacter</button></div></div></header>';
-
     // Bannière, photo, nom
     var hero = '<section class="kv-hero3" id="kv-top">' +
       (p.banner_url ? '<div class="kv-cover" style="background-image:' + cssUrl(p.banner_url) + '"></div>' : '') +
@@ -682,7 +652,7 @@
 
     var cls = "kv lay-" + layout + " t-" + th.tpl + " bg-" + th.bg + (p.banner_url ? " has-cover" : "") +
       (opts.live ? " live" : "") + (opts.page ? " page" : "") + (opts.wideNow ? " is-wide" : "");
-    return '<div class="' + cls + '" style="' + th.style + '">' + top + hero + '<main class="kv-main">' + body + '</main>' + foot + '</div>';
+    return '<div class="' + cls + '" style="' + th.style + '">' + hero + '<main class="kv-main">' + body + '</main>' + foot + '</div>';
   }
 
   // Adapte le rendu à la largeur réelle de son bloc (et non de l'écran) : le
@@ -762,36 +732,28 @@
       } catch (e) {}
     }
 
-    // En-tête personnel : reste en haut de l'écran pendant le défilement. Dans un
-    // embed (iframe à la hauteur du contenu), c'est la page parente qui défile :
-    // on le décale de la partie de la vitrine déjà passée au-dessus de l'écran.
-    var bar = root.querySelector(".kv-top"), raf = 0;
-    function syncBar() {
-      raf = 0;
-      if (!bar || !root.isConnected) return;
-      var y, rootTop = root.getBoundingClientRect().top;
+    // Header du site (composant Framer) : il affiche la photo et le nom de la vitrine
+    // ouverte. On les publie sur la page qui affiche l'embed — window.__kitlyProfile et
+    // l'événement « kitly:profile » — pour éviter un second appel à l'API.
+    function publishProfile(info) {
       try {
-        if (frameEl) {
-          y = -(frameEl.getBoundingClientRect().top + rootTop);
-          bar.style.transform = "translateY(" + Math.max(0, Math.min(y, root.offsetHeight - bar.offsetHeight)) + "px)";
-        } else y = -rootTop;
-      } catch (e) { return; }
-      var name = root.querySelector(".kv-hero3 .kv-name");
-      var at = name ? name.getBoundingClientRect().top - rootTop - 64 : 80;
-      bar.classList.toggle("stuck", y > at);
+        HOST.__kitlyProfile = info;
+        HOST.dispatchEvent(new HOST.CustomEvent("kitly:profile", { detail: info }));
+      } catch (e) {}
     }
-    function onScroll() { if (!raf) raf = requestAnimationFrame(syncBar); }
-    try { HOST.addEventListener("scroll", onScroll, { passive: true }); HOST.addEventListener("resize", onScroll); } catch (e) {}
-    syncBar();
-    function destroy() {
-      try { HOST.removeEventListener("scroll", onScroll); HOST.removeEventListener("resize", onScroll); } catch (e) {}
-    }
+    var name = String(data.display_name || "").trim(), cut = name.indexOf(" ");
+    publishProfile({
+      slug: slug, display_name: name, avatar_url: data.avatar_url || "",
+      name_lines: cut > 0 ? [name.slice(0, cut), name.slice(cut + 1)] : [name],
+      headline: data.headline || ""
+    });
+    function destroy() { publishProfile(null); }
 
     // Défilement vers une section, y compris depuis un embed (c'est la page Framer qui défile).
     function scrollToId(id) {
       var target = root.querySelector("#" + id);
       if (!target) return;
-      var offset = id === "kv-top" ? 0 : 76;   // sous l'en-tête personnel
+      var offset = id === "kv-top" ? 0 : 90;   // sous le header du site
       try {
         if (frameEl) {
           var fr = frameEl.getBoundingClientRect(), r = target.getBoundingClientRect();
@@ -805,31 +767,6 @@
     function setHash(h) {
       var full = hashBase ? hashBase + (h ? "/" + h : "") : h;
       try { HOST.history.replaceState(HOST.history.state, "", HOST.location.pathname + HOST.location.search + (full ? "#" + full : "")); } catch (e) {}
-    }
-    // Lien à partager : la page actuelle, sans paramètres ni fiche offre ouverte.
-    function shareUrl() {
-      try { var l = HOST.location; return l.origin + l.pathname + (hashBase ? "#" + hashBase : ""); } catch (e) { return data.url || ""; }
-    }
-    function copyText(text) {
-      try { if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text); } catch (e) {}
-      return new Promise(function (resolve, reject) {
-        var ta = document.createElement("textarea");
-        ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
-        document.body.appendChild(ta); ta.select();
-        var ok = false;
-        try { ok = document.execCommand("copy"); } catch (e) {}
-        ta.remove();
-        if (ok) resolve(); else reject(new Error("copy"));
-      });
-    }
-    function share(btn) {
-      var url = shareUrl();
-      if (navigator.share) { navigator.share({ title: data.display_name + " | Kitly", url: url }).catch(function () {}); return; }
-      copyText(url).then(function () {
-        var html = btn.innerHTML;
-        btn.innerHTML = svg("check"); btn.title = "Lien copié";
-        setTimeout(function () { btn.innerHTML = html; btn.title = "Partager"; }, 1600);
-      }, function () { window.prompt("Copie le lien de la vitrine :", url); });
     }
     var offersById = {};
     (data.offers || []).forEach(function (o) { offersById[o.id] = o; });
@@ -1159,8 +1096,6 @@
       }
       var zoom = e.target.closest("[data-kv-img]");
       if (zoom) { e.preventDefault(); modal('<img src="' + esc(zoom.getAttribute("data-kv-img")) + '" alt="" style="display:block;width:100%;border-radius:14px;margin-top:26px">'); return; }
-      var sh = e.target.closest("[data-kv-share]");
-      if (sh) { e.preventDefault(); share(sh); return; }
       var t = e.target.closest("[data-kv-offer],[data-kv-project],[data-kv-contact],[data-kv-terms],[data-kv-report],[data-kv-legal]");
       if (!t) return;
       e.preventDefault();
