@@ -714,6 +714,25 @@
     try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
     var th = themeVars(data.theme);
     if (page) paintPage();
+    // Cadre Framer plus large que la zone qui l'affiche (fréquent sur téléphone) :
+    // on le ramène, lui et ses conteneurs trop larges, à la largeur disponible.
+    function fitToHost() {
+      try {
+        var f = frameEl, win = f.ownerDocument.defaultView;
+        for (var i = 0; i < 6 && f && f.parentElement && f !== f.ownerDocument.body; i++) {
+          var parent = f.parentElement, cs = win.getComputedStyle(parent);
+          var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+          if (room > 200 && f.getBoundingClientRect().width > room + 1) {
+            f.style.width = "100%"; f.style.maxWidth = "100%"; f.style.minWidth = "0"; f.style.flexShrink = "1";
+          }
+          f = parent;
+        }
+      } catch (e) {}
+    }
+    if (frameEl && page) {
+      fitToHost(); setTimeout(fitToHost, 600); setTimeout(fitToHost, 2000);
+      try { HOST.addEventListener("resize", function () { setTimeout(fitToHost, 50); }); } catch (e) {}
+    }
 
     // Le fond choisi (couleur, dégradé, formes, image) couvre toute la page qui
     // affiche la vitrine — la page Framer entière quand elle est dans un embed.

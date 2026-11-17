@@ -755,6 +755,8 @@ def test_static_vitrine_js(client):
     assert r.status_code == 200 and "KitlyMarket" in r.text
     assert client.get("/kitly/static/../config.py").status_code == 404
     assert client.get("/kitly/static/config.py").status_code == 404
+    logo = client.get("/kitly/static/logo.png")
+    assert logo.status_code == 200 and logo.headers["content-type"] == "image/png"
 
 
 def test_vitrine_page_meta_and_escaping(client):

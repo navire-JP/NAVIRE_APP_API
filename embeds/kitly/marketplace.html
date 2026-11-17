@@ -5,13 +5,14 @@
   (GET /kitly/static/marketplace.js, partagé avec l'accueil home.html) : cet
   embed ne fait que le charger et le régler.
 
-  Page simple : une recherche (résultats pendant la frappe), une ligne de
-  catégories, puis deux sections :
+  Page minimale : logo, titre, une recherche (résultats pendant la frappe), puis
+  deux sections en grille (2 colonnes sur téléphone, rien ne dépasse du cadre) :
     - « Offres » : dernières offres publiées (ou résultats), chaque carte ouvre
       la fiche de l'offre sur la vitrine (/profile#<adresse>/offre-<id>) ;
-    - « Profils » : profils populaires et nouveaux (ou résultats), encart
-      « Sponsorisé » séparé du classement.
-  Recherche et catégorie recopiées dans l'URL (?q=…&categorie=…, lien partageable).
+    - « Profils » : profils populaires et nouveaux (ou résultats), profils
+      sponsorisés étiquetés « Sponsorisé ».
+  Recherche recopiée dans l'URL (?q=…, lien partageable). Si le cadre Framer est
+  plus large que l'écran, il est ramené à la largeur disponible.
 
   Deux modes (CONFIG.MODE) :
     - "full"     : page /marketplace complète ;
