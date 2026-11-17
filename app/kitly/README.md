@@ -112,7 +112,8 @@ de rendu partagé (page, embed profil, aperçu du builder) · `GET /kitly/static
 partagée (embeds marketplace et accueil)
 
 **Embed 3 — Marketplace**
-`GET /kitly/marketplace/new` · `/popular` · `/categories` ·
+`GET /kitly/marketplace/offers?q=&category=&kind=&sort=relevance|new|price_asc&page=` (offres des vitrines référencées,
+avec la vitrine qui les propose) · `/new` · `/popular` · `/categories` ·
 `/search?q=&category=&location=&kind=&budget_max_cents=&sort=relevance|new|popular|price_asc&page=` ·
 `/ranking-info` — les profils `sponsored` sont renvoyés à part et doivent être étiquetés « Sponsorisé ».
 

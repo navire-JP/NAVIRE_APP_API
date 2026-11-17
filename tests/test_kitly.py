@@ -472,6 +472,31 @@ def test_marketplace_eligibility_new_popular_search(client):
     assert slug_b not in [c["slug"] for c in r["items"]]
 
 
+def test_marketplace_offers(client):
+    tag = uuid.uuid4().hex[:6]
+    prem_email, h = register(client)
+    set_plan(prem_email, "premium")
+    slug = make_vitrine(client, h, headline=f"Boulangère {tag}")
+    for title, price in ((f"Pain au levain {tag}", 800), (f"Atelier pâtisserie {tag}", 4500)):
+        client.post("/kitly/me/offers", json={"kind": "service", "title": title, "price_cents": price,
+                                              "status": "published"}, headers=h)
+    client.post("/kitly/me/offers", json={"kind": "service", "title": f"Brouillon {tag}", "price_cents": 100}, headers=h)
+    free_email, fh = register(client)
+    make_vitrine(client, fh)
+    age_account(free_email)  # hors marketplace
+    client.post("/kitly/me/offers", json={"kind": "service", "title": f"Caché {tag}", "price_cents": 100,
+                                          "status": "published"}, headers=fh)
+
+    r = client.get("/kitly/marketplace/offers", params={"q": f"levain {tag}"}).json()
+    assert [o["title"] for o in r["items"]] == [f"Pain au levain {tag}"] and r["total"] == 1
+    card = r["items"][0]
+    assert card["price_label"] == "8 €" and card["profile"]["slug"] == slug and "email" not in card["profile"]
+    # La recherche porte aussi sur la vitrine ; brouillons et vitrines hors marketplace exclus.
+    r = client.get("/kitly/marketplace/offers", params={"q": tag, "sort": "price_asc"}).json()
+    assert [o["price_label"] for o in r["items"]] == ["8 €", "45 €"]
+    assert client.get("/kitly/marketplace/offers", params={"q": tag, "kind": "physical"}).json()["total"] == 0
+
+
 # ============================================================
 # Juridique
 # ============================================================

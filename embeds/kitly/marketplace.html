@@ -5,11 +5,13 @@
   (GET /kitly/static/marketplace.js, partagé avec l'accueil home.html) : cet
   embed ne fait que le charger et le régler.
 
-  Sans recherche : « Les nouveaux sur Kitly », « Les profils populaires »,
-  catégories. Avec une recherche ou un filtre : résultats, encart
-  « Sponsorisé » séparé du classement, « Voir plus ». Filtres : texte,
-  catégorie, lieu, type d'offre, budget ; tri pertinence / nouveaux /
-  populaires / prix. Filtres recopiés dans l'URL (lien partageable).
+  Page simple : une recherche (résultats pendant la frappe), une ligne de
+  catégories, puis deux sections :
+    - « Offres » : dernières offres publiées (ou résultats), chaque carte ouvre
+      la fiche de l'offre sur la vitrine (/profile#<adresse>/offre-<id>) ;
+    - « Profils » : profils populaires et nouveaux (ou résultats), encart
+      « Sponsorisé » séparé du classement.
+  Recherche et catégorie recopiées dans l'URL (?q=…&categorie=…, lien partageable).
 
   Deux modes (CONFIG.MODE) :
     - "full"     : page /marketplace complète ;
@@ -40,7 +42,7 @@
     PROFILE_URL: "/profile#{slug}",    // lien d'une vitrine ({slug} remplacé)
     MARKETPLACE_URL: "/marketplace",    // bouton du mode showcase
     REGISTER_URL: "/connexion?mode=inscription",
-    PAGE_SIZE: 24,
+    PAGE_SIZE: 12,                      // offres affichées, puis « Voir plus d'offres »
     SHOWCASE_COUNT: 8
   };
   // Liens relatifs (« /builder ») complétés avec l'adresse du site qui affiche

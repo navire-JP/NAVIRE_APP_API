@@ -33,12 +33,13 @@ STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 STATIC_FILES = {  # liste blanche
     "vitrine.js": "application/javascript; charset=utf-8",
     "marketplace.js": "application/javascript; charset=utf-8",
+    "logo.png": "image/png",   # logo Kitly : déposer le fichier dans app/kitly/static/logo.png
 }
 
 
 @router.get("/static/{name}", include_in_schema=False)
 def static_file(name: str):
-    if name not in STATIC_FILES:
+    if name not in STATIC_FILES or not (STATIC_DIR / name).is_file():
         return HTMLResponse("Not found", status_code=404)
     return FileResponse(
         STATIC_DIR / name,
@@ -127,6 +128,7 @@ def vitrine_page(slug: str, db: Session = Depends(get_db)):
 <meta property="og:description" content="{_e(desc[:300])}">
 {og_url}{f'<meta property="og:image" content="{_e(image)}">' if image else ''}
 <meta name="twitter:card" content="{'summary_large_image' if data['banner_url'] else 'summary'}">
+<link rel="icon" href="/kitly/static/logo.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <style>html,body{{margin:0;padding:0;background:{_e(bg)};min-height:100%}}#kv-root{{min-height:100vh}}#kv-root>.kv{{min-height:100vh}}</style>

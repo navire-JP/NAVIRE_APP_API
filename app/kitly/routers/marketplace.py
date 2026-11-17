@@ -1,5 +1,5 @@
 """
-Embed 3 — Marketplace : nouveaux profils, profils populaires, recherche.
+Embed 3 — Marketplace : offres, nouveaux profils, profils populaires, recherche.
 
 Transparence du classement (DSA art. 27, C. conso L. 111-7) : le tri organique
 ne dépend jamais de la formule payée. Les profils mis en avant contre
@@ -14,7 +14,7 @@ from datetime import timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -28,7 +28,7 @@ from app.kitly.queries import (
     popular_profile_ids,
     popularity_subquery,
 )
-from app.kitly.serializers import card_public
+from app.kitly.serializers import card_public, price_label
 from app.kitly.utils import aware, normalize_text, now
 
 router = APIRouter(prefix="/marketplace", tags=["kitly · marketplace"])
@@ -37,8 +37,9 @@ RANKING_INFO = {
     "organic": (
         "Les résultats sont classés selon leur pertinence par rapport à ta recherche (correspondance avec le nom, "
         "le métier, les spécialités, la présentation et les offres), puis selon le nombre de visites uniques reçues "
-        f"sur les {KITLY_POPULAR_WINDOW_DAYS} derniers jours. Le tri « nouveaux » suit la date de première "
-        "publication, le tri « prix » le prix d'appel affiché."
+        f"sur les {KITLY_POPULAR_WINDOW_DAYS} derniers jours. Les offres sont classées selon la correspondance de "
+        "leur titre et de leur description avec ta recherche, puis par date de publication (les plus récentes "
+        "d'abord). Le tri « nouveaux » suit la date de première publication, le tri « prix » le prix affiché."
     ),
     "sponsored": (
         "Les profils marqués « Sponsorisé » bénéficient d'une mise en avant incluse dans la formule Premium+. "
@@ -182,6 +183,69 @@ def search(
         "sort": sort,
         "ranking_info_url": "/kitly/marketplace/ranking-info",
     }
+
+
+def _offer_card(o: KitlyOffer, p: KitlyProfile) -> dict:
+    """Carte « offre » de la marketplace : l'offre et la vitrine qui la propose."""
+    return {
+        "id": o.id,
+        "kind": o.kind,
+        "title": o.title,
+        "description": (o.description or "")[:200],
+        "price_label": price_label(o),
+        "price_cents": o.price_cents,
+        "image": (o.images or [None])[0],
+        "badge": o.badge,
+        "profile": {"slug": p.slug, "display_name": p.display_name, "avatar_url": p.avatar_url,
+                    "headline": p.headline, "location": p.location, "category": p.category},
+    }
+
+
+@router.get("/offers")
+def offers(
+    q: str = Query("", max_length=100),
+    category: str | None = None,
+    kind: str | None = Query(None, description="physical | digital | service | appointment"),
+    sort: Literal["relevance", "new", "price_asc"] = "relevance",
+    page: int = Query(1, ge=1, le=500),
+    page_size: int = Query(12, ge=1, le=60),
+    db: Session = Depends(get_db),
+):
+    """Offres publiées des vitrines référencées dans la marketplace (lien direct vers la fiche offre)."""
+    eligible = marketplace_profiles(db).with_only_columns(KitlyProfile.id).subquery()
+    base = (
+        select(KitlyOffer, KitlyProfile)
+        .join(KitlyProfile, KitlyProfile.id == KitlyOffer.profile_id)
+        .where(KitlyOffer.status == "published", KitlyOffer.profile_id.in_(select(eligible.c.id)))
+    )
+    if category:
+        base = base.where(KitlyProfile.category == category)
+    if kind:
+        base = base.where(KitlyOffer.kind == kind)
+
+    score = None
+    terms = [t for t in normalize_text(q).split() if len(t) >= 2][:6]
+    if terms:
+        parts = []
+        for t in terms:
+            title = func.lower(KitlyOffer.title).contains(t, autoescape=True)
+            desc = func.lower(KitlyOffer.description).contains(t, autoescape=True)
+            who = or_(func.lower(KitlyProfile.display_name).contains(t, autoescape=True),
+                      func.lower(KitlyProfile.headline).contains(t, autoescape=True))
+            base = base.where(or_(title, desc, who))
+            parts += [case((title, 4), else_=0), case((desc, 1), else_=0), case((who, 1), else_=0)]
+        score = sum(parts[1:], parts[0])
+
+    if sort == "price_asc":
+        order = [case((KitlyOffer.price_cents.is_(None), 1), else_=0), KitlyOffer.price_cents.asc(), KitlyOffer.created_at.desc()]
+    elif sort == "new" or score is None:
+        order = [KitlyOffer.created_at.desc()]
+    else:
+        order = [score.desc(), KitlyOffer.created_at.desc()]
+
+    total = db.execute(select(func.count()).select_from(base.with_only_columns(KitlyOffer.id).subquery())).scalar_one()
+    rows = db.execute(base.order_by(*order, KitlyOffer.id.desc()).offset((page - 1) * page_size).limit(page_size)).all()
+    return {"items": [_offer_card(o, p) for o, p in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/ranking-info")
