@@ -29,7 +29,7 @@
   // Styles (injectés une fois)
   // ============================================================
   var CSS = [
-    ".kv{--bg:#fff;--fg:#0a0a0a;--mut2:rgba(10,10,10,.6);--acc:#0a0a0a;--btn-fg:#fff;--line2:rgba(10,10,10,.12);--card:#f3f3f3;--inner:#f9f9f9;--card-line:rgba(10,10,10,.07);--r-btn:999px;--fh:'Inter',sans-serif;--fb:'Inter',sans-serif;--maxw:640px;--cover-h:300px;background:var(--bg);color:var(--fg);font-family:var(--fb);position:relative;overflow:hidden;overflow:clip;container-type:inline-size;-webkit-font-smoothing:antialiased;min-height:100%}",
+    ".kv{--bg:#fff;--fg:#0a0a0a;--mut2:rgba(10,10,10,.6);--acc:#0a0a0a;--btn-fg:#fff;--line2:rgba(10,10,10,.12);--card:#f3f3f3;--inner:#f9f9f9;--card-line:rgba(10,10,10,.07);--r-btn:999px;--fh:'Inter',sans-serif;--fb:'Inter',sans-serif;--maxw:640px;--cover-h:300px;background:var(--bg);color:var(--fg);font-family:var(--fb);position:relative;width:100%;overflow:hidden;overflow:clip;container-type:inline-size;-webkit-font-smoothing:antialiased;min-height:100%}",
     "@supports (width:1cqw){.kv{--cover-h:clamp(220px,74cqw,360px)}}",
     ".kv *,.kv-mbg,.kv-mbg *{box-sizing:border-box}",
     ".kv a{color:inherit}",
@@ -708,6 +708,9 @@
     // Adresse de la vitrine dans le hash (/profile#lea-martin) : les fiches offres
     // deviennent #lea-martin/offre-12, et le retour de paiement garde #lea-martin.
     var hashBase = opts.hashBase || "";
+    // L'embed HTML de Framer centre son contenu (body en flex) : sans largeur imposée, le bloc
+    // de la vitrine se réduit à 0 px et tout le texte passe à la ligne à chaque lettre.
+    el.style.width = "100%"; el.style.maxWidth = "100%"; el.style.alignSelf = "stretch"; el.style.flexShrink = "0";
     el.innerHTML = render(data, { live: true, footer: true, page: page, kitlyUrl: opts.kitlyUrl, privacyUrl: opts.privacyUrl });
     var root = el.querySelector(".kv");
     fit(root);
