@@ -7,6 +7,7 @@ import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from sqlalchemy import delete
 
 from app.core.config import APP_NAME, APP_VERSION, CORS_ORIGINS, ensure_storage_dirs
@@ -377,6 +378,43 @@ app = FastAPI(
 # ============================================================
 # Middleware
 # ============================================================
+
+class ErreurServeurMiddleware:
+    """Une erreur imprévue devient une vraie réponse 500 en JSON, *à
+    l'intérieur* du CORS. Sans lui, Starlette répond hors CORS : le
+    navigateur ne peut pas lire la réponse et l'embed n'affiche que
+    « Load failed » (Safari) ou « Failed to fetch » (Chrome)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        commencee = False
+
+        async def envoyer(message):
+            nonlocal commencee
+            if message["type"] == "http.response.start":
+                commencee = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, envoyer)
+        except Exception:
+            if not commencee:
+                await JSONResponse(
+                    {"detail": "Erreur du serveur : rien n'a été perdu, réessaie dans un instant. "
+                               "Si cela se reproduit, préviens l'équipe NAVIRE."},
+                    status_code=500,
+                )(scope, receive, send)
+            # Relancée pour que le serveur la journalise (trace complète) ;
+            # la réponse étant partie, Starlette n'en renvoie pas d'autre.
+            raise
+
+
+# Ajouté avant le CORS, donc enveloppé par lui : les 500 portent les en-têtes CORS.
+app.add_middleware(ErreurServeurMiddleware)
 
 # CORS séparé : CORS_ORIGINS pour NAVIRE, KITLY_CORS_ORIGINS pour /kitly/*
 # (voir app/kitly/cors.py). Le comportement NAVIRE est inchangé.

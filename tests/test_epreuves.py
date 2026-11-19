@@ -117,3 +117,18 @@ def test_epreuve_saisie_dans_navire(monde):
     assert c.put(f"/lib/prepa/epreuves/sessions/{s2['id']}/brouillon", headers=alice, json={"blocs": blocs}).status_code == 400
     assert c.post(f"/lib/prepa/epreuves/sessions/{s2['id']}/rendre-texte", headers=alice, json={"blocs": blocs}).status_code == 400
     _nettoyer_epreuves()
+
+
+def test_rendu_texte_avec_caracteres_colles(monde):
+    """Un texte collé depuis Word ou un PDF peut contenir des caractères de
+    contrôle : ils faisaient planter l'écriture du .docx (erreur 500, que le
+    navigateur affichait « Load failed »). Ils sont retirés, la copie part."""
+    _nettoyer_epreuves()
+    c, alice = monde["c"], _headers(monde["alice"])
+    s = c.post("/lib/prepa/epreuves/sessions", headers=alice, json={"type": "dissertation", "matiere_key": MATIERE}).json()
+    blocs = [{"t": "p", "runs": [["La morale\x01 et\x08 le droit\x00", False, False]]}]
+    r = c.post(f"/lib/prepa/epreuves/sessions/{s['id']}/rendre-texte", headers=alice,
+               json={"blocs": blocs, "message": "merci\x00", "sorties": 0})
+    assert r.status_code == 200, r.text
+    assert r.json()["session"]["statut"] == "rendue"
+    _nettoyer_epreuves()

@@ -50,6 +50,16 @@ TEXTE_MAX = 4000
 # ============================================================
 
 _WS = re.compile(r"\s")
+# Caractères refusés par le XML d'un .docx (et, pour \x00, par PostgreSQL) :
+# contrôles hors tabulation / sauts de ligne, moitiés d'emoji orphelines.
+# Ils arrivent par un collage depuis Word ou un PDF ; ils faisaient échouer
+# l'écriture du .docx, donc le rendu de la copie.
+_HORS_XML = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff\ud800-\udfff]")
+
+
+def texte_propre(texte: str) -> str:
+    """Texte sans les caractères qu'un .docx ou PostgreSQL refusent."""
+    return _HORS_XML.sub("", texte or "")
 
 
 def _runs_propres(runs) -> list[list]:
@@ -167,7 +177,7 @@ def blocs_saisis(blocs) -> dict:
         runs = []
         for r in b.get("runs") or []:
             if isinstance(r, (list, tuple)) and r and isinstance(r[0], str):
-                runs.append([r[0], bool(r[1]) if len(r) > 1 else False, bool(r[2]) if len(r) > 2 else False])
+                runs.append([texte_propre(r[0]), bool(r[1]) if len(r) > 1 else False, bool(r[2]) if len(r) > 2 else False])
         rs = _runs_propres(runs)
         if not rs:
             continue
@@ -191,6 +201,7 @@ def docx_saisie(titre: str, c: dict) -> bytes:
     st = doc.styles["Normal"]
     st.font.name = "Georgia"
     st.font.size = Pt(11.5)
+    titre = texte_propre(titre)
     if titre:
         doc.add_heading(titre, level=0)
     for b in c.get("blocs") or []:

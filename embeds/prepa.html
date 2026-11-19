@@ -513,12 +513,16 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function loadJ(k) { try { return JSON.parse(load(k) || "null"); } catch (e) { return null; } }
   function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return String(x.msg || ""); }).join(" · "); return "Une erreur est survenue."; }
   function handle(r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(detail(j.detail)); e.status = r.status; throw e; } return j; }); }
+  // Réseau coupé, serveur qui redémarre… : fetch échoue sans réponse et le
+  // navigateur ne donne qu'un message anglais (« Load failed » sur Safari,
+  // « Failed to fetch » sur Chrome). On dit ce qui se passe, en français.
+  function horsLigne() { var e = new Error("Le serveur NAVIRE ne répond pas. Rien n'est perdu : vérifie ta connexion et réessaie dans un instant."); e.status = 0; throw e; }
   function api(method, path, body) {
     var h = { "Content-Type": "application/json" };
     if (S.token) h.Authorization = "Bearer " + S.token;
-    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined }).then(handle);
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined }).then(handle, horsLigne);
   }
-  function upload(path, fd) { return fetch(CONFIG.API + path, { method: "POST", headers: { Authorization: "Bearer " + S.token }, body: fd }).then(handle); }
+  function upload(path, fd) { return fetch(CONFIG.API + path, { method: "POST", headers: { Authorization: "Bearer " + S.token }, body: fd }).then(handle, horsLigne); }
   function go(url) { try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
   function toast(msg, isError) {
     if (WR.node && WR.node.parentNode) return wrToast(msg, isError);
