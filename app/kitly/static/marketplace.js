@@ -93,6 +93,18 @@
     try { var src = document.currentScript && document.currentScript.src; if (src) return new URL("logo.png", src).href; } catch (e) {}
     return "/kitly/static/logo.png";
   })();
+  // Panier partagé (static/cart.js) : bouton « Panier » flottant quand il contient un article.
+  var CART_SRC = (function () {
+    try { var src = document.currentScript && document.currentScript.src; if (src) return new URL("cart.js", src).href; } catch (e) {}
+    return "/kitly/static/cart.js";
+  })();
+  function mountCart() {
+    function go() { try { window.KitlyCart.mountButton({}); } catch (e) {} }
+    if (window.KitlyCart) return go();
+    var sc = document.createElement("script");
+    sc.src = CART_SRC; sc.onload = go;
+    document.head.appendChild(sc);
+  }
   var SEARCH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
   var KIND_ICON = {
     physical: '<path d="m3 7 9-4 9 4v10l-9 4-9-4z"/><path d="m3 7 9 4 9-4M12 11v10"/>',
@@ -137,6 +149,7 @@
     }
 
     var S = { q: "", offers: [], total: 0, page: 1, timer: null, reqId: 0 };
+    mountCart();
 
     function $(sel) { return root.querySelector(sel); }
     function get(path) {

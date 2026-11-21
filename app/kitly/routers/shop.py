@@ -167,6 +167,56 @@ def _with_params(url: str, **params) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
+def price_line(offer: KitlyOffer, quantity: int, variant_id: str | None, delivery: str | None) -> dict:
+    """
+    Prix d'une ligne d'achat (offre déjà vérifiée achetable) : option, quantité, stock,
+    livraison. Partagé par l'achat d'une offre et par le panier. Lève 409 / 422.
+    → {snap, unit_cents, quantity, shipping_cents, needs_address, countries, total_cents}
+    """
+    d = offer.details or {}
+    snap: dict = {"title": offer.title, "kind": offer.kind, "offer_id": offer.id, "quantity": 1}
+    unit = offer.price_cents or 0
+    quantity = quantity if offer.kind == "physical" else 1
+
+    # Variante (taille, couleur…)
+    variants = (d.get("variants") or []) if offer.kind == "physical" else []
+    variant = None
+    if variants:
+        variant = next((v for v in variants if v.get("id") == variant_id), None)
+        if variant is None:
+            raise HTTPException(422, detail=f"« {offer.title} » : choisis une option (taille, couleur…).")
+        if variant.get("price_cents") is not None:
+            unit = variant["price_cents"]
+        snap["variant"], snap["variant_id"] = variant.get("label", ""), variant.get("id")
+    stock = (variant or d).get("stock") if offer.kind == "physical" else None
+    if stock is not None and stock < quantity:
+        raise HTTPException(409, detail=(f"« {offer.title} » : stock insuffisant ({stock} disponible{'s' if stock > 1 else ''})."
+                                         if stock else f"« {offer.title} » est épuisé."))
+    snap["quantity"] = quantity
+    snap["unit_cents"] = unit
+
+    # Livraison
+    shipping_cents, needs_address, countries = 0, False, []
+    if offer.kind == "physical":
+        options = d.get("shipping_options") or []
+        if delivery == "pickup":
+            if not d.get("pickup_available"):
+                raise HTTPException(422, detail=f"« {offer.title} » : le retrait sur place n'est pas proposé.")
+            snap["pickup"], snap["pickup_location"] = True, d.get("pickup_location", "")
+        else:
+            needs_address = True
+            countries = sorted({c for z in (d.get("delivery_zones") or ["fr_metro"]) for c in ZONE_COUNTRIES.get(z, [])}) or ["FR"]
+            if options:
+                try:
+                    opt = options[int(delivery or "0")]
+                except (ValueError, IndexError):
+                    raise HTTPException(422, detail=f"« {offer.title} » : choisis un mode de livraison.")
+                shipping_cents = int(opt.get("price_cents") or 0)
+                snap["shipping_label"], snap["shipping_cents"] = opt.get("label", "Livraison"), shipping_cents
+    return {"snap": snap, "unit_cents": unit, "quantity": quantity, "shipping_cents": shipping_cents,
+            "needs_address": needs_address, "countries": countries, "total_cents": unit * quantity + shipping_cents}
+
+
 def _absolute_image(url: str) -> list[str]:
     return [url] if url and url.startswith("https://") else []
 
@@ -186,44 +236,9 @@ def checkout_offer(slug: str, offer_id: int, payload: OrderCheckoutIn, request: 
     rate_guard(db, f"checkout:ip:{ip}", 15, 3600, "Trop de tentatives de paiement, réessaie plus tard.")
     rate_hit(db, f"checkout:ip:{ip}")
 
-    d = offer.details or {}
-    snap: dict = {"title": offer.title, "kind": offer.kind, "offer_id": offer.id, "quantity": 1}
-    unit = offer.price_cents or 0
-    quantity = payload.quantity if offer.kind == "physical" else 1
-
-    # Variante (taille, couleur…)
-    variants = (d.get("variants") or []) if offer.kind == "physical" else []
-    variant = None
-    if variants:
-        variant = next((v for v in variants if v.get("id") == payload.variant_id), None)
-        if variant is None:
-            raise HTTPException(422, detail="Choisis une option (taille, couleur…).")
-        if variant.get("price_cents") is not None:
-            unit = variant["price_cents"]
-        snap["variant"], snap["variant_id"] = variant.get("label", ""), variant.get("id")
-    stock = (variant or d).get("stock") if offer.kind == "physical" else None
-    if stock is not None and stock < quantity:
-        raise HTTPException(409, detail="Stock insuffisant." if stock else "Cette offre est épuisée.")
-    snap["quantity"] = quantity
-    snap["unit_cents"] = unit
-
-    # Livraison
-    shipping_cents, collect_address = 0, False
-    if offer.kind == "physical":
-        options = d.get("shipping_options") or []
-        if payload.delivery == "pickup":
-            if not d.get("pickup_available"):
-                raise HTTPException(422, detail="Le retrait sur place n'est pas proposé pour cette offre.")
-            snap["pickup"], snap["pickup_location"] = True, d.get("pickup_location", "")
-        else:
-            collect_address = True
-            if options:
-                try:
-                    opt = options[int(payload.delivery or "0")]
-                except (ValueError, IndexError):
-                    raise HTTPException(422, detail="Choisis un mode de livraison.")
-                shipping_cents = int(opt.get("price_cents") or 0)
-                snap["shipping_label"], snap["shipping_cents"] = opt.get("label", "Livraison"), shipping_cents
+    line = price_line(offer, payload.quantity, payload.variant_id, payload.delivery)
+    d, snap, unit, quantity = offer.details or {}, line["snap"], line["unit_cents"], line["quantity"]
+    shipping_cents, collect_address = line["shipping_cents"], line["needs_address"]
 
     # Consentements propres au type d'offre (Code de la consommation)
     if offer.kind == "digital" and not payload.waive_withdrawal:
@@ -277,8 +292,7 @@ def checkout_offer(slug: str, offer_id: int, payload: OrderCheckoutIn, request: 
         "metadata": meta,
     }
     if collect_address:
-        countries = sorted({c for z in (d.get("delivery_zones") or ["fr_metro"]) for c in ZONE_COUNTRIES.get(z, [])})
-        params["shipping_address_collection"] = {"allowed_countries": countries or ["FR"]}
+        params["shipping_address_collection"] = {"allowed_countries": line["countries"]}
         params["phone_number_collection"] = {"enabled": True}
     try:
         session = stripe_client().checkout.sessions.create(params=params)
@@ -361,6 +375,10 @@ def mark_paid(db: Session, order: KitlyOrder, obj) -> None:
 
 def handle_order_event(db: Session, event) -> bool:
     """Événements de commande ; rend True si l'événement concernait une vente."""
+    from app.kitly.routers.cart import handle_cart_event  # import local : cart dépend de ce module
+
+    if handle_cart_event(db, event):
+        return True  # panier (plusieurs commandes pour un même paiement)
     etype, obj = event["type"], event["data"]["object"]
     if etype in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
         if obj.get("mode") != "payment":

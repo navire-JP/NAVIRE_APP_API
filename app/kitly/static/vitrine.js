@@ -15,6 +15,7 @@
  *       opts = { apiBase, source: "direct"|"marketplace", privacyUrl, kitlyUrl, countView,
  *               hashBase,   // adresse lue dans le hash (/profile#<adresse>) : conservée dans l'URL
  *               page,       // false : ne pas peindre le fond de la page qui affiche la vitrine
+ *               checkoutUrl, // page de paiement du panier (défaut : /checkout du site)
  *               frameViewport, lockScroll }   // embed : modales sur la partie visible
  *     → { openContact, openOffer, destroy }
  *   Publie aussi la vitrine ouverte pour le header du site : window.__kitlyProfile et
@@ -346,6 +347,21 @@
     return "/kitly/static/logo.png";
   })();
   var LOGO = '<img class="kv-logo" src="' + LOGO_SRC + '" alt="" onerror="this.remove()">';
+  // Panier partagé (static/cart.js), servi à côté de ce script.
+  var CART_SRC = (function () {
+    try { var src = document.currentScript && document.currentScript.src; if (src) return new URL("cart.js", src).href; } catch (e) {}
+    return "/kitly/static/cart.js";
+  })();
+  var cartReady = null;
+  function loadCart() {
+    if (window.KitlyCart) return Promise.resolve(window.KitlyCart);
+    if (!cartReady) cartReady = new Promise(function (resolve, reject) {
+      var sc = document.createElement("script");
+      sc.src = CART_SRC; sc.onload = function () { resolve(window.KitlyCart); }; sc.onerror = reject;
+      document.head.appendChild(sc);
+    });
+    return cartReady;
+  }
   // Icônes des réseaux (trait) ; les autres réseaux gardent leur abréviation.
   var SOCIAL_ICON = {
     instagram: '<rect x="3" y="3" width="18" height="18" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/>',
@@ -813,6 +829,8 @@
       headline: data.headline || ""
     });
     function destroy() { publishProfile(null); }
+    // Panier : bouton « Panier » flottant sur la page dès qu'il contient un article.
+    if (page) loadCart().then(function (c) { c.mountButton({ checkoutUrl: opts.checkoutUrl }); }).catch(function () {});
 
     // Défilement vers une section, y compris depuis un embed (c'est la page Framer qui défile).
     function scrollToId(id) {
@@ -899,118 +917,79 @@
       return f;
     }
 
-    function openOffer(o) {
-      var soldOut = o.details && o.details.in_stock === false;
-      var imgs = (o.images || []).map(function (u) { return '<img src="' + esc(u) + '" alt="" loading="lazy">'; }).join("");
-      var facts = offerFacts(o);
-      setHash("offre-" + o.id);
-      var m = modal(
-        (imgs ? '<div class="gal">' + imgs + '</div>' : '') +
-        (o.badge ? '<span class="kv-tg" style="--acc:#0a0a0a;--btn-fg:#fff">' + esc(o.badge) + '</span>' : '') +
-        '<h3>' + esc(o.title) + '</h3><div class="price">' + esc(o.price_label || "") + '</div>' +
-        (o.description ? '<div class="desc">' + esc(o.description) + '</div>' : '') +
-        (facts.length ? '<ul class="facts">' + facts.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join("") + '</ul>' : '') +
-        (o.buyable && !soldOut
-          ? '<button type="button" class="cta" data-buy>Acheter — ' + esc(money(o.price_cents)) + '</button>' +
-            '<button type="button" class="cta ghost" data-go>Poser une question</button>'
-          : '<button type="button" class="cta" data-go>' + esc(soldOut ? CTA_LABEL.contact : (CTA_LABEL[o.cta] || "Me contacter")) + '</button>'),
-        function () { setHash(""); }
-      );
-      var buy = m.el.querySelector("[data-buy]");
-      if (buy) buy.onclick = function () { m.close(); openBuy(o); };
-      m.el.querySelector("[data-go]").onclick = function () {
-        m.close();
-        openContact(soldOut || o.buyable ? Object.assign({}, o, { cta: "contact" }) : o);
-      };
-    }
-
     function money(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",").replace(",00", "") + " €"; }
-
-    function pageUrl() {
-      var base;
-      try { base = HOST.location.href.split("#")[0]; } catch (e) { base = window.location.href.split("#")[0]; }
-      return base + (hashBase ? "#" + hashBase : "");
-    }
     function goTo(url) {
       try { if (HOST !== window) { HOST.location.href = url; return; } } catch (e) {}
       try { if (window.top && window.top !== window) { window.top.location.href = url; return; } } catch (e) {}
       window.location.href = url;
     }
 
-    function openBuy(o) {
+    function openOffer(o) {
+      var soldOut = o.details && o.details.in_stock === false;
+      var canBuy = o.buyable && !soldOut;
       var d = o.details || {};
       var variants = o.kind === "physical" ? (d.variants || []) : [];
-      var ships = o.kind === "physical" ? (d.shipping_options || []) : [];
       var firstVariant = variants.filter(function (v) { return v.in_stock !== false; })[0];
-      var delivery = "";
-      if (o.kind === "physical") {
-        var opts = ships.map(function (sh, i) {
-          return '<label class="opt"><input type="radio" name="delivery" value="' + i + '"' + (i === 0 ? " checked" : "") + '><span>' + esc(sh.label) +
-            (sh.delay ? '<small>' + esc(sh.delay) + '</small>' : '') + '</span><b>' + (sh.price_cents ? esc(money(sh.price_cents)) : "Offerte") + '</b></label>';
-        });
-        if (!ships.length) opts.push('<label class="opt"><input type="radio" name="delivery" value="ship" checked><span>Livraison' +
-          (d.delivery_delay ? '<small>' + esc(d.delivery_delay) + '</small>' : '') + '</span><b>Incluse</b></label>');
-        if (d.pickup_available) opts.push('<label class="opt"><input type="radio" name="delivery" value="pickup"><span>Retrait sur place' +
-          (d.pickup_location ? '<small>' + esc(d.pickup_location) + '</small>' : '') + '</span><b>Gratuit</b></label>');
-        delivery = '<label class="lb">Livraison</label><div class="opts">' + opts.join("") + '</div>';
-      }
-      var m = modal(
-        '<h3>' + esc(o.title) + '</h3><p class="sub">Vendu par ' + esc(data.display_name) + ' · paiement sécurisé</p><form novalidate>' +
+      var imgs = (o.images || []).map(function (u) { return '<img src="' + esc(u) + '" alt="" loading="lazy">'; }).join("");
+      var facts = offerFacts(o);
+      setHash("offre-" + o.id);
+      var picker = !canBuy ? "" :
         (variants.length ? '<label class="lb">Option</label><select name="variant">' + variants.map(function (v) {
           return '<option value="' + esc(v.id) + '"' + (v.in_stock === false ? " disabled" : "") + (firstVariant && v.id === firstVariant.id ? " selected" : "") + '>' +
             esc(v.label) + (v.price_cents != null ? " — " + esc(money(v.price_cents)) : "") + (v.in_stock === false ? " (épuisé)" : "") + '</option>';
         }).join("") + '</select>' : '') +
         (o.kind === "physical" ? '<label class="lb">Quantité</label><select name="qty">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
-          return '<option>' + n + '</option>'; }).join("") + '</select>' : '') +
-        delivery +
-        '<div class="row"><div><label class="lb">Email</label><input type="email" name="email" autocomplete="email" placeholder="pour la confirmation"></div>' +
-        '<div><label class="lb">Nom</label><input type="text" name="name" autocomplete="name" maxlength="120"></div></div>' +
-        '<label class="chk"><input type="checkbox" name="terms"><span>J\'ai lu et j\'accepte les <button type="button" class="lnk" data-read>conditions générales de vente</button> de ' + esc(data.display_name) + '.</span></label>' +
-        '<div class="tpanel" hidden></div>' +
-        (o.kind === "digital" ? '<label class="chk"><input type="checkbox" name="waive"><span>Je demande l\'accès immédiat au contenu numérique et je reconnais perdre mon droit de rétractation dès sa fourniture.</span></label>' : '') +
-        (o.kind === "service" ? '<label class="chk"><input type="checkbox" name="early"><span>Je souhaite que la prestation commence avant la fin du délai de rétractation de 14 jours (facultatif). Si je me rétracte ensuite, je paierai la part déjà réalisée.</span></label>' : '') +
-        '<div class="tot"><span>Total TTC</span><b data-total></b></div>' +
-        '<div class="err"></div><button type="submit" class="cta" data-pay></button>' +
-        '<div class="secure">Paiement par carte via Stripe. ' + esc(data.display_name) + ' reçoit ta commande dès le paiement confirmé.</div></form>'
+          return '<option>' + n + '</option>'; }).join("") + '</select>' : '');
+      var m = modal(
+        (imgs ? '<div class="gal">' + imgs + '</div>' : '') +
+        (o.badge ? '<span class="kv-tg" style="--acc:#0a0a0a;--btn-fg:#fff">' + esc(o.badge) + '</span>' : '') +
+        '<h3>' + esc(o.title) + '</h3><div class="price">' + esc(o.price_label || "") + '</div>' +
+        (o.description ? '<div class="desc">' + esc(o.description) + '</div>' : '') +
+        (facts.length ? '<ul class="facts">' + facts.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join("") + '</ul>' : '') +
+        (canBuy
+          ? '<form novalidate data-cart>' + picker + '<div class="err"></div>' +
+            '<button type="submit" class="cta" data-add></button></form>' +
+            '<button type="button" class="cta ghost" data-go>Poser une question</button>' +
+            '<div class="secure">Livraison, coordonnées et paiement sécurisé à l\'étape suivante.</div>'
+          : '<button type="button" class="cta" data-go>' + esc(soldOut ? CTA_LABEL.contact : (CTA_LABEL[o.cta] || "Me contacter")) + '</button>'),
+        function () { setHash(""); }
       );
-      var form = m.el.querySelector("form"), err = form.querySelector(".err"), pay = form.querySelector("[data-pay]");
+      m.el.querySelector("[data-go]").onclick = function () {
+        m.close();
+        openContact(soldOut || o.buyable ? Object.assign({}, o, { cta: "contact" }) : o);
+      };
+      var form = m.el.querySelector("[data-cart]");
+      if (!form) return;
+      var add = form.querySelector("[data-add]");
       function val(n) { var x = form.querySelector('[name="' + n + '"]'); return x ? x.value : ""; }
-      function total() {
-        var v = variants.filter(function (x) { return x.id === val("variant"); })[0];
-        var unit = v && v.price_cents != null ? v.price_cents : (o.price_cents || 0);
-        var qty = parseInt(val("qty") || "1", 10);
-        var chosen = form.querySelector('[name="delivery"]:checked');
-        var ship = chosen && /^\d+$/.test(chosen.value) ? (ships[+chosen.value].price_cents || 0) : 0;
-        return unit * qty + ship;
+      function chosenVariant() { return variants.filter(function (x) { return x.id === val("variant"); })[0]; }
+      function refresh() {
+        var v = chosenVariant(), unit = v && v.price_cents != null ? v.price_cents : (o.price_cents || 0);
+        add.textContent = "Ajouter au panier — " + money(unit * parseInt(val("qty") || "1", 10));
       }
-      function refresh() { var t = money(total()); form.querySelector("[data-total]").textContent = t; pay.textContent = "Payer " + t; }
       form.addEventListener("change", refresh);
       refresh();
-      form.querySelector("[data-read]").onclick = function () {
-        var panel = form.querySelector(".tpanel");
-        if (!panel.hidden) { panel.hidden = true; return; }
-        panel.hidden = false;
-        panel.innerHTML = '<p class="sub" style="margin:10px 0 0">Chargement…</p>';
-        call("GET", "/terms").then(function (r) {
-          panel.innerHTML = '<div class="terms">' + (r.terms.articles || []).map(function (a) { return '<h4>' + esc(a.title) + '</h4><p>' + esc(a.body) + '</p>'; }).join("") + '</div>';
-        }).catch(function (e) { panel.innerHTML = '<p class="sub" style="margin:10px 0 0">' + esc(e.message) + '</p>'; });
-      };
       form.onsubmit = function (e) {
         e.preventDefault();
-        var email = val("email").trim();
-        var chosen = form.querySelector('[name="delivery"]:checked');
-        if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email)) return (err.textContent = "Indique une adresse email valide.");
-        if (!form.querySelector('[name="terms"]').checked) return (err.textContent = "Merci d'accepter les conditions générales de vente.");
-        var waive = form.querySelector('[name="waive"]');
-        if (waive && !waive.checked) return (err.textContent = "Coche la case d'accès immédiat pour un produit numérique.");
-        var early = form.querySelector('[name="early"]');
-        var body = { email: email, name: val("name").trim(), accept_terms: true, source: source, return_url: pageUrl(),
-                     quantity: parseInt(val("qty") || "1", 10), waive_withdrawal: !!(waive && waive.checked), early_start: !!(early && early.checked) };
-        if (variants.length) body.variant_id = val("variant");
-        if (chosen) body.delivery = chosen.value;
-        pay.disabled = true; pay.textContent = "Redirection vers le paiement…"; err.textContent = "";
-        call("POST", "/offers/" + o.id + "/checkout", body).then(function (r) { goTo(r.url); })
-          .catch(function (e2) { pay.disabled = false; refresh(); err.textContent = e2.message; });
+        add.disabled = true;
+        loadCart().then(function (cart) {
+          var v = chosenVariant(), qty = parseInt(val("qty") || "1", 10);
+          cart.add({ offer_id: o.id, variant_id: v ? v.id : null, quantity: qty, kind: o.kind, source: source,
+                     slug: slug, seller: data.display_name, title: o.title, image: (o.images || [])[0] || "",
+                     price_cents: v && v.price_cents != null ? v.price_cents : o.price_cents, variant: v ? v.label : "" });
+          var n = cart.count();
+          m.el.innerHTML = '<button type="button" class="x" aria-label="Fermer">✕</button><div class="done"><b>Ajouté au panier ✓</b>' +
+            '<p class="sub">' + esc(o.title) + (v ? " — " + esc(v.label) : "") + (qty > 1 ? " × " + qty : "") + '<br>' +
+            n + ' article' + (n > 1 ? "s" : "") + ' dans ton panier.</p>' +
+            '<button type="button" class="cta" data-checkout>Voir mon panier et payer</button>' +
+            '<button type="button" class="cta ghost" data-more>Continuer mes achats</button></div>';
+          m.el.querySelector(".x").onclick = m.close;
+          m.el.querySelector("[data-more]").onclick = m.close;
+          m.el.querySelector("[data-checkout]").onclick = function () { goTo(opts.checkoutUrl || cart.checkoutUrl()); };
+        }).catch(function () {
+          add.disabled = false;
+          form.querySelector(".err").textContent = "Le panier n'a pas pu être chargé. Réessaie.";
+        });
       };
     }
 

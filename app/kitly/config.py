@@ -134,6 +134,9 @@ KITLY_MAX_IMAGE_BYTES = _int("KITLY_MAX_IMAGE_BYTES", 8 * 1024 * 1024)
 # Stripe — compte Kitly, jamais celui de NAVIRE
 # ============================================================
 KITLY_STRIPE_SECRET_KEY = os.getenv("KITLY_STRIPE_SECRET_KEY", "")
+# Clé publiable (pk_live_… / pk_test_…) du compte Stripe Kitly : formulaire de carte
+# intégré à la page /checkout (panier). Publique par nature.
+KITLY_STRIPE_PUBLISHABLE_KEY = os.getenv("KITLY_STRIPE_PUBLISHABLE_KEY", "")
 # Webhook « compte plateforme » (abonnements Billing)
 KITLY_STRIPE_WEBHOOK_SECRET = os.getenv("KITLY_STRIPE_WEBHOOK_SECRET", "")
 # Webhook « comptes connectés » (Stripe Connect : account.updated, …)
@@ -193,6 +196,7 @@ def missing_env() -> list[str]:
     wanted = {
         "KITLY_JWT_SECRET": os.getenv("KITLY_JWT_SECRET", ""),
         "KITLY_STRIPE_SECRET_KEY": KITLY_STRIPE_SECRET_KEY,
+        "KITLY_STRIPE_PUBLISHABLE_KEY": KITLY_STRIPE_PUBLISHABLE_KEY,
         "KITLY_STRIPE_WEBHOOK_SECRET": KITLY_STRIPE_WEBHOOK_SECRET,
         "KITLY_STRIPE_CONNECT_WEBHOOK_SECRET": KITLY_STRIPE_CONNECT_WEBHOOK_SECRET,
         "KITLY_STRIPE_PRICE_CUSTOM": KITLY_STRIPE_PRICES["custom"],

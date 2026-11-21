@@ -26,6 +26,7 @@ Branchement dans `app/main.py` : un import, `kitly_startup()` au démarrage,
 | `KITLY_STRIPE_SECRET_KEY` | oui | Clé secrète du **compte Stripe Kitly** |
 | `KITLY_STRIPE_WEBHOOK_SECRET` | oui | Secret du webhook `/kitly/stripe/webhook` |
 | `KITLY_STRIPE_CONNECT_WEBHOOK_SECRET` | oui | Secret du webhook `/kitly/stripe/connect-webhook` |
+| `KITLY_STRIPE_PUBLISHABLE_KEY` | oui (panier) | Clé publiable `pk_live_…` du compte Stripe Kitly : formulaire de carte de la page `/checkout`. Sans elle, le panier affiche « paiement pas encore activé » |
 | `KITLY_STRIPE_PRICE_CUSTOM` | oui | Price ID mensuel Custom (7 €) |
 | `KITLY_STRIPE_PRICE_PREMIUM` | oui | Price ID mensuel Premium+ (14,90 €) |
 | `KITLY_SENDER_EMAIL` / `KITLY_SENDER_NAME` | oui | Expéditeur validé chez Brevo (défaut `no-reply@kitly.fr` / `Kitly`) |
@@ -70,7 +71,8 @@ Le démarrage affiche `[kitly] ⚠️ Variables manquantes : …` sans bloquer N
    `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`,
    et pour les ventes sur les vitrines : `checkout.session.expired`,
    `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`,
-   `charge.refunded`, `charge.dispute.created`.
+   `charge.refunded`, `charge.dispute.created`, et pour le panier : `payment_intent.succeeded`,
+   `payment_intent.canceled`, `payment_intent.payment_failed`.
 4. Activer **Connect** (plateforme / marketplace), puis un webhook
    « comptes connectés » → `/kitly/stripe/connect-webhook`, événements :
    `account.updated`, `account.application.deauthorized`.
@@ -133,6 +135,21 @@ les erreurs Stripe sont rendues en 502 `{"code": "stripe_error", "message": …}
 
 **Référentiels**
 `GET /kitly/catalog` (templates, typos, mises en page `site` / `links`, catégories…)
+
+**Panier multi-vendeurs** (`app/kitly/routers/cart.py`, page `/checkout`)
+- `POST /kitly/cart/quote` : récapitulatif du panier (gardé dans le navigateur), revalidé par le serveur, groupé par vendeur ;
+  une seule livraison facturée par vendeur (la plus chère des articles expédiés).
+- `POST /kitly/checkout` : un PaymentIntent sur le compte Stripe Kitly pour tout le panier (`transfer_group` = référence
+  `P…`), une `KitlyOrder` par article chez son vendeur (visible dans « Mes ventes » une fois payée), preuve d'acceptation
+  des CGV de chaque vendeur. Renvoie le `client_secret` du formulaire de carte intégré.
+- Webhook compte plateforme, **événements à ajouter** : `payment_intent.succeeded`, `payment_intent.canceled`,
+  `payment_intent.payment_failed`. Au paiement : commandes payées, stock décrémenté, **un virement (Transfer) par
+  vendeur**, net de la commission marketplace, adossé au paiement (`source_transaction`) ; un email par vendeur, un
+  récapitulatif à l'acheteur. Remboursement total (`charge.refunded`) : commandes remboursées et virements repris.
+  Remboursement partiel : panier « partiellement remboursé », virements à régulariser à la main.
+- `GET /kitly/checkout/{ref}` : état du panier (page de confirmation), sans donnée personnelle.
+- ⚠️ L'argent du panier transite par le compte Kitly avant d'être reversé (« separate charges and transfers ») :
+  rôle de Kitly (agent de paiement / place de marché) à faire valider avant la mise en production.
 
 **Achat sur une vitrine** (`app/kitly/routers/shop.py`)
 - Une offre est achetable en ligne (`buyable` dans la vitrine publique) si : action

@@ -33,6 +33,8 @@ STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 STATIC_FILES = {  # liste blanche
     "vitrine.js": "application/javascript; charset=utf-8",
     "marketplace.js": "application/javascript; charset=utf-8",
+    "cart.js": "application/javascript; charset=utf-8",
+    "checkout.js": "application/javascript; charset=utf-8",
     "logo.png": "image/png",   # logo Kitly : déposer le fichier dans app/kitly/static/logo.png
 }
 

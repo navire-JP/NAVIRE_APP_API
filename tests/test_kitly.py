@@ -1481,3 +1481,150 @@ def test_brevo_key_never_displayed_even_if_pasted_as_sender(client, monkeypatch)
     for blob in (json.dumps(st), json.dumps(res), public, json.dumps(emails.mail_test())):
         assert "0123456789abcdef" not in blob
     assert emails.scrub(f"erreur {key} fin") == "erreur xkeysib-••• fin"
+
+
+# ============================================================
+# Panier multi-vendeurs (un paiement, un virement par vendeur)
+# ============================================================
+
+class _FakeCartStripe:
+    def __init__(self):
+        outer = self
+        self.intents, self.made_transfers, self.reversals, self.canceled = [], [], [], []
+
+        class _Intents:
+            def create(self, params=None, options=None):
+                pi = {"id": f"pi_{uuid.uuid4().hex[:10]}", "client_secret": "pi_secret_test", **params}
+                outer.intents.append(pi)
+                return pi
+
+            def cancel(self, pid, params=None, options=None):
+                outer.canceled.append(pid)
+                return {"id": pid, "status": "canceled"}
+
+        class _Transfers:
+            def create(self, params=None, options=None):
+                t = {"id": f"tr_{uuid.uuid4().hex[:10]}", **params}
+                outer.made_transfers.append(t)
+                return t
+
+            def create_reversal(self, tid, params=None, options=None):
+                outer.reversals.append(tid)
+                return {"id": f"trr_{uuid.uuid4().hex[:8]}"}
+
+        self.payment_intents = _Intents()
+        self.transfers = _Transfers()
+
+
+def test_cart_multi_seller_checkout(client, monkeypatch):
+    from app.kitly import emails
+    from app.kitly.routers import billing, cart, shop
+
+    fake = _FakeCartStripe()
+    monkeypatch.setattr(cart, "stripe_client", lambda: fake)
+    monkeypatch.setattr(cart, "KITLY_STRIPE_PUBLISHABLE_KEY", "pk_test_kitly")
+    monkeypatch.setattr(billing, "KITLY_STRIPE_WEBHOOK_SECRET", "whsec_kitly_test")
+    mails = []
+    monkeypatch.setattr(emails, "send", lambda to, subject, html, reply_to=None: mails.append((to, subject, html)) or True)
+
+    # Vendeur A : tee-shirt (option, stock, livraison payante) ; vendeur B : e-book.
+    email_a, ha = register(client)
+    slug_a = _seller_ready(client, ha)
+    tee = client.post("/kitly/me/offers", json={
+        "kind": "physical", "title": "Tee-shirt", "price_cents": 2500, "status": "published",
+        "details": {"variants": [{"label": "M", "stock": 3}], "shipping_options": [{"label": "Colissimo", "price_cents": 500}],
+                    "delivery_zones": ["fr_metro"]}}, headers=ha).json()["item"]
+    email_b, hb = register(client)
+    slug_b = _seller_ready(client, hb)
+    ebook = client.post("/kitly/me/offers", json={"kind": "digital", "title": "E-book", "price_cents": 1200, "status": "published",
+                                                  "details": {"delivery_url": "https://drive.example.com/ebook"}}, headers=hb).json()["item"]
+    variant = tee["details"]["variants"][0]["id"]
+    items = [{"offer_id": tee["id"], "variant_id": variant, "quantity": 2, "delivery": "0"},
+             {"offer_id": ebook["id"], "source": "marketplace"}]
+
+    # Devis : prix du serveur, groupé par vendeur, adresse et renonciation requises.
+    q = client.post("/kitly/cart/quote", json={"items": items}).json()
+    assert [s["slug"] for s in q["sellers"]] == [slug_a, slug_b]
+    assert q["total_cents"] == 2 * 2500 + 500 + 1200 and q["needs_address"] and "FR" in q["countries"]
+    assert q["has_digital"] and not q["has_errors"] and q["sellers"][0]["lines"][0]["max_quantity"] == 3
+    # Une seule livraison par vendeur : un 2e article expédié du même vendeur ne repaie pas la livraison.
+    mug = client.post("/kitly/me/offers", json={"kind": "physical", "title": "Mug", "price_cents": 1000, "status": "published",
+                                                "details": {"shipping_options": [{"label": "Lettre", "price_cents": 300}]}},
+                      headers=ha).json()["item"]
+    two = client.post("/kitly/cart/quote", json={"items": [items[0], {"offer_id": mug["id"], "delivery": "0"}]}).json()
+    assert two["total_cents"] == 2 * 2500 + 500 + 1000 and [l["shipping_cents"] for l in two["sellers"][0]["lines"]] == [500, 0]
+    # Une ligne trop gourmande est signalée, pas facturée.
+    bad = client.post("/kitly/cart/quote", json={"items": [dict(items[0], quantity=5)]}).json()
+    assert bad["has_errors"] and "stock insuffisant" in bad["sellers"][0]["lines"][0]["error"] and bad["total_cents"] == 0
+
+    buyer = f"panier-{uuid.uuid4().hex[:6]}@exemple.fr"
+    body = {"items": items, "email": buyer, "name": "Alex Client", "phone": "0600000000", "accept_terms": True,
+            "waive_withdrawal": True,
+            "address": {"name": "Alex Client", "line1": "1 rue de Paris", "postal_code": "75001", "city": "Paris", "country": "FR"}}
+    assert client.post("/kitly/checkout", json={**body, "address": None}).status_code == 422          # adresse manquante
+    assert client.post("/kitly/checkout", json={**body, "waive_withdrawal": False}).status_code == 422  # numérique
+    assert client.post("/kitly/checkout", json={**body, "address": {**body["address"], "country": "US"}}).status_code == 422
+    r = client.post("/kitly/checkout", json=body)
+    assert r.status_code == 200, r.text
+    co = r.json()
+    assert co["client_secret"] == "pi_secret_test" and co["publishable_key"] == "pk_test_kitly" and co["amount_cents"] == 6700
+    pi = fake.intents[-1]
+    assert pi["amount"] == 6700 and pi["transfer_group"] == co["ref"] and pi["metadata"]["app"] == "kitly"
+    assert pi["shipping"]["address"]["city"] == "Paris"
+    assert client.get(f"/kitly/checkout/{co['ref']}").json()["status"] == "pending"
+    assert client.get("/kitly/me/orders", headers=ha).json()["items"] == []  # rien avant le webhook
+
+    # Paiement confirmé par Stripe : commandes payées, un virement net par vendeur.
+    event = {"id": f"evt_{uuid.uuid4().hex}", "type": "payment_intent.succeeded",
+             "data": {"object": {"id": pi["id"], "object": "payment_intent", "latest_charge": "ch_cart", "metadata": pi["metadata"]}}}
+    b, hd = _signed(event, "whsec_kitly_test")
+    assert client.post("/kitly/stripe/webhook", content=b, headers=hd).status_code == 200
+    st = client.get(f"/kitly/checkout/{co['ref']}").json()
+    assert st["status"] == "paid" and len(st["items"]) == 2 and "email" not in st
+    oa = client.get("/kitly/me/orders", headers=ha).json()["items"]
+    ob = client.get("/kitly/me/orders", headers=hb).json()["items"]
+    assert len(oa) == 1 and oa[0]["status"] == "paid" and oa[0]["amount_cents"] == 5500 and oa[0]["item"]["shipping_address"]["city"] == "Paris"
+    assert len(ob) == 1 and ob[0]["commission_cents"] == 120 and ob[0]["channel"] == "marketplace"
+    amounts = sorted((t["amount"], t["source_transaction"], t["transfer_group"]) for t in fake.made_transfers)
+    assert amounts == [(1080, "ch_cart", co["ref"]), (5500, "ch_cart", co["ref"])]
+    stock = [o for o in client.get("/kitly/me/offers", headers=ha).json()["items"] if o["id"] == tee["id"]][0]
+    assert stock["details"]["variants"][0]["stock"] == 1
+    buyer_mail = [h for to, _, h in mails if to == buyer]
+    assert len(buyer_mail) == 1 and "https://drive.example.com/ebook" in buyer_mail[0] and co["ref"] in buyer_mail[0]
+    assert {to for to, _, _ in mails} >= {email_a, email_b, buyer}
+
+    # Événement relivré : rien n'est refait.
+    b, hd = _signed({**event, "id": f"evt_{uuid.uuid4().hex}"}, "whsec_kitly_test")
+    client.post("/kitly/stripe/webhook", content=b, headers=hd)
+    assert len(fake.made_transfers) == 2
+
+    # Remboursement total : commandes remboursées, virements repris aux vendeurs.
+    event = {"id": f"evt_{uuid.uuid4().hex}", "type": "charge.refunded",
+             "data": {"object": {"id": "ch_cart", "object": "charge", "payment_intent": pi["id"], "refunded": True}}}
+    b, hd = _signed(event, "whsec_kitly_test")
+    assert client.post("/kitly/stripe/webhook", content=b, headers=hd).status_code == 200
+    assert client.get(f"/kitly/checkout/{co['ref']}").json()["status"] == "refunded"
+    assert client.get("/kitly/me/orders", headers=hb).json()["items"][0]["status"] == "refunded"
+    assert sorted(fake.reversals) == sorted(t["id"] for t in fake.made_transfers)
+
+
+def test_cart_replaces_previous_and_needs_key(client, monkeypatch):
+    from app.kitly.routers import cart
+
+    fake = _FakeCartStripe()
+    monkeypatch.setattr(cart, "stripe_client", lambda: fake)
+    _, h = register(client)
+    _seller_ready(client, h)
+    ebook = client.post("/kitly/me/offers", json={"kind": "service", "title": "Audit", "price_cents": 9000, "status": "published", "cta": "order"},
+                        headers=h).json()["item"]
+    body = {"items": [{"offer_id": ebook["id"]}], "email": "a@exemple.fr", "name": "A", "accept_terms": True}
+    monkeypatch.setattr(cart, "KITLY_STRIPE_PUBLISHABLE_KEY", "")
+    assert client.post("/kitly/checkout", json=body).status_code == 503
+    monkeypatch.setattr(cart, "KITLY_STRIPE_PUBLISHABLE_KEY", "pk_test_kitly")
+    assert client.post("/kitly/checkout", json={**body, "accept_terms": False}).status_code == 422
+    first = client.post("/kitly/checkout", json=body).json()
+    assert "ref" in first, first
+    second = client.post("/kitly/checkout", json={**body, "replaces": first["ref"]}).json()
+    assert fake.canceled == [fake.intents[0]["id"]]
+    assert client.get(f"/kitly/checkout/{first['ref']}").json()["status"] == "canceled"
+    assert client.get(f"/kitly/checkout/{second['ref']}").json()["status"] == "pending"
