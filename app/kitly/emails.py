@@ -225,6 +225,8 @@ def _order_lines(snap: dict) -> str:
             + (f" × {snap.get('quantity')}" if (snap.get("quantity") or 1) > 1 else "")]
     if snap.get("pickup"):
         rows.append("Retrait sur place" + (f" : {_e(snap.get('pickup_location'))}" if snap.get("pickup_location") else ""))
+    elif snap.get("shipping_grouped"):
+        rows.append("Livraison : expédié avec les autres articles du même vendeur")
     elif snap.get("shipping_label"):
         rows.append(f"Livraison : {_e(snap['shipping_label'])} ({_money(snap.get('shipping_cents') or 0)})")
     addr = snap.get("shipping_address") or {}

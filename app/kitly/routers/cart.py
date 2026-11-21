@@ -102,7 +102,30 @@ def _resolve(db: Session, items: list[CartItemIn]) -> list[dict]:
             except HTTPException as exc:
                 row["error"] = str(exc.detail)
         out.append(row)
+    _group_shipping(out)
     return out
+
+
+def _group_shipping(rows: list[dict]) -> None:
+    """
+    Une seule livraison par vendeur : les articles expédiés d'un même vendeur partent
+    ensemble ; seul le mode de livraison le plus cher est facturé, les autres sont offerts.
+    """
+    by_profile: dict[int, list[dict]] = {}
+    for r in rows:
+        if r["line"] and r["line"]["shipping_cents"] > 0:
+            by_profile.setdefault(r["profile"].id, []).append(r)
+    for group in by_profile.values():
+        if len(group) < 2:
+            continue
+        keep = max(group, key=lambda r: r["line"]["shipping_cents"])
+        for r in group:
+            if r is keep:
+                continue
+            line = r["line"]
+            line["total_cents"] -= line["shipping_cents"]
+            line["shipping_cents"] = 0
+            line["snap"] = dict(line["snap"], shipping_cents=0, shipping_grouped=True)
 
 
 def _line_out(index: int, row: dict) -> dict:

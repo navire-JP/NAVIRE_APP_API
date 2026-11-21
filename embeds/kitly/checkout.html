@@ -1,0 +1,92 @@
+<!--
+  KITLY : panier et paiement (embed 6)
+  ====================================
+  Page Framer /checkout. Le code vit dans l'API (GET /kitly/static/checkout.js, qui
+  charge le panier partagé /kitly/static/cart.js) : cet embed ne fait que le charger.
+
+  Parcours : articles groupés par vendeur (option, quantité, livraison, retirer),
+  coordonnées, adresse de livraison, CGV de chaque vendeur, puis formulaire de carte
+  Stripe intégré (carte, Apple Pay, Google Pay, 3D Secure) et confirmation.
+  Les vitrines et la marketplace affichent un bouton « Panier » qui mène ici.
+
+  Composant Framer : Embed HTML, largeur Fill, hauteur auto. Réglages : bloc CONFIG.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent !important; }
+  #kc-root { width: 100%; }   /* l'embed Framer centre son contenu : pleine largeur imposée */
+  #kc-root .wait { font-family: Inter, Arial, sans-serif; color: #6f6f6c; text-align: center; padding: 60px 20px; font-size: 14px; }
+</style>
+
+<div id="kc-root"><p class="wait">Chargement du panier…</p></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  var CONFIG = {
+    API_BASE: "https://navire-app-api.onrender.com",
+    MARKETPLACE_URL: "/marketplace"    // « Continuer mes achats », panier vide
+  };
+  (function () {
+    var origin = "";
+    try { origin = window.top.location.origin; } catch (e) { try { origin = window.location.origin; } catch (e2) {} }
+    if (!origin || origin === "null") origin = "https://kitly.framer.website";
+    Object.keys(CONFIG).forEach(function (k) {
+      var v = CONFIG[k];
+      if (typeof v === "string" && v.charAt(0) === "/") CONFIG[k] = origin + v;
+    });
+  })();
+
+  var root = document.getElementById("kc-root");
+  var s = document.createElement("script");
+  s.src = CONFIG.API_BASE + "/kitly/static/checkout.js";
+  s.onload = function () { window.KitlyCheckout.mount(root, { apiBase: CONFIG.API_BASE, marketplaceUrl: CONFIG.MARKETPLACE_URL }); };
+  s.onerror = function () { root.innerHTML = '<p class="wait">Le panier n\'a pas pu être chargé. Recharge la page.</p>'; };
+  document.head.appendChild(s);
+
+  // Hauteur de l'iframe = hauteur du contenu ; cadre trop large ramené à la largeur de l'écran.
+  (function () {
+    if (window.parent === window) return;
+    var frameEl = null, host = null, wrappers = [];
+    try {
+      if (window.frameElement && window.parent.document) {
+        frameEl = window.frameElement; host = window.parent;
+        for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== host.document.body; i++, n = n.parentElement) wrappers.push(n);
+        var st = document.createElement("style"); st.textContent = "html,body{overflow:hidden}"; document.head.appendChild(st);
+      }
+    } catch (e) { frameEl = null; }
+    function fit() {
+      try {
+        var el = frameEl, win = host;
+        for (var i = 0; i < 6 && el && el.parentElement && el !== host.document.body; i++) {
+          var parent = el.parentElement, cs = win.getComputedStyle(parent);
+          var room = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+          if (room > 200 && el.getBoundingClientRect().width > room + 1) { el.style.width = "100%"; el.style.maxWidth = "100%"; el.style.minWidth = "0"; el.style.flexShrink = "1"; }
+          el = parent;
+        }
+      } catch (e) {}
+    }
+    if (frameEl) { fit(); setTimeout(fit, 600); setTimeout(fit, 2000); }
+    var last = 0;
+    function report() {
+      var h = Math.ceil(root.getBoundingClientRect().height);
+      if (!h || h === last) return;
+      last = h;
+      if (frameEl) {
+        frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+        wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+      } else {
+        try { window.parent.postMessage({ type: "KITLY_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+      }
+    }
+    try { new ResizeObserver(report).observe(root); } catch (e) { setInterval(report, 500); }
+    window.addEventListener("load", report);
+  })();
+})();
+</script>

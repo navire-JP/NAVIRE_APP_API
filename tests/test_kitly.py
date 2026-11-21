@@ -1547,6 +1547,12 @@ def test_cart_multi_seller_checkout(client, monkeypatch):
     assert [s["slug"] for s in q["sellers"]] == [slug_a, slug_b]
     assert q["total_cents"] == 2 * 2500 + 500 + 1200 and q["needs_address"] and "FR" in q["countries"]
     assert q["has_digital"] and not q["has_errors"] and q["sellers"][0]["lines"][0]["max_quantity"] == 3
+    # Une seule livraison par vendeur : un 2e article expédié du même vendeur ne repaie pas la livraison.
+    mug = client.post("/kitly/me/offers", json={"kind": "physical", "title": "Mug", "price_cents": 1000, "status": "published",
+                                                "details": {"shipping_options": [{"label": "Lettre", "price_cents": 300}]}},
+                      headers=ha).json()["item"]
+    two = client.post("/kitly/cart/quote", json={"items": [items[0], {"offer_id": mug["id"], "delivery": "0"}]}).json()
+    assert two["total_cents"] == 2 * 2500 + 500 + 1000 and [l["shipping_cents"] for l in two["sellers"][0]["lines"]] == [500, 0]
     # Une ligne trop gourmande est signalée, pas facturée.
     bad = client.post("/kitly/cart/quote", json={"items": [dict(items[0], quantity=5)]}).json()
     assert bad["has_errors"] and "stock insuffisant" in bad["sellers"][0]["lines"][0]["error"] and bad["total_cents"] == 0
