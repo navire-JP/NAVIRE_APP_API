@@ -55,6 +55,9 @@ from app.routers.professeurs import router as professeurs_router
 from app.routers.mailing import router as mailing_router
 from app.routers.landing import router as landing_router
 from app.routers.social import router as social_router
+# Connecteur NAVIRE (MCP) pour Claude / ChatGPT : OAuth + serveur /mcp
+from app.routers.mcp_oauth import router as mcp_oauth_router
+from app.routers.mcp import router as mcp_router
 # ============================================================
 # MEOLES — import isolé
 # ============================================================
@@ -192,6 +195,24 @@ scheduler.add_job(
     id="expire_deepwork_sessions",
     replace_existing=True,
 )
+
+def _purge_mcp_oauth() -> None:
+    """Connecteur NAVIRE : codes et jetons périmés, applications jamais utilisées."""
+    from app.services.mcp_oauth import purge_expired
+
+    db = SessionLocal()
+    try:
+        n = purge_expired(db)
+        if any(n.values()):
+            print(f"🧹 Connecteur NAVIRE : {n}")
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Purge connecteur NAVIRE échouée : {e}")
+    finally:
+        db.close()
+
+
+scheduler.add_job(_purge_mcp_oauth, trigger="cron", hour=3, minute=20, id="purge_mcp_oauth", replace_existing=True)
 
 # ============================================================
 # Professeurs — groupes par défaut
@@ -416,6 +437,8 @@ app.include_router(professeurs_router)
 app.include_router(mailing_router)
 app.include_router(landing_router)
 app.include_router(social_router)
+app.include_router(mcp_oauth_router)
+app.include_router(mcp_router)
 
 # ============================================================
 # MEOLES — Routers

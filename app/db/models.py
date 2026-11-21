@@ -2746,3 +2746,72 @@ class UserPostSave(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
+
+# ============================================================
+# Connecteur NAVIRE (MCP) — Claude, ChatGPT…
+# ============================================================
+# Un élève abonné branche NAVIRE dans son propre Claude ou ChatGPT : ces
+# applications obtiennent un jeton OAuth (voir app/services/mcp_oauth.py) et
+# appellent /mcp avec. Les jetons et codes ne sont jamais stockés en clair,
+# seulement leur empreinte SHA-256. Dates en UTC sans fuseau (comparables
+# telles quelles sous SQLite comme sous PostgreSQL).
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+class McpOAuthClient(Base):
+    """Application inscrite d'elle-même (RFC 7591) : Claude, ChatGPT…"""
+
+    __tablename__ = "mcp_oauth_clients"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    client_id: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    # Empreinte du secret ; None = client public (PKCE seul)
+    client_secret_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    client_name: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    redirect_uris: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    token_endpoint_auth_method: Mapped[str] = mapped_column(String(32), default="none", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow_naive, nullable=False)
+
+
+class McpOAuthCode(Base):
+    """Code d'autorisation : 10 minutes, usage unique, lié au défi PKCE."""
+
+    __tablename__ = "mcp_oauth_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    client_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    redirect_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    code_challenge: Mapped[str] = mapped_column(String(128), nullable=False)
+    scope: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    resource: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow_naive, nullable=False)
+
+
+class McpOAuthToken(Base):
+    """
+    Une connexion d'une application au compte d'un élève : jeton d'accès
+    (1 h) + jeton de renouvellement (30 jours, remplacé à chaque usage).
+    revoked_at rempli = connexion coupée (par l'élève ou par rotation).
+    """
+
+    __tablename__ = "mcp_oauth_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    access_token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    refresh_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)
+    client_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    scope: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    resource: Mapped[str | None] = mapped_column(Text, nullable=True)
+    access_expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    refresh_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow_naive, nullable=False)
