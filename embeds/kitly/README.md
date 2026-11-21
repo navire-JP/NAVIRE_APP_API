@@ -54,6 +54,12 @@ il appelle l'API NAVIRE. La page `/home` reçoit `embeds/kitly/home.html`.
 Le passage d'une disposition à l'autre suit la largeur réelle de l'embed (≥ 860 px), pas celle
 de l'écran. Lien direct vers une offre : `#<adresse>/offre-<id>` (ou `#offre-<id>` sur `kitly.fr/<adresse>`).
 
+**Sur ordinateur (embed ≥ 860 px)** : « Site complet » devient un vrai site — haut de page en deux
+colonnes (nom en grand, métier, bio, boutons et réseaux à gauche ; bannière en grande image avec la
+photo de profil à droite), barre des sections, sections pleine largeur séparées par des filets
+(grilles de 3 ou 4 colonnes), grand bloc contact avec formulaire, pied de page sur une ligne.
+« Page de liens » passe en deux colonnes : carte d'identité à gauche, liens et encarts à droite.
+
 **Structure commune aux deux mises en page** : en-tête propre à la personne (photo et nom
 quand on a défilé, « Partager », « Contacter »), qui reste en haut de l'écran même dans un embed ;
 bannière fondue dans le fond ; photo de profil ; chaque section dans un encart (carte d'un ton plus

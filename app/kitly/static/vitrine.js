@@ -207,6 +207,56 @@
     ".kv-brand a,.kv-brand span{display:inline-flex;align-items:center;gap:6px;text-decoration:none}.kv-brand b{color:var(--fg)}",
     ".kv-logo{width:28px;height:28px;object-fit:contain;flex-shrink:0;border-radius:8px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}",   // icône lisible sur tous les fonds
     ".kv-empty{text-align:center;color:var(--mut2);font-size:13.5px}",
+    /* ── ordinateur, « Site complet » : un vrai site, pas une colonne de téléphone ── */
+    ".kv-hero-media,.kv-secnav{display:none}",
+    ".kv.lay-site.is-wide{--maxw:1200px}",
+    ".kv.lay-site.is-wide .kv-cover{display:none}",
+    ".kv.lay-site.is-wide .kv-hero3,.kv.lay-site.is-wide.has-cover .kv-hero3{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:64px;align-items:center;max-width:var(--maxw);margin:0 auto;padding:96px 40px 80px;text-align:left}",
+    ".kv.lay-site.is-wide .kv-hero-in{max-width:none;margin:0}",
+    ".kv.lay-site.is-wide .kv-hero-in>.kv-av2{display:none}",
+    ".kv.lay-site.is-wide .kv-name{font-size:clamp(48px,5.4vw,84px);line-height:1;letter-spacing:-.035em}",
+    ".kv.lay-site.is-wide .kv-head{font-size:21px;margin-top:16px}",
+    ".kv.lay-site.is-wide .kv-bio{font-size:18px;line-height:1.6;margin:18px 0 0;max-width:560px}",
+    ".kv.lay-site.is-wide .kv-socials{justify-content:flex-start;margin:18px 0 0 -10px}",
+    ".kv.lay-site.is-wide .kv-actions{justify-content:flex-start;margin-top:28px}",
+    ".kv.lay-site.is-wide .kv-actions .kv-btn{padding:15px 26px;font-size:16px}",
+    ".kv.lay-site.is-wide .kv-hero-media{display:block;position:relative;aspect-ratio:5/4;border-radius:28px;background:color-mix(in srgb,var(--fg) 8%,var(--bg)) center/cover no-repeat;box-shadow:0 40px 80px -40px rgba(0,0,0,.45)}",
+    ".kv.lay-site.is-wide .kv-hero-media.solo{display:flex;align-items:center;justify-content:center;aspect-ratio:auto;background:none;box-shadow:none}",
+    ".kv-av3{position:absolute;left:-26px;bottom:-26px;width:116px;height:116px;border-radius:50%;background:var(--acc) center/cover;box-shadow:0 0 0 6px var(--bg);color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:42px;font-weight:900}",
+    ".kv-av-big{width:min(400px,100%);aspect-ratio:1;border-radius:36px;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:120px;font-weight:900;box-shadow:0 40px 80px -40px rgba(0,0,0,.45)}",
+    ".kv.lay-site.is-wide .kv-secnav{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;max-width:var(--maxw);margin:0 auto;padding:12px 40px;border-top:1px solid var(--line2);border-bottom:1px solid var(--line2)}",
+    ".kv-secnav button{background:none;border:0;color:var(--fg);font:600 14.5px var(--fb);padding:9px 16px;border-radius:99px;cursor:pointer;opacity:.75}",
+    ".kv-secnav button:hover{opacity:1;background:color-mix(in srgb,var(--fg) 7%,transparent)}",
+    ".kv.lay-site.is-wide .kv-main{padding:0 40px;gap:0}",
+    ".kv.lay-site.is-wide .kv-main>.kv-card{background:none;border:0;border-top:1px solid var(--line2);border-radius:0;box-shadow:none;padding:88px 0}",
+    ".kv.lay-site.is-wide .kv-main>.kv-card:first-child{border-top:0}",
+    ".kv.lay-site.is-wide .kv-main>.kv-card.flush{padding:64px 0}",
+    ".kv.lay-site.is-wide .kv-main>.kv-card.flush .kv-figure img{border-radius:24px;max-height:560px;object-fit:cover}",
+    ".kv.lay-site.is-wide .kv-card-t{font-size:clamp(34px,3.4vw,48px);letter-spacing:-.03em;margin-bottom:36px}",
+    ".kv.lay-site.is-wide .kv-cb-img{border-radius:24px}",
+    ".kv.lay-site.is-wide .kv-cb-tx p,.kv.lay-site.is-wide .kv-c-txt{font-size:17.5px;line-height:1.7}",
+    ".kv.lay-site.is-wide .kv-svc .tt{font-size:19px}.kv.lay-site.is-wide .kv-svc .ds{font-size:15px}",
+    ".kv.lay-site.is-wide .kv-offer .tt{font-size:15px}.kv.lay-site.is-wide .kv-offer .pr{font-size:14.5px}.kv.lay-site.is-wide .kv-offer .ds{font-size:13px}",
+    ".kv.lay-site.is-wide .kv-card .kv-offer,.kv.lay-site.is-wide .kv-card .kv-svc,.kv.lay-site.is-wide .kv-card .kv-proj,.kv.lay-site.is-wide .kv-card .kv-stat,.kv.lay-site.is-wide .kv-card .kv-tags span{background:var(--card)}",
+    ".kv.lay-site.is-wide .kv-stat{padding:22px 10px;border-radius:18px}.kv.lay-site.is-wide .kv-stat b{font-size:26px}",
+    ".kv.lay-site.is-wide .kv-svc-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}",
+    ".kv.lay-site.is-wide .kv-shop-grid{gap:20px}",
+    ".kv.lay-site.is-wide .kv-main>.kv-links-wrap{border-top:1px solid var(--line2);padding:64px 0}",
+    ".kv.lay-site.is-wide .kv-main>.kv-titlebar{padding-top:72px}",
+    ".kv.lay-site.is-wide .kv-main>#kv-contact{background:var(--card);border:1px solid var(--card-line);border-radius:32px;padding:64px;margin-top:24px;box-shadow:0 30px 70px -50px rgba(0,0,0,.4)}",
+    ".kv.lay-site.is-wide .kv-main>#kv-contact+*{border-top:0}",
+    ".kv.lay-site.is-wide .kv-foot3{max-width:var(--maxw);margin:72px auto 0;padding:32px 40px 48px;display:flex;justify-content:space-between;align-items:center;gap:20px;text-align:left;border-top:1px solid var(--line2)}",
+    ".kv.lay-site.is-wide .kv-foot3 .kv-brand{margin:0}",
+    /* ── ordinateur, « Page de liens » : identité à gauche, liens et encarts à droite ── */
+    ".kv.lay-links.is-wide{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,640px);justify-content:center;column-gap:56px;align-items:start;padding:40px 32px 0}",
+    ".kv.lay-links.is-wide .kv-hero3,.kv.lay-links.is-wide.has-cover .kv-hero3{grid-column:1;padding:0 0 24px;border-radius:28px;overflow:hidden;background:var(--card);border:1px solid var(--card-line)}",
+    ".kv.lay-links.is-wide.has-cover .kv-hero3{padding-top:calc(210px - 52px)}",
+    ".kv.lay-links.is-wide .kv-cover{height:210px}",
+    ".kv.lay-links.is-wide .kv-hero-in{padding:0 24px}",
+    ".kv.lay-links.is-wide:not(.has-cover) .kv-hero-in{padding-top:32px}",
+    ".kv.lay-links.is-wide .kv-name{font-size:36px}",
+    ".kv.lay-links.is-wide .kv-main{grid-column:2;max-width:none;padding:0;margin:0}",
+    ".kv.lay-links.is-wide .kv-foot3{grid-column:1/-1;max-width:none}",
     /* templates */
     ".kv.t-cadre .kv-card{border:2px solid var(--fg);box-shadow:none}",
     ".kv.t-cadre .kv-av2{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--fg)}",
@@ -562,6 +612,15 @@
     };
 
     var firstOffers = has.offers ? "kv-offers" : has.products ? "kv-shop" : "";
+    // Barre des sections (« Site complet », affichée sur ordinateur sous le haut de page)
+    var NAV = { about: ["kv-about", "À propos"], offers: ["kv-offers", "Prestations"], products: ["kv-shop", "Boutique"],
+                portfolio: ["kv-work", "Réalisations"], links: ["kv-links", "Liens"], contact: ["kv-contact", "Contact"] };
+    var secnav = !site ? "" : order.filter(function (k) { return (NAV[k] && has[k]) || (k === "content" && has.content); }).map(function (k) {
+      if (k === "content") return content.filter(function (b) { return b.type === "section" && b.title; }).slice(0, 2).map(function (b) {
+        return '<button type="button" data-kv-nav="kv-b-' + esc(b.id) + '">' + esc(b.title.length > 24 ? b.title.slice(0, 23) + "…" : b.title) + '</button>';
+      }).join("");
+      return '<button type="button" data-kv-nav="' + NAV[k][0] + '">' + NAV[k][1] + '</button>';
+    }).join("");
 
     var parts = {
       content: function () {
@@ -633,7 +692,13 @@
         socialsHtml(p) +
         (site ? '<div class="kv-actions"><button type="button" class="kv-btn" data-kv-contact-scroll>Me contacter</button>' +
           (firstOffers ? '<button type="button" class="kv-btn ghost" data-kv-nav="' + firstOffers + '">Voir mes offres</button>' : '') + '</div>' : '') +
-      '</div></section>';
+      '</div>' +
+      // Ordinateur (« Site complet ») : la bannière devient une grande image à droite du texte.
+      (site ? (p.banner_url
+        ? '<div class="kv-hero-media" style="background-image:' + cssUrl(p.banner_url) + '">' + avatarHtml(p, "kv-av3") + '</div>'
+        : '<div class="kv-hero-media solo">' + avatarHtml(p, "kv-av-big") + '</div>') : '') +
+      '</section>' +
+      (secnav ? '<nav class="kv-secnav" aria-label="Sections">' + secnav + '</nav>' : '');
 
     // Pied de page
     var legal = p.legal || {};
