@@ -521,6 +521,48 @@ class OrderCheckoutIn(_In):
         return self
 
 
+class CartItemIn(_In):
+    """Ligne de panier (gardée dans le navigateur, revalidée par le serveur à chaque appel)."""
+    offer_id: int
+    variant_id: Optional[str] = Field(default=None, max_length=20)
+    quantity: int = Field(default=1, ge=1, le=10)
+    # Index de l'option de livraison choisie, ou « pickup » (retrait sur place).
+    delivery: Optional[str] = Field(default=None, max_length=10)
+    source: Literal["direct", "marketplace"] = "direct"
+
+
+class CartQuoteIn(_In):
+    items: list[CartItemIn] = Field(default_factory=list, max_length=30)
+
+
+class ShippingAddressIn(_In):
+    name: str = Field(min_length=1, max_length=120)
+    line1: str = Field(min_length=1, max_length=200)
+    line2: str = Field(default="", max_length=200)
+    postal_code: str = Field(min_length=1, max_length=20)
+    city: str = Field(min_length=1, max_length=120)
+    country: str = Field(default="FR", min_length=2, max_length=2)
+
+
+class CartCheckoutIn(_In):
+    """Paiement d'un panier (plusieurs vendeurs) : formulaire de carte intégré à la page /checkout."""
+    items: list[CartItemIn] = Field(min_length=1, max_length=30)
+    email: EmailStr
+    name: str = Field(min_length=1, max_length=120)
+    phone: str = Field(default="", max_length=40)
+    address: Optional[ShippingAddressIn] = None
+    accept_terms: bool = False
+    waive_withdrawal: bool = False   # contenus numériques : accès immédiat, renonciation au droit de rétractation
+    early_start: bool = False        # prestations : exécution avant la fin du délai de rétractation
+    replaces: Optional[str] = Field(default=None, max_length=12)  # panier précédent non payé, annulé
+
+    @model_validator(mode="after")
+    def _terms(self):
+        if not self.accept_terms:
+            raise ValueError("Merci d'accepter les conditions générales de vente des vendeurs.")
+        return self
+
+
 class OrderFulfillIn(_In):
     """Vente marquée expédiée / traitée par le freelance."""
     fulfilled: bool = True

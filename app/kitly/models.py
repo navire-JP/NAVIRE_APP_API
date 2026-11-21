@@ -539,6 +539,40 @@ class KitlyOrder(Base):
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+def _checkout_ref() -> str:
+    return "P" + secrets.token_hex(5).upper()
+
+
+class KitlyCheckout(Base):
+    """
+    Panier payé en une fois (plusieurs articles, plusieurs vendeurs).
+
+    Kitly encaisse un seul paiement (PaymentIntent sur le compte Stripe Kitly,
+    `transfer_group` = référence), puis reverse à chaque vendeur sa part, nette de la
+    commission marketplace (Transfer vers son compte Connect). Chaque article donne une
+    `KitlyOrder` chez son vendeur (référence du panier dans `offer_snapshot.checkout_ref`).
+    """
+
+    __tablename__ = "kitly_checkouts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    public_ref: Mapped[str] = mapped_column(String(12), unique=True, default=_checkout_ref, nullable=False)
+    buyer_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    buyer_name: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    buyer_phone: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    shipping_address: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="eur", nullable=False)
+    # pending | paid | canceled | refunded | partially_refunded | disputed
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    stripe_charge_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Virements aux vendeurs : [{profile_id, account, amount_cents, transfer_id, error}]
+    transfers: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class KitlyTermsAcceptance(Base):
     """
     Preuve d'acceptation des CGV du vendeur par un client : version, empreinte

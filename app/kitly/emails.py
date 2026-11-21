@@ -280,6 +280,62 @@ def mail_order_buyer(seller_name: str, ref: str, snap: dict, amount_cents: int, 
     return f"Ta commande {ref} est confirmée", layout("Commande confirmée", body)
 
 
+def mail_cart_seller(first_name: str, checkout_ref: str, orders: list[tuple[str, dict, int, int]],
+                     buyer_name: str, buyer_email: str) -> tuple[str, str]:
+    """Commande payée via le panier Kitly : tous les articles de ce vendeur, en un email.
+    `orders` : [(référence, instantané, montant, commission)]."""
+    total = sum(a for _, _, a, _ in orders)
+    fee = sum(c for _, _, _, c in orders)
+    items = "".join(f"<div style='border-top:1px solid #e4e4e2;padding-top:8px;margin-top:8px'>"
+                    f"<p style='margin:0 0 4px'><b>{_e(ref)}</b> · {_money(amount)}</p>{_order_lines(snap)}</div>"
+                    for ref, snap, amount, _ in orders)
+    kinds = {snap.get("kind") for _, snap, _, _ in orders}
+    todo = []
+    if "physical" in kinds:
+        todo.append("Prépare l'envoi (ou le retrait) des articles et préviens ton client.")
+    if "digital" in kinds:
+        todo.append("Les liens de livraison renseignés sur tes offres numériques lui ont été envoyés ; sinon, envoie-lui le fichier.")
+    if "service" in kinds:
+        todo.append("Contacte ton client pour lancer la prestation.")
+    body = (
+        f"<p>Bonjour {_e(first_name) or ''},</p><p>Nouvelle commande payée via le panier Kitly 🎉</p>"
+        f"<p><b>Panier :</b> {_e(checkout_ref)} · <b>Montant de tes articles :</b> {_money(total)}</p>{items}"
+        f"<p><b>Client :</b> {_e(buyer_name)} &lt;{_e(buyer_email)}&gt;</p>"
+        + (f"<p>Commission Kitly (ventes issues de la marketplace) : {_money(fee)}.</p>" if fee else "")
+        + f"<p>Kitly te vire {_money(total - fee)} sur ton compte Stripe (hors frais Stripe), "
+        "visible dans ton espace de paiements.</p>"
+        + "".join(f"<p>{t}</p>" for t in todo)
+        + "<p>Marque chaque article comme expédié / traité dans l'onglet « Mes ventes » de ta vitrine.</p>"
+    )
+    return f"Nouvelle commande — panier {checkout_ref} ({_money(total)})", layout("Nouvelle commande", body)
+
+
+def mail_cart_buyer(checkout_ref: str, groups: list[dict], amount_cents: int) -> tuple[str, str]:
+    """Récapitulatif du panier payé. `groups` : [{seller, seller_email, lines: [(ref, snap, montant, lien)]}]."""
+    blocks = []
+    for g in groups:
+        lines = []
+        for ref, snap, amount, url in g["lines"]:
+            link = ""
+            if snap.get("kind") == "digital":
+                link = (f'<p><a href="{_e(url)}" style="display:inline-block;background:#0a0a0a;color:#fff;padding:10px 18px;'
+                        f'border-radius:99px;text-decoration:none;font-weight:700">Accéder à mon achat</a></p>'
+                        if url else f"<p>{_e(g['seller'])} va t'envoyer ton fichier par email.</p>")
+            lines.append(f"<p style='margin:8px 0 4px'><b>{_e(ref)}</b> · {_money(amount)}</p>{_order_lines(snap)}{link}")
+        contact = f"<p style='color:#6f6f6c'>Une question sur ces articles ? Écris à {_e(g['seller_email'])}.</p>" if g.get("seller_email") else ""
+        blocks.append(f"<div style='border:1px solid #e4e4e2;border-radius:14px;padding:12px 16px;margin:12px 0'>"
+                      f"<p style='margin:0 0 4px;font-size:16px'><b>{_e(g['seller'])}</b></p>{''.join(lines)}{contact}</div>")
+    body = (
+        f"<p>Bonjour,</p><p>Merci pour ta commande : ton paiement est confirmé.</p>"
+        f"<p><b>Référence :</b> {_e(checkout_ref)} · <b>Total payé :</b> {_money(amount_cents)}</p>{''.join(blocks)}"
+        "<p>Chaque vendeur prépare ses articles et te tiendra informé(e).</p>"
+        "<p style='color:#6f6f6c;font-size:12px'>Chaque vente est conclue avec le vendeur concerné, selon ses conditions "
+        "générales de vente acceptées lors de la commande. Kitly fournit la marketplace et encaisse le paiement pour le "
+        "compte des vendeurs.</p>"
+    )
+    return f"Ta commande {checkout_ref} est confirmée", layout("Commande confirmée", body)
+
+
 def mail_order_fulfilled(seller_name: str, ref: str, snap: dict, tracking: str, seller_email: str) -> tuple[str, str]:
     kind = snap.get("kind")
     if kind == "physical" and snap.get("pickup"):
