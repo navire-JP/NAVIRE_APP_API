@@ -1803,3 +1803,129 @@
   loadCounts();
 })();
 </script>
+
+<style>
+/* ================= MENU EN OVERLAY (comme NAVIRE Lib) =================
+   Grand écran : le menu latéral est un panneau posé par-dessus la page, fermé
+   à l'ouverture ; le bouton menu l'ouvre ; la croix, le voile, Échap ou un
+   choix dans le menu le referment. Il se pose sous le header du site, sur la
+   partie visible de l'embed (--ov-top, --ov-h), opaque, avec un voile derrière.
+   Téléphone : le menu et les fenêtres montent du bas de l'écran, opaques. */
+#nv-news:not(.is-compact) .nv-side, #nv-news.is-flow:not(.is-compact) .nv-side, #nv-news.is-flow.is-sticky:not(.is-compact) .nv-side {
+  position: absolute !important; left: 12px !important; right: auto !important;
+  top: calc(var(--ov-top, 0px) + 12px) !important; bottom: auto !important;
+  height: calc(var(--ov-h, 100%) - 24px) !important; max-height: none !important;
+  width: min(280px, calc(100% - 24px)) !important; margin: 0 !important; align-self: auto !important;
+  z-index: 1001 !important; border: 0 !important; border-radius: 18px !important; padding: 12px 8px 10px !important;
+  overflow-y: auto !important; overscroll-behavior: contain; scrollbar-width: none;
+  background: rgba(20,22,34,0.97) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.07) !important;
+  visibility: hidden !important; opacity: 1 !important; transform: translateX(calc(-100% - 24px)) !important;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), visibility 0s .3s !important;
+}
+#nv-news:not(.is-compact) .nv-side::-webkit-scrollbar { display: none; }
+#nv-news:not(.is-compact).is-drawer .nv-side { visibility: visible !important; transform: none !important; transition: transform .3s cubic-bezier(.2,.8,.2,1) !important; }
+#nv-news:not(.is-compact) .nv-scrim {
+  display: block !important; position: absolute !important; left: 0 !important; right: 0 !important; bottom: auto !important;
+  top: var(--ov-top, 0px) !important; height: var(--ov-h, 100%) !important; z-index: 1000 !important;
+  background: rgba(5,6,12,0.4) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  opacity: 0 !important; pointer-events: none !important; transition: opacity .25s !important;
+}
+#nv-news:not(.is-compact).is-drawer .nv-scrim { opacity: 1 !important; pointer-events: auto !important; }
+#nv-news:not(.is-compact):not(.is-solo) .nv-menu-btn { display: inline-flex !important; }
+#nv-news:not(.is-compact) .nv-side-close { display: inline-flex !important; }
+#nv-news:not(.is-compact) .nv-side-close .nv-x { display: block !important; }
+#nv-news:not(.is-compact) .nv-side-close .nv-chev { display: none !important; }
+
+/* Téléphone : menu en bas de l'écran, opaque, voile derrière. */
+#nv-news.is-compact .nv-side, #nv-news.is-flow.is-compact .nv-side {
+  position: absolute !important; left: 10px !important; right: 10px !important; width: auto !important; margin: 0 !important;
+  top: calc(var(--ov-top, 0px) + var(--ov-h, 100%) - 10px) !important; bottom: auto !important; height: auto !important;
+  max-height: calc(var(--ov-h, 100%) - 20px) !important; overflow-y: auto !important; overscroll-behavior: contain;
+  z-index: 1001 !important; border: 0 !important; border-radius: 22px !important; padding: 8px 8px 10px !important;
+  background: rgba(20,22,34,0.98) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  box-shadow: 0 -10px 50px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07) !important;
+  visibility: hidden !important; opacity: 0 !important; transform: translateY(calc(-100% + 28px)) !important;
+  transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s, visibility 0s .26s !important;
+}
+#nv-news.is-compact .nv-side::before { content: ''; display: block; flex: 0 0 auto; width: 36px; height: 4px; border-radius: 9px; margin: 2px auto 6px; background: rgba(255,255,255,0.16); }
+#nv-news.is-compact.is-drawer .nv-side { visibility: visible !important; opacity: 1 !important; transform: translateY(-100%) !important; transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s !important; }
+#nv-news.is-compact .nv-scrim {
+  display: block !important; position: absolute !important; left: 0 !important; right: 0 !important; bottom: auto !important;
+  top: var(--ov-top, 0px) !important; height: var(--ov-h, 100%) !important; z-index: 1000 !important;
+  background: rgba(5,6,12,0.45) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  opacity: 0 !important; pointer-events: none !important; transition: opacity .25s !important;
+}
+#nv-news.is-compact.is-drawer .nv-scrim { opacity: 1 !important; pointer-events: auto !important; }
+#nv-news.is-compact .nv-pop { top: var(--ov-top, 0px) !important; height: var(--ov-h, 100%) !important; justify-content: flex-end; padding: 12px 10px calc(10px + env(safe-area-inset-bottom, 0px)) !important; background: rgba(5,6,12,0.45) !important; }
+#nv-news.is-compact .nv-pop-card { background: rgba(20,22,34,0.98) !important; border-radius: 22px !important; box-shadow: 0 -10px 50px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07) !important; animation: nv-ovsheet .26s cubic-bezier(.2,.8,.2,1) both !important; }
+@keyframes nv-ovsheet { from { opacity: 0; transform: translateY(28px); } }
+</style>
+<script>
+/* MENU EN OVERLAY (comme NAVIRE Lib) : partie visible de l'embed sous le
+   header du site, ouverture et fermeture du menu sur grand écran. */
+(function () {
+  var root = document.getElementById("nv-news");
+  if (!root || root.__nvOverlay) return;
+  root.__nvOverlay = true;
+  var FRAMED = window.self !== window.top, HOST = null, frameEl = null;
+  try { if (FRAMED && window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+  var W = HOST || window;
+  try { if (getComputedStyle(root).position === "static") root.style.position = "relative"; } catch (e) {}
+  function compact() { return root.classList.contains("is-compact"); }
+  // Bas du header fixe ou collant du site, au-dessus de l'embed (0 sinon).
+  function siteHead() {
+    if (FRAMED && !HOST) return 0;
+    try {
+      var d = W.document, x = W.innerWidth / 2, best = 0;
+      (d.elementsFromPoint ? d.elementsFromPoint(x, 4) : []).forEach(function (n) {
+        if (n === frameEl || root.contains(n) || (frameEl && n.contains(frameEl)) || n.contains(root)) return;
+        for (var e = n; e && e !== d.body; e = e.parentElement) {
+          var p = W.getComputedStyle(e).position;
+          if (p === "fixed" || p === "sticky") { var r = e.getBoundingClientRect(); if (r.top <= 4 && r.bottom < W.innerHeight / 2) best = Math.max(best, r.bottom); break; }
+        }
+      });
+      return Math.round(best);
+    } catch (e) { return 0; }
+  }
+  // Partie de l'embed visible à l'écran, sous le header du site.
+  function layout() {
+    var top = 0, h = root.clientHeight || 600;
+    try {
+      var rh = root.offsetHeight, rt, vh;
+      if (FRAMED && !HOST) { rt = root.getBoundingClientRect().top; vh = window.innerHeight; }
+      else { rt = (frameEl ? frameEl.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; vh = W.innerHeight; }
+      var a = Math.max(siteHead(), rt), b = Math.min(vh, rt + rh);
+      h = Math.max(240, b - a);
+      top = Math.max(0, Math.min(a - rt, rh - h));
+    } catch (e) {}
+    root.style.setProperty("--ov-top", Math.round(top) + "px");
+    root.style.setProperty("--ov-h", Math.round(h) + "px");
+  }
+  var ticking = false;
+  function tick() { if (ticking) return; ticking = true; requestAnimationFrame(function () { ticking = false; layout(); }); }
+  try { W.addEventListener("scroll", tick, { passive: true }); W.addEventListener("resize", tick); } catch (e) {}
+  window.addEventListener("scroll", tick, { passive: true, capture: true });
+  window.addEventListener("resize", tick);
+  if (window.MutationObserver) new MutationObserver(function () { if (root.classList.contains("is-drawer")) layout(); })
+    .observe(root, { attributes: true, attributeFilter: ["class"] });
+  setTimeout(layout, 0); setTimeout(layout, 800);
+  function setOpen(on) { if (on) layout(); root.classList.toggle("is-drawer", !!on); }
+  // Grand écran : le bouton menu ouvre le panneau (au lieu d'élargir la page),
+  // la croix et le voile le referment ; un choix dans le menu le referme aussi.
+  document.addEventListener("click", function (e) {
+    var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
+    var act = t && root.contains(t) ? t.getAttribute("data-act") : null;
+    if (act === "side-open" || act === "open-drawer") {
+      if (compact()) { layout(); return; }
+      e.stopPropagation(); e.preventDefault(); setOpen(!root.classList.contains("is-drawer")); return;
+    }
+    if (compact()) return;
+    if (act === "side-close" || act === "close-side" || act === "close-drawer") { e.stopPropagation(); e.preventDefault(); setOpen(false); return; }
+    if (!root.classList.contains("is-drawer") || !e.target.closest) return;
+    var side = e.target.closest(".nv-side");
+    if (side && root.contains(side) && e.target.closest("a[href], button, [data-view], [data-filter], [data-tab], [role='button']")) setTimeout(function () { setOpen(false); }, 0);
+  }, true);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !compact()) setOpen(false); });
+})();
+</script>
