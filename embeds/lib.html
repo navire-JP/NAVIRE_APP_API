@@ -11,6 +11,13 @@
   bibliothèque / Mes fichiers / Cours » ; en lecture, un bouton retour et un
   bouton « plan » discret (les titres, en voile) ; comptes admin : un bouton
   qui ouvre « Voir comme » en voile ; une flèche ramène en haut de la page.
+  Grand écran : menu en overlay de verre (fermé à l'ouverture), bibliothèque
+  sur 3 colonnes par paquets de 12 (« Voir plus »), pas de barre du haut : un
+  dock fixé en bas de l'écran (menu, retour, surlignage, plein écran).
+  Lecture d'un cours ou d'un PDF (ordinateur et téléphone) : toute la page en
+  clair, y compris les blocs du site qui ne contiennent que l'embed ; bouton
+  « Bibliothèque » en tête du cours, et le bouton retour du navigateur ramène
+  à la bibliothèque, là où on l'avait laissée.
 
   Un curseur passe de NAVIRE Lib à NAVIRE Lib+ :
     Lib   → consultation : le cours entier, sans point de passage ni Elo.
@@ -681,6 +688,157 @@
 #nv-lib.is-compact .nl-mtabs { margin-top: 0; }
 @keyframes nl-popfade { from { opacity: 0; } }
 @keyframes nl-pop { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+/* ================= MENU LATÉRAL : OVERLAY EN VERRE ================= */
+/* Grand écran : la barre latérale est un panneau flottant posé par-dessus la
+   page, calé sur la partie visible de l'écran (--vis-top, --vis-h). Fermé à
+   l'ouverture ; bouton menu pour l'ouvrir ; « « », clic à côté ou Échap pour le
+   fermer. Aucune barre de défilement : le haut et le bas du panneau restent en
+   place, la liste du milieu (plan du cours…) défile sans barre si elle est trop longue.
+   Téléphone : la fenêtre « plan du cours » passe aussi en verre, sans voile derrière. */
+#nv-lib:not(.is-compact) .nv-side,
+#nv-lib.is-flow:not(.is-compact) .nv-side {
+  position: absolute !important; left: 12px; bottom: auto !important;
+  top: calc(var(--vis-top, 0px) + 12px) !important; height: calc(var(--vis-h, 100%) - 24px) !important;
+  width: min(280px, calc(100% - 24px)); margin-left: 0 !important; z-index: 1001; overflow: hidden !important;
+  border: 0 !important; border-radius: 18px; padding: 12px 8px 10px;
+  background: rgba(22,24,36,0.6); -webkit-backdrop-filter: blur(22px) saturate(160%); backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.08);
+  visibility: hidden; transform: translateX(calc(-100% - 24px)); transition: transform .3s var(--ease), visibility 0s .3s;
+}
+#nv-lib:not(.is-compact).is-drawer .nv-side { visibility: visible; transform: none; transition: transform .3s var(--ease); }
+#nv-lib:not(.is-compact) .nv-side > * { flex-shrink: 0; }
+#nv-lib:not(.is-compact) .nv-side > .nv-side-body { flex: 1 1 auto !important; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+#nv-lib .nv-side, #nv-lib .nv-side *, #nv-lib .nl-pop-card { scrollbar-width: none; }
+#nv-lib .nv-side::-webkit-scrollbar, #nv-lib .nv-side *::-webkit-scrollbar, #nv-lib .nl-pop-card::-webkit-scrollbar { display: none; width: 0; height: 0; }
+#nv-lib .nv-scrim { background: transparent !important; }
+#nv-lib:not(.is-compact) .nv-scrim { z-index: 1000; top: var(--vis-top, 0px) !important; bottom: auto !important; height: var(--vis-h, 100%) !important; }
+#nv-lib:not(.is-compact).is-drawer .nv-scrim { opacity: 1; pointer-events: auto; }
+#nv-lib:not(.is-compact) .nv-menu-btn { display: inline-flex !important; }
+#nv-lib .nl-pop-card { background: rgba(24,26,38,0.62) !important; -webkit-backdrop-filter: blur(22px) saturate(160%); backdrop-filter: blur(22px) saturate(160%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.08) !important; }
+/* ================= BIBLIOTHÈQUE : 3 COLONNES, « VOIR PLUS » ================= */
+#nv-lib .nv-page-inner:has(> .nl-grid) { max-width: 1080px; }
+#nv-lib:not(.is-compact) .nl-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+#nv-lib .nl-more { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 18px auto 0; height: 40px; padding: 0 20px; border-radius: 99px; border: 0; background: var(--panel-2); color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+#nv-lib .nl-more:hover { background: var(--panel-3); color: var(--text); }
+#nv-lib .nl-more small { font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--text-4); }
+
+/* ================= PAS DE BANDE EN HAUT ================= */
+/* La barre du haut (qui suivait le défilement) disparaît : ses boutons passent
+   dans un dock en verre fixé en bas de l'écran (voir DOCK dans le script). */
+#nv-lib .nv-topbar { display: none !important; }
+#nv-lib.is-flow .nl-apercu { position: static !important; top: auto !important; }
+#nv-lib:not(.is-compact) .nv-page-inner { padding-top: 26px; padding-bottom: 110px; }
+#nv-lib.is-compact.is-doc .nv-page-inner { padding-top: 16px; padding-bottom: 100px; }
+
+/* ================= LECTURE : FOND CLAIR ================= */
+#nv-lib.is-doc, #nv-lib.is-pdf {
+  --panel: rgba(20,24,40,0.035); --panel-2: rgba(20,24,40,0.065); --panel-3: rgba(20,24,40,0.1);
+  --line: rgba(20,24,40,0.09); --line-2: rgba(20,24,40,0.16);
+  --text: #15171f; --text-2: rgba(21,23,31,0.74); --text-3: rgba(21,23,31,0.52); --text-4: rgba(21,23,31,0.34);
+  --blue: #2F62E8; --blue-hi: #1F49BF; --blue-deep: #2F62E8; --blue-soft: rgba(47,98,232,0.08); --blue-line: rgba(47,98,232,0.28);
+  background: #F6F5F1; color: var(--text);
+}
+#nv-lib.is-doc .nl-article { color: rgba(21,23,31,0.88); }
+#nv-lib.is-doc .nl-h1, #nv-lib.is-doc .nl-h2, #nv-lib.is-doc .nl-lead, #nv-lib.is-doc .nl-table td:first-child, #nv-lib.is-doc .nl-q-text, #nv-lib.is-doc .nl-qfb b, #nv-lib.is-doc .nl-art-by b,
+#nv-lib.is-doc .nl-plan-item.l1, #nv-lib.is-doc .nl-plan-item:hover, #nv-lib.is-doc .nl-plan-item.is-current, #nv-lib.is-doc .nl-plan-cp.open, #nv-lib.is-doc .nv-chip:hover, #nv-lib.is-doc .nv-chip.is-active { color: var(--text); }
+#nv-lib.is-doc .nl-h3 { color: rgba(21,23,31,0.9); }
+#nv-lib.is-doc .nl-quote { color: rgba(21,23,31,0.8); background: rgba(47,98,232,0.05); }
+#nv-lib.is-doc .nl-goal { background: rgba(47,98,232,0.06); border-color: rgba(47,98,232,0.18); }
+#nv-lib.is-doc .nl-pdp::after { background: rgba(47,98,232,0.22); }
+#nv-lib.is-doc .nl-article mark.nl-art { background: rgba(47,98,232,0.12); box-shadow: inset 0 -1px 0 rgba(47,98,232,0.5); }
+#nv-lib.is-doc .nl-article mark.nl-jp { background: rgba(20,24,40,0.07); box-shadow: inset 0 -1px 0 rgba(20,24,40,0.4); }
+#nv-lib.is-doc .nl-article mark.nl-loi { background: rgba(47,98,232,0.2); box-shadow: inset 0 -1px 0 rgba(47,98,232,0.6); }
+#nv-lib.is-doc .nl-article mark.nl-hl { background: rgba(47,98,232,0.14); }
+#nv-lib.is-plain.is-doc .nl-article mark.nl-art, #nv-lib.is-plain.is-doc .nl-article mark.nl-jp, #nv-lib.is-plain.is-doc .nl-article mark.nl-loi, #nv-lib.is-plain.is-doc .nl-article mark.nl-hl { background: transparent; box-shadow: none; }
+#nv-lib.is-doc .nl-legend span:nth-child(1) i { background: rgba(47,98,232,0.3) !important; }
+#nv-lib.is-doc .nl-legend span:nth-child(2) i { background: rgba(20,24,40,0.18) !important; }
+#nv-lib.is-doc .nl-legend span:nth-child(3) i { background: rgba(47,98,232,0.5) !important; }
+#nv-lib.is-doc .nl-qcard, #nv-lib.is-doc .nl-gate-card { background: #fff; box-shadow: 0 1px 2px rgba(20,24,40,0.06), 0 8px 24px rgba(20,24,40,0.06); }
+#nv-lib.is-doc .nl-chat { background: #fff; }
+#nv-lib.is-doc .nl-msg.ai .nl-txt, #nv-lib.is-doc .nl-chat-form input { color: var(--text); }
+#nv-lib.is-doc .nl-done { background: rgba(47,98,232,0.05); }
+#nv-lib.is-doc .nv-btn, #nv-lib.is-pdf .nv-btn, #nv-lib.is-doc .nv-tag.white { background: #15171f; color: #fff; }
+#nv-lib.is-doc .nv-tag.solid, #nv-lib.is-doc .nl-end .nl-qico, #nv-lib.is-doc .nl-done .nl-done-ico, #nv-lib.is-doc .nl-msg.me .nl-txt, #nv-lib.is-doc .nl-choice.is-on kbd, #nv-lib.is-doc .nl-plan-cp.passed i { color: #fff; }
+#nv-lib.is-doc .nl-done .nl-done-ico.is-skip { background: #15171f; }
+#nv-lib.is-doc .nl-choice.is-right { border-color: var(--text); background: var(--panel-2); }
+#nv-lib.is-doc .nl-choice.is-right kbd { background: var(--text); border-color: var(--text); color: #fff; }
+#nv-lib.is-doc .nl-choice.is-wrong { text-decoration-color: rgba(21,23,31,0.3); }
+#nv-lib.is-doc .nl-plan-cp.elo i { border-color: var(--text); color: var(--text); }
+#nv-lib.is-doc .nl-pop-item:hover { background: var(--panel-2); }
+#nv-lib.is-doc .nl-pop-sep { background: var(--line); }
+#nv-lib.is-doc:not(.is-compact) .nv-side, #nv-lib.is-pdf:not(.is-compact) .nv-side { background: rgba(255,255,255,0.66); box-shadow: inset 0 0 0 1px rgba(20,24,40,0.08); }
+#nv-lib.is-doc .nl-pop-card, #nv-lib.is-pdf .nl-pop-card { background: rgba(255,255,255,0.72) !important; box-shadow: inset 0 0 0 1px rgba(20,24,40,0.08) !important; }
+
+/* ================= PDF : DANS LA PAGE, EN CLAIR ================= */
+#nv-lib.is-flow.is-pdf .nv-main, #nv-lib.is-flow.is-pdf .nl-pop { display: none !important; }
+#nv-lib.is-flow .nl-pdf.is-on { position: relative !important; inset: auto !important; top: auto !important; height: auto !important; flex: 1 1 auto; min-width: 0; z-index: 1; }
+#nv-lib.is-flow .nl-pdf-frame { overflow: visible !important; flex: none; }
+#nv-lib.is-pdf .nl-pdf { background: transparent; }
+#nv-lib .nl-pdf-bar { border-bottom: 0; width: 100%; max-width: 860px; margin: 0 auto; padding: 24px 14px 0; }
+#nv-lib .nl-pdf-bar .nv-chip { display: none; }
+#nv-lib .nl-pdf-bar b { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+#nv-lib.is-flow .nl-pdf-pages { padding-bottom: 110px; }
+#nv-lib.is-pdf .nl-pdf-pages canvas { box-shadow: 0 1px 3px rgba(20,24,40,0.08), 0 8px 24px rgba(20,24,40,0.08); }
+
+/* ================= PLEIN ÉCRAN ================= */
+/* En plein écran, c'est l'embed qui défile (sans barre) : il remplit l'écran. */
+html.nl-fs { overflow-y: auto !important; overflow-x: hidden !important; }
+html.nl-fs body { overflow: visible !important; }
+#nv-lib.is-fs:not(.is-doc):not(.is-pdf) { background: #0b0b12; }
+#nv-lib:fullscreen { overflow-y: auto !important; height: 100vh !important; }
+/* Sans barre du haut : Lib / Lib+ et le pass admin passent à côté de la recherche (grand écran). */
+#nv-lib:not(.is-compact) .nl-mrow .nl-mode { display: inline-grid; height: 42px; padding: 4px; }
+#nv-lib:not(.is-compact) .nl-mrow .nl-mode i { top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); }
+#nv-lib:not(.is-compact).is-admin .nl-mrow .nv-icon-btn { display: inline-flex; width: 42px; height: 42px; border-radius: 12px; }
+
+/* ================= LECTURE EN CLAIR : LISIBILITÉ ================= */
+/* Toasts : toujours sombres, texte blanc. */
+#nv-lib .nv-toast { color: #fff; }
+#nv-lib .nv-toast.is-error { color: #B5CDFF; }
+/* Bouton « Bibliothèque » en tête du cours (ordinateur et téléphone). */
+#nv-lib .nl-backrow { display: flex; margin: 0 0 6px; }
+#nv-lib .nl-backrow .nv-chip { height: 32px; padding: 0 14px 0 9px; gap: 4px; font-weight: 600; border-color: transparent; background: var(--panel-2); color: var(--text-2); }
+#nv-lib .nl-backrow .nv-chip:hover { background: var(--panel-3); color: var(--text); }
+#nv-lib .nl-backrow .nv-chip svg { width: 16px; height: 16px; }
+/* Ce qui restait en blanc sur le fond clair. */
+#nv-lib.is-doc .nv-input { color: var(--text); background: #fff; }
+#nv-lib.is-doc .nl-goal { color: #24365f; }
+#nv-lib.is-doc .nv-scroll { scrollbar-color: rgba(20,24,40,0.15) transparent; }
+#nv-lib.is-doc .nl-chat-form input { background: #fff; }
+#nv-lib.is-doc .nl-action:hover, #nv-lib.is-doc .nl-ps-item:hover, #nv-lib.is-doc .nl-seg button:hover { color: var(--text); }
+#nv-lib.is-doc .nl-seg button.is-on { background: var(--text); color: #fff; }
+#nv-lib.is-doc .nl-send, #nv-lib.is-doc .nl-gain { color: #fff; }
+#nv-lib.is-doc .nl-apercu, #nv-lib.is-pdf .nl-apercu { background: rgba(20,24,40,0.04) !important; color: var(--text-2) !important; box-shadow: inset 0 -1px 0 var(--line); }
+#nv-lib.is-doc .nl-apercu button, #nv-lib.is-pdf .nl-apercu button { background: rgba(20,24,40,0.08) !important; color: var(--text) !important; }
+#nv-lib.is-doc .nv-logo, #nv-lib.is-pdf .nv-logo { background-image: url("https://navire-app-api.onrender.com/assets/logo-navire-app-noir.png") !important; }
+
+/* ================= OVERLAYS : SOUS LE HEADER DU SITE, OPAQUES ================= */
+/* --vis-safe : hauteur du header collant du site qui recouvre le haut de
+   l'embed. Le menu (grand écran) et les fenêtres se posent dessous, avec un
+   fond presque opaque et un voile derrière (le texte du cours ne transparaît plus). */
+#nv-lib:not(.is-compact) .nv-side,
+#nv-lib.is-flow:not(.is-compact) .nv-side {
+  top: calc(var(--vis-top, 0px) + var(--vis-safe, 0px) + 12px) !important;
+  height: calc(var(--vis-h, 100%) - var(--vis-safe, 0px) - 24px) !important;
+  background: rgba(20,22,34,0.95);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.07);
+}
+#nv-lib.is-doc:not(.is-compact) .nv-side, #nv-lib.is-doc.is-flow:not(.is-compact) .nv-side,
+#nv-lib.is-pdf:not(.is-compact) .nv-side, #nv-lib.is-pdf.is-flow:not(.is-compact) .nv-side {
+  background: rgba(255,255,255,0.97); box-shadow: 0 24px 60px rgba(20,24,40,0.18), inset 0 0 0 1px rgba(20,24,40,0.08);
+}
+#nv-lib:not(.is-compact) .nv-scrim { background: rgba(5,6,12,0.4) !important; }
+#nv-lib.is-doc:not(.is-compact) .nv-scrim, #nv-lib.is-pdf:not(.is-compact) .nv-scrim { background: rgba(20,24,40,0.18) !important; }
+/* Fenêtres (plan du cours, pass admin) : voile derrière, carte opaque, sous le header. */
+#nv-lib .nl-pop { padding-top: calc(var(--vis-safe, 0px) + 12px); background: rgba(5,6,12,0.45) !important; }
+#nv-lib.is-doc .nl-pop, #nv-lib.is-pdf .nl-pop { background: rgba(20,24,40,0.22) !important; }
+#nv-lib .nl-pop-card { background: rgba(20,22,34,0.97) !important; box-shadow: 0 24px 60px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07) !important; }
+#nv-lib.is-doc .nl-pop-card, #nv-lib.is-pdf .nl-pop-card { background: #fff !important; box-shadow: 0 24px 60px rgba(20,24,40,0.2), inset 0 0 0 1px rgba(20,24,40,0.08) !important; }
+/* Téléphone : la fenêtre monte du bas de l'écran, à portée du pouce. */
+#nv-lib.is-compact .nl-pop { justify-content: flex-end; padding: calc(var(--vis-safe, 0px) + 12px) 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
+#nv-lib.is-compact .nl-pop-card { border-radius: 22px; padding: 8px 6px 10px; animation: nl-sheet .26s var(--ease) both; }
+#nv-lib.is-compact .nl-pop-card::before { content: ''; display: block; width: 36px; height: 4px; border-radius: 9px; margin: 2px auto 4px; background: var(--line-2); }
+@keyframes nl-sheet { from { opacity: 0; transform: translateY(28px); } }
 </style>
 
 <div id="nv-lib" class="is-solo">
@@ -813,6 +971,16 @@
       w.history.replaceState(w.history.state, "", u.toString());
     } catch (e) {}
   }
+  // Ouvrir un cours ajoute une entrée à l'historique : le bouton retour du
+  // navigateur (ou du téléphone) ramène à la bibliothèque.
+  function pushPageParam(name, value) {
+    try {
+      var w = window.top, u = new URL(w.location.href);
+      u.searchParams.set(name, value);
+      w.history.pushState(w.history.state, "", u.toString());
+      return true;
+    } catch (e) { return false; }
+  }
   function stepNum(text) { var m = /^(?:ÉTAPE|ETAPE|PARTIE)\s+(\d+)/i.exec(text || ""); return m ? m[1] : null; }
   function cleanTitle(text) {
     var t = String(text || "").replace(/^(?:ÉTAPE|ETAPE|PARTIE)\s+\d+\.?\s*/i, "");
@@ -878,7 +1046,7 @@
   // l'embed, calée sur la hauteur de l'écran (variables --vis-top, --vis-h).
   // Repli « is-boxed » (iframe d'une autre origine, la page du site est
   // inaccessible) : hauteur de l'écran, le contenu défile dans l'embed.
-  var FRAMED = window.self !== window.top, HOST = null, frameEl = null, wrappers = [];
+  var FRAMED = window.self !== window.top, HOST = null, frameEl = null, wrappers = [], FS = false;
   if (FRAMED) {
     var hideBar = document.createElement("style");
     hideBar.textContent = "html,body{margin:0;scrollbar-width:none;overflow:hidden}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
@@ -890,11 +1058,11 @@
   root.classList.add(BOXED ? "is-boxed" : "is-flow");
   var FLOW = (function () {
     var subs = [], ticking = false;
-    function win() { return HOST || window; }
+    function win() { return FS ? window : (HOST || window); }
     function vh() { return win().innerHeight || 800; }
     function page() { return el("page"); }
     // Haut de l'embed dans la fenêtre du site.
-    function rootTop() { return (frameEl ? frameEl.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; }
+    function rootTop() { return (frameEl && !FS ? frameEl.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; }
     function barH() { var b = root.querySelector(".nv-topbar"); return b && b.offsetParent ? b.offsetHeight : 0; }
     var F = {
       boxed: BOXED,
@@ -955,7 +1123,7 @@
       requestAnimationFrame(function () { ticking = false; F.layout(); subs.forEach(function (fn) { try { fn(); } catch (e) {} }); });
     }
     if (BOXED) setTimeout(function () { page().addEventListener("scroll", tick, { passive: true }); }, 0);
-    else win().addEventListener("scroll", tick, { passive: true });
+    else { win().addEventListener("scroll", tick, { passive: true }); if (HOST) window.addEventListener("scroll", tick, { passive: true }); }
     win().addEventListener("resize", function () { F.size(); tick(); });
     if (window.ResizeObserver) new ResizeObserver(function () { F.size(); }).observe(root);
     window.addEventListener("load", F.size);
@@ -966,9 +1134,10 @@
   sizeApp();
 
   function updateCompact() {
-    var compact = root.clientWidth < 760;
+    var compact = root.clientWidth < 760, was = root.classList.contains("is-compact");
     root.classList.toggle("is-compact", compact);
-    if (!compact) { root.classList.remove("is-drawer"); closePop(); }
+    if (compact !== was) root.classList.remove("is-drawer");
+    if (!compact) closePop();
     if (typeof paintUp === "function") paintUp();
   }
   if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
@@ -977,13 +1146,117 @@
   applyLogos();
 
   // Barre latérale masquée (grand écran) : retenu d'une visite à l'autre.
-  function setSide(on) { root.classList.toggle("is-side-off", !on); store("navire_lib_side", on ? null : "off"); }
-  root.classList.toggle("is-side-off", load("navire_lib_side") === "off");
+  // Grand écran : le menu est un overlay, fermé à l'ouverture de la page.
+  function setSide(on) { root.classList.toggle("is-drawer", !!on); if (on && typeof FLOW !== "undefined" && FLOW.layout) { FLOW.layout(); if (typeof layoutSafe === "function") layoutSafe(); } }
+  root.classList.remove("is-side-off");
 
   S.plain = load("navire_lib_plain") === "1";
   root.classList.toggle("is-plain", S.plain);
 
   // ================= RENDU COMMUN =================
+  // Barres collantes du site (header) posées par-dessus l'embed : on les
+  // trouve parmi les voisins des blocs qui contiennent l'embed.
+  // Framer enveloppe le header dans des blocs « display: contents »
+  // (.ssr-variant) : on regarde aussi à l'intérieur. Résultat gardé seulement
+  // s'il n'est pas vide (le header peut arriver après le démarrage de l'embed).
+  var siteBarsCache = null;
+  function siteBars() {
+    if (siteBarsCache && siteBarsCache.every(function (b) { return b.isConnected; })) return siteBarsCache;
+    var out = [];
+    if (frameEl) try {
+      var W = HOST, vw = W.innerWidth || 1000;
+      var look = function (c, d) {
+        if (c.contains(frameEl)) return;
+        var cs = W.getComputedStyle(c);
+        if (cs.display === "contents") { if (d < 4) for (var k = c.firstElementChild; k; k = k.nextElementSibling) look(k, d + 1); return; }
+        if (cs.position !== "sticky" && cs.position !== "fixed") return;
+        var r = c.getBoundingClientRect();
+        if (cs.position === "sticky" ? !(parseFloat(cs.top) <= 40) : r.top > 40) return;
+        if (r.height && (r.height < 30 || r.height > 180 || r.width < vw * 0.5)) return;
+        out.push(c);
+      };
+      for (var a = frameEl; a && a.parentElement && a !== W.document.body; a = a.parentElement)
+        for (var c = a.parentElement.firstElementChild; c; c = c.nextElementSibling) if (c !== a) look(c, 0);
+    } catch (e) {}
+    siteBarsCache = out.length ? out : null;
+    return out;
+  }
+  if (HOST) HOST.addEventListener("resize", function () { siteBarsCache = null; });
+  // Hauteur du header du site qui recouvre le haut de l'embed : les overlays
+  // (menu, plan du cours) se posent dessous (variable --vis-safe).
+  function layoutSafe() {
+    var safe = 0;
+    if (frameEl && !FS) try {
+      var hb = 0;
+      siteBars().forEach(function (b) { var r = b.getBoundingClientRect(); if (r.height > 0 && r.top < 40 && r.bottom > hb) hb = r.bottom; });
+      var top = Math.max(0, frameEl.getBoundingClientRect().top + root.getBoundingClientRect().top);
+      safe = Math.max(0, Math.round(hb - top));
+    } catch (e) {}
+    root.style.setProperty("--vis-safe", safe + "px");
+    paintBars();
+  }
+  // Header du site en lecture : fond sombre opaque, peint dès qu'il est trouvé
+  // (le header collant est pensé pour un fond sombre, presque transparent).
+  var BAR_BG = "rgb(9, 9, 20)", barsLit = [];
+  function paintBars() {
+    var on = root.classList.contains("is-doc") || root.classList.contains("is-pdf");
+    if (on && frameEl) {
+      siteBars().forEach(function (b) {
+        if (barsLit.some(function (p) { return p[0] === b; })) return;
+        barsLit.push([b, [b.style.getPropertyValue("background"), b.style.getPropertyPriority("background")]]);
+        b.style.setProperty("background", BAR_BG, "important");
+      });
+    } else if (!on && barsLit.length) {
+      barsLit.forEach(function (p) { if (p[1][0]) p[0].style.setProperty("background", p[1][0], p[1][1]); else p[0].style.removeProperty("background"); });
+      barsLit = [];
+    }
+  }
+  // Lecture en clair (cours ou PDF) : les blocs du site qui ne contiennent que
+  // l'embed prennent le même fond clair, bord à bord ; le header collant du
+  // site (pensé pour un fond sombre, presque transparent) prend un fond sombre
+  // opaque pour rester lisible au-dessus de la page claire. Tout est rendu en
+  // revenant à la bibliothèque. Le footer du site ne change pas.
+  var LIGHT_BG = "#F6F5F1", lit = null;
+  function hostLight() {
+    var on = root.classList.contains("is-doc") || root.classList.contains("is-pdf");
+    if (on && !lit && frameEl) {
+      var nodes = [[frameEl, LIGHT_BG]];
+      try {
+        for (var n = frameEl.parentElement, k = 0; n && k < 8 && n !== HOST.document.body && n.childElementCount === 1; n = n.parentElement, k++) nodes.push([n, LIGHT_BG]);
+      } catch (e) {}
+      lit = nodes.map(function (p) {
+        var x = p[0], old = [x.style.getPropertyValue("background"), x.style.getPropertyPriority("background")];
+        x.style.setProperty("background", p[1], "important");
+        return [x, old];
+      });
+    } else if (!on && lit) {
+      lit.forEach(function (p) { if (p[1][0]) p[0].style.setProperty("background", p[1][0], p[1][1]); else p[0].style.removeProperty("background"); });
+      lit = null;
+    }
+    paintBars();
+    if (typeof paintUp === "function") paintUp();
+  }
+  if (window.MutationObserver) new MutationObserver(hostLight).observe(root, { attributes: true, attributeFilter: ["class"] });
+  FLOW.onScroll(layoutSafe);
+  setTimeout(layoutSafe, 0);
+  // Retour à la bibliothèque depuis un cours : par l'historique si le cours a
+  // été ouvert depuis la bibliothèque (même effet que le bouton retour du
+  // navigateur), et on retrouve la liste là où on l'avait laissée.
+  function goLibrary() {
+    root.classList.remove("is-drawer");
+    if (S.view === "doc" && S.pushed) { try { window.top.history.back(); return; } catch (e) {} }
+    backToLibrary();
+  }
+  function backToLibrary() {
+    var y = S.libY;
+    S.pushed = false;
+    closePop();
+    root.classList.remove("is-drawer");
+    return refreshCatalogue().then(function () {
+      viewLibrary();
+      if (S.view === "library" && y) { sizeApp(); FLOW.to(y); }
+    });
+  }
   function setPage(html, solo) {
     root.classList.toggle("is-solo", !!solo);
     root.classList.toggle("is-doc", S.view === "doc");
@@ -1120,6 +1393,7 @@
 
   function viewLibrary() {
     if (plus() && !hasPlus()) return viewUpsell();
+    S.pushed = false;
     S.doc = null; S.docId = null; setPageParam("doc", null); setPageParam("prepa", null);
     S.view = "library";
     root.classList.remove("is-solo");
@@ -1157,7 +1431,13 @@
       '<button class="nv-icon-btn" data-act="admin-pop" aria-label="Pass admin" title="Pass admin · voir comme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></button></div>';
     if (!items.length) html += '<div class="nv-empty"><b>La bibliothèque arrive</b>Les premiers cours sont en préparation.</div>';
     else if (!list.length) html += '<div class="nv-empty"><b>Aucun résultat</b>Essaie un autre mot.</div>';
-    else html += '<div class="nl-grid">' + list.map(bookCard).join("") + '</div>';
+    else {
+      // Par paquets de 12 : « Voir plus » ajoute la suite sans recharger la page.
+      var listKey = S.mode + "|" + S.filter + "|" + q;
+      if (S.listKey !== listKey) { S.listKey = listKey; S.shown = 12; }
+      S.list = list;
+      html += '<div class="nl-grid" data-el="grid">' + list.slice(0, S.shown).map(bookCard).join("") + '</div>' + moreBtn();
+    }
     if (!plus()) {
       var extra = ((S.cat && S.cat.items) || []).filter(function (d) { return d.plus; }).length;
       html += '<button class="nl-banner" data-mode-set="plus"><span class="nl-qico">' + pp(24) + '</span><div><b>Passe à Lib+</b><span>' +
@@ -1212,7 +1492,12 @@
     opts = opts || {};
     if (plus() && !hasPlus()) return viewUpsell();
     if (S.docId !== id) { S.Q = {}; S.redo = {}; S.after = {}; S.chat = {}; }
-    S.docId = id; setPageParam("doc", id); setPageParam("prepa", null);
+    setPageParam("prepa", null);
+    if (S.view !== "doc") {
+      S.libY = S.view === "library" ? FLOW.y() : 0;
+      if (!opts.pop && String(pageParam("doc") || "") !== String(id) && pushPageParam("doc", id)) S.pushed = true;
+    }
+    S.docId = id; setPageParam("doc", id);
     S.view = "doc";
     root.classList.add("is-doc");
     root.classList.remove("is-solo");
@@ -1292,7 +1577,8 @@
     var cps = {};
     (d.checkpoints || []).forEach(function (c) { cps[c.anchor] = c; });
     var gate = d.gate;
-    var html = '<article class="nl-article">' +
+    var html = '<div class="nl-backrow"><button class="nv-chip" data-act="library">' + ICON.back + 'Bibliothèque</button></div>' +
+      '<article class="nl-article">' +
       '<header class="nl-cover">' + (doc.kicker ? '<small>' + esc(doc.kicker) + '</small>' : '<small>NAVIRE Lib' + (p ? "+" : "") + ' · ' + esc(doc.perso ? "Ton fichier" : KINDS[doc.kind] || "") + '</small>') +
         '<h1>' + esc(doc.titre) + '</h1>' + (doc.sous_titre ? '<p>' + esc(doc.sous_titre) + '</p>' : "") +
         '<div class="nl-cover-meta">' + (doc.maj ? '<span class="nv-tag">' + esc(doc.maj) + '</span>' : "") +
@@ -1648,6 +1934,7 @@
     el("pdf-title").textContent = title || "Document";
     frame.innerHTML = '<div class="nl-pdf-pages"><div class="nv-skel" style="height:420px"></div></div>';
     el("pdf").classList.add("is-on");
+    root.classList.add("is-pdf"); root.classList.remove("is-drawer"); closePop(); FLOW.top(); sizeApp();
     loadPdfJs().then(function () {
       return fetch(CONFIG.API + path, { headers: { Authorization: "Bearer " + S.token } });
     }).then(function (r) {
@@ -1676,7 +1963,7 @@
       frame.innerHTML = '<div class="nv-empty"><b>Impossible d\'ouvrir ce document</b>' + esc(x.message === "pdf.js" ? "Le lecteur n'a pas pu se charger." : x.message) + '</div>';
     });
   }
-  function closePdf() { pdfToken++; el("pdf").classList.remove("is-on"); el("pdf-frame").innerHTML = ""; }
+  function closePdf() { pdfToken++; el("pdf").classList.remove("is-on"); el("pdf-frame").innerHTML = ""; root.classList.remove("is-pdf"); sizeApp(); FLOW.top(); }
 
   // ----- Pass admin : voir Lib comme un étudiant d'un niveau -----
   function renderAdmin() {
@@ -1710,7 +1997,7 @@
       '<button class="nl-pop-item" data-act="library">' + ICON.back + 'Bibliothèque</button>' +
       '<button class="nl-pop-item' + (S.plain ? "" : " is-on") + '" data-act="toggle-hl">' + ico("link", 16) + 'Surlignage des références<span class="nl-switch"></span></button>' +
       '<div class="nl-pop-sep"></div>' +
-      (d ? '<div class="nl-pop-note"><b style="color:#fff;font-weight:600">' + esc(d.titre) + '</b>' + (plus() && d.nb_points_passage ? '<br>' + d.valides + ' / ' + d.nb_points_passage + ' points de passage' : "") + '</div>' : "") +
+      (d ? '<div class="nl-pop-note"><b style="color:var(--text);font-weight:600">' + esc(d.titre) + '</b>' + (plus() && d.nb_points_passage ? '<br>' + d.valides + ' / ' + d.nb_points_passage + ' points de passage' : "") + '</div>' : "") +
       '<div class="nl-plan">' + (S.planHtml || '<div class="nl-pop-note">Ce document n\'a pas de titres.</div>') + '</div>';
   }
   function popAdmin() {
@@ -1724,6 +2011,7 @@
   function openPop(kind) {
     var p = el("pop");
     FLOW.layout();
+    layoutSafe();
     p.innerHTML = '<div class="nl-pop-card" role="dialog" aria-modal="true">' + (kind === "plan" ? popPlan() : popAdmin()) + '</div>';
     p.hidden = false;
     lockPage(true);
@@ -1752,6 +2040,10 @@
     if (!upBtn) return;
     var vh = (HOST || window).innerHeight || 800;
     var on = root.classList.contains("is-compact") && FLOW.y() > vh * 0.8 && el("pop").hidden;
+    var light = root.classList.contains("is-doc") || root.classList.contains("is-pdf");   // lecture en clair : flèche sombre
+    upBtn.style.background = light ? "#15171f" : "#fff";
+    upBtn.style.color = light ? "#fff" : "#0a0a12";
+    upBtn.style.boxShadow = light ? "0 10px 30px rgba(20,24,40,0.25)" : "0 10px 30px rgba(0,0,0,0.45)";
     upBtn.style.opacity = on ? "1" : "0";
     upBtn.style.transform = on ? "none" : "translateY(10px) scale(.9)";
     upBtn.style.pointerEvents = on ? "auto" : "none";
@@ -1833,7 +2125,7 @@
     else if (act === "pop-close") closePop();
     else if (act === "plan-pop") openPop("plan");
     else if (act === "admin-pop") openPop("admin");
-    else if (act === "library") { root.classList.remove("is-drawer"); refreshCatalogue().then(viewLibrary); }
+    else if (act === "library") goLibrary();
     else if (act === "toggle-hl") { S.plain = !S.plain; root.classList.toggle("is-plain", S.plain); t.classList.toggle("is-on", !S.plain); el("hl-btn").classList.toggle("is-on", !S.plain); store("navire_lib_plain", S.plain ? "1" : null); toast(S.plain ? "Surlignage masqué" : "Surlignage affiché"); }
     else if (act === "prepa") viewPrepa();
     else if (act === "pdf-close") closePdf();
@@ -1873,6 +2165,174 @@
     else if (el("pdf").classList.contains("is-on")) closePdf();
     else root.classList.remove("is-drawer");
   });
+  // Menu overlay ouvert : la molette ne fait pas défiler la page derrière ;
+  // seule la liste du menu défile (sans barre) si elle est trop longue.
+  root.addEventListener("wheel", function (e) {
+    if (!root.classList.contains("is-drawer") || root.classList.contains("is-compact") || !e.target.closest) return;
+    if (!e.target.closest(".nv-side, .nv-scrim")) return;
+    var dy = e.deltaY || 0;
+    for (var n = e.target; n && n !== root; n = n.parentElement) {
+      if (n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) {
+        if ((dy < 0 && n.scrollTop > 0) || (dy > 0 && n.scrollTop + n.clientHeight < n.scrollHeight - 1)) return;
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  // ================= DOCK : boutons fixes en bas de l'écran =================
+  // Remplace la barre du haut. Il est posé sur la page du site en position fixe :
+  // il ne bouge pas pendant le défilement. Menu, retour, surlignage, plein écran.
+  var DOCK_CSS = ".nl-dock{position:fixed;left:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:2147482999;display:flex;gap:2px;padding:5px;border-radius:16px;background:rgba(20,22,34,0.94);-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);box-shadow:0 10px 30px rgba(0,0,0,0.35),inset 0 0 0 1px rgba(255,255,255,0.08);transition:opacity .2s,transform .2s,background .2s}" +
+    ".nl-dock.is-hidden{opacity:0;transform:translateY(8px);pointer-events:none}" +
+    ".nl-dock button{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:11px;background:transparent;color:rgba(255,255,255,0.8);cursor:pointer;padding:0;margin:0;transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent}" +
+    ".nl-dock button[hidden]{display:none}" +
+    ".nl-dock button:hover{background:rgba(255,255,255,0.1);color:#fff}" +
+    ".nl-dock button.is-on{color:#7AA7FF}" +
+    ".nl-dock svg{width:19px;height:19px;display:block}" +
+    ".nl-dock.is-light{background:rgba(255,255,255,0.96);box-shadow:0 10px 30px rgba(20,24,40,0.14),inset 0 0 0 1px rgba(20,24,40,0.1)}" +
+    ".nl-dock.is-light button{color:rgba(21,23,31,0.72)}" +
+    ".nl-dock.is-light button:hover{background:rgba(20,24,40,0.07);color:#15171f}" +
+    ".nl-dock.is-light button.is-on{color:#2F62E8}";
+  var DOCK_ICONS = {
+    menu: '<path d="M4 7h16M4 12h16M4 17h10"/>',
+    back: '<path d="m15 18-6-6 6-6"/>',
+    hl: '<path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>',
+    fs: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    fsOff: '<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>'
+  };
+  function dockSvg(p) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>'; }
+  function addDockCss(d) { try { if (d.getElementById("nl-dock-css")) return; var s = d.createElement("style"); s.id = "nl-dock-css"; s.textContent = DOCK_CSS; d.head.appendChild(s); } catch (e) {} }
+  var FS_DOC = HOST ? HOST.document : document, FS_TARGET = frameEl || root;
+  var FS_OK = !!((FS_TARGET.requestFullscreen || FS_TARGET.webkitRequestFullscreen) && (FS_DOC.fullscreenEnabled || FS_DOC.webkitFullscreenEnabled));
+  var dock = null, dockBtn = {};
+  (function () {
+    var home = HOST ? HOST.document : document;
+    addDockCss(home); addDockCss(document);
+    dock = home.createElement("div");
+    dock.className = "nl-dock is-hidden";
+    [["menu", "Menu"], ["back", "Retour"], ["hl", "Surlignage des références"], ["fs", "Plein écran"]].forEach(function (b) {
+      var x = home.createElement("button");
+      x.type = "button"; x.title = b[1]; x.setAttribute("aria-label", b[1]); x.hidden = true;
+      x.innerHTML = dockSvg(DOCK_ICONS[b[0]]);
+      x.addEventListener("click", function () { dockAct(b[0]); });
+      dockBtn[b[0]] = x; dock.appendChild(x);
+    });
+    home.body.appendChild(dock);
+  })();
+  function dropDock() { try { if (dock) dock.remove(); } catch (e) {} dock = null; }
+  window.addEventListener("pagehide", dropDock);
+  window.addEventListener("unload", dropDock);
+  function dockAct(k) {
+    var c = root.classList;
+    if (k === "menu") {
+      if (c.contains("is-compact")) { var pl = root.querySelector(".nl-m-plan"); if (pl) pl.click(); }
+      else setSide(!c.contains("is-drawer"));
+    } else if (k === "back") {
+      if (c.contains("is-pdf")) closePdf();
+      else goLibrary();
+    } else if (k === "hl") { var h = el("hl-btn"); if (h) h.click(); }
+    else if (k === "fs") toggleFs();
+    syncDock();
+  }
+  function syncDock() {
+    if (!dock) return;
+    if (frameEl && !frameEl.isConnected) { dropDock(); return; }
+    var c = root.classList, compact = c.contains("is-compact"), pdf = c.contains("is-pdf"), doc = c.contains("is-doc") && !pdf;
+    dockBtn.menu.hidden = !(!pdf && (!compact || doc));
+    dockBtn.back.hidden = !(doc || pdf);
+    dockBtn.hl.hidden = !doc;
+    dockBtn.fs.hidden = !((doc || pdf) && FS_OK);
+    dockBtn.menu.classList.toggle("is-on", c.contains("is-drawer"));
+    dockBtn.hl.classList.toggle("is-on", !S.plain);
+    if (dockBtn.fs.getAttribute("data-on") !== String(FS)) {
+      dockBtn.fs.setAttribute("data-on", String(FS));
+      dockBtn.fs.innerHTML = dockSvg(FS ? DOCK_ICONS.fsOff : DOCK_ICONS.fs);
+      dockBtn.fs.title = FS ? "Quitter le plein écran" : "Plein écran";
+      dockBtn.fs.setAttribute("aria-label", dockBtn.fs.title);
+    }
+    dock.classList.toggle("is-light", doc || pdf);
+    var vis = true, left = 16;
+    if (!FS) {
+      var r = (frameEl || root).getBoundingClientRect(), vh = (HOST || window).innerHeight || 800;
+      vis = r.width > 0 && r.bottom > 150 && r.top < vh - 90;
+      if (frameEl) left = Math.max(12, Math.round(r.left + 16));
+    }
+    dock.style.left = left + "px";
+    var any = !dockBtn.menu.hidden || !dockBtn.back.hidden || !dockBtn.hl.hidden || !dockBtn.fs.hidden;
+    var pop = el("pop");
+    var hide = !any || !vis || (c.contains("is-solo") && !pdf) || (c.contains("is-drawer") && !compact) || (pop && !pop.hidden);
+    dock.classList.toggle("is-hidden", !!hide);
+  }
+  FLOW.onScroll(syncDock);
+  (HOST || window).addEventListener("resize", syncDock);
+  if (window.MutationObserver) {
+    var dockMo = new MutationObserver(syncDock);
+    dockMo.observe(root, { attributes: true, attributeFilter: ["class"] });
+    if (el("pop")) dockMo.observe(el("pop"), { attributes: true, attributeFilter: ["hidden"] });
+  }
+  setTimeout(syncDock, 0);
+
+  // ----- Plein écran (cours ou PDF ouvert) -----
+  function toggleFs() {
+    var cur = FS_DOC.fullscreenElement || FS_DOC.webkitFullscreenElement;
+    try {
+      if (cur) { (FS_DOC.exitFullscreen || FS_DOC.webkitExitFullscreen).call(FS_DOC); return; }
+      var req = FS_TARGET.requestFullscreen || FS_TARGET.webkitRequestFullscreen;
+      var pr = req.call(FS_TARGET);
+      if (pr && pr.catch) pr.catch(function () { toast("Le navigateur a refusé le plein écran.", true); });
+    } catch (e) { toast("Plein écran indisponible sur cet appareil.", true); }
+  }
+  function onFs() {
+    var cur = FS_DOC.fullscreenElement || FS_DOC.webkitFullscreenElement;
+    var on = !!cur && cur === FS_TARGET;
+    if (on === FS) return;
+    var y = FLOW.y();
+    FS = on;
+    document.documentElement.classList.toggle("nl-fs", on);
+    root.classList.toggle("is-fs", on);
+    if (dock && frameEl) (on ? document : HOST.document).body.appendChild(dock);
+    sizeApp();
+    setTimeout(function () { FLOW.to(y); FLOW.layout(); syncDock(); }, 80);
+  }
+  FS_DOC.addEventListener("fullscreenchange", onFs);
+  FS_DOC.addEventListener("webkitfullscreenchange", onFs);
+
+  // ----- « Voir plus » : la bibliothèque se charge par paquets de 12 -----
+  function moreBtn() {
+    var rest = (S.list || []).length - (S.shown || 0);
+    return rest > 0 ? '<button type="button" class="nl-more" data-more>Voir plus <small>' + rest + '</small></button>' : "";
+  }
+  function showMore(btn) {
+    var grid = el("grid");
+    if (!grid || !S.list) return;
+    var from = S.shown || 12;
+    S.shown = from + 12;
+    grid.insertAdjacentHTML("beforeend", S.list.slice(from, S.shown).map(function (d, i) { return bookCard(d, i); }).join(""));
+    var rest = S.list.length - S.shown;
+    if (rest > 0) btn.querySelector("small").textContent = rest; else btn.remove();
+    applyLogos(grid);
+    sizeApp();
+  }
+  root.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-more]");
+    if (b && root.contains(b)) showMore(b);
+  });
+
+  // Un choix dans le menu (section du plan, filtre, lien) referme l'overlay.
+  root.addEventListener("click", function (e) {
+    if (root.classList.contains("is-compact") || !root.classList.contains("is-drawer") || !e.target.closest) return;
+    var t = e.target.closest('[data-goto], [data-goto-cp], [data-filter], a[href], [data-act="prepa"]');
+    if (t && t.closest(".nv-side")) setTimeout(function () { root.classList.remove("is-drawer"); }, 0);
+  });
+
+  // Bouton retour du navigateur : du cours vers la bibliothèque (et suivant vers le cours).
+  try {
+    window.top.addEventListener("popstate", function () {
+      if (!S.cat) return;
+      var want = +(pageParam("doc") || 0);
+      if (want && want !== S.docId) return openDoc(want, { pop: true });
+      if (!want && S.view === "doc") backToLibrary();
+    });
+  } catch (e) {}
 
   function login(b) {
     b.disabled = true;
