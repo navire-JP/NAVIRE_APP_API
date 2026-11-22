@@ -1156,24 +1156,30 @@ html.nl-fs body { overflow: visible !important; }
   // ================= RENDU COMMUN =================
   // Barres collantes du site (header) posées par-dessus l'embed : on les
   // trouve parmi les voisins des blocs qui contiennent l'embed.
+  // Framer enveloppe le header dans des blocs « display: contents »
+  // (.ssr-variant) : on regarde aussi à l'intérieur. Résultat gardé seulement
+  // s'il n'est pas vide (le header peut arriver après le démarrage de l'embed).
   var siteBarsCache = null;
   function siteBars() {
-    if (siteBarsCache) return siteBarsCache;
+    if (siteBarsCache && siteBarsCache.every(function (b) { return b.isConnected; })) return siteBarsCache;
     var out = [];
     if (frameEl) try {
       var W = HOST, vw = W.innerWidth || 1000;
-      for (var a = frameEl; a && a.parentElement && a !== W.document.body; a = a.parentElement) {
-        for (var c = a.parentElement.firstElementChild; c; c = c.nextElementSibling) {
-          if (c === a || c.contains(frameEl)) continue;
-          var cs = W.getComputedStyle(c), r = c.getBoundingClientRect();
-          if (cs.position !== "sticky" && cs.position !== "fixed") continue;
-          if (cs.position === "sticky" ? !(parseFloat(cs.top) <= 40) : r.top > 40) continue;
-          if (r.height && (r.height < 30 || r.height > 180 || r.width < vw * 0.5)) continue;
-          out.push(c);
-        }
-      }
+      var look = function (c, d) {
+        if (c.contains(frameEl)) return;
+        var cs = W.getComputedStyle(c);
+        if (cs.display === "contents") { if (d < 4) for (var k = c.firstElementChild; k; k = k.nextElementSibling) look(k, d + 1); return; }
+        if (cs.position !== "sticky" && cs.position !== "fixed") return;
+        var r = c.getBoundingClientRect();
+        if (cs.position === "sticky" ? !(parseFloat(cs.top) <= 40) : r.top > 40) return;
+        if (r.height && (r.height < 30 || r.height > 180 || r.width < vw * 0.5)) return;
+        out.push(c);
+      };
+      for (var a = frameEl; a && a.parentElement && a !== W.document.body; a = a.parentElement)
+        for (var c = a.parentElement.firstElementChild; c; c = c.nextElementSibling) if (c !== a) look(c, 0);
     } catch (e) {}
-    return (siteBarsCache = out);
+    siteBarsCache = out.length ? out : null;
+    return out;
   }
   if (HOST) HOST.addEventListener("resize", function () { siteBarsCache = null; });
   // Hauteur du header du site qui recouvre le haut de l'embed : les overlays
@@ -1187,13 +1193,30 @@ html.nl-fs body { overflow: visible !important; }
       safe = Math.max(0, Math.round(hb - top));
     } catch (e) {}
     root.style.setProperty("--vis-safe", safe + "px");
+    paintBars();
+  }
+  // Header du site en lecture : fond sombre opaque, peint dès qu'il est trouvé
+  // (le header collant est pensé pour un fond sombre, presque transparent).
+  var BAR_BG = "rgb(9, 9, 20)", barsLit = [];
+  function paintBars() {
+    var on = root.classList.contains("is-doc") || root.classList.contains("is-pdf");
+    if (on && frameEl) {
+      siteBars().forEach(function (b) {
+        if (barsLit.some(function (p) { return p[0] === b; })) return;
+        barsLit.push([b, [b.style.getPropertyValue("background"), b.style.getPropertyPriority("background")]]);
+        b.style.setProperty("background", BAR_BG, "important");
+      });
+    } else if (!on && barsLit.length) {
+      barsLit.forEach(function (p) { if (p[1][0]) p[0].style.setProperty("background", p[1][0], p[1][1]); else p[0].style.removeProperty("background"); });
+      barsLit = [];
+    }
   }
   // Lecture en clair (cours ou PDF) : les blocs du site qui ne contiennent que
   // l'embed prennent le même fond clair, bord à bord ; le header collant du
   // site (pensé pour un fond sombre, presque transparent) prend un fond sombre
   // opaque pour rester lisible au-dessus de la page claire. Tout est rendu en
   // revenant à la bibliothèque. Le footer du site ne change pas.
-  var LIGHT_BG = "#F6F5F1", BAR_BG = "rgb(9, 9, 20)", lit = null;
+  var LIGHT_BG = "#F6F5F1", lit = null;
   function hostLight() {
     var on = root.classList.contains("is-doc") || root.classList.contains("is-pdf");
     if (on && !lit && frameEl) {
@@ -1201,7 +1224,6 @@ html.nl-fs body { overflow: visible !important; }
       try {
         for (var n = frameEl.parentElement, k = 0; n && k < 8 && n !== HOST.document.body && n.childElementCount === 1; n = n.parentElement, k++) nodes.push([n, LIGHT_BG]);
       } catch (e) {}
-      siteBars().forEach(function (b) { nodes.push([b, BAR_BG]); });
       lit = nodes.map(function (p) {
         var x = p[0], old = [x.style.getPropertyValue("background"), x.style.getPropertyPriority("background")];
         x.style.setProperty("background", p[1], "important");
@@ -1211,6 +1233,7 @@ html.nl-fs body { overflow: visible !important; }
       lit.forEach(function (p) { if (p[1][0]) p[0].style.setProperty("background", p[1][0], p[1][1]); else p[0].style.removeProperty("background"); });
       lit = null;
     }
+    paintBars();
     if (typeof paintUp === "function") paintUp();
   }
   if (window.MutationObserver) new MutationObserver(hostLight).observe(root, { attributes: true, attributeFilter: ["class"] });
