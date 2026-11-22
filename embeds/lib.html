@@ -811,6 +811,34 @@ html.nl-fs body { overflow: visible !important; }
 #nv-lib.is-doc .nl-apercu, #nv-lib.is-pdf .nl-apercu { background: rgba(20,24,40,0.04) !important; color: var(--text-2) !important; box-shadow: inset 0 -1px 0 var(--line); }
 #nv-lib.is-doc .nl-apercu button, #nv-lib.is-pdf .nl-apercu button { background: rgba(20,24,40,0.08) !important; color: var(--text) !important; }
 #nv-lib.is-doc .nv-logo, #nv-lib.is-pdf .nv-logo { background-image: url("https://navire-app-api.onrender.com/assets/logo-navire-app-noir.png") !important; }
+
+/* ================= OVERLAYS : SOUS LE HEADER DU SITE, OPAQUES ================= */
+/* --vis-safe : hauteur du header collant du site qui recouvre le haut de
+   l'embed. Le menu (grand écran) et les fenêtres se posent dessous, avec un
+   fond presque opaque et un voile derrière (le texte du cours ne transparaît plus). */
+#nv-lib:not(.is-compact) .nv-side,
+#nv-lib.is-flow:not(.is-compact) .nv-side {
+  top: calc(var(--vis-top, 0px) + var(--vis-safe, 0px) + 12px) !important;
+  height: calc(var(--vis-h, 100%) - var(--vis-safe, 0px) - 24px) !important;
+  background: rgba(20,22,34,0.95);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.07);
+}
+#nv-lib.is-doc:not(.is-compact) .nv-side, #nv-lib.is-doc.is-flow:not(.is-compact) .nv-side,
+#nv-lib.is-pdf:not(.is-compact) .nv-side, #nv-lib.is-pdf.is-flow:not(.is-compact) .nv-side {
+  background: rgba(255,255,255,0.97); box-shadow: 0 24px 60px rgba(20,24,40,0.18), inset 0 0 0 1px rgba(20,24,40,0.08);
+}
+#nv-lib:not(.is-compact) .nv-scrim { background: rgba(5,6,12,0.4) !important; }
+#nv-lib.is-doc:not(.is-compact) .nv-scrim, #nv-lib.is-pdf:not(.is-compact) .nv-scrim { background: rgba(20,24,40,0.18) !important; }
+/* Fenêtres (plan du cours, pass admin) : voile derrière, carte opaque, sous le header. */
+#nv-lib .nl-pop { padding-top: calc(var(--vis-safe, 0px) + 12px); background: rgba(5,6,12,0.45) !important; }
+#nv-lib.is-doc .nl-pop, #nv-lib.is-pdf .nl-pop { background: rgba(20,24,40,0.22) !important; }
+#nv-lib .nl-pop-card { background: rgba(20,22,34,0.97) !important; box-shadow: 0 24px 60px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07) !important; }
+#nv-lib.is-doc .nl-pop-card, #nv-lib.is-pdf .nl-pop-card { background: #fff !important; box-shadow: 0 24px 60px rgba(20,24,40,0.2), inset 0 0 0 1px rgba(20,24,40,0.08) !important; }
+/* Téléphone : la fenêtre monte du bas de l'écran, à portée du pouce. */
+#nv-lib.is-compact .nl-pop { justify-content: flex-end; padding: calc(var(--vis-safe, 0px) + 12px) 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
+#nv-lib.is-compact .nl-pop-card { border-radius: 22px; padding: 8px 6px 10px; animation: nl-sheet .26s var(--ease) both; }
+#nv-lib.is-compact .nl-pop-card::before { content: ''; display: block; width: 36px; height: 4px; border-radius: 9px; margin: 2px auto 4px; background: var(--line-2); }
+@keyframes nl-sheet { from { opacity: 0; transform: translateY(28px); } }
 </style>
 
 <div id="nv-lib" class="is-solo">
@@ -1119,27 +1147,64 @@ html.nl-fs body { overflow: visible !important; }
 
   // Barre latérale masquée (grand écran) : retenu d'une visite à l'autre.
   // Grand écran : le menu est un overlay, fermé à l'ouverture de la page.
-  function setSide(on) { root.classList.toggle("is-drawer", !!on); if (on && typeof FLOW !== "undefined" && FLOW.layout) FLOW.layout(); }
+  function setSide(on) { root.classList.toggle("is-drawer", !!on); if (on && typeof FLOW !== "undefined" && FLOW.layout) { FLOW.layout(); if (typeof layoutSafe === "function") layoutSafe(); } }
   root.classList.remove("is-side-off");
 
   S.plain = load("navire_lib_plain") === "1";
   root.classList.toggle("is-plain", S.plain);
 
   // ================= RENDU COMMUN =================
+  // Barres collantes du site (header) posées par-dessus l'embed : on les
+  // trouve parmi les voisins des blocs qui contiennent l'embed.
+  var siteBarsCache = null;
+  function siteBars() {
+    if (siteBarsCache) return siteBarsCache;
+    var out = [];
+    if (frameEl) try {
+      var W = HOST, vw = W.innerWidth || 1000;
+      for (var a = frameEl; a && a.parentElement && a !== W.document.body; a = a.parentElement) {
+        for (var c = a.parentElement.firstElementChild; c; c = c.nextElementSibling) {
+          if (c === a || c.contains(frameEl)) continue;
+          var cs = W.getComputedStyle(c), r = c.getBoundingClientRect();
+          if (cs.position !== "sticky" && cs.position !== "fixed") continue;
+          if (cs.position === "sticky" ? !(parseFloat(cs.top) <= 40) : r.top > 40) continue;
+          if (r.height && (r.height < 30 || r.height > 180 || r.width < vw * 0.5)) continue;
+          out.push(c);
+        }
+      }
+    } catch (e) {}
+    return (siteBarsCache = out);
+  }
+  if (HOST) HOST.addEventListener("resize", function () { siteBarsCache = null; });
+  // Hauteur du header du site qui recouvre le haut de l'embed : les overlays
+  // (menu, plan du cours) se posent dessous (variable --vis-safe).
+  function layoutSafe() {
+    var safe = 0;
+    if (frameEl && !FS) try {
+      var hb = 0;
+      siteBars().forEach(function (b) { var r = b.getBoundingClientRect(); if (r.height > 0 && r.top < 40 && r.bottom > hb) hb = r.bottom; });
+      var top = Math.max(0, frameEl.getBoundingClientRect().top + root.getBoundingClientRect().top);
+      safe = Math.max(0, Math.round(hb - top));
+    } catch (e) {}
+    root.style.setProperty("--vis-safe", safe + "px");
+  }
   // Lecture en clair (cours ou PDF) : les blocs du site qui ne contiennent que
-  // l'embed prennent le même fond clair, bord à bord. Fond d'origine rendu en
-  // revenant à la bibliothèque. Le header et le footer du site ne changent pas.
-  var LIGHT_BG = "#F6F5F1", lit = null;
+  // l'embed prennent le même fond clair, bord à bord ; le header collant du
+  // site (pensé pour un fond sombre, presque transparent) prend un fond sombre
+  // opaque pour rester lisible au-dessus de la page claire. Tout est rendu en
+  // revenant à la bibliothèque. Le footer du site ne change pas.
+  var LIGHT_BG = "#F6F5F1", BAR_BG = "rgb(9, 9, 20)", lit = null;
   function hostLight() {
     var on = root.classList.contains("is-doc") || root.classList.contains("is-pdf");
     if (on && !lit && frameEl) {
-      var nodes = [frameEl];
+      var nodes = [[frameEl, LIGHT_BG]];
       try {
-        for (var n = frameEl.parentElement, k = 0; n && k < 8 && n !== HOST.document.body && n.childElementCount === 1; n = n.parentElement, k++) nodes.push(n);
+        for (var n = frameEl.parentElement, k = 0; n && k < 8 && n !== HOST.document.body && n.childElementCount === 1; n = n.parentElement, k++) nodes.push([n, LIGHT_BG]);
       } catch (e) {}
-      lit = nodes.map(function (x) {
-        var old = [x.style.getPropertyValue("background"), x.style.getPropertyPriority("background")];
-        x.style.setProperty("background", LIGHT_BG, "important");
+      siteBars().forEach(function (b) { nodes.push([b, BAR_BG]); });
+      lit = nodes.map(function (p) {
+        var x = p[0], old = [x.style.getPropertyValue("background"), x.style.getPropertyPriority("background")];
+        x.style.setProperty("background", p[1], "important");
         return [x, old];
       });
     } else if (!on && lit) {
@@ -1149,6 +1214,8 @@ html.nl-fs body { overflow: visible !important; }
     if (typeof paintUp === "function") paintUp();
   }
   if (window.MutationObserver) new MutationObserver(hostLight).observe(root, { attributes: true, attributeFilter: ["class"] });
+  FLOW.onScroll(layoutSafe);
+  setTimeout(layoutSafe, 0);
   // Retour à la bibliothèque depuis un cours : par l'historique si le cours a
   // été ouvert depuis la bibliothèque (même effet que le bouton retour du
   // navigateur), et on retrouve la liste là où on l'avait laissée.
@@ -1921,6 +1988,7 @@ html.nl-fs body { overflow: visible !important; }
   function openPop(kind) {
     var p = el("pop");
     FLOW.layout();
+    layoutSafe();
     p.innerHTML = '<div class="nl-pop-card" role="dialog" aria-modal="true">' + (kind === "plan" ? popPlan() : popAdmin()) + '</div>';
     p.hidden = false;
     lockPage(true);
@@ -2090,14 +2158,14 @@ html.nl-fs body { overflow: visible !important; }
   // ================= DOCK : boutons fixes en bas de l'écran =================
   // Remplace la barre du haut. Il est posé sur la page du site en position fixe :
   // il ne bouge pas pendant le défilement. Menu, retour, surlignage, plein écran.
-  var DOCK_CSS = ".nl-dock{position:fixed;left:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:2147482999;display:flex;gap:2px;padding:5px;border-radius:16px;background:rgba(22,24,36,0.6);-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);transition:opacity .2s,transform .2s,background .2s}" +
+  var DOCK_CSS = ".nl-dock{position:fixed;left:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:2147482999;display:flex;gap:2px;padding:5px;border-radius:16px;background:rgba(20,22,34,0.94);-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);box-shadow:0 10px 30px rgba(0,0,0,0.35),inset 0 0 0 1px rgba(255,255,255,0.08);transition:opacity .2s,transform .2s,background .2s}" +
     ".nl-dock.is-hidden{opacity:0;transform:translateY(8px);pointer-events:none}" +
     ".nl-dock button{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:11px;background:transparent;color:rgba(255,255,255,0.8);cursor:pointer;padding:0;margin:0;transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent}" +
     ".nl-dock button[hidden]{display:none}" +
     ".nl-dock button:hover{background:rgba(255,255,255,0.1);color:#fff}" +
     ".nl-dock button.is-on{color:#7AA7FF}" +
     ".nl-dock svg{width:19px;height:19px;display:block}" +
-    ".nl-dock.is-light{background:rgba(255,255,255,0.72);box-shadow:inset 0 0 0 1px rgba(20,24,40,0.1)}" +
+    ".nl-dock.is-light{background:rgba(255,255,255,0.96);box-shadow:0 10px 30px rgba(20,24,40,0.14),inset 0 0 0 1px rgba(20,24,40,0.1)}" +
     ".nl-dock.is-light button{color:rgba(21,23,31,0.72)}" +
     ".nl-dock.is-light button:hover{background:rgba(20,24,40,0.07);color:#15171f}" +
     ".nl-dock.is-light button.is-on{color:#2F62E8}";
