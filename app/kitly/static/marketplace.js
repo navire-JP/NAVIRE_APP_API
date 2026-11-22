@@ -149,7 +149,7 @@
     }
 
     var S = { q: "", offers: [], total: 0, page: 1, timer: null, reqId: 0 };
-    mountCart();
+    if (opts.floatingCart) mountCart();   // sinon : icône panier du header du site
 
     function $(sel) { return root.querySelector(sel); }
     function get(path) {

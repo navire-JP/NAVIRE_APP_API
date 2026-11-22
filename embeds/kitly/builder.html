@@ -175,6 +175,7 @@
   #kb .gal-ed { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   #kb .gal-ed .g { position: relative; width: 72px; height: 72px; border-radius: 10px; background: var(--grey) center/cover; border: 1px solid var(--line); }
   #kb .gal-ed .g button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); cursor: pointer; font-size: 11px; line-height: 1; }
+  #kb .gal-ed .g .cov { position: absolute; left: 4px; bottom: 4px; font-style: normal; font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; background: var(--ink); color: var(--paper); padding: 2px 5px; border-radius: 99px; }
   #kb .gal-ed .add-g { width: 72px; height: 72px; border-radius: 10px; border: 1px dashed var(--line); background: none; cursor: pointer; font-size: 22px; color: var(--mut); }
   #kb .side-seg { display: inline-flex; gap: 4px; margin-left: auto; }
   #kb .offer-pay { font-size: 11.5px; margin-top: 3px; color: var(--mut); }
@@ -594,7 +595,7 @@
     });
     return Object.assign({}, p, {
       contact: { email: p.contact_email, phone: p.phone, website: p.website },
-      offers: offers, portfolio: [], legal: null,
+      offers: offers, portfolio: (S.portfolio || []).filter(function (x) { return x.is_visible !== false; }), legal: null,
       show_kitly_branding: !limits().remove_branding
     });
   }
@@ -707,11 +708,77 @@
       '<button type="button" class="chip" data-add-block="header">+ Titre</button>' +
       '<button type="button" class="chip" data-add-block="link">+ Lien</button>' +
       '<button type="button" class="chip" data-add-block="video">+ Vidéo</button></div></div>' +
+      portfolioEditor() +
       '<div class="sec"><h3>Réseaux sociaux</h3>' + socials + '<button type="button" class="add" data-add="socials">+ Ajouter un réseau</button></div>' +
       '<div class="sec"><h3>Chiffres clés</h3><p class="lead">Jusqu\'à 6 chiffres : abonnés, clients, années d\'expérience, note…</p>' + stats +
       ((p.stats || []).length < 6 ? '<button type="button" class="add" data-add="stats">+ Ajouter un chiffre</button>' : '') + '</div>' +
       nav();
   };
+
+  // ── Portfolio : projets en images (API /me/portfolio, sauvegarde automatique) ──
+  function portfolioEditor() {
+    var items = S.portfolio || [];
+    var max = limits().portfolio_max || 6;
+    var list = items.map(function (p, i) {
+      var imgs = (p.media || []).filter(function (m) { return m.type !== "video"; });
+      var off = p.is_visible === false;
+      var tools = '<button type="button" class="icon-btn" data-pf-move="' + i + '" data-dir="-1" title="Monter"' + (i === 0 ? " disabled" : "") + '>' + svg("up") + '</button>' +
+        '<button type="button" class="icon-btn" data-pf-move="' + i + '" data-dir="1" title="Descendre"' + (i === items.length - 1 ? " disabled" : "") + '>' + svg("down") + '</button>' +
+        '<button type="button" class="icon-btn" data-pf-toggle="' + i + '" title="' + (off ? "Afficher" : "Masquer") + '">' + svg(off ? "eyeoff" : "eye") + '</button>' +
+        '<button type="button" class="icon-btn" data-pf-del="' + i + '" title="Supprimer">' + svg("trash") + '</button>';
+      var inp = function (k, ph, max2) {
+        return '<input type="text" data-pf="' + i + '" data-k="' + k + '" value="' + esc(p[k] || "") + '" placeholder="' + esc(ph) + '"' + (max2 ? ' maxlength="' + max2 + '"' : '') + '>';
+      };
+      return '<div class="item' + (off ? " off" : "") + '"><div class="item-l"><span class="type-tag">Projet</span><span class="grow"></span>' + tools + '</div>' +
+        '<div class="sub">' + inp("title", "Titre du projet", 120) + '</div>' +
+        '<div class="gal-ed">' + imgs.map(function (m, j) {
+          return '<span class="g" style="background-image:' + cssUrl(m.url) + '">' + (j === 0 ? '<em class="cov">Couverture</em>' : '') +
+            '<button type="button" data-pf-img-del="' + i + '" data-j="' + j + '" title="Retirer">✕</button></span>';
+        }).join("") + (imgs.length < 30 ? '<button type="button" class="add-g" data-pf-img-add="' + i + '" title="Ajouter des images">+</button>' : '') + '</div>' +
+        '<p class="note">' + imgs.length + '/30 images · la première sert de couverture.</p>' +
+        '<div class="sub"><textarea rows="3" maxlength="8000" data-pf="' + i + '" data-k="description" placeholder="Le projet, ta démarche, le résultat…">' + esc(p.description || "") + '</textarea></div>' +
+        '<div class="sub">' + inp("client_name", "Client (facultatif)", 120) + inp("external_url", "Lien du projet (facultatif)", 2000) + '</div></div>';
+    }).join("");
+    return '<div class="sec"><h3>Portfolio</h3><p class="lead">Montre tes réalisations en images : chaque projet a sa galerie, une description et un lien. ' +
+      'Ils s\'affichent dans la section « Réalisations » de ta vitrine (' + items.length + '/' + max + ' projets).</p>' +
+      '<div id="kb-pf">' + list + '</div>' +
+      (items.length < max ? '<button type="button" class="add" data-pf-add>+ Ajouter un projet</button>'
+        : '<button type="button" class="add" data-pf-more>Plus de ' + max + ' projets : formule supérieure</button>') + '</div>';
+  }
+  var pfTimers = {};
+  function pfSave(i, fields) {
+    var p = (S.portfolio || [])[i];
+    if (!p) return;
+    clearTimeout(pfTimers[p.id]);
+    pfTimers[p.id] = setTimeout(function () {
+      var body = {};
+      fields.forEach(function (k) { body[k] = p[k] == null ? "" : p[k]; });
+      if ("title" in body && !String(body.title).trim()) delete body.title;   // titre obligatoire : on attend qu'il soit saisi
+      api("PATCH", "/me/portfolio/" + p.id, body).catch(handleError);
+    }, 600);
+  }
+  function pfMedia(i, media) {
+    var p = S.portfolio[i];
+    p.media = media;
+    p.cover_url = (media.filter(function (m) { return m.type !== "video"; })[0] || {}).url || "";
+    api("PATCH", "/me/portfolio/" + p.id, { media: media, cover_url: p.cover_url }).catch(handleError);
+    renderStep(); renderPreview();
+  }
+  function pickFiles(purpose, cb) {
+    // Plusieurs images d'un coup (galerie d'un projet), envoyées une par une.
+    var input = document.createElement("input");
+    input.type = "file"; input.multiple = true; input.accept = "image/jpeg,image/png,image/webp,image/gif";
+    input.onchange = function () {
+      var files = Array.prototype.slice.call(input.files || []).filter(function (f) {
+        if (f.size > 8 * 1024 * 1024) { toast("« " + esc(f.name) + " » est trop lourde (8 Mo maximum)."); return false; }
+        return true;
+      });
+      var urls = [];
+      files.reduce(function (pr, f) { return pr.then(function () { return upload(f, purpose).then(function (u) { urls.push(u); }); }); }, Promise.resolve())
+        .then(function () { if (urls.length) cb(urls); }).catch(function (e) { if (urls.length) cb(urls); handleError(e); });
+    };
+    input.click();
+  }
 
   function blockEditor(b, i) {
     var n = (S.profile.blocks || []).length;
@@ -1072,6 +1139,11 @@
         S.profile[t.dataset.list] = list;
         var o = {}; o[t.dataset.list] = clean; queue(o);
         renderPreview();
+      } else if (t.dataset.pf !== undefined) {
+        var pi = +t.dataset.pf;
+        S.portfolio[pi][t.dataset.k] = t.value;
+        pfSave(pi, [t.dataset.k]);
+        renderPreview();
       } else if (t.id === "kb-slug") {
         checkSlug(t);
       } else if (t.dataset.color) {
@@ -1145,6 +1217,45 @@
       else if (d.toggleBlock) {
         var bl = S.profile.blocks.slice(); bl[+d.toggleBlock] = Object.assign({}, bl[+d.toggleBlock], { visible: bl[+d.toggleBlock].visible === false });
         setList("blocks", bl); renderStep(); renderPreview();
+      }
+      else if (b.hasAttribute("data-pf-add")) {
+        api("POST", "/me/portfolio", { title: "Nouveau projet" }).then(function (r) {
+          S.portfolio = (S.portfolio || []).concat([r.item]); renderStep(); renderPreview();
+          var tl = $$('#kb-pf [data-k="title"]'); tl = tl[tl.length - 1]; if (tl) { tl.focus(); tl.select(); }
+        }).catch(handleError);
+      }
+      else if (b.hasAttribute("data-pf-more")) { upsell("Plus de projets dans ton portfolio : disponible avec une formule supérieure."); }
+      else if (d.pfDel !== undefined) {
+        var pd = S.portfolio[+d.pfDel];
+        if (!pd || !window.confirm("Supprimer le projet « " + (pd.title || "") + " » ?")) return;
+        api("DELETE", "/me/portfolio/" + pd.id).then(function () {
+          S.portfolio = S.portfolio.filter(function (x) { return x.id !== pd.id; }); renderStep(); renderPreview();
+        }).catch(handleError);
+      }
+      else if (d.pfMove !== undefined) {
+        var pl = S.portfolio.slice(), pa0 = +d.pfMove, pb0 = pa0 + (+d.dir);
+        if (pb0 < 0 || pb0 >= pl.length) return;
+        var ptmp = pl[pa0]; pl[pa0] = pl[pb0]; pl[pb0] = ptmp;
+        S.portfolio = pl; renderStep(); renderPreview();
+        api("POST", "/me/portfolio/reorder", { ids: pl.map(function (x) { return x.id; }) }).catch(handleError);
+      }
+      else if (d.pfToggle !== undefined) {
+        var pt = S.portfolio[+d.pfToggle];
+        pt.is_visible = pt.is_visible === false;
+        api("PATCH", "/me/portfolio/" + pt.id, { is_visible: pt.is_visible }).catch(handleError);
+        renderStep(); renderPreview();
+      }
+      else if (d.pfImgAdd !== undefined) {
+        var pg = +d.pfImgAdd;
+        pickFiles("portfolio", function (urls) {
+          var media = (S.portfolio[pg].media || []).concat(urls.map(function (u) { return { type: "image", url: u, caption: "" }; })).slice(0, 30);
+          pfMedia(pg, media);
+        });
+      }
+      else if (d.pfImgDel !== undefined) {
+        var pm = +d.pfImgDel, imgsOnly = (S.portfolio[pm].media || []).filter(function (m) { return m.type !== "video"; });
+        var dropped = imgsOnly[+d.j];
+        pfMedia(pm, (S.portfolio[pm].media || []).filter(function (m) { return m !== dropped; }));
       }
       else if (d.tpl) { chooseTemplate(d.tpl); }
       else if (d.layout) { S.profile.theme.layout = d.layout; queue({ theme: { layout: d.layout } }); renderStep(); renderPreview(); }
@@ -1558,9 +1669,10 @@
       return ensure.then(function (r) {
         S.profile = r.profile;
         if (!S.profile.theme) S.profile.theme = {};
-        return api("GET", "/me/offers");
+        return Promise.all([api("GET", "/me/offers"), api("GET", "/me/portfolio").catch(function () { return { items: [] }; })]);
       }).then(function (r) {
-        S.offers = r.items;
+        S.offers = r[0].items;
+        S.portfolio = r[1].items || [];
         renderApp();
         loadSales();   // compteur « à traiter » sur l'onglet Mes ventes
         if (!S.me.profile) toast("Ta vitrine est créée : complète-la, tout est enregistré automatiquement.", 5000);
