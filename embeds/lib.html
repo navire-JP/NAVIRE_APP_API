@@ -11,6 +11,10 @@
   bibliothèque / Mes fichiers / Cours » ; en lecture, un bouton retour et un
   bouton « plan » discret (les titres, en voile) ; comptes admin : un bouton
   qui ouvre « Voir comme » en voile ; une flèche ramène en haut de la page.
+  Lecture d'un cours (ordinateur et téléphone) : toute la page passe en
+  clair (fond, menu, barre du haut, cours, questions, chat), quel que soit le
+  fond du site ; bouton « Bibliothèque » dans la barre du haut, et le bouton
+  retour du navigateur ramène à la bibliothèque, là où on l'avait laissée.
 
   Un curseur passe de NAVIRE Lib à NAVIRE Lib+ :
     Lib   → consultation : le cours entier, sans point de passage ni Elo.
@@ -321,6 +325,9 @@
 #nv-lib .nl-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; color: var(--text-3); margin: -6px 0 18px; justify-content: center; font-family: 'Inter', sans-serif; }
 #nv-lib .nl-legend span { display: inline-flex; align-items: center; gap: 6px; }
 #nv-lib .nl-legend i { width: 14px; height: 8px; border-radius: 3px; }
+#nv-lib .nl-legend i.lg-art { background: rgba(122,167,255,0.4); }
+#nv-lib .nl-legend i.lg-jp { background: rgba(255,255,255,0.25); }
+#nv-lib .nl-legend i.lg-loi { background: rgba(79,125,255,0.45); }
 #nv-lib.is-plain .nl-legend { display: none; }
 #nv-lib .nl-flash { animation: nl-flash 2.2s var(--ease); }
 @keyframes nl-flash { 0%, 30% { background: rgba(122,167,255,0.14); } 100% { background: transparent; } }
@@ -681,6 +688,117 @@
 #nv-lib.is-compact .nl-mtabs { margin-top: 0; }
 @keyframes nl-popfade { from { opacity: 0; } }
 @keyframes nl-pop { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+
+/* Toasts : toujours sombres, texte blanc (lisibles en lecture claire aussi). */
+#nv-lib .nv-toast { color: #fff; }
+#nv-lib .nv-toast.is-error { color: #B5CDFF; }
+
+/* Bouton « Bibliothèque » de la barre du haut : en lecture, sur ordinateur et téléphone. */
+#nv-lib .nl-m-back span { display: none; }
+#nv-lib.is-doc .nl-m-back { display: inline-flex; }
+#nv-lib.is-doc:not(.is-compact) .nl-m-back { width: auto; gap: 4px; padding: 0 12px 0 6px; height: 32px; border-radius: 99px; font-size: 12.5px; font-weight: 600; color: var(--text-2); background: var(--panel-2); }
+#nv-lib.is-doc:not(.is-compact) .nl-m-back:hover { background: var(--panel-3); color: var(--text); }
+#nv-lib.is-doc:not(.is-compact) .nl-m-back svg { width: 16px; height: 16px; }
+#nv-lib.is-doc:not(.is-compact) .nl-m-back span { display: inline; }
+
+/* ================= LECTURE EN CLAIR =================
+   Un cours ouvert : toute la page passe en clair (fond, barre latérale,
+   barre du haut, cours, questions, chat), sur ordinateur comme sur téléphone,
+   quel que soit le fond du site derrière l'embed. */
+#nv-lib.is-doc {
+  --paper: #fafbfd;
+  --paper-2: #f2f4f9;
+  --panel: rgba(20,30,60,0.035);
+  --panel-2: rgba(20,30,60,0.06);
+  --panel-3: rgba(20,30,60,0.1);
+  --line: rgba(20,30,60,0.08);
+  --line-2: rgba(20,30,60,0.15);
+  --text: #15161c;
+  --text-2: #3d4150;
+  --text-3: #686d80;
+  --text-4: #9a9fb1;
+  --blue: #3866E8;
+  --blue-hi: #2550CC;
+  --blue-deep: #4F7DFF;
+  --blue-soft: rgba(79,125,255,0.08);
+  --blue-line: rgba(79,125,255,0.3);
+  background: var(--paper);
+  color: var(--text);
+  color-scheme: light;
+}
+#nv-lib.is-doc ::selection { background: rgba(79,125,255,0.2); }
+#nv-lib.is-doc .nv-scroll { scrollbar-color: rgba(20,30,60,0.15) transparent; }
+#nv-lib.is-doc .nv-scroll::-webkit-scrollbar-thumb { background: rgba(20,30,60,0.15); }
+#nv-lib.is-doc .nv-logo { background-image: url("https://navire-app-api.onrender.com/assets/logo-navire-app-noir.png") !important; }
+
+/* Barre latérale, barre du haut, bande d'aperçu admin */
+#nv-lib.is-doc .nv-side { background: var(--paper-2); border-right-color: var(--line); }
+#nv-lib.is-doc.is-compact .nv-side { background: var(--paper-2); box-shadow: 20px 0 60px rgba(20,30,60,0.12); }
+#nv-lib.is-doc .nv-scrim { background: rgba(20,30,60,0.25); }
+#nv-lib.is-doc .nv-topbar { background: rgba(250,251,253,0.88); box-shadow: inset 0 -1px 0 var(--line); }
+#nv-lib.is-doc .nv-topbar-title { color: var(--text-2); }
+#nv-lib.is-doc .nl-plan-item:hover, #nv-lib.is-doc .nl-plan-item.l1, #nv-lib.is-doc .nl-plan-item.is-current,
+#nv-lib.is-doc .nl-plan-cp.open, #nv-lib.is-doc .nl-action:hover, #nv-lib.is-doc .nl-ps-item:hover { color: var(--text); }
+#nv-lib.is-doc .nl-plan-cp.elo i { border-color: var(--text); color: var(--text); }
+#nv-lib.is-doc .nl-plan-cp.passed i { color: #fff; }
+#nv-lib.is-doc .nl-ps-item:hover { background: var(--panel); }
+#nv-lib.is-doc .nl-seg button:hover { color: var(--text); }
+#nv-lib.is-doc .nl-seg button.is-on { background: var(--text); color: #fff; }
+#nv-lib.is-doc .nl-apercu { background: rgba(20,30,60,0.04) !important; color: var(--text-2) !important; box-shadow: inset 0 -1px 0 var(--line); }
+#nv-lib.is-doc .nl-apercu button, #nv-lib.is-doc .nl-apercu select { background: rgba(20,30,60,0.08) !important; color: var(--text) !important; }
+#nv-lib.is-doc .nl-mode i { box-shadow: 0 1px 4px rgba(20,30,60,0.18); }
+#nv-lib.is-doc .nl-mode.is-plus button.is-on { color: #fff; }
+
+/* Boutons, pastilles, champs */
+#nv-lib.is-doc .nv-btn { background: var(--text); color: #fff; }
+#nv-lib.is-doc .nv-btn.is-blue { background: var(--blue); color: #fff; }
+#nv-lib.is-doc .nv-btn:disabled { background: var(--panel-3); color: var(--text-4); }
+#nv-lib.is-doc .nv-chip:hover, #nv-lib.is-doc .nv-chip.is-active { color: var(--text); }
+#nv-lib.is-doc .nv-input, #nv-lib.is-doc .nl-chat-form input { color: var(--text); background: #fff; }
+#nv-lib.is-doc .nv-tag.solid { color: #fff; }
+#nv-lib.is-doc .nv-tag.white { color: #fff; background: var(--text); }
+
+/* Le cours */
+#nv-lib.is-doc .nl-article { color: #23252e; }
+#nv-lib.is-doc .nl-h1, #nv-lib.is-doc .nl-h2, #nv-lib.is-doc .nl-lead, #nv-lib.is-doc .nl-table td:first-child { color: var(--text); }
+#nv-lib.is-doc .nl-h3 { color: #23252e; }
+#nv-lib.is-doc .nl-goal { background: rgba(79,125,255,0.06); border-color: rgba(79,125,255,0.2); color: #24365f; }
+#nv-lib.is-doc .nl-quote { background: rgba(79,125,255,0.05); color: var(--text-2); }
+#nv-lib.is-doc .nl-pdp::after { background: rgba(79,125,255,0.25); }
+#nv-lib.is-doc .nl-table { background: #fff; }
+#nv-lib.is-doc .nl-article mark.nl-art { background: rgba(79,125,255,0.13); box-shadow: inset 0 -1.5px 0 rgba(79,125,255,0.55); }
+#nv-lib.is-doc .nl-article mark.nl-jp { background: rgba(20,30,60,0.06); box-shadow: inset 0 -1.5px 0 rgba(20,30,60,0.35); }
+#nv-lib.is-doc .nl-article mark.nl-loi { background: rgba(56,102,232,0.2); box-shadow: inset 0 -1.5px 0 rgba(56,102,232,0.6); }
+#nv-lib.is-doc .nl-article mark.nl-hl { background: rgba(122,167,255,0.3); }
+#nv-lib.is-doc.is-plain .nl-article mark { background: transparent; box-shadow: none; }
+#nv-lib.is-doc .nl-legend i.lg-art { background: rgba(79,125,255,0.35); }
+#nv-lib.is-doc .nl-legend i.lg-jp { background: rgba(20,30,60,0.18); }
+#nv-lib.is-doc .nl-legend i.lg-loi { background: rgba(56,102,232,0.5); }
+
+/* Points de passage, verrous, fin de cours */
+#nv-lib.is-doc .nl-qcard, #nv-lib.is-doc .nl-gate-card { background: #fff; box-shadow: 0 1px 2px rgba(20,30,60,0.05), 0 14px 40px rgba(20,30,60,0.08); }
+#nv-lib.is-doc .nl-q-text, #nv-lib.is-doc .nl-qfb b { color: var(--text); }
+#nv-lib.is-doc .nl-choice { background: #fff; }
+#nv-lib.is-doc .nl-choice:hover:not(:disabled) { background: var(--paper-2); }
+#nv-lib.is-doc .nl-choice.is-on { background: rgba(79,125,255,0.07); }
+#nv-lib.is-doc .nl-choice.is-on kbd { color: #fff; }
+#nv-lib.is-doc .nl-choice.is-wrong { background: transparent; text-decoration-color: rgba(20,30,60,0.3); }
+#nv-lib.is-doc .nl-choice.is-right { border-color: var(--text); background: rgba(20,30,60,0.04); }
+#nv-lib.is-doc .nl-choice.is-right kbd { background: var(--text); color: #fff; border-color: var(--text); }
+#nv-lib.is-doc .nl-done { background: rgba(79,125,255,0.04); }
+#nv-lib.is-doc .nl-done .nl-done-ico, #nv-lib.is-doc .nl-gain, #nv-lib.is-doc .nl-end .nl-qico { color: #fff; }
+#nv-lib.is-doc .nl-done .nl-done-ico.is-skip { background: var(--text); }
+
+/* Chat NAVIRE AI */
+#nv-lib.is-doc .nl-chat { background: #fff; box-shadow: 0 14px 40px rgba(20,30,60,0.06); }
+#nv-lib.is-doc .nl-bubble::after { border-color: #fff; }
+#nv-lib.is-doc .nl-msg.ai .nl-txt { color: #23252e; background: var(--paper-2); }
+#nv-lib.is-doc .nl-msg.me .nl-txt, #nv-lib.is-doc .nl-send { color: #fff; }
+
+/* Voile du téléphone (plan du cours, pass admin) */
+#nv-lib.is-doc .nl-pop-card { background: #fff; box-shadow: 0 20px 50px rgba(20,30,60,0.18), 0 0 0 1px var(--line); }
+#nv-lib.is-doc .nl-pop-item:hover { background: var(--panel); }
+#nv-lib.is-doc .nl-pop-sep { background: var(--line); }
 </style>
 
 <div id="nv-lib" class="is-solo">
@@ -708,7 +826,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
       </button>
       <button class="nv-icon-btn nl-m-btn nl-m-back" data-act="library" aria-label="Retour à la bibliothèque" title="Bibliothèque">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg><span>Bibliothèque</span>
       </button>
       <div class="nv-topbar-title" data-el="title">Bibliothèque</div>
       <button class="nv-icon-btn nl-m-btn nl-m-plan" data-act="plan-pop" aria-label="Plan du cours" title="Plan du cours">
@@ -812,6 +930,16 @@
       if (value == null) u.searchParams.delete(name); else u.searchParams.set(name, value);
       w.history.replaceState(w.history.state, "", u.toString());
     } catch (e) {}
+  }
+  // Ouvrir un cours ajoute une entrée à l'historique : le bouton retour du
+  // navigateur (ou du téléphone) ramène à la bibliothèque.
+  function pushPageParam(name, value) {
+    try {
+      var w = window.top, u = new URL(w.location.href);
+      u.searchParams.set(name, value);
+      w.history.pushState(w.history.state, "", u.toString());
+      return true;
+    } catch (e) { return false; }
   }
   function stepNum(text) { var m = /^(?:ÉTAPE|ETAPE|PARTIE)\s+(\d+)/i.exec(text || ""); return m ? m[1] : null; }
   function cleanTitle(text) {
@@ -986,13 +1114,29 @@
   // ================= RENDU COMMUN =================
   function setPage(html, solo) {
     root.classList.toggle("is-solo", !!solo);
-    root.classList.toggle("is-doc", S.view === "doc");
+    docMode(S.view === "doc");
     closePop();
     var p = el("page");
     p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
     FLOW.top();
     sizeApp();
     applyLogos(p);
+  }
+  // Lecture en clair : l'embed passe en clair (CSS « is-doc ») et les
+  // conteneurs de l'embed sur la page du site (ceux qui ne contiennent que lui)
+  // prennent le même fond, bord à bord. Fond d'origine rendu en quittant le cours.
+  var LIGHT_BG = "#fafbfd", lit = null;
+  function docMode(on) {
+    root.classList.toggle("is-doc", !!on);
+    if (frameEl && on && !lit) {
+      lit = [frameEl];
+      for (var k = 0; k < wrappers.length && wrappers[k].childElementCount === 1; k++) lit.push(wrappers[k]);
+      lit = lit.map(function (n) { var old = n.style.backgroundColor; n.style.backgroundColor = LIGHT_BG; return [n, old]; });
+    } else if (!on && lit) {
+      lit.forEach(function (x) { x[0].style.backgroundColor = x[1]; });
+      lit = null;
+    }
+    paintUp();
   }
   function bar(pct) { return '<div class="nl-bar"><i style="width:' + Math.max(0, Math.min(100, pct || 0)) + '%"></i></div>'; }
 
@@ -1120,6 +1264,7 @@
 
   function viewLibrary() {
     if (plus() && !hasPlus()) return viewUpsell();
+    S.pushed = false;
     S.doc = null; S.docId = null; setPageParam("doc", null); setPageParam("prepa", null);
     S.view = "library";
     root.classList.remove("is-solo");
@@ -1172,6 +1317,16 @@
       var n = document.getElementById("lib-search"); n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {}
     });
   }
+  // Retour à la bibliothèque depuis un cours : on retrouve la liste là où on l'avait laissée.
+  function backToLibrary() {
+    var y = S.libY;
+    closePop();
+    root.classList.remove("is-drawer");
+    return refreshCatalogue().then(function () {
+      viewLibrary();
+      if (S.view === "library" && y) { sizeApp(); FLOW.to(y); }
+    });
+  }
   // Téléphone : « Toute la bibliothèque / Mes fichiers / Cours » à la place du menu
   function mtabsHtml(items) {
     var n = { all: items.length };
@@ -1212,9 +1367,14 @@
     opts = opts || {};
     if (plus() && !hasPlus()) return viewUpsell();
     if (S.docId !== id) { S.Q = {}; S.redo = {}; S.after = {}; S.chat = {}; }
-    S.docId = id; setPageParam("doc", id); setPageParam("prepa", null);
+    setPageParam("prepa", null);
+    if (S.view !== "doc") {
+      S.libY = S.view === "library" ? FLOW.y() : 0;
+      if (!opts.pop && String(pageParam("doc") || "") !== String(id) && pushPageParam("doc", id)) S.pushed = true;
+    }
+    S.docId = id; setPageParam("doc", id);
     S.view = "doc";
-    root.classList.add("is-doc");
+    docMode(true);
     root.classList.remove("is-solo");
     root.classList.remove("is-drawer");
     el("hl-btn").style.display = "";
@@ -1300,7 +1460,7 @@
           (p && doc.nb_points_passage ? '<span class="nv-tag blue">' + doc.nb_points_passage + ' points de passage</span>' : "") + '</div>' +
         (d.suivi_prepa != null && !S.voir ? '<div class="nl-cover-meta">' + suiviBtn() + '</div>' : "") +
       '</header>' +
-      '<div class="nl-legend"><span><i style="background:rgba(122,167,255,0.4)"></i>Articles</span><span><i style="background:rgba(255,255,255,0.25)"></i>Jurisprudence</span><span><i style="background:rgba(79,125,255,0.45)"></i>Lois, règlements</span></div>';
+      '<div class="nl-legend"><span><i class="lg-art"></i>Articles</span><span><i class="lg-jp"></i>Jurisprudence</span><span><i class="lg-loi"></i>Lois, règlements</span></div>';
 
     d.blocks.forEach(function (b) {
       html += blockHtml(b);
@@ -1710,7 +1870,7 @@
       '<button class="nl-pop-item" data-act="library">' + ICON.back + 'Bibliothèque</button>' +
       '<button class="nl-pop-item' + (S.plain ? "" : " is-on") + '" data-act="toggle-hl">' + ico("link", 16) + 'Surlignage des références<span class="nl-switch"></span></button>' +
       '<div class="nl-pop-sep"></div>' +
-      (d ? '<div class="nl-pop-note"><b style="color:#fff;font-weight:600">' + esc(d.titre) + '</b>' + (plus() && d.nb_points_passage ? '<br>' + d.valides + ' / ' + d.nb_points_passage + ' points de passage' : "") + '</div>' : "") +
+      (d ? '<div class="nl-pop-note"><b style="color:var(--text);font-weight:600">' + esc(d.titre) + '</b>' + (plus() && d.nb_points_passage ? '<br>' + d.valides + ' / ' + d.nb_points_passage + ' points de passage' : "") + '</div>' : "") +
       '<div class="nl-plan">' + (S.planHtml || '<div class="nl-pop-note">Ce document n\'a pas de titres.</div>') + '</div>';
   }
   function popAdmin() {
@@ -1752,6 +1912,10 @@
     if (!upBtn) return;
     var vh = (HOST || window).innerHeight || 800;
     var on = root.classList.contains("is-compact") && FLOW.y() > vh * 0.8 && el("pop").hidden;
+    var light = root.classList.contains("is-doc");   // lecture en clair : flèche sombre
+    upBtn.style.background = light ? "#15161c" : "#fff";
+    upBtn.style.color = light ? "#fff" : "#0a0a12";
+    upBtn.style.boxShadow = light ? "0 10px 30px rgba(20,30,60,0.25)" : "0 10px 30px rgba(0,0,0,0.45)";
     upBtn.style.opacity = on ? "1" : "0";
     upBtn.style.transform = on ? "none" : "translateY(10px) scale(.9)";
     upBtn.style.pointerEvents = on ? "auto" : "none";
@@ -1833,7 +1997,12 @@
     else if (act === "pop-close") closePop();
     else if (act === "plan-pop") openPop("plan");
     else if (act === "admin-pop") openPop("admin");
-    else if (act === "library") { root.classList.remove("is-drawer"); refreshCatalogue().then(viewLibrary); }
+    else if (act === "library") {
+      root.classList.remove("is-drawer");
+      // Cours ouvert depuis la bibliothèque : on revient par l'historique (même effet que le bouton retour).
+      if (S.view === "doc" && S.pushed) { try { window.top.history.back(); return; } catch (x) {} }
+      backToLibrary();
+    }
     else if (act === "toggle-hl") { S.plain = !S.plain; root.classList.toggle("is-plain", S.plain); t.classList.toggle("is-on", !S.plain); el("hl-btn").classList.toggle("is-on", !S.plain); store("navire_lib_plain", S.plain ? "1" : null); toast(S.plain ? "Surlignage masqué" : "Surlignage affiché"); }
     else if (act === "prepa") viewPrepa();
     else if (act === "pdf-close") closePdf();
@@ -1873,6 +2042,16 @@
     else if (el("pdf").classList.contains("is-on")) closePdf();
     else root.classList.remove("is-drawer");
   });
+
+  // Bouton retour du navigateur : du cours vers la bibliothèque (et suivant vers le cours).
+  try {
+    window.top.addEventListener("popstate", function () {
+      if (!S.cat) return;
+      var want = +(pageParam("doc") || 0);
+      if (want && want !== S.docId) return openDoc(want, { pop: true });
+      if (!want && S.view === "doc") { S.pushed = false; backToLibrary(); }
+    });
+  } catch (e) {}
 
   function login(b) {
     b.disabled = true;
