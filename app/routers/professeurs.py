@@ -17,6 +17,8 @@ Professeur (auth NAVIRE, attaché par un admin) :
   DELETE /professeurs/documents/{id}             → retrait d'un document déposé
   GET    /professeurs/documents/{id}/download
   GET    /professeurs/me/devoirs                 → copies rendues par les étudiants de ses groupes
+  POST   /professeurs/classes/{id}/copies        → déposer la copie d'un étudiant du groupe
+                                                   (rendue hors NAVIRE : mail, papier scanné…)
   GET    /professeurs/devoirs/{id}/download      → la copie
   PATCH  /professeurs/devoirs/{id}               → commentaire, note (copie « corrigée »)
   POST   /professeurs/devoirs/{id}/correction    → joindre une copie corrigée (PDF)
@@ -434,6 +436,47 @@ def mes_devoirs(
         "items": [dsvc.devoir_row(db, d, pour_prof=True) for d in rows],
         "a_corriger": sum(1 for d in rows if d.statut == "depose"),
     }
+
+
+@router.post("/classes/{classe_id}/copies")
+async def deposer_copie_etudiant(
+    classe_id: int,
+    user_id: int = Form(...),
+    file: UploadFile = FastAPIFile(...),
+    titre: str = Form(""),
+    message: str = Form(""),
+    db: Session = Depends(get_db),
+    acces=Depends(require_correcteur),
+):
+    """La copie d'un étudiant du groupe, rendue hors de NAVIRE (mail, papier
+    scanné, clé USB) : elle devient une copie comme les autres, à corriger
+    dans « Copies », et la correction arrive dans l'espace Prépa de l'étudiant."""
+    from app.routers.lib_prepa import lire_copie
+
+    user, classes = acces
+    c = db.get(PrepaAdjurisClasse, classe_id)
+    if c is None or not c.is_active or (classes is not None and classe_id not in classes):
+        raise HTTPException(404, detail="Groupe introuvable.")
+    if not any(e.user_id == user_id for e in svc.inscriptions_du_groupe(db, c)):
+        raise HTTPException(404, detail="Cet étudiant n'est pas dans ce groupe.")
+    meta, contenu = await lire_copie(file, user_id, scan_ok=True)
+    mot = f"Copie transmise par {user.username or 'ton professeur'}"
+    d = PrepaAdjurisDevoir(
+        user_id=user_id,
+        matiere_key=c.matiere_key,
+        classe_id=c.id,
+        titre=(titre.strip() or Path(meta["filename_original"]).stem or "Copie")[:200],
+        message=(mot + ("\n\n" + message.strip() if message.strip() else ""))[:4000],
+        filename_original=meta["filename_original"][:255],
+        filename_stored=meta["filename_stored"],
+        path=meta["path"],
+        size_bytes=meta["size_bytes"],
+        contenu=contenu,
+    )
+    db.add(d)
+    db.commit()
+    db.refresh(d)
+    return dsvc.devoir_row(db, d, pour_prof=True)
 
 
 @router.get("/devoirs/{devoir_id}/download")
