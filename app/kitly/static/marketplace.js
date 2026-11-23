@@ -15,8 +15,9 @@
  * Cartes offres façon boutique : image, titre, étiquette, prix (« 109⁸⁸ € »), bouton
  * « Ajouter au panier » (offres payables en ligne sans option à choisir ; sinon « Voir
  * l'offre » / « Choisir une option » vers la fiche), et « Voir le profil » en discret.
- * Sur l'accueil, « Dernières offres » et « Petits prix » défilent en rangée (flèches sur
- * ordinateur). L'ajout utilise le panier partagé (static/cart.js, source « marketplace »).
+ * Sur l'accueil, « Dernières offres » et « Petits prix » défilent en rangée sur ordinateur
+ * (flèches). Sur téléphone rien ne sort du cadre : offres en grille de 3 colonnes (9 visibles,
+ * puis « Voir plus »), profils les uns sous les autres (2, puis « Voir plus »). L'ajout utilise le panier partagé (static/cart.js, source « marketplace »).
  * Grilles qui passent à la ligne : rien ne dépasse du cadre sur téléphone.
  *
  * API :
@@ -81,21 +82,22 @@
     ".km .chips{display:flex;flex-wrap:wrap;gap:6px}",
     ".km .chip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;white-space:nowrap}",
     ".km .chip:hover{border-color:var(--ink)}",
-    "@media(max-width:639px){.km .bar{flex-wrap:nowrap;flex-direction:column;align-items:stretch}.km .chips{flex-wrap:nowrap;overflow-x:auto;margin:0 -16px;padding:0 16px 4px;scrollbar-width:none}.km .chips::-webkit-scrollbar{display:none}.km .sort{align-self:flex-start}}",
+    "@media(max-width:639px){.km .bar{flex-direction:column;align-items:stretch}.km .chip{padding:6px 11px;font-size:12.5px}.km .sort{align-self:flex-start}}",
     ".km.in-results .pop{display:none}",
     ".km .chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}",
     ".km .sort{border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:600;background:var(--paper);color:var(--ink)}",
     ".km .back{border:0;background:none;padding:0;font:600 13.5px var(--sans);color:var(--mut);cursor:pointer;margin-top:22px}",
     ".km .back:hover{color:var(--ink)}",
     /* grilles */
-    ".km .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}",
-    "@media(min-width:640px){.km .grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}}",
+    ".km .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 8px}",
+    "@media(min-width:640px){.km .grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:20px 14px}}",
     "@media(min-width:960px){.km .grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:22px 16px}}",
     ".km .pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}",
     "@media(min-width:600px){.km .pgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}",
     "@media(min-width:960px){.km .pgrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}",
-    /* téléphone : profils de l'accueil en rangée qui défile (dans le cadre, pas la page) */
-    "@media(max-width:599px){.km .pgrid.rail{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px;padding:2px 16px 10px;scroll-padding:0 16px;scrollbar-width:none}.km .pgrid.rail::-webkit-scrollbar{display:none}.km .pgrid.rail>*{scroll-snap-align:start}}",
+    /* téléphone : rien ne défile de côté ; quelques cartes puis « Voir plus » */
+    ".km .pm{display:none}",
+    "@media(max-width:639px){.km .xh{display:none!important}.km .pm{display:flex}}",
     /* carte offre (style boutique) : image, titre, prix, « Ajouter au panier », vendeur en discret */
     ".km a.pc{min-width:0;text-decoration:none;color:inherit;background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;transition:border-color .15s,transform .15s,box-shadow .15s}",
     ".km a.pc:hover{border-color:var(--ink);transform:translateY(-3px);box-shadow:0 16px 34px -22px rgba(0,0,0,.35)}",
@@ -130,12 +132,16 @@
     ".km .of a.by:hover u,.km .of a.by:hover span{color:var(--ink);text-decoration:underline}",
     ".km .av{border-radius:50%;background:var(--ink) center/cover;color:var(--paper);display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0}",
     ".km .of .av{width:18px;height:18px;font-size:8.5px}",
-    "@media(max-width:639px){.km .of .pr .n{font-size:21px}.km .of .add{height:36px;font-size:12.5px}.km .of .add em{display:none}.km .of .by u{display:none}}",
+    /* téléphone, 3 colonnes : carte resserrée */
+    "@media(max-width:639px){.km .of .im{border-radius:12px}.km .of .bd{padding-top:7px;gap:4px}.km .of .tt{font-size:12px;line-height:1.25;min-height:2.5em}" +
+      ".km .of .tg{min-height:0}.km .of .tg span{display:none}.km .of .tg b{font-size:10px;padding:2px 5px;border-radius:4px}" +
+      ".km .of .pr .n{font-size:17px}.km .of .pr sup{font-size:10px;top:2px}.km .of .pr.q{font-size:12px}" +
+      ".km .of .add{height:30px;font-size:11.5px;gap:4px;margin-top:3px;padding:0 6px}.km .of .add svg{width:13px;height:13px}.km .of .add em{display:none}" +
+      ".km .of .by{font-size:10.5px;gap:4px}.km .of .by u{display:none}.km .of .av{width:14px;height:14px;font-size:7px}}",
     /* rangée d'offres qui défile, flèches sur ordinateur */
     ".km .rw{position:relative}",
-    ".km .orail{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 30px)/2.3);gap:14px 15px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 -16px;padding:0 16px 6px;scroll-padding:0 16px;scroll-behavior:smooth}",
-    ".km .orail::-webkit-scrollbar{display:none}.km .orail>*{scroll-snap-align:start}",
-    "@media(min-width:640px){.km .orail{grid-auto-columns:calc((100% - 48px)/4);gap:16px;margin:0;padding:0 0 6px;scroll-padding:0}}",
+    ".km .orail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 8px}",
+    "@media(min-width:640px){.km .orail{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:calc((100% - 48px)/4);gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:0 0 6px;scroll-behavior:smooth}.km .orail::-webkit-scrollbar{display:none}.km .orail>*{scroll-snap-align:start}}",
     "@media(min-width:960px){.km .orail{grid-auto-columns:calc((100% - 80px)/6)}}",
     ".km .rw .ar{display:none;position:absolute;top:calc(var(--imh,120px)/2 - 22px);width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--paper);box-shadow:0 6px 20px -8px rgba(0,0,0,.35);cursor:pointer;z-index:2;align-items:center;justify-content:center;color:var(--ink)}",
     ".km .rw .ar svg{width:20px;height:20px}",
@@ -338,7 +344,7 @@
       var p = o.profile || {}, url = esc(profileUrl(p.slug, o.id));
       var action = o.buyable && !o.needs_options
         ? '<button type="button" class="add" data-add="' + esc(o.id) + '">' + ico(I.cart) + '<span>Ajouter<em> au panier</em></span></button>'
-        : '<a class="add ghost" href="' + url + '" target="_top">' + (o.buyable ? "Choisir une option" : "Voir l'offre") + '</a>';
+        : '<a class="add ghost" href="' + url + '" target="_top">' + (o.buyable ? "Choisir<em> une option</em>" : "Voir<em> l'offre</em>") + '</a>';
       return '<div class="of">' +
         '<a class="im" href="' + url + '" target="_top" aria-hidden="true" tabindex="-1">' +
           (o.image ? '<i style="background-image:' + cssUrl(o.image) + '"></i>' : '<i class="ph">' + ico(I[o.kind] || I.service) + '</i>') + '</a>' +
@@ -352,7 +358,24 @@
     function offerRail(items) {
       return '<div class="rw"><button type="button" class="ar l" data-scroll="-1" aria-label="Précédent" hidden>' + ico(I.left) + '</button>' +
         '<div class="orail">' + items.map(offerCard).join("") + '</div>' +
-        '<button type="button" class="ar r" data-scroll="1" aria-label="Suivant">' + ico(I.right) + '</button></div>';
+        '<button type="button" class="ar r" data-scroll="1" aria-label="Suivant">' + ico(I.right) + '</button></div>' + phoneMore(items.length, 9);
+    }
+    // Téléphone : seules les `step` premières cartes d'une liste sont visibles (les autres
+    // portent .xh), puis « Voir plus » en dévoile `step` de plus. Sans effet sur ordinateur.
+    function phoneMore(n, step) {
+      return n > step ? '<div class="more pm"><button type="button" class="btn" data-pmore="' + step + '">Voir plus</button></div>' : '';
+    }
+    function phoneLimit(container) {
+      root.querySelectorAll(container + " [data-pmore]").forEach(function (b) {
+        var step = +b.getAttribute("data-pmore"), list = b.closest(".body").querySelector(".orail,.pgrid");
+        Array.prototype.forEach.call(list.children, function (c, i) { c.classList.toggle("xh", i >= step); });
+      });
+    }
+    function phoneReveal(b) {
+      var step = +b.getAttribute("data-pmore"), list = b.closest(".body").querySelector(".orail,.pgrid");
+      var hidden = list.querySelectorAll(":scope > .xh");
+      for (var i = 0; i < step && i < hidden.length; i++) hidden[i].classList.remove("xh");
+      if (hidden.length <= step) b.parentNode.remove();
     }
     // Flèches d'une rangée : cachées en butée, centrées sur les images.
     function wireRails() {
@@ -496,18 +519,20 @@
         var fresh = r[1].items.filter(function (c) { return !seen[c.slug]; });
         if (!top.length) { top = fresh.slice(0, 8); fresh = []; }
         top = top.slice(0, top.length >= 8 ? 8 : 4);   // rangées complètes sur ordinateur
-        fill("km-top", top.length ? '<div class="pgrid rail">' + top.map(profileCard).join("") + '</div>' : '<div class="empty">Les premières vitrines arrivent bientôt.</div>');
+        fill("km-top", top.length ? '<div class="pgrid">' + top.map(profileCard).join("") + '</div>' + phoneMore(top.length, 2) : '<div class="empty">Les premières vitrines arrivent bientôt.</div>');
+        phoneLimit("#km-top");
         var nw = $("#km-new");
-        if (fresh.length) fill("km-new", '<div class="pgrid rail">' + fresh.slice(0, 4).map(profileCard).join("") + '</div>'); else if (nw) nw.remove();
+        if (fresh.length) { fill("km-new", '<div class="pgrid">' + fresh.slice(0, 4).map(profileCard).join("") + '</div>' + phoneMore(Math.min(4, fresh.length), 2)); phoneLimit("#km-new"); } else if (nw) nw.remove();
       }).catch(function () { if (rid === S.reqId) fill("km-top", '<div class="empty">Chargement impossible. <button type="button" class="link" data-retry>Réessayer</button></div>'); });
-      Promise.all([get("/offers?sort=new&page_size=12"), get("/offers?sort=price_asc&page_size=18").catch(function () { return { items: [] }; })]).then(function (r) {
+      Promise.all([get("/offers?sort=new&page_size=18"), get("/offers?sort=price_asc&page_size=36").catch(function () { return { items: [] }; })]).then(function (r) {
         if (rid !== S.reqId) return;
         var latest = remember(r[0].items), seen = {};
         latest.forEach(function (o) { seen[o.id] = 1; });
-        var cheap = remember(r[1].items).filter(function (o) { return !seen[o.id] && o.price_cents != null; }).slice(0, 12);
+        var cheap = remember(r[1].items).filter(function (o) { return !seen[o.id] && o.price_cents != null; }).slice(0, 18);
         fill("km-offers", latest.length ? offerRail(latest) : '<div class="empty">Les premières offres arrivent bientôt.</div>');
         var ch = $("#km-cheap");
-        if (cheap.length >= 4) fill("km-cheap", offerRail(cheap)); else if (ch) ch.remove();
+        if (cheap.length >= 6) fill("km-cheap", offerRail(cheap)); else if (ch) ch.remove();
+        phoneLimit("#km-offers"); phoneLimit("#km-cheap");
         wireRails();
       }).catch(function () { if (rid === S.reqId) { fill("km-offers", '<div class="empty">Chargement impossible.</div>'); var ch = $("#km-cheap"); if (ch) ch.remove(); } });
     }
@@ -598,9 +623,10 @@
     }
 
     root.addEventListener("click", function (e) {
-      var b = e.target.closest("[data-add],[data-scroll]");
+      var b = e.target.closest("[data-add],[data-scroll],[data-pmore]");
       if (b && root.contains(b)) {
         if (b.hasAttribute("data-add")) return addToCart(b);
+        if (b.hasAttribute("data-pmore")) return phoneReveal(b);
         var rail = b.parentNode.querySelector(".orail");
         return rail.scrollBy({ left: (rail.clientWidth - 40) * parseInt(b.getAttribute("data-scroll"), 10), behavior: "smooth" });
       }
