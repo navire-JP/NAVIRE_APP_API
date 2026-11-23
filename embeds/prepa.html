@@ -729,7 +729,30 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   // l'écran, ce qui sortait le haut de l'épreuve (chrono, Sujet, Brouillon)
   // de l'écran. Le calque suit donc la partie réellement visible
   // (visualViewport), et le geste « tirer pour actualiser » est neutralisé.
-  var IMM = { on: false, prev: null, ov: "", ob: "", node: null, vv: null };
+  // Sur iPad, taper Entrée faisait défiler la page du site (et l'embed, haut de
+  // tout le contenu de l'onglet Prépa) pour garder le curseur visible : l'écran
+  // d'épreuve glissait et laissait voir le pied de page. Pendant l'écriture, les
+  // deux documents sont donc figés (body en position fixe, technique « scroll
+  // lock » iOS) et le contenu de l'onglet est masqué : seul l'éditeur défile.
+  var IMM = { on: false, prev: null, ov: "", ob: "", node: null, vv: null, locks: [], rootDisp: "" };
+  function immLock(doc) {
+    var w = doc.defaultView, b = doc.body, y = w.pageYOffset || doc.documentElement.scrollTop || 0;
+    IMM.locks.push({ doc: doc, y: y, style: b.getAttribute("style") });
+    b.style.setProperty("position", "fixed", "important");
+    b.style.setProperty("top", -y + "px", "important");
+    b.style.setProperty("left", "0", "important");
+    b.style.setProperty("right", "0", "important");
+    b.style.setProperty("overflow", "hidden", "important");
+  }
+  function immUnlock() {
+    IMM.locks.forEach(function (l) {
+      try {
+        if (l.style == null) l.doc.body.removeAttribute("style"); else l.doc.body.setAttribute("style", l.style);
+        l.doc.defaultView.scrollTo(0, l.y);
+      } catch (e) {}
+    });
+    IMM.locks = [];
+  }
   function immFit() {
     var vv = IMM.vv, t = frameEl || IMM.node;
     if (!IMM.on || !vv || !t || (vv.scale && vv.scale > 1.01)) return; // zoom au pincement : on ne suit pas
@@ -759,6 +782,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         document.documentElement.style.overflow = "hidden";
       }
       try { var hd = (frameEl ? HOST.document : document).documentElement; IMM.ob = hd.style.overscrollBehavior || ""; hd.style.overscrollBehavior = "none"; } catch (e) {}
+      if (frameEl) { IMM.rootDisp = root.style.display; root.style.display = "none"; }
+      try { if (!IMM.locks.length) { if (frameEl) immLock(HOST.document); immLock(document); } } catch (e) {}
       immVV(true); immFit();
     } else {
       immVV(false);
@@ -770,6 +795,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         frameEl.setAttribute("style", IMM.prev); IMM.prev = null;
         try { HOST.document.documentElement.style.overflow = IMM.ov || ""; } catch (e) {}
       } else document.documentElement.style.overflow = IMM.ov || "";
+      if (frameEl) root.style.display = IMM.rootDisp || "";
+      immUnlock();   // après avoir rendu sa taille à l'embed : la page retrouve sa position
       IMM.on = false;
       setTimeout(sizeApp, 0);
     }
