@@ -21,7 +21,9 @@
   est masqué), une zone d'écriture épurée, sans page simulée. En épreuve, le
   compte à rebours et l'étape de la méthode défilent en petit en haut ; le
   sujet et un brouillon s'ouvrent sur le côté. La copie s'enregistre au fil
-  de l'eau (appareil + serveur). Quitter la page abandonne l'épreuve.
+  de l'eau (appareil + serveur). Quitter ou recharger la page est compté
+  comme une sortie (signalée au correcteur) : le chrono continue et la copie
+  se reprend. Seul « Quitter › Abandonner » abandonne l'épreuve.
   Écrire une copie hors épreuve : même écran, sans chrono, brouillon gardé.
 
   Lire une correction : même écran blanc, la copie avec les révisions du
@@ -315,7 +317,7 @@
    Posé sur tout l'écran, header du site masqué : plein écran du navigateur
    quand il est permis, sinon un calque fixe au-dessus de toute la page.
    Rien que du blanc : pas de page simulée, une colonne de texte. */
-.nvx { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; background: #fff; color: #15161c; font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px; animation: nvx-in .25s cubic-bezier(.2,.8,.2,1); }
+.nvx { position: fixed; inset: 0; overscroll-behavior: none; z-index: 2147483000; display: flex; flex-direction: column; background: #fff; color: #15161c; font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px; animation: nvx-in .25s cubic-bezier(.2,.8,.2,1); }
 .nvx, .nvx *, .nvx *::before, .nvx *::after { box-sizing: border-box; }
 .nvx button { font-family: inherit; color: inherit; }
 .nvx ::selection { background: rgba(79,125,255,0.2); }
@@ -723,10 +725,29 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   // rogne), en plein écran du navigateur quand c'est permis. Dans une iframe
   // de même origine, l'iframe elle-même prend tout l'écran du site, header
   // compris. Pendant ce temps, l'embed ne se redimensionne plus.
-  var IMM = { on: false, prev: null, ov: "" };
+  // iPad / iPhone : 100vh dépasse la partie visible et le clavier fait défiler
+  // l'écran, ce qui sortait le haut de l'épreuve (chrono, Sujet, Brouillon)
+  // de l'écran. Le calque suit donc la partie réellement visible
+  // (visualViewport), et le geste « tirer pour actualiser » est neutralisé.
+  var IMM = { on: false, prev: null, ov: "", ob: "", node: null, vv: null };
+  function immFit() {
+    var vv = IMM.vv, t = frameEl || IMM.node;
+    if (!IMM.on || !vv || !t || (vv.scale && vv.scale > 1.01)) return; // zoom au pincement : on ne suit pas
+    t.style.setProperty("top", Math.max(0, vv.offsetTop) + "px", "important");
+    t.style.setProperty("bottom", "auto", "important");
+    t.style.setProperty("height", vv.height + "px", "important");
+  }
+  function immVV(on) {
+    var vv = null;
+    try { vv = (frameEl ? HOST : window).visualViewport || null; } catch (e) {}
+    if (!vv) return;
+    vv[on ? "addEventListener" : "removeEventListener"]("resize", immFit);
+    vv[on ? "addEventListener" : "removeEventListener"]("scroll", immFit);
+    IMM.vv = on ? vv : null;
+  }
   function immersif(node, on) {
     if (on) {
-      IMM.on = true;
+      IMM.on = true; IMM.node = node;
       document.body.appendChild(node);
       try { if (node.requestFullscreen && !document.fullscreenElement) { var pr = node.requestFullscreen({ navigationUI: "hide" }); if (pr && pr.catch) pr.catch(function () {}); } } catch (e) {}
       if (frameEl) {
@@ -737,7 +758,12 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         IMM.ov = document.documentElement.style.overflow;
         document.documentElement.style.overflow = "hidden";
       }
+      try { var hd = (frameEl ? HOST.document : document).documentElement; IMM.ob = hd.style.overscrollBehavior || ""; hd.style.overscrollBehavior = "none"; } catch (e) {}
+      immVV(true); immFit();
     } else {
+      immVV(false);
+      try { (frameEl ? HOST.document : document).documentElement.style.overscrollBehavior = IMM.ob; } catch (e) {}
+      IMM.node = null;
       try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
       if (node.parentNode) node.parentNode.removeChild(node);
       if (frameEl && IMM.prev != null) {
@@ -1287,7 +1313,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     }
     setPage(html);
   }
-  var REGLES = '<ul class="np-rules"><li>Un écran blanc sur tout l\'écran, le compte à rebours en haut.</li><li>Le sujet et un brouillon s\'ouvrent sur le côté.</li><li>Ta copie s\'enregistre au fil de l\'eau.</li><li><b>Quitter la page abandonne l\'épreuve</b> : elle ne pourra plus être rendue.</li></ul>';
+  var REGLES = '<ul class="np-rules"><li>Un écran blanc sur tout l\'écran, le compte à rebours en haut.</li><li>Le sujet et un brouillon s\'ouvrent sur le côté.</li><li>Ta copie s\'enregistre au fil de l\'eau.</li><li><b>Reste sur l\'écran d\'épreuve</b> : chaque sortie (autre onglet, page rechargée) est signalée à ton correcteur, et le chrono continue.</li></ul>';
   function popPlanifiee(id) {
     var x = ((S.ep && S.ep.planifiees) || []).filter(function (y) { return y.id === id; })[0];
     if (!x) return;
@@ -1382,7 +1408,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       wrSaveLabel(d ? "Brouillon repris" : "");
     }
   }
-  // La session est là : chrono, sujet, brouillon, garde-fou « quitter = abandonner ».
+  // La session est là : chrono, sujet, brouillon, garde-fou « quitter = sortie signalée ».
   function wrLoad(sess) {
     if (!WR.node) return;
     setSkew(sess.server_now);
@@ -1490,9 +1516,25 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         else wrSaveLabel("Hors ligne · gardé sur cet appareil");
       });
   }
-  // Quitter la page (fermer, recharger, partir) = abandon de l'épreuve.
+  // Quitter la page (fermer, recharger, partir) : la copie est enregistrée
+  // (appareil + serveur) et la sortie comptée ; l'épreuve n'est PAS abandonnée.
+  // Un rechargement involontaire (geste « tirer pour actualiser » sur iPad,
+  // bug d'affichage) faisait perdre une copie presque finie. Le chrono étant
+  // tenu par le serveur, revenir ne donne aucun temps en plus.
   function onBeforeUnload(e) { e.preventDefault(); e.returnValue = ""; return ""; }
-  function onPageHide() { if (!WR.guard || !WR.sess || WR.sess.essai) return; wrAbandon(true); }
+  function onPageHide() {
+    if (!WR.guard || !WR.sess || WR.sess.essai) return;
+    wrSaveLocal();
+    if (!WR.dirty) return;
+    var st = wrState();
+    try {
+      fetch(CONFIG.API + "/lib/prepa/epreuves/sessions/" + WR.sess.id + "/brouillon", {
+        method: "PUT", keepalive: true,
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + S.token },
+        body: JSON.stringify({ blocs: st.blocs, notes: st.notes })
+      }).catch(function () {});
+    } catch (e) {}
+  }
   function onVisibility() {
     if (!WR.guard) return;
     if (document.visibilityState === "hidden") { WR.sorties++; wrSaveLocal(); }

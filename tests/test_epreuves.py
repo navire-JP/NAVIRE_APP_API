@@ -117,3 +117,32 @@ def test_epreuve_saisie_dans_navire(monde):
     assert c.put(f"/lib/prepa/epreuves/sessions/{s2['id']}/brouillon", headers=alice, json={"blocs": blocs}).status_code == 400
     assert c.post(f"/lib/prepa/epreuves/sessions/{s2['id']}/rendre-texte", headers=alice, json={"blocs": blocs}).status_code == 400
     _nettoyer_epreuves()
+
+
+def test_rouvrir_epreuve_abandonnee(monde):
+    """Abandon involontaire (page rechargée) : le brouillon reste en base, le
+    professeur du groupe rouvre l'épreuve (avec du temps en plus), l'étudiant
+    retrouve sa copie et la rend."""
+    _nettoyer_epreuves()
+    c, P, alice, zoe = monde["c"], _headers(monde["prof"]), _headers(monde["alice"]), _headers(monde["zoe"])
+    now = datetime.now(timezone.utc)
+    e = c.post("/professeurs/epreuves", headers=P, data={
+        "type": "dissertation", "classe_id": monde["g1"], "sujet": "Le juge et la loi",
+        "ouvre_le": (now - timedelta(minutes=5)).isoformat(), "persistance_heures": "24"}).json()
+    s = c.post("/lib/prepa/epreuves/sessions", headers=alice, json={"epreuve_id": e["id"]}).json()
+    blocs = [{"t": "p", "runs": [["I. Le juge, bouche de la loi", False, False]]}]
+    c.put(f"/lib/prepa/epreuves/sessions/{s['id']}/brouillon", headers=alice, json={"blocs": blocs, "notes": "plan"})
+    assert c.post(f"/lib/prepa/epreuves/sessions/{s['id']}/abandonner", headers=alice).json()["statut"] == "abandonnee"
+
+    # Un autre étudiant, ou un professeur sans ce groupe, ne peut pas rouvrir
+    assert c.post(f"/professeurs/epreuves/sessions/{s['id']}/rouvrir", headers=zoe).status_code == 403
+    r = c.post(f"/professeurs/epreuves/sessions/{s['id']}/rouvrir", headers=P, json={"minutes_en_plus": 30})
+    assert r.status_code == 200, r.text
+    assert r.json()["statut"] == "en_cours" and r.json()["duree_minutes"] == 210 and r.json()["brouillon_blocs"] == 1
+
+    g = c.get(f"/lib/prepa/epreuves/sessions/{s['id']}", headers=alice).json()
+    assert g["statut"] == "en_cours" and g["brouillon"]["blocs"] == blocs and g["brouillon"]["notes"] == "plan"
+    r = c.post(f"/lib/prepa/epreuves/sessions/{s['id']}/rendre-texte", headers=alice, json={"blocs": blocs})
+    assert r.status_code == 200, r.text
+    assert c.post(f"/professeurs/epreuves/sessions/{s['id']}/rouvrir", headers=P).status_code == 400
+    _nettoyer_epreuves()
