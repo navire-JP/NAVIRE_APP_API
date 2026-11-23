@@ -146,7 +146,11 @@
     ".kv-projs{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
     ".kv-proj{border:1px solid var(--line2);border-radius:16px;overflow:hidden;padding:0;background:none;text-align:left;font:inherit;color:inherit;width:100%;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}",
     ".kv-proj .im{aspect-ratio:4/3;background:color-mix(in srgb,var(--fg) 7%,var(--bg)) center/cover}",
-    ".kv-proj .tt{padding:9px 12px 11px;font-weight:700;font-size:13px}",
+    ".kv-proj .tt{padding:10px 12px 0;font-weight:700;font-size:13.5px;overflow-wrap:anywhere}",
+    ".kv-proj .tt:last-child{padding-bottom:12px}",
+    ".kv-proj .mt{padding:2px 12px 12px;font-size:11.5px;color:var(--mut2);font-weight:600}",
+    ".kv-proj .im{position:relative}",
+    ".kv-proj .nb{position:absolute;right:8px;bottom:8px;font-size:10.5px;font-weight:800;background:rgba(0,0,0,.6);color:#fff;padding:3px 8px;border-radius:99px}",
     ".kv-svc-grid{display:grid;gap:12px}",
     ".kv-svc{display:flex;flex-direction:column;text-align:left;border:1px solid var(--line2);border-radius:18px;background:color-mix(in srgb,var(--bg) 94%,var(--fg));padding:0;overflow:hidden;font:inherit;color:inherit;width:100%}",
     ".kv.live .kv-svc{cursor:pointer;transition:transform .15s,border-color .15s}",
@@ -208,45 +212,43 @@
     ".kv-brand a,.kv-brand span{display:inline-flex;align-items:center;gap:6px;text-decoration:none}.kv-brand b{color:var(--fg)}",
     ".kv-logo{width:28px;height:28px;object-fit:contain;flex-shrink:0;border-radius:8px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}",   // icône lisible sur tous les fonds
     ".kv-empty{text-align:center;color:var(--mut2);font-size:13.5px}",
-    /* ── ordinateur, « Site complet » : un vrai site, pas une colonne de téléphone ── */
-    ".kv-hero-media,.kv-secnav{display:none}",
+    /* ── ordinateur, « Site complet » : l'aspect profil du téléphone (bannière fondue, photo,
+       encarts), organisé comme un site : barre des sections, colonne latérale, grilles larges ── */
+    ".kv-secnav,.kv-infos{display:none}",
+    ".kv-side,.kv-body{display:contents}",   // téléphone : une seule colonne, ordre inchangé
     ".kv.lay-site.is-wide{--maxw:1200px}",
-    ".kv.lay-site.is-wide .kv-cover{display:none}",
-    ".kv.lay-site.is-wide .kv-hero3,.kv.lay-site.is-wide.has-cover .kv-hero3{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:64px;align-items:center;max-width:var(--maxw);margin:0 auto;padding:96px 40px 80px;text-align:left}",
-    ".kv.lay-site.is-wide .kv-hero-in{max-width:none;margin:0}",
-    ".kv.lay-site.is-wide .kv-hero-in>.kv-av2{display:none}",
-    ".kv.lay-site.is-wide .kv-name{font-size:clamp(48px,5.4vw,84px);line-height:1;letter-spacing:-.035em}",
-    ".kv.lay-site.is-wide .kv-head{font-size:21px;margin-top:16px}",
-    ".kv.lay-site.is-wide .kv-bio{font-size:18px;line-height:1.6;margin:18px 0 0;max-width:560px}",
-    ".kv.lay-site.is-wide .kv-socials{justify-content:flex-start;margin:18px 0 0 -10px}",
-    ".kv.lay-site.is-wide .kv-actions{justify-content:flex-start;margin-top:28px}",
-    ".kv.lay-site.is-wide .kv-actions .kv-btn{padding:15px 26px;font-size:16px}",
-    ".kv.lay-site.is-wide .kv-hero-media{display:block;position:relative;aspect-ratio:5/4;border-radius:28px;background:color-mix(in srgb,var(--fg) 8%,var(--bg)) center/cover no-repeat;box-shadow:0 40px 80px -40px rgba(0,0,0,.45)}",
-    ".kv.lay-site.is-wide .kv-hero-media.solo{display:flex;align-items:center;justify-content:center;aspect-ratio:auto;background:none;box-shadow:none}",
-    ".kv-av3{position:absolute;left:-26px;bottom:-26px;width:116px;height:116px;border-radius:50%;background:var(--acc) center/cover;box-shadow:0 0 0 6px var(--bg);color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:42px;font-weight:900}",
-    ".kv-av-big{width:min(400px,100%);aspect-ratio:1;border-radius:36px;background:var(--acc) center/cover;color:var(--btn-fg);display:flex;align-items:center;justify-content:center;font-size:120px;font-weight:900;box-shadow:0 40px 80px -40px rgba(0,0,0,.45)}",
-    ".kv.lay-site.is-wide .kv-secnav{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;max-width:var(--maxw);margin:0 auto;padding:12px 40px;border-top:1px solid var(--line2);border-bottom:1px solid var(--line2)}",
-    ".kv-secnav button{background:none;border:0;color:var(--fg);font:600 14.5px var(--fb);padding:9px 16px;border-radius:99px;cursor:pointer;opacity:.75}",
+    ".kv.lay-site.is-wide .kv-hero-in{max-width:760px}",
+    ".kv.lay-site.is-wide .kv-av2{width:128px;height:128px;font-size:48px;box-shadow:0 0 0 5px var(--bg),0 18px 44px -20px rgba(0,0,0,.55)}",
+    ".kv.lay-site.is-wide.has-cover .kv-hero3{padding-top:calc(var(--cover-h) - 84px)}",
+    ".kv.lay-site.is-wide .kv-name{font-size:clamp(44px,4.6vw,64px)}",
+    ".kv.lay-site.is-wide .kv-bio{max-width:620px;font-size:17px}",
+    ".kv.lay-site.is-wide .kv-secnav{display:flex;justify-content:center;flex-wrap:wrap;gap:2px;width:max-content;max-width:calc(100% - 40px);margin:28px auto 0;padding:5px;border-radius:999px;background:var(--card);border:1px solid var(--card-line);box-shadow:0 10px 30px -22px rgba(0,0,0,.35)}",
+    ".kv-secnav button{background:none;border:0;color:var(--fg);font:600 14px var(--fb);padding:9px 16px;border-radius:99px;cursor:pointer;opacity:.75}",
     ".kv-secnav button:hover{opacity:1;background:color-mix(in srgb,var(--fg) 7%,transparent)}",
-    ".kv.lay-site.is-wide .kv-main{padding:0 40px;gap:0}",
-    ".kv.lay-site.is-wide .kv-main>.kv-card{background:none;border:0;border-top:1px solid var(--line2);border-radius:0;box-shadow:none;padding:88px 0}",
-    ".kv.lay-site.is-wide .kv-main>.kv-card:first-child{border-top:0}",
-    ".kv.lay-site.is-wide .kv-main>.kv-card.flush{padding:64px 0}",
-    ".kv.lay-site.is-wide .kv-main>.kv-card.flush .kv-figure img{border-radius:24px;max-height:560px;object-fit:cover}",
-    ".kv.lay-site.is-wide .kv-card-t{font-size:clamp(34px,3.4vw,48px);letter-spacing:-.03em;margin-bottom:36px}",
-    ".kv.lay-site.is-wide .kv-cb-img{border-radius:24px}",
-    ".kv.lay-site.is-wide .kv-cb-tx p,.kv.lay-site.is-wide .kv-c-txt{font-size:17.5px;line-height:1.7}",
-    ".kv.lay-site.is-wide .kv-svc .tt{font-size:19px}.kv.lay-site.is-wide .kv-svc .ds{font-size:15px}",
-    ".kv.lay-site.is-wide .kv-offer .tt{font-size:15px}.kv.lay-site.is-wide .kv-offer .pr{font-size:14.5px}.kv.lay-site.is-wide .kv-offer .ds{font-size:13px}",
-    ".kv.lay-site.is-wide .kv-card .kv-offer,.kv.lay-site.is-wide .kv-card .kv-svc,.kv.lay-site.is-wide .kv-card .kv-proj,.kv.lay-site.is-wide .kv-card .kv-stat,.kv.lay-site.is-wide .kv-card .kv-tags span{background:var(--card)}",
-    ".kv.lay-site.is-wide .kv-stat{padding:22px 10px;border-radius:18px}.kv.lay-site.is-wide .kv-stat b{font-size:26px}",
-    ".kv.lay-site.is-wide .kv-svc-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}",
-    ".kv.lay-site.is-wide .kv-shop-grid{gap:20px}",
-    ".kv.lay-site.is-wide .kv-main>.kv-links-wrap{border-top:1px solid var(--line2);padding:64px 0}",
-    ".kv.lay-site.is-wide .kv-main>.kv-titlebar{padding-top:72px}",
-    ".kv.lay-site.is-wide .kv-main>#kv-contact{background:var(--card);border:1px solid var(--card-line);border-radius:32px;padding:64px;margin-top:24px;box-shadow:0 30px 70px -50px rgba(0,0,0,.4)}",
-    ".kv.lay-site.is-wide .kv-main>#kv-contact+*{border-top:0}",
-    ".kv.lay-site.is-wide .kv-foot3{max-width:var(--maxw);margin:72px auto 0;padding:32px 40px 48px;display:flex;justify-content:space-between;align-items:center;gap:20px;text-align:left;border-top:1px solid var(--line2)}",
+    ".kv.lay-site.is-wide .kv-main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:24px;align-items:start;padding:32px 32px 0}",
+    ".kv.lay-site.is-wide .kv-main.no-side{grid-template-columns:minmax(0,880px);justify-content:center}",
+    ".kv.lay-site.is-wide .kv-side,.kv.lay-site.is-wide .kv-body{display:flex;flex-direction:column;gap:24px;min-width:0}",
+    ".kv.lay-site.is-wide .kv-infos{display:block}",
+    ".kv.lay-site.is-wide .kv-main>#kv-contact{grid-column:1/-1}",
+    ".kv.lay-site.is-wide .kv-card{padding:28px 30px;border-radius:24px}",
+    ".kv.lay-site.is-wide .kv-card.flush{padding:0}",
+    ".kv.lay-site.is-wide .kv-card-t{font-size:26px;margin-bottom:20px}",
+    ".kv.lay-site.is-wide .kv-side .kv-about-grid{grid-template-columns:1fr;gap:16px}",
+    ".kv.lay-site.is-wide .kv-side .kv-stats{grid-template-columns:repeat(2,minmax(0,1fr))}",
+    ".kv.lay-site.is-wide .kv-side .kv-about{font-size:15px}",
+    ".kv.lay-site.is-wide .kv-infos .kv-coords{margin:0 0 14px}",
+    ".kv.lay-site.is-wide .kv-infos .kv-coords span{width:78px}",
+    ".kv.lay-site.is-wide .kv-infos .kv-socials{justify-content:flex-start;margin:0 0 16px -8px}",
+    ".kv.lay-site.is-wide .kv-svc-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}",
+    ".kv.lay-site.is-wide .kv-shop-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}",
+    ".kv.lay-site.is-wide .kv-shop-grid .kv-offer .im{height:170px}",
+    ".kv.lay-site.is-wide .kv-projs{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}",
+    ".kv.lay-site.is-wide .kv-links-wrap .kv-links{grid-template-columns:repeat(2,minmax(0,1fr))}",
+    ".kv.lay-site.is-wide .kv-cb.has-img{gap:32px}",
+    ".kv.lay-site.is-wide .kv-cb-tx h3,.kv.lay-site.is-wide .kv-gal h3{font-size:28px}",
+    ".kv.lay-site.is-wide .kv-cb-tx p{font-size:16px}",
+    ".kv.lay-site.is-wide .kv-figure img{max-height:520px;object-fit:cover}",
+    ".kv.lay-site.is-wide .kv-foot3{max-width:var(--maxw);margin:56px auto 0;padding:28px 32px 44px;display:flex;justify-content:space-between;align-items:center;gap:20px;text-align:left;border-top:1px solid var(--line2)}",
     ".kv.lay-site.is-wide .kv-foot3 .kv-brand{margin:0}",
     /* ── ordinateur, « Page de liens » : identité à gauche, liens et encarts à droite ── */
     ".kv.lay-links.is-wide{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,640px);justify-content:center;column-gap:56px;align-items:start;padding:40px 32px 0}",
@@ -569,7 +571,11 @@
   }
   function projectCard(it) {
     var cover = it.cover_url || (it.media && it.media[0] && it.media[0].type === "image" ? it.media[0].url : "");
-    return '<button type="button" class="kv-proj" data-kv-project="' + it.id + '"><div class="im" style="background-image:' + cssUrl(cover) + '"></div><div class="tt">' + esc(it.title) + '</div></button>';
+    var n = (it.media || []).filter(function (m) { return m.type !== "video"; }).length;
+    var meta = [it.client_name, n > 1 ? n + " images" : ""].filter(Boolean).join(" · ");
+    return '<button type="button" class="kv-proj" data-kv-project="' + it.id + '"><div class="im" style="background-image:' + cssUrl(cover) + '">' +
+      (n > 1 ? '<span class="nb">' + n + '</span>' : '') + '</div><div class="tt">' + esc(it.title) + '</div>' +
+      (meta ? '<div class="mt">' + esc(meta) + '</div>' : '') + '</button>';
   }
   function legalLines(p) {
     var seller = (p.legal || {}).seller, lines = [];
@@ -638,6 +644,15 @@
       return '<button type="button" data-kv-nav="' + NAV[k][0] + '">' + NAV[k][1] + '</button>';
     }).join("");
 
+    function coordsList() {
+      var out = [], phone = contact.phone ? String(contact.phone).replace(/[^\d+]/g, "") : "";
+      var web = contact.website ? String(contact.website).replace(/^https?:\/\//, "").replace(/\/$/, "") : "";
+      if (contact.email) out.push('<li><span>Email</span><a href="mailto:' + esc(contact.email) + '">' + esc(contact.email) + '</a></li>');
+      if (contact.phone) out.push('<li><span>Téléphone</span><a href="tel:' + esc(phone) + '">' + esc(contact.phone) + '</a></li>');
+      if (contact.website) out.push('<li><span>Site</span><a href="' + esc(safeUrl(contact.website)) + '" target="_blank" rel="noopener">' + esc(web) + '</a></li>');
+      if (p.location) out.push('<li><span>Lieu</span>' + esc(p.location) + '</li>');
+      return out;
+    }
     var parts = {
       content: function () {
         return content.map(function (b, i) { return contentCard(b, b.id ? "kv-b-" + esc(b.id) : "kv-content-" + i); }).join("");
@@ -679,11 +694,7 @@
             '<button type="button" class="kv-btn full" data-kv-contact>Envoyer un message</button>' +
             (info.length ? '<div class="kv-cinfo">' + info.join("") + '</div>' : '') + '</section>';
         }
-        var coords = [];
-        if (contact.email) coords.push('<li><span>Email</span><a href="mailto:' + esc(contact.email) + '">' + esc(contact.email) + '</a></li>');
-        if (contact.phone) coords.push('<li><span>Téléphone</span><a href="tel:' + esc(phone) + '">' + esc(contact.phone) + '</a></li>');
-        if (contact.website) coords.push('<li><span>Site</span><a href="' + esc(safeUrl(contact.website)) + '" target="_blank" rel="noopener">' + esc(site_) + '</a></li>');
-        if (p.location) coords.push('<li><span>Lieu</span>' + esc(p.location) + '</li>');
+        var coords = coordsList();
         return '<section class="kv-card" id="kv-contact"><div class="kv-contact-grid"><div class="kv-contact-txt">' +
           '<h2 class="kv-card-t">Travaillons ensemble</h2>' +
           '<p class="kv-c-txt">Un projet, une question ? Écris-moi : je te réponds directement par email.</p>' +
@@ -692,9 +703,24 @@
       }
     };
 
-    var body = order.filter(function (k) { return parts[k] && has[k]; }).map(function (k) { return parts[k](); }).join("");
-    if (opts.emptyHint && !offers.length && !blocks.length && !p.bio) {
-      body += '<section class="kv-card kv-empty">' + esc(opts.emptyHint) + '</section>';
+    var keys = order.filter(function (k) { return parts[k] && has[k]; });
+    var empty = opts.emptyHint && !offers.length && !blocks.length && !p.bio
+      ? '<section class="kv-card kv-empty">' + esc(opts.emptyHint) + '</section>' : "";
+    var body, mainCls = "kv-main";
+    if (site) {
+      // Ordinateur : « À propos » et une carte d'infos dans la colonne latérale, le reste à droite,
+      // le formulaire de contact en pleine largeur. Téléphone : une seule colonne (display: contents).
+      var coords = coordsList(), soc = socialsHtml(p);
+      var infos = (coords.length || soc) ? '<section class="kv-card kv-infos"><h2 class="kv-card-t">Infos</h2>' +
+        (coords.length ? '<ul class="kv-coords">' + coords.join("") + '</ul>' : '') + soc +
+        '<button type="button" class="kv-btn full" data-kv-contact-scroll>Me contacter</button></section>' : "";
+      var side = keys.filter(function (k) { return k === "about"; }).map(function (k) { return parts[k](); }).join("") + infos;
+      var right = keys.filter(function (k) { return k !== "about" && k !== "contact"; }).map(function (k) { return parts[k](); }).join("") + empty;
+      if (!side) mainCls += " no-side";
+      body = (side ? '<div class="kv-side">' + side + '</div>' : '') + '<div class="kv-body">' + right + '</div>' +
+        (keys.indexOf("contact") >= 0 ? parts.contact() : "");
+    } else {
+      body = keys.map(function (k) { return parts[k](); }).join("") + empty;
     }
 
     // Bannière, photo, nom
@@ -708,12 +734,7 @@
         socialsHtml(p) +
         (site ? '<div class="kv-actions"><button type="button" class="kv-btn" data-kv-contact-scroll>Me contacter</button>' +
           (firstOffers ? '<button type="button" class="kv-btn ghost" data-kv-nav="' + firstOffers + '">Voir mes offres</button>' : '') + '</div>' : '') +
-      '</div>' +
-      // Ordinateur (« Site complet ») : la bannière devient une grande image à droite du texte.
-      (site ? (p.banner_url
-        ? '<div class="kv-hero-media" style="background-image:' + cssUrl(p.banner_url) + '">' + avatarHtml(p, "kv-av3") + '</div>'
-        : '<div class="kv-hero-media solo">' + avatarHtml(p, "kv-av-big") + '</div>') : '') +
-      '</section>' +
+      '</div></section>' +
       (secnav ? '<nav class="kv-secnav" aria-label="Sections">' + secnav + '</nav>' : '');
 
     // Pied de page
@@ -733,7 +754,7 @@
 
     var cls = "kv lay-" + layout + " t-" + th.tpl + " bg-" + th.bg + (p.banner_url ? " has-cover" : "") +
       (opts.live ? " live" : "") + (opts.page ? " page" : "") + (opts.wideNow ? " is-wide" : "");
-    return '<div class="' + cls + '" style="' + th.style + '">' + hero + '<main class="kv-main">' + body + '</main>' + foot + '</div>';
+    return '<div class="' + cls + '" style="' + th.style + '">' + hero + '<main class="' + mainCls + '">' + body + '</main>' + foot + '</div>';
   }
 
   // Adapte le rendu à la largeur réelle de son bloc (et non de l'écran) : le
@@ -829,8 +850,9 @@
       headline: data.headline || ""
     });
     function destroy() { publishProfile(null); }
-    // Panier : bouton « Panier » flottant sur la page dès qu'il contient un article.
-    if (page) loadCart().then(function (c) { c.mountButton({ checkoutUrl: opts.checkoutUrl }); }).catch(function () {});
+    // Panier : l'icône panier du header du site (Framer) suit le panier via « kitly:cart ».
+    // opts.floatingCart : bouton flottant pour une page sans ce header (ex. /kitly/p/<adresse>).
+    if (page && opts.floatingCart) loadCart().then(function (c) { c.mountButton({ checkoutUrl: opts.checkoutUrl }); }).catch(function () {});
 
     // Défilement vers une section, y compris depuis un embed (c'est la page Framer qui défile).
     function scrollToId(id) {

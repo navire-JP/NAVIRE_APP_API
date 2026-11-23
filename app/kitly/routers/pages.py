@@ -148,7 +148,8 @@ def vitrine_page(slug: str, db: Session = Depends(get_db)):
     if (q === "marketplace" || /\\/marketplace|\\/freelances/.test(document.referrer)) src = "marketplace";
   }} catch (e) {{}}
   KitlyVitrine.mount(document.getElementById("kv-root"), data, {{
-    apiBase: "", source: src, privacyUrl: {json.dumps(KITLY_PRIVACY_URL)}, kitlyUrl: {json.dumps(KITLY_FRONTEND_URL)}
+    apiBase: "", source: src, privacyUrl: {json.dumps(KITLY_PRIVACY_URL)}, kitlyUrl: {json.dumps(KITLY_FRONTEND_URL)},
+    floatingCart: true, checkoutUrl: {json.dumps(KITLY_FRONTEND_URL + "/checkout")}
   }});
 }})();
 </script>
