@@ -193,3 +193,74 @@ def test_copie_saisie_et_mode_suggestion(monde):
     assert item["label"] == "Galop (corrigée)" and item["src"].endswith("/export?format=pdf")
     pdf = c.get(item["src"], headers=alice)
     assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF"
+
+
+def test_professeur_ajoute_la_copie_d_un_etudiant(monde):
+    """Copie rendue hors NAVIRE (mail, papier scanné) : le professeur la dépose
+    au nom d'un étudiant de son groupe ; elle se corrige comme les autres et la
+    correction arrive dans l'espace Prépa de l'étudiant."""
+    c, P, alice, zoe = monde["c"], _headers(monde["prof"]), _headers(monde["alice"]), _headers(monde["zoe"])
+    fichier = {"file": ("copie_ynes.docx", _docx(), "application/octet-stream")}
+    url = f"/professeurs/classes/{monde['g1']}/copies"
+
+    # Réservé aux professeurs du groupe, pour un étudiant du groupe
+    assert c.post(url, headers=zoe, data={"user_id": monde["alice"].id}, files=fichier).status_code == 403
+    assert c.post(f"/professeurs/classes/{monde['g2']}/copies", headers=P, data={"user_id": monde["alice"].id},
+                  files=fichier).status_code == 404
+    assert c.post(url, headers=P, data={"user_id": monde["zoe"].id}, files=fichier).status_code == 404
+
+    r = c.post(url, headers=P, data={"user_id": monde["alice"].id, "message": "Reçue par mail."}, files=fichier)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["titre"] == "copie_ynes" and d["statut"] == "depose" and d["classe_id"] == monde["g1"]
+    assert d["etudiant"]["user_id"] == monde["alice"].id
+    assert d["message"].startswith("Copie transmise par prof") and d["message"].endswith("Reçue par mail.")
+
+    # Dans « À corriger » du professeur, mise en forme, et chez l'étudiante
+    assert any(x["id"] == d["id"] for x in c.get("/professeurs/me/devoirs", headers=P).json()["items"])
+    assert c.get(f"/professeurs/devoirs/{d['id']}/copie", headers=P).json()["blocs"]
+    assert c.patch(f"/professeurs/devoirs/{d['id']}", headers=P, json={"note": "14/20", "statut": "corrige"}).status_code == 200
+    mes = c.get("/lib/prepa", headers=alice).json()["devoirs"]
+    assert any(x["id"] == d["id"] and x["note"] == "14/20" for x in mes)
+
+    # Fichier illisible : refusé
+    assert c.post(url, headers=P, data={"user_id": monde["alice"].id},
+                  files={"file": ("x.pdf", b"pas un pdf", "application/pdf")}).status_code in (400, 422)
+
+
+def _pdf_scanne() -> bytes:
+    """Un PDF sans texte, comme une copie papier passée au scanner."""
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page()
+    page.draw_rect(fitz.Rect(50, 50, 500, 700), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
+    return doc.tobytes()
+
+
+def test_professeur_ajoute_une_copie_papier_scannee(monde):
+    """PDF scanné (aucun texte) : refusé au dépôt étudiant, accepté au dépôt du
+    professeur ; il se corrige par appréciation, note et PDF annoté."""
+    c, P, alice = monde["c"], _headers(monde["prof"]), _headers(monde["alice"])
+    scan = ("copie_papier.pdf", _pdf_scanne(), "application/pdf")
+    assert c.post("/lib/prepa/devoirs", headers=alice, data={"matiere_key": MATIERE},
+                  files={"file": scan}).status_code == 422
+
+    r = c.post(f"/professeurs/classes/{monde['g1']}/copies", headers=P, data={"user_id": monde["alice"].id},
+               files={"file": scan})
+    assert r.status_code == 200, r.text
+    d = r.json()["id"]
+    v = c.get(f"/professeurs/devoirs/{d}/copie", headers=P).json()
+    assert v["scan"] is True and v["blocs"] == []
+    assert c.get(f"/professeurs/devoirs/{d}/download", headers=P).content[:4] == b"%PDF"
+    assert c.get(f"/professeurs/devoirs/{d}/export?format=pdf", headers=P).content[:4] == b"%PDF"
+
+    # Correction : PDF annoté joint, appréciation et note ; l'étudiante voit tout
+    assert c.post(f"/professeurs/devoirs/{d}/correction", headers=P,
+                  files={"file": ("corrige.pdf", _pdf_scanne(), "application/pdf")}).status_code == 200
+    assert c.patch(f"/professeurs/devoirs/{d}", headers=P,
+                   json={"commentaire": "Bon plan.", "note": "13/20", "statut": "corrige"}).status_code == 200
+    e = c.get(f"/lib/prepa/devoirs/{d}/copie", headers=alice).json()
+    assert e["scan"] is True and e["devoir"]["note"] == "13/20" and e["devoir"]["correction"] is True
+    assert c.get(f"/lib/prepa/devoirs/{d}/fichier", headers=alice).content[:4] == b"%PDF"
+    assert c.get(f"/lib/prepa/devoirs/{d}/correction", headers=alice).status_code == 200

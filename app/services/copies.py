@@ -211,10 +211,32 @@ def docx_saisie(titre: str, c: dict) -> bytes:
     return buf.getvalue()
 
 
+# Copie papier scannée (PDF sans texte) déposée par le professeur : pas de
+# texte à réviser ; elle se corrige par appréciation, note et PDF annoté.
+CONTENU_SCAN = {"blocs": [], "mots": 0, "scan": True}
+
+
+def pdf_valide(data: bytes) -> bool:
+    """Un vrai PDF, avec au moins une page (une copie scannée, par exemple)."""
+    if data[:4] != b"%PDF":
+        return False
+    try:
+        import fitz
+
+        with fitz.open(stream=data, filetype="pdf") as doc:
+            return doc.page_count > 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def est_scan(d: PrepaAdjurisDevoir) -> bool:
+    return bool(d.contenu and d.contenu.get("scan"))
+
+
 def contenu(db: Session, d: PrepaAdjurisDevoir) -> dict:
     """La copie mise en forme ; lue au premier besoin pour les copies déposées
     avant la mise en forme (ou dont la lecture a échoué)."""
-    if d.contenu and d.contenu.get("blocs"):
+    if d.contenu and (d.contenu.get("blocs") or d.contenu.get("scan")):
         return d.contenu
     p = Path(d.path or "")
     if not p.exists():
@@ -718,5 +740,6 @@ def copie_row(db: Session, d: PrepaAdjurisDevoir, *, pour_prof: bool) -> dict:
         "devoir": dsvc.devoir_row(db, d, pour_prof=pour_prof),
         "blocs": c.get("blocs") or [],
         "mots": c.get("mots") or 0,
+        "scan": bool(c.get("scan")),
         "annotations": [annotation_row(db, a, noms) for a in annotations_visibles(d, pour_prof=pour_prof)],
     }

@@ -1761,6 +1761,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         if (a === "fermer") return rdClose();
         if (a === "export") return exporter(b.getAttribute("data-f"));
         if (a === "jointe") return ouvrirFichier("/lib/prepa/devoirs/" + RD.id + "/correction");
+        if (a === "scan") return ouvrirFichier("/lib/prepa/devoirs/" + RD.id + "/fichier");
       }
       var bub = e.target.closest("[data-bub]"), mk = e.target.closest("[data-c]");
       if (bub) rdFocus(bub.getAttribute("data-bub"));
@@ -1785,6 +1786,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       (d.correction ? ' · <button class="nvx-link" data-r="jointe">PDF joint par le correcteur</button>' : "") + "</div>";
     if (done && (d.note || d.commentaire)) h += '<div class="nvx-verdict">' + avatar(d.corrige_par_avatar, d.corrige_par, 40) + "<div><small>" + esc(d.corrige_par || "Ton correcteur") + "</small>" + esc(d.commentaire || "") + "</div>" + (d.note ? '<span class="nvx-note">' + esc(d.note) + "</span>" : "") + "</div>";
     else if (!done) h += '<div class="nvx-verdict"><div>Ta copie est entre les mains de ton correcteur. Ses corrections et ses commentaires apparaîtront ici dès qu\'il l\'aura rendue.</div></div>';
+    if (data.scan) h += '<div class="nvx-verdict"><div>Ta copie a été transmise en PDF scanné : ton correcteur la corrige par une appréciation, une note' + (d.correction ? " et un PDF annoté" : "") + '.</div><button class="nvx-b" data-r="scan">Ouvrir ma copie</button>' +
+      (d.correction ? '<button class="nvx-b is-main" data-r="jointe">Copie corrigée</button>' : "") + "</div>";
     if (anns.length) h += '<div class="nvx-legend"><span><span class="del">barré</span> à retirer</span><span><span class="ins">vert</span> ajouté</span><span><span class="hl">&nbsp;surligné&nbsp;</span></span>' + (coms.length ? '<span><span class="com">&nbsp;souligné bleu&nbsp;</span> commentaire</span>' : "") + "</div>";
     h += '<div class="nvx-text">' + (data.blocs || []).map(function (b) {
       if (b.t === "table") return '<table data-bloc="' + esc(b.id) + '">' + (b.rows || []).map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</table>";

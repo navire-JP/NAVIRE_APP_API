@@ -486,16 +486,28 @@ async def deposer_devoir(
 ):
     if matiere_key not in matieres_actives(db, user):
         raise HTTPException(403, detail="Tu n'es pas inscrit à cette matière.")
-    meta = await save_prepa_pdf(file, DEVOIRS_DIR / str(user.id), max_bytes=MAX_UPLOAD_BYTES, allow_docx=True)
-    try:
-        contenu = csvc.mettre_en_forme(Path(meta["path"]).read_bytes(), meta["filename_original"])
-    except Exception as e:  # noqa: BLE001 — fichier illisible : refusé, rien n'est gardé
-        delete_prepa_file(meta["path"])
-        raise HTTPException(422, detail=str(e) if isinstance(e, ValueError) else
-                            "Ce fichier n'a pas pu être lu : dépose un .docx ou un PDF texte.")
+    meta, contenu = await lire_copie(file, user.id)
     return creer_devoir(db, user, background, matiere_key=matiere_key,
                         titre=(titre.strip() or Path(meta["filename_original"]).stem or "Copie"),
                         message=message, meta=meta, contenu=contenu)
+
+
+async def lire_copie(file: UploadFile, user_id: int, *, scan_ok: bool = False) -> tuple[dict, dict]:
+    """Copie déposée (.docx / .pdf) → (meta du fichier écrit, contenu mis en
+    forme). Un fichier illisible est refusé et rien n'est gardé.
+    scan_ok (dépôt par le professeur) : un PDF sans texte (copie papier
+    scannée) est gardé tel quel, contenu {"blocs": [], "scan": True} ; il se
+    corrige par une appréciation, une note et un PDF annoté."""
+    meta = await save_prepa_pdf(file, DEVOIRS_DIR / str(user_id), max_bytes=MAX_UPLOAD_BYTES, allow_docx=True)
+    try:
+        contenu = csvc.mettre_en_forme(Path(meta["path"]).read_bytes(), meta["filename_original"])
+    except Exception as e:  # noqa: BLE001
+        if scan_ok and csvc.pdf_valide(Path(meta["path"]).read_bytes()):
+            return meta, dict(csvc.CONTENU_SCAN)
+        delete_prepa_file(meta["path"])
+        raise HTTPException(422, detail=str(e) if isinstance(e, ValueError) else
+                            "Ce fichier n'a pas pu être lu : dépose un .docx ou un PDF texte.")
+    return meta, contenu
 
 
 def creer_devoir(db: Session, user: User, background: BackgroundTasks, *, matiere_key: str, titre: str,
@@ -589,6 +601,10 @@ def ma_copie_en_ligne(devoir_id: int, db: Session = Depends(get_db), user: User 
 
 
 def exporter(db: Session, d: PrepaAdjurisDevoir, format: str, *, pour_prof: bool) -> Response:
+    if csvc.est_scan(d):   # copie scannée : rien à mettre en forme, le PDF d'origine
+        if not Path(d.path).exists():
+            raise HTTPException(404, detail="Fichier introuvable sur le disque.")
+        return FileResponse(d.path, media_type="application/pdf", filename=d.filename_original or "copie.pdf")
     anns = csvc.annotations_visibles(d, pour_prof=pour_prof)
     if format == "docx":
         data, mime = csvc.export_docx(db, d, anns), DOCX_MIME

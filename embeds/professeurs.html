@@ -33,6 +33,8 @@
     PATCH /professeurs/devoirs/{id}               (rendre : note, appréciation)
     GET  /professeurs/devoirs/{id}/export?format=docx|pdf
 
+  Copies : POST /professeurs/classes/{id}/copies (ajouter la copie d'un
+           étudiant rendue hors NAVIRE).
   Épreuves : GET|POST /professeurs/epreuves, DELETE /professeurs/epreuves/{id},
              POST /professeurs/epreuves/sessions/{id}/rouvrir (relever un abandon).
   Aperçu admin (« Voir comme ») : l'espace d'un professeur, en lecture seule.
@@ -627,6 +629,10 @@
 .nvx-inline { display: none; }
 .nvx-inline .nvx-bub { position: static; margin: 0 0 8px; }
 /* Appréciation générale */
+.nvx-scan { margin: 0 0 30px; }
+.nvx-scan p { margin: 0 0 12px; font-size: 13.5px; color: #6b6f80; }
+.nvx-scan-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.nvx-scan iframe { display: block; width: 100%; height: 75vh; border: 1px solid #e6e8ef; border-radius: 6px; background: #f6f7fb; }
 .nvx-verdict { display: flex; gap: 14px; align-items: flex-start; padding: 18px; border-radius: 6px; background: #f6f8ff; margin: 0 0 30px; }
 .nvx-verdict > div { flex: 1; min-width: 0; font-size: 14px; line-height: 1.6; color: #2b2d36; white-space: pre-wrap; overflow-wrap: anywhere; }
 .nvx-verdict small { display: block; font-size: 12px; font-weight: 700; color: #15161c; margin-bottom: 3px; white-space: normal; }
@@ -838,6 +844,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   <div class="nv-pop" data-el="pop" data-act="pop-close"><div class="nv-pop-card" data-el="pop-card"></div></div>
   <input type="file" accept="application/pdf,.pdf" data-el="file" style="display:none">
   <input type="file" accept="application/pdf,.pdf" data-el="ep-file" style="display:none">
+  <input type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" data-el="cp-file" style="display:none">
 </div>
 
 <script>
@@ -1526,13 +1533,48 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   }
   function viewCopies() {
     var all = S.devoirs, todo = aCorriger();
-    var html = head("Copies", "Un clic ouvre la copie en plein écran : écris directement dedans, tes modifications apparaissent en suggestions. Sélectionne un passage pour le commenter.");
+    var html = head("Copies", "Un clic ouvre la copie en plein écran : écris directement dedans, tes modifications apparaissent en suggestions. Sélectionne un passage pour le commenter.") +
+      '<button class="nv-btn is-blue" data-act="cp-new" style="margin-bottom:16px">' + ICON.upload + "Ajouter une copie</button>";
     html += '<div class="nv-filters">' + [["todo", "À corriger", todo.length], ["done", "Corrigées", all.length - todo.length], ["all", "Toutes", all.length]].map(function (f) {
       return '<button class="nv-chip' + (S.dvFilter === f[0] ? " is-active" : "") + '" data-act="dv-filter" data-f="' + f[0] + '">' + f[1] + " · " + f[2] + "</button>";
     }).join("") + "</div>";
     var list = all.filter(function (x) { return S.dvFilter === "all" || (S.dvFilter === "todo" ? x.statut === "depose" : x.statut === "corrige"); });
     if (!list.length) return setPage(html + empty(S.dvFilter === "todo" ? "Rien à corriger" : "Aucune copie", S.dvFilter === "todo" ? "Les nouvelles copies arrivent ici, et par mail." : ""));
     setPage(html + list.map(copieRow).join(""));
+  }
+
+  // ----- Ajouter la copie d'un étudiant (rendue hors NAVIRE : mail, papier scanné…) -----
+  function cpEleves(classeId) {
+    var c = S.dash.classes.filter(function (x) { return x.id === classeId; })[0];
+    return c ? c.etudiants.filter(function (e) { return e.user_id; }) : [];
+  }
+  function popCopie() {
+    var cs = S.dash.classes;
+    if (!cs.length) return toast("Aucun groupe.", true);
+    var f = S.cpf || (S.cpf = { classe: cs[0].id, user: null, titre: "", message: "", file: null, busy: false });
+    var eleves = cpEleves(f.classe);
+    pop("<h4>Ajouter une copie</h4><p>La copie d'un étudiant rendue hors de NAVIRE : fichier reçu par mail, ou copie papier scannée en PDF. Elle arrive dans « À corriger » ; ta correction lui parvient dans son espace Prépa.</p>" +
+      (cs.length > 1 ? '<div class="nv-field"><span>Groupe</span>' + choix("cp-classe", cs.map(function (c) { return [c.id, c.nom]; }), f.classe, function (v) { S.cpf.classe = +v; S.cpf.user = null; popCopie(); }) + "</div>" : "") +
+      '<div class="nv-field"><span>Étudiant</span>' + (eleves.length
+        ? choix("cp-user", eleves.map(function (e) { return [e.user_id, e.username || e.email || "Étudiant"]; }), f.user, function (v) { S.cpf.user = +v; })
+        : '<div class="nv-card-sub" style="margin:0">Aucun étudiant avec un compte NAVIRE dans ce groupe.</div>') + "</div>" +
+      '<div class="nv-actions" style="margin-top:8px"><button class="nv-chip" data-act="cp-pick">' + ICON.upload + (f.file ? esc(f.file.name) : "Choisir la copie (.docx ou .pdf, scan accepté)") + "</button></div>" +
+      field("Titre", '<input class="nv-input" data-cp="titre" maxlength="200" placeholder="Ex. Galop n° 1" value="' + esc(f.titre) + '">', true) +
+      field("Un mot pour l'étudiant", '<textarea class="nv-input" data-cp="message" maxlength="3000" placeholder="Ex. Copie reçue par mail après le bug de l\'épreuve.">' + esc(f.message) + "</textarea>", true) +
+      '<div class="nv-err" data-el="cp-err"></div>' +
+      '<div class="nv-pop-btns"><button class="nv-chip" data-act="pop-close">Annuler</button><button class="nv-btn is-blue" data-act="cp-create"' + (f.busy ? " disabled" : "") + ">" + (f.busy ? "Envoi…" : "Ajouter") + "</button></div>");
+  }
+  function cpCreate() {
+    var f = S.cpf, e2 = el("cp-err");
+    if (!f.user) { e2.textContent = "Choisis l'étudiant."; return; }
+    if (!f.file) { e2.textContent = "Choisis le fichier de la copie."; return; }
+    var fd = new FormData();
+    fd.append("user_id", f.user); fd.append("file", f.file); fd.append("titre", f.titre); fd.append("message", f.message);
+    f.busy = true; popCopie();
+    upload("/professeurs/classes/" + f.classe + "/copies", fd).then(function (x) {
+      S.devoirs = [x].concat(S.devoirs || []); S.cpf = null; S.dvFilter = "todo";
+      popClose(); renderNav(); setView("copies"); toast("Copie ajoutée");
+    }).catch(function (x) { f.busy = false; popCopie(); el("cp-err").textContent = x.message; });
   }
 
   // ----- Épreuves -----
@@ -1721,6 +1763,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function cxOpen(id) {
     if (CX.node) cxClose(true);
     var x = S.devoirs.filter(function (d) { return d.id === id; })[0] || {};
+    if (CX.scanUrl) { URL.revokeObjectURL(CX.scanUrl); CX.scanUrl = null; }
     CX.id = id; CX.data = null; CX.blocs = {}; CX.corr = {}; CX.anns = []; CX.undo = []; CX.saveT = {}; CX.pending = {}; CX.saving = 0; CX.ro = !!S.voir; CX.draft = null; CX.mark = null;
     var e = x.etudiant || {};
     var n = document.createElement("div");
@@ -1809,7 +1852,11 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     var h = '<div class="nvx-kicker">' + esc(d.matiere) + " · " + esc(e.username || e.email || "Étudiant") + '</div><div class="nvx-h1">' + esc(d.titre) + "</div>" +
       '<div class="nvx-meta">Rendue le ' + date(d.created_at) + (data.mots ? " · " + data.mots + " mots" : "") + (d.correction ? ' · <button class="nvx-link" data-cx="jointe">PDF corrigé joint</button>' : "") + "</div>" +
       (d.message ? '<div class="nvx-verdict"><div><small>Mot de l\'étudiant</small>' + esc(d.message) + "</div></div>" : "") +
-      (CX.ro ? "" : '<div class="nvx-legend"><span>Écris directement dans la copie : <span class="ins">ajout</span> <span class="del">barré</span></span><span>Sélectionne un passage pour le <span class="com">&nbsp;commenter&nbsp;</span> ou le <span class="hl">&nbsp;surligner&nbsp;</span></span></div>') +
+      (data.scan ? '<div class="nvx-scan"><p>Copie scannée : pas de texte à annoter ici. Lis-la ci-dessous, écris ton appréciation et ta note, et joins si tu veux ta copie annotée en PDF.</p>' +
+        '<div class="nvx-scan-btns"><button class="nvx-b" data-cx="scan-voir">' + ICON.down + "Ouvrir la copie</button>" +
+        (CX.ro ? "" : '<button class="nvx-b" data-cx="scan-joindre">' + ICON.upload + (d.correction ? "Remplacer ma correction (PDF)" : "Joindre ma correction (PDF)") + '</button><input type="file" accept="application/pdf,.pdf" data-cx-el="scan-file" style="display:none">') +
+        '</div><iframe data-cx-el="scan" title="Copie scannée"></iframe></div>' : "") +
+      (CX.ro || data.scan ? "" : '<div class="nvx-legend"><span>Écris directement dans la copie : <span class="ins">ajout</span> <span class="del">barré</span></span><span>Sélectionne un passage pour le <span class="com">&nbsp;commenter&nbsp;</span> ou le <span class="hl">&nbsp;surligner&nbsp;</span></span></div>') +
       '<div class="nvx-text" data-cx-el="paper" contenteditable="' + (CX.ro ? "false" : "true") + '" spellcheck="false" autocorrect="off" autocapitalize="off">' +
       (data.blocs || []).map(function (b) {
         if (b.t === "table") return '<table contenteditable="false" data-bloc="' + esc(b.id) + '">' + (b.rows || []).map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</table>";
@@ -1822,7 +1869,29 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         (CX.ro ? "" : '<div class="nvx-end-btns"><button class="nvx-b is-main" data-cx="rendre">' + (d.statut === "corrige" ? "Mettre à jour la correction" : "Rendre la correction") + "</button>" +
           (d.statut === "corrige" ? '<button class="nvx-b" data-cx="reouvrir">Remettre à corriger</button><em>Corrigée le ' + date(d.corrige_le) + "</em>" : "<em>L'étudiant reçoit un mail.</em>") + "</div>") + "</div>";
     cxQ('[data-cx-el="art"]').innerHTML = h;
+    if (data.scan) cxScanLoad();
     cxRenderMargin();
+  }
+  // Copie scannée : le PDF d'origine, affiché dans l'écran de correction.
+  function cxScanLoad() {
+    var fr = cxQ('[data-cx-el="scan"]'), id = CX.id;
+    if (!fr) return;
+    if (CX.scanUrl) { fr.src = CX.scanUrl; return; }
+    fetch(CONFIG.API + qs("/professeurs/devoirs/" + id + "/download"), { headers: { Authorization: "Bearer " + S.token } })
+      .then(function (r) { if (!r.ok) throw new Error("Copie indisponible."); return r.blob(); })
+      .then(function (b) { if (CX.id !== id) return; CX.scanUrl = URL.createObjectURL(b); var f2 = cxQ('[data-cx-el="scan"]'); if (f2) f2.src = CX.scanUrl; })
+      .catch(function (x) { cxToast(x.message, true); });
+  }
+  function cxScanJoindre(file) {
+    if (!/\.pdf$/i.test(file.name)) return cxToast("Joins un PDF.", true);
+    cxToast("Envoi…");
+    var fd = new FormData(); fd.append("file", file);
+    upload("/professeurs/devoirs/" + CX.id + "/correction", fd).then(function (row) {
+      S.devoirs = S.devoirs.map(function (x) { return x.id === row.id ? row : x; });
+      if (CX.data) { CX.data.devoir = row; cxRender(); }
+      renderNav();
+      cxToast("Correction jointe : l'étudiant la retrouve dans son espace Prépa.");
+    }).catch(function (x) { cxToast(x.message, true); });
   }
   function cxRenderMargin() {
     var coms = cxComs();
@@ -2200,6 +2269,9 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   // ---------- Événements ----------
   function cxBind() {
     var n = CX.node;
+    n.addEventListener("change", function (e) {
+      if (e.target.getAttribute("data-cx-el") === "scan-file" && e.target.files[0]) { var sf = e.target.files[0]; e.target.value = ""; cxScanJoindre(sf); }
+    });
     n.addEventListener("beforeinput", function (e) {
       if (!e.target.closest || !e.target.closest('[data-cx-el="paper"]')) return;
       var t = e.inputType;
@@ -2276,6 +2348,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       if (a === "export") return cxExport(b.getAttribute("data-f"));
       if (a === "undo") return CX.ro ? null : cxUndo();
       if (a === "jointe") return openPdf(qs("/professeurs/devoirs/" + CX.id + "/correction"));
+      if (a === "scan-voir") return openPdf(qs("/professeurs/devoirs/" + CX.id + "/download"));
+      if (a === "scan-joindre") return cxQ('[data-cx-el="scan-file"]').click();
       if (a === "fin") { var end = cxQ("[data-cx-end]"); if (end) end.scrollIntoView({ behavior: "smooth", block: "center" }); var ta = cxQ('[data-cx-in="commentaire"]'); if (ta) setTimeout(function () { ta.focus({ preventScroll: true }); }, 400); return; }
       if (a === "rendre") return cxRendre(b);
       if (a === "reouvrir") return cxRendre(b, "depose");
@@ -2321,6 +2395,9 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     else if (act === "ep-type") { var tf = epForm(), tt = a.getAttribute("data-t"); tf.type = tt; tf.duree = EP_TYPES.filter(function (x) { return x[0] === tt; })[0][2]; popEpreuve(); }
     else if (act === "ep-dispo") { epForm().dispo = +a.getAttribute("data-h"); popEpreuve(); }
     else if (act === "ep-pdf") el("ep-file").click();
+    else if (act === "cp-new") popCopie();
+    else if (act === "cp-pick") el("cp-file").click();
+    else if (act === "cp-create") cpCreate();
     else if (act === "ep-pdf-x") { epForm().file = null; popEpreuve(); }
     else if (act === "ep-create") epCreate();
     else if (act === "ep-sujet") openPdf(qs("/professeurs/epreuves/" + id + "/sujet"));
@@ -2353,6 +2430,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     else if (act === "dv-filter") { S.dvFilter = a.getAttribute("data-f"); viewCopies(); }
   });
   root.addEventListener("input", function (e) {
+    var ck = e.target.getAttribute && e.target.getAttribute("data-cp");
+    if (ck && S.cpf) S.cpf[ck] = e.target.value;
     var ek = e.target.getAttribute && e.target.getAttribute("data-ep");
     if (ek && S.epf) {
       S.epf[ek] = ek === "duree" ? (+e.target.value || 0) : ek === "classe" ? +e.target.value : e.target.value;
@@ -2366,6 +2445,12 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       var pf = e.target.files[0]; e.target.value = "";
       if (!/\.pdf$/i.test(pf.name)) return toast("Sujet en PDF uniquement.", true);
       epForm().file = pf; return popEpreuve();
+    }
+    if (e.target.getAttribute("data-el") === "cp-file" && e.target.files[0]) {
+      var cf = e.target.files[0]; e.target.value = "";
+      if (!/\.(pdf|docx)$/i.test(cf.name)) return toast("Dépose un fichier .docx ou .pdf.", true);
+      if (S.cpf) { S.cpf.file = cf; if (!S.cpf.titre) S.cpf.titre = cf.name.replace(/\.(pdf|docx)$/i, ""); }
+      return popCopie();
     }
     if (e.target.getAttribute("data-el") === "voir") { voirComme(+e.target.value || null); return; }
     if (e.target.getAttribute("data-el") === "file" && e.target.files[0]) { pickFile(e.target.files[0]); e.target.value = ""; }
