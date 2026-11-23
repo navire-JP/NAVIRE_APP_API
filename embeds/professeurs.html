@@ -33,7 +33,8 @@
     PATCH /professeurs/devoirs/{id}               (rendre : note, appréciation)
     GET  /professeurs/devoirs/{id}/export?format=docx|pdf
 
-  Épreuves : GET|POST /professeurs/epreuves, DELETE /professeurs/epreuves/{id}.
+  Épreuves : GET|POST /professeurs/epreuves, DELETE /professeurs/epreuves/{id},
+             POST /professeurs/epreuves/sessions/{id}/rouvrir (relever un abandon).
   Aperçu admin (« Voir comme ») : l'espace d'un professeur, en lecture seule.
   Réglages : bloc CONFIG du script.
 -->
@@ -469,6 +470,7 @@
 #nv-prof .ep-item-top small { font-size: 11.5px; color: var(--text-3); }
 #nv-prof .ep-sessions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px; }
 #nv-prof .ep-sessions span { font-size: 11.5px; padding: 3px 9px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); }
+#nv-prof .ep-sessions .ep-rouvrir { margin-left: 6px; font: inherit; font-weight: 600; color: var(--blue-hi); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
 #nv-prof .ep-sessions span.is-rendue { background: var(--blue-soft); color: var(--blue-hi); }
 #nv-prof input[type="datetime-local"].nv-input { color-scheme: dark; }
 #nv-prof.is-compact .ep-types { grid-template-columns: 1fr 1fr; }
@@ -1553,7 +1555,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         '<div class="nv-row-meta" style="margin-top:8px">' + x.commencees + " commencée" + (x.commencees > 1 ? "s" : "") + " · " + x.rendues + " rendue" + (x.rendues > 1 ? "s" : "") + "</div>" +
         (x.sessions && x.sessions.length ? '<div class="ep-sessions">' + x.sessions.map(function (s2) {
           var st = s2.statut === "rendue" ? (s2.retard_minutes ? "rendue, " + s2.retard_minutes + " min de retard" : "rendue") : s2.statut === "en_cours" ? "en cours" : s2.statut === "abandonnee" ? "abandonnée" : "temps écoulé";
-          return '<span class="' + (s2.statut === "rendue" ? "is-rendue" : "") + '">' + esc(s2.etudiant || "Étudiant") + " · " + st + "</span>";
+          return '<span class="' + (s2.statut === "rendue" ? "is-rendue" : "") + '">' + esc(s2.etudiant || "Étudiant") + " · " + st +
+            (s2.statut === "abandonnee" ? ' <button class="ep-rouvrir" data-act="ep-rouvrir" data-id="' + s2.id + '" title="Relever l\'abandon : l\'étudiant reprend sa copie (brouillon gardé)">Rouvrir</button>' : "") + "</span>";
         }).join("") + "</div>" : "") +
         '<div class="nv-actions">' + (x.sujet_pdf ? '<button class="nv-chip" data-act="ep-sujet" data-id="' + x.id + '">' + ICON.file + "Sujet PDF</button>" : "") +
         '<button class="nv-chip" data-act="ep-del" data-id="' + x.id + '">' + ICON.trash + "Supprimer</button></div></div>";
@@ -2321,6 +2324,16 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     else if (act === "ep-pdf-x") { epForm().file = null; popEpreuve(); }
     else if (act === "ep-create") epCreate();
     else if (act === "ep-sujet") openPdf(qs("/professeurs/epreuves/" + id + "/sujet"));
+    else if (act === "ep-rouvrir") {
+      var plus = prompt("Rouvrir l'épreuve : l'étudiant la reprend avec son brouillon enregistré, puis la rend.\n\nMinutes à lui rendre pour l'incident (0 si aucune) :", "30");
+      if (plus === null) return;
+      api("POST", "/professeurs/epreuves/sessions/" + id + "/rouvrir", { minutes_en_plus: Math.max(0, Math.min(600, parseInt(plus, 10) || 0)) }).then(function (r) {
+        return api("GET", "/professeurs/epreuves").then(function (x) {
+          S.eps = x; renderNav(); viewEpreuves();
+          toast(r.brouillon_blocs ? "Épreuve rouverte · brouillon de " + r.brouillon_blocs + " paragraphe" + (r.brouillon_blocs > 1 ? "s" : "") + " retrouvé" : "Épreuve rouverte (aucun brouillon enregistré sur le serveur)");
+        });
+      }).catch(function (x) { toast(x.message, true); });
+    }
     else if (act === "ep-del") {
       if (!confirm("Supprimer cette épreuve ? Les copies déjà rendues restent dans « Copies ».")) return;
       api("DELETE", "/professeurs/epreuves/" + id).then(function () { S.eps.items = S.eps.items.filter(function (x) { return x.id !== id; }); renderNav(); viewEpreuves(); toast("Épreuve supprimée"); }).catch(function (x) { toast(x.message, true); });

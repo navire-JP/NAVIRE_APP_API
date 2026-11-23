@@ -11,6 +11,8 @@ Professeur (embeds/professeurs.html, rubrique « Épreuves ») :
   PATCH  /professeurs/epreuves/{id}            modifier (titre, sujet, dates, durée)
   DELETE /professeurs/epreuves/{id}
   GET    /professeurs/epreuves/{id}/sujet      le PDF du sujet
+  POST   /professeurs/epreuves/sessions/{id}/rouvrir   relever l'abandon d'un
+                                               étudiant (son brouillon est gardé)
 
 Étudiant (embeds/prepa.html, rubrique « Épreuves ») :
   GET    /lib/prepa/epreuves                   épreuves de ses groupes + ses sessions
@@ -34,9 +36,12 @@ Règles :
     remet pas à zéro.
   - La copie peut être rendue après la fin du chrono : elle est marquée
     « rendue en retard » (minutes de retard), sans être refusée.
-  - L'étudiant écrit sa copie dans NAVIRE, sur un écran blanc : quitter la
-    page abandonne l'épreuve (POST …/abandonner, envoyé par l'embed). Une
-    épreuve abandonnée ne se reprend plus et ne se rend plus.
+  - L'étudiant écrit sa copie dans NAVIRE, sur un écran blanc. Quitter
+    l'écran (changer d'onglet, recharger la page) est compté comme une sortie,
+    signalée au correcteur ; le chrono continue et la copie se reprend.
+    « Abandonner » (POST …/abandonner) est un choix explicite de l'étudiant :
+    l'épreuve ne se reprend plus et ne se rend plus, sauf si le professeur la
+    rouvre (le brouillon n'est jamais effacé par un abandon).
   - Entraînement libre : l'étudiant choisit le type, la matière (une de ses
     matières, pour que la copie parte au bon professeur) et son sujet.
 """
@@ -302,6 +307,35 @@ def supprimer_epreuve(epreuve_id: int, db: Session = Depends(get_db), user: User
 def sujet_prof(epreuve_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     e = _epreuve_du_prof(db, _acces(db, user), epreuve_id)
     return _pdf(e)
+
+
+class RouvrirIn(BaseModel):
+    minutes_en_plus: int = Field(0, ge=0, le=600)
+
+
+@prof_router.post("/sessions/{session_id}/rouvrir")
+def rouvrir_session(session_id: int, payload: RouvrirIn | None = None, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    """Relève l'abandon d'une épreuve (page rechargée par erreur, bug, panne) :
+    l'étudiant la reprend avec son brouillon, resté enregistré, et la rend.
+    Le professeur peut rendre du temps (minutes_en_plus) pour l'incident.
+    Épreuve planifiée : le professeur du groupe ; entraînement libre : un admin."""
+    _, classes = _acces(db, user)
+    s = db.get(PrepaEpreuveSession, session_id)
+    e = db.get(PrepaEpreuve, s.epreuve_id) if s and s.epreuve_id else None
+    if s is None or (classes is not None and (e is None or e.classe_id not in classes)):
+        raise HTTPException(404, detail="Épreuve introuvable.")
+    if s.rendu_le:
+        raise HTTPException(400, detail="Copie déjà rendue.")
+    s.abandonnee = False
+    if payload and payload.minutes_en_plus:
+        s.duree_minutes += payload.minutes_en_plus
+    db.commit()
+    row = session_row(s, avec_sujet=False)
+    b = s.brouillon or {}
+    row["brouillon_saved_at"] = b.get("saved_at")
+    row["brouillon_blocs"] = len(b.get("blocs") or [])
+    return row
 
 
 def _pdf(e: PrepaEpreuve | None):
