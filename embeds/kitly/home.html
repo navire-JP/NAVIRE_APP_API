@@ -30,6 +30,9 @@
     font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
   }
   #kh .top { max-width: 1160px; margin: 0 auto; padding: 8px 20px 0; }
+  /* Le header du site se superpose au haut de la page (au hero pour les visiteurs) :
+     sans hero (connecté), on lui laisse la place. */
+  #kh.no-hero .top { padding-top: calc(var(--kh-head, 70px) + 16px); }
   #kh button { font-family: inherit; }
   #kh .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; padding: 14px 26px; border-radius: 999px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer; text-decoration: none; white-space: nowrap; transition: .15s; }
   #kh .btn:hover { background: #2a2a2a; }
@@ -86,7 +89,7 @@
   #kh .sh::before { content: ""; position: absolute; inset: 0; z-index: -1;
     background: linear-gradient(90deg, rgba(14,11,9,.86) 0%, rgba(14,11,9,.66) 34%, rgba(14,11,9,.18) 62%, rgba(14,11,9,0) 80%),
                 linear-gradient(0deg, rgba(14,11,9,.55) 0%, rgba(14,11,9,0) 30%); }
-  #kh .sh-in { width: 100%; max-width: 1240px; margin: 0 auto; padding: 72px 40px 128px; }
+  #kh .sh-in { width: 100%; max-width: 1240px; margin: 0 auto; padding: 104px 40px 128px; }
   #kh .sh-txt { max-width: 620px; }
   #kh .fr { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 8px; border-radius: 99px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-size: 13px; font-weight: 700; letter-spacing: .01em; }
   #kh .flag { width: 24px; height: 16px; border-radius: 3px; overflow: hidden; display: flex; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
@@ -146,6 +149,7 @@
 
   @media (max-width: 760px) {
     #kh .top { padding: 4px 16px 0; }
+    #kh.no-hero .top { padding-top: calc(var(--kh-head, 70px) + 12px); }
     #kh .hero { padding: 32px 0 8px; }
     #kh .steps { grid-template-columns: 1fr; gap: 10px; margin-top: 30px; }
     #kh .step { padding: 16px 18px; }
@@ -242,7 +246,7 @@
 
   function renderGuest() {
     heroEl.innerHTML =
-      '<section class="sh" aria-label="Kitly"><div class="sh-img" style="background-image:url(\'' + esc(HERO_IMG) + '\')" role="img" aria-label="Deux clients descendent un escalator, sacs Kitly à la main"></div>' +
+      '<section class="sh" aria-label="Kitly" data-framer-name="Hero [sombre]"><div class="sh-img" data-framer-name="Photo [sombre]" style="background-image:url(\'' + esc(HERO_IMG) + '\')" role="img" aria-label="Deux clients descendent un escalator, sacs Kitly à la main"></div>' +
       '<div class="sh-in"><div class="sh-txt">' +
         '<span class="fr">' + FLAG + 'Une plateforme française</span>' +
         '<h1>Les petits commerces méritent une <em>grande vitrine.</em></h1>' +
@@ -256,6 +260,7 @@
         '<span>' + ico(ICO.shop) + 'Pensé pour les petits commerces et les artisans</span>' +
         '<span>' + ico(ICO.lock) + 'Paiements sécurisés par Stripe, versés au commerçant</span>' +
       '</div></div></section>';
+    root.classList.remove("no-hero");
     fitHero(true);
     setTimeout(function () { fitHero(true); }, 400);   // position définitive de l'embed dans la page
     top.innerHTML =
@@ -278,6 +283,12 @@
   // Le hero prend tout l'écran visible (fenêtre du site moins ce qui est au-dessus de l'embed,
   // le header) et suit les redimensionnements. Sur téléphone, la barre d'adresse qui se replie
   // ne fait pas sauter la page : on ne recalcule que si la largeur change.
+  try {
+    var hd = HOST.document.querySelector(".khd");
+    // embed tout en haut de la page : le header passe par-dessus (sa hauteur, 70 px par défaut)
+    if (frameEl && frameEl.getBoundingClientRect().top + HOST.scrollY < 20) root.style.setProperty("--kh-head", Math.round((hd && hd.getBoundingClientRect().height) || 70) + "px");
+    else if (frameEl) root.style.setProperty("--kh-head", "0px");
+  } catch (e) {}
   var heroW = 0;
   function fitHero(force) {
     var sh = heroEl.querySelector(".sh");
@@ -297,6 +308,7 @@
 
   function renderMember(me, stats, leads) {
     heroEl.innerHTML = "";
+    root.classList.add("no-hero");
     var u = me.user, p = me.profile;
     var isPremium = me.plan && me.plan.limits && me.plan.limits.marketplace;
     if (p && p.is_published) {
