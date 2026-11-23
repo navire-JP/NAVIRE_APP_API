@@ -3,7 +3,9 @@
   =======================
   Page d'accueil simple, en deux temps :
     1. « Crée ta vitrine » — s'adapte à la personne :
-         - visiteur              → « Créer ma vitrine gratuitement » + les 3 étapes ;
+         - visiteur              → grand hero photo pleine largeur (image servie par l'API :
+                                   /kitly/static/hero-home.webp), plateforme française pour les
+                                   indépendants et petits commerces, « Pourquoi Kitly », les 3 étapes ;
          - connecté, en cours    → sa progression et « Continuer ma vitrine » ;
          - vitrine en ligne      → son lien, ses visites et demandes, Gérer / Voir / Copier ;
     2. la marketplace complète en dessous (recherche, nouveaux, populaires,
@@ -75,6 +77,70 @@
   #kh .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--ink); color: var(--paper); padding: 11px 20px; border-radius: 99px; font-size: 13px; font-weight: 600; transition: .25s; pointer-events: none; z-index: 50; }
   #kh .toast.show { opacity: 1; transform: translateX(-50%); }
 
+
+  /* ── visiteur : grand hero photo pleine largeur ── */
+  #kh .sh { position: relative; width: 100%; min-height: 680px; display: flex; align-items: center; overflow: hidden; color: #fff; background: #1a1714; isolation: isolate; }
+  #kh .sh-img { position: absolute; inset: 0; background: center 30% / cover no-repeat; z-index: -2; transform: scale(1.06); animation: kh-zoom 14s ease-out forwards; }
+  @keyframes kh-zoom { to { transform: scale(1); } }
+  #kh .sh::before { content: ""; position: absolute; inset: 0; z-index: -1;
+    background: linear-gradient(90deg, rgba(14,11,9,.86) 0%, rgba(14,11,9,.66) 34%, rgba(14,11,9,.18) 62%, rgba(14,11,9,0) 80%),
+                linear-gradient(0deg, rgba(14,11,9,.55) 0%, rgba(14,11,9,0) 30%); }
+  #kh .sh-in { width: 100%; max-width: 1240px; margin: 0 auto; padding: 120px 40px 150px; }
+  #kh .sh-txt { max-width: 620px; }
+  #kh .fr { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 8px; border-radius: 99px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-size: 13px; font-weight: 700; letter-spacing: .01em; }
+  #kh .flag { width: 24px; height: 16px; border-radius: 3px; overflow: hidden; display: flex; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
+  #kh .flag i { flex: 1; display: block; } #kh .flag i:nth-child(1) { background: #1f3f9a; } #kh .flag i:nth-child(2) { background: #fff; } #kh .flag i:nth-child(3) { background: #e1262d; }
+  #kh .sh h1 { color: #fff; text-align: left; margin: 22px 0 0; max-width: none; font-size: clamp(44px, 6.2vw, 84px); line-height: .98; letter-spacing: -.05em; text-shadow: 0 2px 30px rgba(0,0,0,.25); }
+  #kh .sh h1 em { color: #fff; }
+  #kh .sh .lead { color: rgba(255,255,255,.86); font-size: 18.5px; line-height: 1.55; margin: 24px 0 34px; max-width: 540px; }
+  #kh .sh .actions { justify-content: flex-start; }
+  #kh .sh .btn { background: #fff; color: #0a0a0a; border-color: #fff; padding: 16px 28px; font-size: 15.5px; }
+  #kh .sh .btn:hover { background: #f1efe9; }
+  #kh .sh .btn.ghost { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  #kh .sh .btn.ghost:hover { background: rgba(255,255,255,.2); }
+  #kh .sh .fine { color: rgba(255,255,255,.72); }
+  #kh .sh .fine a { color: #fff; border-color: rgba(255,255,255,.7); }
+  #kh .sh-trust { position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px solid rgba(255,255,255,.16); background: rgba(14,11,9,.32); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  #kh .sh-trust > div { max-width: 1240px; margin: 0 auto; padding: 18px 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+  #kh .sh-trust > div > span { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.92); line-height: 1.35; }
+  #kh .sh-trust svg { width: 22px; height: 22px; flex-shrink: 0; opacity: .95; }
+  #kh .sh-in > * { opacity: 0; transform: translateY(16px); animation: kh-up .9s cubic-bezier(.2,.8,.2,1) forwards; }
+  #kh .sh-txt > * { opacity: 0; transform: translateY(16px); animation: kh-up .9s cubic-bezier(.2,.8,.2,1) forwards; }
+  #kh .sh-txt > *:nth-child(1) { animation-delay: .05s; } #kh .sh-txt > *:nth-child(2) { animation-delay: .15s; }
+  #kh .sh-txt > *:nth-child(3) { animation-delay: .27s; } #kh .sh-txt > *:nth-child(4) { animation-delay: .38s; } #kh .sh-txt > *:nth-child(5) { animation-delay: .48s; }
+  #kh .sh-in > .sh-txt { opacity: 1; transform: none; animation: none; }
+  @keyframes kh-up { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { #kh .sh-img, #kh .sh-txt > * { animation: none; opacity: 1; transform: none; } }
+
+  /* pourquoi Kitly */
+  #kh .why { max-width: 1160px; margin: 0 auto; padding: 88px 20px 0; }
+  #kh .why-h { text-align: center; max-width: 720px; margin: 0 auto 40px; }
+  #kh .why-h h2 { font-size: clamp(32px, 4.4vw, 52px); font-weight: 900; letter-spacing: -.045em; line-height: 1.04; margin: 0; }
+  #kh .why-h p { color: var(--mut); font-size: 17px; line-height: 1.55; margin: 16px auto 0; max-width: 580px; }
+  #kh .why-g { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  #kh .why-c { border: 1px solid var(--line); border-radius: 22px; padding: 28px; background: var(--paper); }
+  #kh .why-c > i { width: 46px; height: 46px; border-radius: 14px; background: var(--grey); display: flex; align-items: center; justify-content: center; }
+  #kh .why-c > i svg { width: 22px; height: 22px; }
+  #kh .why-c > i.flagbox { background: none; }
+  #kh .why-c > i.flagbox .flag { width: 40px; height: 27px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); }
+  #kh .why-c > b { display: block; font-size: 18px; letter-spacing: -.02em; margin-top: 18px; }
+  #kh .why-c > p { color: var(--mut); font-size: 14.5px; line-height: 1.6; margin: 8px 0 0; }
+  #kh .steps-h { text-align: center; font-size: clamp(26px, 3.2vw, 36px); font-weight: 900; letter-spacing: -.035em; margin: 72px 0 0; }
+  #kh .guest .steps { margin-top: 28px; }
+  @media (max-width: 760px) {
+    #kh .sh { min-height: 0; flex-direction: column; align-items: stretch; }
+    #kh .sh-img { background-position: 72% 30%; }
+    #kh .sh::before { background: linear-gradient(0deg, rgba(14,11,9,.94) 0%, rgba(14,11,9,.78) 44%, rgba(14,11,9,.2) 72%, rgba(14,11,9,.05) 100%); }
+    #kh .sh-in { padding: 300px 20px 28px; }
+    #kh .sh .lead { font-size: 16px; margin: 16px 0 24px; }
+    #kh .sh-trust { position: static; background: rgba(14,11,9,.94); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    #kh .sh-trust > div { grid-template-columns: 1fr; gap: 12px; padding: 18px 20px 22px; }
+    #kh .why { padding-top: 56px; }
+    #kh .why-g { grid-template-columns: 1fr; gap: 10px; }
+    #kh .why-c { padding: 20px; }
+    #kh .steps-h { margin-top: 48px; }
+  }
+
   @media (max-width: 760px) {
     #kh .top { padding: 4px 16px 0; }
     #kh .hero { padding: 32px 0 8px; }
@@ -88,7 +154,8 @@
 </style>
 
 <div id="kh">
-  <div class="top" id="kh-top"><div class="hero"><p class="kicker">Kitly</p><h1>Ton activité mérite son <em>propre site.</em></h1></div></div>
+  <div id="kh-hero"></div>
+  <div class="top" id="kh-top"></div>
   <div class="divider"><hr></div>
   <div class="market" id="kh-market"></div>
   <div class="toast" id="kh-toast"></div>
@@ -109,7 +176,8 @@
     PRICING_URL: "/subscribe",
     PUBLIC_BASE: "/profile#",       // vitrine = PUBLIC_BASE + slug
     PROFILE_URL: "/profile#{slug}",  // liens des cartes marketplace
-    TOKEN_KEY: "kitly_token"
+    TOKEN_KEY: "kitly_token",
+    HERO_IMAGE: ""                   // vide : image du hero servie par l'API (/kitly/static/hero-home.webp)
   };
   // Liens relatifs (« /builder ») complétés avec l'adresse du site qui affiche
   // l'embed : fonctionne tel quel sur kitly.framer.website comme sur kitly.fr.
@@ -126,6 +194,9 @@
 
   var root = document.getElementById("kh");
   var top = document.getElementById("kh-top");
+  var heroEl = document.getElementById("kh-hero");
+  var HERO_IMG = CONFIG.HERO_IMAGE || CONFIG.API_BASE + "/kitly/static/hero-home.webp";
+  try { var pl = document.createElement("link"); pl.rel = "preload"; pl.as = "image"; pl.href = HERO_IMG; document.head.appendChild(pl); } catch (e) {}
   var HOST = window, frameEl = null;
   try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
 
@@ -158,22 +229,49 @@
   // ============================================================
   // 1. Crée ta vitrine
   // ============================================================
+  var ICO = {
+    shop: '<path d="M3 9.5 5 4h14l2 5.5"/><path d="M4 9.5V20h16V9.5"/><path d="M3 9.5a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M10 20v-5h4v5"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    hand: '<path d="M7 11.5V6.5a1.5 1.5 0 0 1 3 0V11"/><path d="M10 10V4.5a1.5 1.5 0 0 1 3 0V10"/><path d="M13 10V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M16 9.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-2.7L3.5 15a1.5 1.5 0 0 1 2.4-1.8L7 14.5"/>'
+  };
+  function ico(path) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>'; }
+  var FLAG = '<span class="flag" aria-hidden="true"><i></i><i></i><i></i></span>';
+
   function renderGuest() {
+    heroEl.innerHTML =
+      '<section class="sh" aria-label="Kitly"><div class="sh-img" style="background-image:url(\'' + esc(HERO_IMG) + '\')" role="img" aria-label="Deux clients descendent un escalator, sacs Kitly à la main"></div>' +
+      '<div class="sh-in"><div class="sh-txt">' +
+        '<span class="fr">' + FLAG + 'Une plateforme française</span>' +
+        '<h1>Les petits commerces méritent une <em>grande vitrine.</em></h1>' +
+        '<p class="lead">Artisans, créateurs, commerçants de quartier, freelances : Kitly te donne un vrai site pour présenter et vendre ce que tu fais, sans agence ni compétences techniques.</p>' +
+        '<div class="actions"><a class="btn" href="' + esc(CONFIG.REGISTER_URL) + '" target="_top">Créer ma vitrine gratuitement</a>' +
+        '<button type="button" class="btn ghost" data-market>Découvrir les commerçants ↓</button></div>' +
+        '<p class="fine">Gratuit · Sans carte bancaire · 3 minutes — Déjà un compte ? <a href="' + esc(CONFIG.LOGIN_URL) + '" target="_top">Se connecter</a></p>' +
+      '</div></div>' +
+      '<div class="sh-trust"><div>' +
+        '<span>' + FLAG + 'Conçu en France, pour les indépendants français</span>' +
+        '<span>' + ico(ICO.shop) + 'Pensé pour les petits commerces et les artisans</span>' +
+        '<span>' + ico(ICO.lock) + 'Paiements sécurisés par Stripe, versés au commerçant</span>' +
+      '</div></div></section>';
     top.innerHTML =
-      '<div class="hero"><p class="kicker">Kitly</p>' +
-      '<h1>Ton activité mérite son <em>propre site.</em></h1>' +
-      '<p class="lead">Crée ta vitrine professionnelle, présente tes prestations et trouve de nouveaux clients.</p>' +
-      '<div class="actions"><a class="btn" href="' + esc(CONFIG.REGISTER_URL) + '" target="_top">Créer ma vitrine gratuitement</a>' +
-      '<button type="button" class="btn ghost" data-market>Découvrir les freelances ↓</button></div>' +
-      '<p class="fine">Gratuit · Sans carte bancaire · 3 minutes — Déjà un compte ? <a href="' + esc(CONFIG.LOGIN_URL) + '" target="_top">Se connecter</a></p></div>' +
-      '<div class="steps">' +
-      '<div class="step"><span class="n">01</span><b>Crée ton site</b><p>Ton nom, ton métier, ta photo : ta vitrine est prête en quelques minutes.</p></div>' +
-      '<div class="step"><span class="n">02</span><b>Ajoute tes offres</b><p>Prestations, produits physiques ou numériques, rendez-vous.</p></div>' +
-      '<div class="step"><span class="n">03</span><b>Partage ton lien</b><p>kitly.fr/profile#ton-nom sur Instagram, LinkedIn, WhatsApp… et reçois des demandes.</p></div>' +
-      '</div>';
+      '<div class="guest"><section class="why"><div class="why-h">' +
+        '<h2>Le commerce indépendant, <em>made in France.</em></h2>' +
+        '<p>Face aux géants du e-commerce, les indépendants ont besoin d\'outils simples, pensés pour eux. C\'est pour ça qu\'on a créé Kitly.</p></div>' +
+        '<div class="why-g">' +
+          '<div class="why-c"><i class="flagbox">' + FLAG + '</i><b>Français, de A à Z</b><p>Une équipe en France, un support en français et une vitrine prête pour le droit français : CGV, mentions légales, données personnelles.</p></div>' +
+          '<div class="why-c"><i>' + ico(ICO.shop) + '</i><b>Pour les petits commerçants</b><p>Boutique, prestations, rendez-vous, réalisations : tout ce qu\'il faut pour vendre, sans abonnement à une agence ni ligne de code.</p></div>' +
+          '<div class="why-c"><i>' + ico(ICO.hand) + '</i><b>Tes clients restent les tiens</b><p>Ils te contactent directement et paient en ligne en toute sécurité. Ton nom, ta marque, ta relation client.</p></div>' +
+        '</div>' +
+        '<h2 class="steps-h">Ta vitrine en <em>3 étapes</em></h2>' +
+        '<div class="steps">' +
+          '<div class="step"><span class="n">01</span><b>Crée ton site</b><p>Ton nom, ton métier, ta photo : ta vitrine est prête en quelques minutes.</p></div>' +
+          '<div class="step"><span class="n">02</span><b>Ajoute tes offres</b><p>Prestations, produits physiques ou numériques, rendez-vous.</p></div>' +
+          '<div class="step"><span class="n">03</span><b>Partage ton lien</b><p>Sur Instagram, LinkedIn, WhatsApp… et reçois des demandes et des commandes.</p></div>' +
+        '</div></section></div>';
   }
 
   function renderMember(me, stats, leads) {
+    heroEl.innerHTML = "";
     var u = me.user, p = me.profile;
     var isPremium = me.plan && me.plan.limits && me.plan.limits.marketplace;
     if (p && p.is_published) {

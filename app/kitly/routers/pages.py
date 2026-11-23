@@ -36,6 +36,7 @@ STATIC_FILES = {  # liste blanche
     "cart.js": "application/javascript; charset=utf-8",
     "checkout.js": "application/javascript; charset=utf-8",
     "logo.png": "image/png",   # logo Kitly : déposer le fichier dans app/kitly/static/logo.png
+    "hero-home.webp": "image/webp",   # photo du hero de l'accueil (home.html, visiteur)
 }
 
 
