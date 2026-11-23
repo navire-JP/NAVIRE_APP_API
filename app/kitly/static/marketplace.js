@@ -10,7 +10,14 @@
  *   recherche + raccourcis populaires, grille de catégories, « Profils à la une » (cartes
  *   détaillées), « Dernières offres », « Nouveaux sur Kitly », bandeau de confiance.
  * Résultats (recherche, catégorie ou « Tout voir ») : catégories en filtre, tri, puis les
- * offres (chaque carte ouvre la fiche de l'offre sur la vitrine) et les profils.
+ * offres et les profils.
+ *
+ * Cartes offres façon boutique : image, titre, étiquette, prix (« 109⁸⁸ € »), bouton
+ * « Ajouter au panier » (offres payables en ligne sans option à choisir ; sinon « Voir
+ * l'offre » / « Choisir une option » vers la fiche), et « Voir le profil » en discret.
+ * Sur l'accueil, « Dernières offres » et « Petits prix » défilent en rangée sur ordinateur
+ * (flèches). Sur téléphone rien ne sort du cadre : offres en grille de 3 colonnes (9 visibles,
+ * puis « Voir plus »), profils les uns sous les autres (2, puis « Voir plus »). L'ajout utilise le panier partagé (static/cart.js, source « marketplace »).
  * Grilles qui passent à la ligne : rien ne dépasse du cadre sur téléphone.
  *
  * API :
@@ -30,10 +37,10 @@
  */
 (function (global) {
   "use strict";
-  if (global.KitlyMarket && global.KitlyMarket.version >= 4) return;
+  if (global.KitlyMarket && global.KitlyMarket.version >= 5) return;
 
   var CSS = [
-    ".km{box-sizing:border-box;--ink:#0a0a0a;--paper:#fff;--grey:#f5f5f4;--line:#e4e4e2;--mut:#6f6f6c;--serif:'Instrument Serif',Georgia,serif;--sans:'Inter',-apple-system,'Segoe UI',Arial,sans-serif;font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;width:100%;max-width:1160px;margin:0 auto;padding:8px 16px 48px;overflow-x:hidden;overflow-x:clip}",
+    ".km{box-sizing:border-box;--ink:#0a0a0a;--paper:#fff;--grey:#f5f5f4;--line:#e4e4e2;--mut:#6f6f6c;--deal:#cc0c39;--ok:#147a3d;--serif:'Instrument Serif',Georgia,serif;--sans:'Inter',-apple-system,'Segoe UI',Arial,sans-serif;font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;width:100%;max-width:1160px;margin:0 auto;padding:8px 16px 48px;overflow-x:hidden;overflow-x:clip}",
     ".km *,.km *::before,.km *::after{box-sizing:border-box}",
     ".km button,.km select{font-family:inherit}.km .hidden{display:none!important}",
     /* en-tête */
@@ -75,35 +82,71 @@
     ".km .chips{display:flex;flex-wrap:wrap;gap:6px}",
     ".km .chip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;white-space:nowrap}",
     ".km .chip:hover{border-color:var(--ink)}",
-    "@media(max-width:639px){.km .bar{flex-wrap:nowrap;flex-direction:column;align-items:stretch}.km .chips{flex-wrap:nowrap;overflow-x:auto;margin:0 -16px;padding:0 16px 4px;scrollbar-width:none}.km .chips::-webkit-scrollbar{display:none}.km .sort{align-self:flex-start}}",
+    "@media(max-width:639px){.km .bar{flex-direction:column;align-items:stretch}.km .chip{padding:6px 11px;font-size:12.5px}.km .sort{align-self:flex-start}}",
     ".km.in-results .pop{display:none}",
     ".km .chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}",
     ".km .sort{border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:600;background:var(--paper);color:var(--ink)}",
     ".km .back{border:0;background:none;padding:0;font:600 13.5px var(--sans);color:var(--mut);cursor:pointer;margin-top:22px}",
     ".km .back:hover{color:var(--ink)}",
     /* grilles */
-    ".km .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}",
-    "@media(min-width:640px){.km .grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}}",
-    "@media(min-width:960px){.km .grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}",
+    ".km .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 8px}",
+    "@media(min-width:640px){.km .grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:20px 14px}}",
+    "@media(min-width:960px){.km .grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:22px 16px}}",
     ".km .pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}",
     "@media(min-width:600px){.km .pgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}",
     "@media(min-width:960px){.km .pgrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}",
-    /* téléphone : profils de l'accueil en rangée qui défile (dans le cadre, pas la page) */
-    "@media(max-width:599px){.km .pgrid.rail{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px;padding:2px 16px 10px;scroll-padding:0 16px;scrollbar-width:none}.km .pgrid.rail::-webkit-scrollbar{display:none}.km .pgrid.rail>*{scroll-snap-align:start}}",
-    /* carte offre */
-    ".km a.of,.km a.pc{min-width:0;text-decoration:none;color:inherit;background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;transition:border-color .15s,transform .15s,box-shadow .15s}",
-    ".km a.of:hover,.km a.pc:hover{border-color:var(--ink);transform:translateY(-3px);box-shadow:0 16px 34px -22px rgba(0,0,0,.35)}",
-    ".km .of{display:flex;flex-direction:column}",
-    ".km .of .im{aspect-ratio:1;background:var(--grey) center/cover;display:flex;align-items:center;justify-content:center;color:var(--mut);position:relative}",
-    ".km .of .im svg{width:28px;height:28px;opacity:.5}",
-    ".km .of .bg{position:absolute;top:8px;left:8px;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:var(--paper);padding:3px 8px;border-radius:99px;box-shadow:0 1px 4px rgba(0,0,0,.12)}",
-    ".km .of .bd{padding:10px 12px 12px;display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}",
-    ".km .of .by{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mut);font-weight:600;min-width:0}",
+    /* téléphone : rien ne défile de côté ; quelques cartes puis « Voir plus » */
+    ".km .pm{display:none}",
+    "@media(max-width:639px){.km .xh{display:none!important}.km .pm{display:flex}}",
+    /* carte offre (style boutique) : image, titre, prix, « Ajouter au panier », vendeur en discret */
+    ".km a.pc{min-width:0;text-decoration:none;color:inherit;background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;transition:border-color .15s,transform .15s,box-shadow .15s}",
+    ".km a.pc:hover{border-color:var(--ink);transform:translateY(-3px);box-shadow:0 16px 34px -22px rgba(0,0,0,.35)}",
+    ".km .of{display:flex;flex-direction:column;min-width:0;color:var(--ink)}",
+    ".km .of a{color:inherit;text-decoration:none}",
+    ".km .of .im{display:block;aspect-ratio:1;border-radius:16px;background:var(--grey);overflow:hidden;position:relative}",
+    ".km .of .im i{position:absolute;inset:0;background:center/cover no-repeat;transition:transform .35s ease}",
+    ".km .of:hover .im i{transform:scale(1.04)}",
+    ".km .of .im .ph{display:flex;align-items:center;justify-content:center;color:var(--mut)}",
+    ".km .of .im .ph svg{width:30px;height:30px;opacity:.45}",
+    ".km .of .bd{padding:10px 2px 0;display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}",
+    ".km .of .tt{font-size:14.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}",
+    ".km .of .tt:hover{text-decoration:underline}",
+    ".km .of .tg{display:flex;align-items:center;gap:6px;min-width:0;min-height:20px;font-size:12px;font-weight:700;line-height:1.2}",
+    ".km .of .tg b{background:var(--deal);color:#fff;padding:3px 7px;border-radius:5px;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}",
+    ".km .of .tg span{color:var(--mut);font-weight:600;white-space:nowrap}",
+    ".km .of .pr{font-size:15px;font-weight:700;margin-top:auto;padding-top:2px;line-height:1.1}",
+    ".km .of .pr .n{font-size:24px;font-weight:600;letter-spacing:-.02em}",
+    ".km .of .pr sup{font-size:12px;font-weight:600;vertical-align:top;position:relative;top:3px;margin-left:1px}",
+    ".km .of .pr.q{font-size:14px;color:#333}",
+    ".km .of .add{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:6px;height:38px;border-radius:999px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);font:700 13px var(--sans);cursor:pointer;white-space:nowrap;transition:opacity .15s,background .15s}",
+    ".km .of .add svg{width:16px;height:16px;flex-shrink:0}",
+    ".km .of .add:hover{opacity:.86}",
+    ".km .of .add.ghost{background:var(--paper);color:var(--ink);border-color:var(--line)}",
+    ".km .of .add.ghost:hover{border-color:var(--ink);opacity:1}",
+    ".km .of .add.ok{background:var(--ok);border-color:var(--ok);opacity:1}",
+    ".km .of .add em{font-style:normal}",
+    ".km .of .add:disabled{cursor:default}",
+    ".km .of .by{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mut);min-width:0;margin-top:2px}",
     ".km .of .by span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-    ".km .of .tt{font-size:14px;font-weight:800;line-height:1.3;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}",
-    ".km .of .pr{font-size:14px;font-weight:800;margin-top:auto;padding-top:4px}",
+    ".km .of .by u{text-decoration:none;white-space:nowrap;margin-left:auto;font-weight:600}",
+    ".km .of a.by:hover u,.km .of a.by:hover span{color:var(--ink);text-decoration:underline}",
     ".km .av{border-radius:50%;background:var(--ink) center/cover;color:var(--paper);display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0}",
-    ".km .of .av{width:20px;height:20px;font-size:9px}",
+    ".km .of .av{width:18px;height:18px;font-size:8.5px}",
+    /* téléphone, 3 colonnes : carte resserrée */
+    "@media(max-width:639px){.km .of .im{border-radius:12px}.km .of .bd{padding-top:7px;gap:4px}.km .of .tt{font-size:12px;line-height:1.25;min-height:2.5em}" +
+      ".km .of .tg{min-height:0}.km .of .tg span{display:none}.km .of .tg b{font-size:10px;padding:2px 5px;border-radius:4px}" +
+      ".km .of .pr .n{font-size:17px}.km .of .pr sup{font-size:10px;top:2px}.km .of .pr.q{font-size:12px}" +
+      ".km .of .add{height:30px;font-size:11.5px;gap:4px;margin-top:3px;padding:0 6px}.km .of .add svg{width:13px;height:13px}.km .of .add em{display:none}" +
+      ".km .of .by{font-size:10.5px;gap:4px}.km .of .by u{display:none}.km .of .av{width:14px;height:14px;font-size:7px}}",
+    /* rangée d'offres qui défile, flèches sur ordinateur */
+    ".km .rw{position:relative}",
+    ".km .orail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 8px}",
+    "@media(min-width:640px){.km .orail{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:calc((100% - 48px)/4);gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:0 0 6px;scroll-behavior:smooth}.km .orail::-webkit-scrollbar{display:none}.km .orail>*{scroll-snap-align:start}}",
+    "@media(min-width:960px){.km .orail{grid-auto-columns:calc((100% - 80px)/6)}}",
+    ".km .rw .ar{display:none;position:absolute;top:calc(var(--imh,120px)/2 - 22px);width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--paper);box-shadow:0 6px 20px -8px rgba(0,0,0,.35);cursor:pointer;z-index:2;align-items:center;justify-content:center;color:var(--ink)}",
+    ".km .rw .ar svg{width:20px;height:20px}",
+    ".km .rw .ar.l{left:-14px}.km .rw .ar.r{right:-14px}",
+    "@media(min-width:640px) and (hover:hover){.km .rw .ar{display:flex}.km .rw .ar[hidden]{display:none}}",
     /* carte profil détaillée */
     ".km .pc{display:flex;flex-direction:column;position:relative}",
     ".km .pc-ban{height:96px;background:var(--grey) center/cover;position:relative}",
@@ -139,6 +182,7 @@
     ".km .rank{text-align:center;margin-top:30px}",
     ".km .skel{border-radius:18px;aspect-ratio:3/4;background:linear-gradient(90deg,#f5f5f4,#fbfbfa,#f5f5f4);background-size:200% 100%;animation:km-sh 1.2s infinite}",
     ".km .pgrid .skel{aspect-ratio:auto;height:300px}",
+    ".km .orail .skel{aspect-ratio:3/5}",
     "@keyframes km-sh{to{background-position:-200% 0}}",
     ".km .info-bg{position:fixed;inset:0;background:rgba(10,10,10,.5);z-index:99;display:flex;align-items:center;justify-content:center;padding:16px}",
     ".km .info{background:var(--paper);border-radius:20px;max-width:520px;width:100%;padding:24px;position:relative;max-height:92%;overflow-y:auto}",
@@ -171,8 +215,13 @@
     physical: '<path d="m3 7 9-4 9 4v10l-9 4-9-4z"/><path d="m3 7 9 4 9-4M12 11v10"/>',
     digital: '<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h6"/>',
     service: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
-    appointment: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>'
+    appointment: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>',
+    cart: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.6 12.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.2L21 7H6"/>',
+    check: '<path d="m5 12 5 5 9-10"/>',
+    left: '<path d="m15 5-7 7 7 7"/>',
+    right: '<path d="m9 5 7 7-7 7"/>'
   };
+  var KIND = { physical: "Produit", digital: "Numérique", service: "Prestation", appointment: "Rendez-vous" };
   var CAT_ICON = {
     design: '<path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.7 1.5-1.5 0-1.2-1-1.5-1-2.5s.8-1.5 1.8-1.5H17a4 4 0 0 0 4-4c0-4.4-4-8.5-9-8.5z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/>',
     marketing: '<path d="M3 11v2a1 1 0 0 0 1 1h3l6 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M17 8a5 5 0 0 1 0 8"/>',
@@ -282,14 +331,104 @@
     }
 
     // ── Cartes ───────────────────────────────────────────────
-    function offerCard(o) {
-      var p = o.profile || {};
-      return '<a class="of" href="' + esc(profileUrl(p.slug, o.id)) + '" target="_top">' +
-        '<div class="im" style="background-image:' + cssUrl(o.image) + '">' + (o.image ? "" : ico(I[o.kind] || I.service)) +
-          (o.badge ? '<span class="bg">' + esc(o.badge) + '</span>' : '') + '</div>' +
-        '<div class="bd"><div class="by"><span class="av" style="background-image:' + cssUrl(p.avatar_url) + '">' + (p.avatar_url ? "" : initial(p.display_name)) + '</span><span>' + esc(p.display_name) + '</span></div>' +
-          '<div class="tt">' + esc(o.title) + '</div>' + (o.price_label ? '<div class="pr">' + esc(o.price_label) + '</div>' : '') + '</div></a>';
+    // Prix façon boutique : « 109⁸⁸ € » quand le libellé est un prix simple, sinon le libellé tel quel.
+    function priceHtml(o) {
+      var c = o.price_cents;
+      if (c != null && c > 0 && o.price_label === eur(c)) {
+        var cents = c % 100;
+        return '<div class="pr"><span class="n">' + Math.floor(c / 100) + '</span><sup>' + (cents ? "," + (cents < 10 ? "0" : "") + cents + " " : "") + '€</sup></div>';
+      }
+      return o.price_label ? '<div class="pr q">' + esc(o.price_label) + '</div>' : '';
     }
+    function offerCard(o) {
+      var p = o.profile || {}, url = esc(profileUrl(p.slug, o.id));
+      var action = o.buyable && !o.needs_options
+        ? '<button type="button" class="add" data-add="' + esc(o.id) + '">' + ico(I.cart) + '<span>Ajouter<em> au panier</em></span></button>'
+        : '<a class="add ghost" href="' + url + '" target="_top">' + (o.buyable ? "Choisir<em> une option</em>" : "Voir<em> l'offre</em>") + '</a>';
+      return '<div class="of">' +
+        '<a class="im" href="' + url + '" target="_top" aria-hidden="true" tabindex="-1">' +
+          (o.image ? '<i style="background-image:' + cssUrl(o.image) + '"></i>' : '<i class="ph">' + ico(I[o.kind] || I.service) + '</i>') + '</a>' +
+        '<div class="bd"><a class="tt" href="' + url + '" target="_top">' + esc(o.title) + '</a>' +
+          '<div class="tg">' + (o.badge ? '<b>' + esc(o.badge) + '</b>' : '') + '<span>' + esc(KIND[o.kind] || "") + '</span></div>' +
+          priceHtml(o) + action +
+          '<a class="by" href="' + esc(profileUrl(p.slug)) + '" target="_top"><span class="av" style="background-image:' + cssUrl(p.avatar_url) + '">' + (p.avatar_url ? "" : initial(p.display_name)) + '</span>' +
+            '<span>' + esc(p.display_name) + '</span><u>Voir le profil</u></a>' +
+        '</div></div>';
+    }
+    function offerRail(items) {
+      return '<div class="rw"><button type="button" class="ar l" data-scroll="-1" aria-label="Précédent" hidden>' + ico(I.left) + '</button>' +
+        '<div class="orail">' + items.map(offerCard).join("") + '</div>' +
+        '<button type="button" class="ar r" data-scroll="1" aria-label="Suivant">' + ico(I.right) + '</button></div>' + phoneMore(items.length, 9);
+    }
+    // Téléphone : seules les `step` premières cartes d'une liste sont visibles (les autres
+    // portent .xh), puis « Voir plus » en dévoile `step` de plus. Sans effet sur ordinateur.
+    function phoneMore(n, step) {
+      return n > step ? '<div class="more pm"><button type="button" class="btn" data-pmore="' + step + '">Voir plus</button></div>' : '';
+    }
+    function phoneLimit(container) {
+      root.querySelectorAll(container + " [data-pmore]").forEach(function (b) {
+        var step = +b.getAttribute("data-pmore"), list = b.closest(".body").querySelector(".orail,.pgrid");
+        Array.prototype.forEach.call(list.children, function (c, i) { c.classList.toggle("xh", i >= step); });
+      });
+    }
+    function phoneReveal(b) {
+      var step = +b.getAttribute("data-pmore"), list = b.closest(".body").querySelector(".orail,.pgrid");
+      var hidden = list.querySelectorAll(":scope > .xh");
+      for (var i = 0; i < step && i < hidden.length; i++) hidden[i].classList.remove("xh");
+      if (hidden.length <= step) b.parentNode.remove();
+    }
+    // Flèches d'une rangée : cachées en butée, centrées sur les images.
+    function wireRails() {
+      root.querySelectorAll(".rw").forEach(function (w) {
+        if (w._wired) return; w._wired = true;
+        var r = w.querySelector(".orail"), l = w.querySelector(".ar.l"), rt = w.querySelector(".ar.r");
+        function upd() {
+          var im = r.querySelector(".im"); if (im) w.style.setProperty("--imh", im.getBoundingClientRect().height + "px");
+          l.hidden = r.scrollLeft < 4; rt.hidden = r.scrollLeft + r.clientWidth >= r.scrollWidth - 4;
+        }
+        r.addEventListener("scroll", upd, { passive: true });
+        try { new ResizeObserver(upd).observe(r); } catch (e) {}
+        upd();
+      });
+    }
+
+    // ── Panier : ajout direct depuis la carte (static/cart.js, panier partagé avec les vitrines) ──
+    var offersById = {}, cartReady = null;
+    function remember(items) { (items || []).forEach(function (o) { offersById[o.id] = o; }); return items; }
+    function loadCart() {
+      if (window.KitlyCart) return Promise.resolve(window.KitlyCart);
+      if (!cartReady) cartReady = new Promise(function (resolve, reject) {
+        var sc = document.createElement("script");
+        sc.src = CART_SRC; sc.onload = function () { resolve(window.KitlyCart); };
+        sc.onerror = function () { cartReady = null; reject(); };
+        document.head.appendChild(sc);
+      });
+      return cartReady;
+    }
+    // Ajout direct (quantité 1). Pendant 2,5 s le bouton devient « Ajouté · Voir le panier ».
+    function addToCart(btn) {
+      var o = offersById[btn.getAttribute("data-add")];
+      if (!o || btn.disabled) return;
+      if (btn.classList.contains("ok") && window.KitlyCart) {
+        var url = window.KitlyCart.checkoutUrl();
+        try { HOST.location.href = url; } catch (e) { window.open(url, "_top"); }
+        return;
+      }
+      var p = o.profile || {};
+      btn.disabled = true;
+      loadCart().then(function (cart) {
+        cart.add({ offer_id: o.id, quantity: 1, kind: o.kind, source: "marketplace", slug: p.slug, seller: p.display_name,
+                   title: o.title, image: o.image || "", price_cents: o.price_cents });
+        btn.disabled = false; btn.classList.add("ok");
+        btn.innerHTML = ico(I.check) + '<span>Ajouté<em> · Voir le panier</em></span>';
+        clearTimeout(btn._t);
+        btn._t = setTimeout(function () { btn.classList.remove("ok"); btn.innerHTML = ico(I.cart) + '<span>Ajouter<em> au panier</em></span>'; }, 2500);
+      }).catch(function () {
+        btn.disabled = false;
+        btn.innerHTML = ico(I.cart) + '<span>Réessayer</span>';
+      });
+    }
+
     function profileCard(c) {
       var tags = [];
       if (c.sponsored) tags.push('<span class="dk">Sponsorisé</span>');
@@ -359,8 +498,9 @@
           return '<button type="button" class="cat" data-cat="' + esc(c.key) + '"><i>' + ico(CAT_ICON[c.key] || CAT_ICON.autres) + '</i><span style="min-width:0"><b>' + esc(c.label) + '</b>' +
             '<small>' + c.count + ' profil' + (c.count > 1 ? "s" : "") + '</small></span></button>';
         }).join("") + '</div></section>' : '') +
-        sec("km-top", "Profils à la <em>une</em>", "Les vitrines les plus consultées ces dernières semaines.", '<button type="button" class="more-link" data-all="popular">Tout voir</button>') +
         sec("km-offers", "Dernières <em>offres</em>", "Prestations, produits et créations publiés récemment.", '<button type="button" class="more-link" data-all="new">Tout voir</button>') +
+        sec("km-top", "Profils à la <em>une</em>", "Les vitrines les plus consultées ces dernières semaines.", '<button type="button" class="more-link" data-all="popular">Tout voir</button>') +
+        sec("km-cheap", "Petits <em>prix</em>", "Les offres les plus abordables du moment.", '<button type="button" class="more-link" data-all="price_asc">Tout voir</button>') +
         sec("km-new", "Nouveaux sur <em>Kitly</em>", "Ils viennent de publier leur vitrine.") +
         '<div class="trust">' +
           '<div><i>' + ico(I.chat) + '</i><span><b>Contact direct</b><small>Échange avec le freelance sans intermédiaire : questions, devis et rendez-vous.</small></span></div>' +
@@ -368,7 +508,8 @@
           '<div><i>' + ico(I.bag) + '</i><span><b>Un seul panier</b><small>Commande chez plusieurs freelances et paie en une fois.</small></span></div>' +
         '</div>';
       fill("km-top", '<div class="pgrid">' + skeletons(4) + '</div>');
-      fill("km-offers", '<div class="grid">' + skeletons(4) + '</div>');
+      fill("km-offers", '<div class="orail">' + skeletons(6) + '</div>');
+      fill("km-cheap", '<div class="orail">' + skeletons(6) + '</div>');
       fill("km-new", '<div class="pgrid">' + skeletons(4) + '</div>');
       var rid = ++S.reqId;
       Promise.all([get("/popular?limit=8"), get("/new?limit=8")]).then(function (r) {
@@ -378,14 +519,22 @@
         var fresh = r[1].items.filter(function (c) { return !seen[c.slug]; });
         if (!top.length) { top = fresh.slice(0, 8); fresh = []; }
         top = top.slice(0, top.length >= 8 ? 8 : 4);   // rangées complètes sur ordinateur
-        fill("km-top", top.length ? '<div class="pgrid rail">' + top.map(profileCard).join("") + '</div>' : '<div class="empty">Les premières vitrines arrivent bientôt.</div>');
+        fill("km-top", top.length ? '<div class="pgrid">' + top.map(profileCard).join("") + '</div>' + phoneMore(top.length, 2) : '<div class="empty">Les premières vitrines arrivent bientôt.</div>');
+        phoneLimit("#km-top");
         var nw = $("#km-new");
-        if (fresh.length) fill("km-new", '<div class="pgrid rail">' + fresh.slice(0, 4).map(profileCard).join("") + '</div>'); else if (nw) nw.remove();
+        if (fresh.length) { fill("km-new", '<div class="pgrid">' + fresh.slice(0, 4).map(profileCard).join("") + '</div>' + phoneMore(Math.min(4, fresh.length), 2)); phoneLimit("#km-new"); } else if (nw) nw.remove();
       }).catch(function () { if (rid === S.reqId) fill("km-top", '<div class="empty">Chargement impossible. <button type="button" class="link" data-retry>Réessayer</button></div>'); });
-      get("/offers?sort=new&page_size=8").then(function (r) {
+      Promise.all([get("/offers?sort=new&page_size=18"), get("/offers?sort=price_asc&page_size=36").catch(function () { return { items: [] }; })]).then(function (r) {
         if (rid !== S.reqId) return;
-        fill("km-offers", r.items.length ? '<div class="grid">' + r.items.map(offerCard).join("") + '</div>' : '<div class="empty">Les premières offres arrivent bientôt.</div>');
-      }).catch(function () { if (rid === S.reqId) fill("km-offers", '<div class="empty">Chargement impossible.</div>'); });
+        var latest = remember(r[0].items), seen = {};
+        latest.forEach(function (o) { seen[o.id] = 1; });
+        var cheap = remember(r[1].items).filter(function (o) { return !seen[o.id] && o.price_cents != null; }).slice(0, 18);
+        fill("km-offers", latest.length ? offerRail(latest) : '<div class="empty">Les premières offres arrivent bientôt.</div>');
+        var ch = $("#km-cheap");
+        if (cheap.length >= 6) fill("km-cheap", offerRail(cheap)); else if (ch) ch.remove();
+        phoneLimit("#km-offers"); phoneLimit("#km-cheap");
+        wireRails();
+      }).catch(function () { if (rid === S.reqId) { fill("km-offers", '<div class="empty">Chargement impossible.</div>'); var ch = $("#km-cheap"); if (ch) ch.remove(); } });
     }
 
     // ── Résultats ────────────────────────────────────────────
@@ -412,7 +561,7 @@
       var rid = ++S.reqId;
       get("/offers?" + qs({ sort: offersSort(), page_size: opts.pageSize })).then(function (r) {
         if (rid !== S.reqId) return;
-        S.offers = r.items; S.offersTotal = r.total; drawOffers();
+        S.offers = remember(r.items); S.offersTotal = r.total; drawOffers();
       }).catch(function () { if (rid === S.reqId) fill("km-offers", '<div class="empty">Chargement impossible. <button type="button" class="link" data-retry>Réessayer</button></div>'); });
       get("/search?" + qs({ sort: S.sort, page_size: 12 })).then(function (r) {
         if (rid !== S.reqId) return;
@@ -437,7 +586,7 @@
       if (kind === "offers") {
         get("/offers?" + qs({ sort: offersSort(), page: S.offersPage + 1, page_size: opts.pageSize })).then(function (r) {
           if (rid !== S.reqId) return;
-          S.offersPage += 1; S.offers = S.offers.concat(r.items); S.offersTotal = r.total; drawOffers();
+          S.offersPage += 1; S.offers = S.offers.concat(remember(r.items)); S.offersTotal = r.total; drawOffers();
         }).catch(function () { btn.disabled = false; btn.textContent = "Réessayer"; });
       } else {
         get("/search?" + qs({ sort: S.sort, page: S.profilesPage + 1, page_size: 12 })).then(function (r) {
@@ -474,6 +623,13 @@
     }
 
     root.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-add],[data-scroll],[data-pmore]");
+      if (b && root.contains(b)) {
+        if (b.hasAttribute("data-add")) return addToCart(b);
+        if (b.hasAttribute("data-pmore")) return phoneReveal(b);
+        var rail = b.parentNode.querySelector(".orail");
+        return rail.scrollBy({ left: (rail.clientWidth - 40) * parseInt(b.getAttribute("data-scroll"), 10), behavior: "smooth" });
+      }
       var t = e.target.closest("[data-cat],[data-ranking],[data-retry],[data-all],[data-home],[data-more]");
       if (!t || !root.contains(t)) return;
       if (t.hasAttribute("data-ranking")) return openRanking();
@@ -484,7 +640,7 @@
         var q = $("#km-q"); if (q) q.value = "";
         refresh(); return scrollTop();
       }
-      if (t.hasAttribute("data-all")) { S.all = true; S.sort = t.getAttribute("data-all") === "new" ? "new" : "relevance"; refresh(); return scrollTop(); }
+      if (t.hasAttribute("data-all")) { var k = t.getAttribute("data-all"); S.all = true; S.sort = SORT[k] ? k : "relevance"; refresh(); return scrollTop(); }
       var c = t.getAttribute("data-cat");
       S.cat = c;
       if (!c) S.all = true;   // « Tout » : reste sur les résultats
@@ -513,5 +669,5 @@
     });
   }
 
-  global.KitlyMarket = { version: 4, mount: mount };
+  global.KitlyMarket = { version: 5, mount: mount };
 })(window);

@@ -491,6 +491,8 @@ def test_marketplace_offers(client):
     assert [o["title"] for o in r["items"]] == [f"Pain au levain {tag}"] and r["total"] == 1
     card = r["items"][0]
     assert card["price_label"] == "8 €" and card["profile"]["slug"] == slug and "email" not in card["profile"]
+    # Vendeur sans paiements en ligne : pas d'ajout au panier depuis la carte.
+    assert card["buyable"] is False and card["needs_options"] is False
     # La recherche porte aussi sur la vitrine ; brouillons et vitrines hors marketplace exclus.
     r = client.get("/kitly/marketplace/offers", params={"q": tag, "sort": "price_asc"}).json()
     assert [o["price_label"] for o in r["items"]] == ["8 €", "45 €"]
