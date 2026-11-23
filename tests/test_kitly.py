@@ -759,6 +759,8 @@ def test_static_vitrine_js(client):
     assert client.get("/kitly/static/config.py").status_code == 404
     logo = client.get("/kitly/static/logo.png")
     assert logo.status_code == 200 and logo.headers["content-type"] == "image/png"
+    hero = client.get("/kitly/static/hero-home.webp")
+    assert hero.status_code == 200 and hero.headers["content-type"] == "image/webp"
 
 
 def test_vitrine_page_meta_and_escaping(client):
