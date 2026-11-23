@@ -96,8 +96,8 @@
     "@media(min-width:600px){.km .pgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}",
     "@media(min-width:960px){.km .pgrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}",
     /* téléphone : rien ne défile de côté ; quelques cartes puis « Voir plus » */
-    ".km .pm{display:none}",
-    "@media(max-width:639px){.km .xh{display:none!important}.km .pm{display:flex}}",
+    ".km .more.pm{display:none}",
+    "@media(max-width:639px){.km .xh{display:none!important}.km .more.pm{display:flex}}",
     /* carte offre (style boutique) : image, titre, prix, « Ajouter au panier », vendeur en discret */
     ".km a.pc{min-width:0;text-decoration:none;color:inherit;background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;transition:border-color .15s,transform .15s,box-shadow .15s}",
     ".km a.pc:hover{border-color:var(--ink);transform:translateY(-3px);box-shadow:0 16px 34px -22px rgba(0,0,0,.35)}",
@@ -124,7 +124,8 @@
     ".km .of .add.ghost{background:var(--paper);color:var(--ink);border-color:var(--line)}",
     ".km .of .add.ghost:hover{border-color:var(--ink);opacity:1}",
     ".km .of .add.ok{background:var(--ok);border-color:var(--ok);opacity:1}",
-    ".km .of .add em{font-style:normal}",
+    ".km .of .add,.km .of .add *{font-family:var(--sans);font-style:normal;font-weight:700;letter-spacing:0}",
+    ".km .of .add .s{display:none}",
     ".km .of .add:disabled{cursor:default}",
     ".km .of .by{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mut);min-width:0;margin-top:2px}",
     ".km .of .by span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
@@ -136,7 +137,7 @@
     "@media(max-width:639px){.km .of .im{border-radius:12px}.km .of .bd{padding-top:7px;gap:4px}.km .of .tt{font-size:12px;line-height:1.25;min-height:2.5em}" +
       ".km .of .tg{min-height:0}.km .of .tg span{display:none}.km .of .tg b{font-size:10px;padding:2px 5px;border-radius:4px}" +
       ".km .of .pr .n{font-size:17px}.km .of .pr sup{font-size:10px;top:2px}.km .of .pr.q{font-size:12px}" +
-      ".km .of .add{height:30px;font-size:11.5px;gap:4px;margin-top:3px;padding:0 6px}.km .of .add svg{width:13px;height:13px}.km .of .add em{display:none}" +
+      ".km .of .add{height:30px;font-size:11.5px;gap:4px;margin-top:3px;padding:0 6px}.km .of .add svg{width:13px;height:13px}.km .of .add .l{display:none}.km .of .add .s{display:inline}" +
       ".km .of .by{font-size:10.5px;gap:4px}.km .of .by u{display:none}.km .of .av{width:14px;height:14px;font-size:7px}}",
     /* rangée d'offres qui défile, flèches sur ordinateur */
     ".km .rw{position:relative}",
@@ -343,8 +344,8 @@
     function offerCard(o) {
       var p = o.profile || {}, url = esc(profileUrl(p.slug, o.id));
       var action = o.buyable && !o.needs_options
-        ? '<button type="button" class="add" data-add="' + esc(o.id) + '">' + ico(I.cart) + '<span>Ajouter<em> au panier</em></span></button>'
-        : '<a class="add ghost" href="' + url + '" target="_top">' + (o.buyable ? "Choisir<em> une option</em>" : "Voir<em> l'offre</em>") + '</a>';
+        ? '<button type="button" class="add" data-add="' + esc(o.id) + '">' + ico(I.cart) + '<span class="l">Ajouter au panier</span><span class="s">Ajouter</span></button>'
+        : '<a class="add ghost" href="' + url + '" target="_top">' + (o.buyable ? '<span class="l">Choisir une option</span><span class="s">Choisir</span>' : '<span class="l">Voir l\'offre</span><span class="s">Voir</span>') + '</a>';
       return '<div class="of">' +
         '<a class="im" href="' + url + '" target="_top" aria-hidden="true" tabindex="-1">' +
           (o.image ? '<i style="background-image:' + cssUrl(o.image) + '"></i>' : '<i class="ph">' + ico(I[o.kind] || I.service) + '</i>') + '</a>' +
@@ -420,9 +421,9 @@
         cart.add({ offer_id: o.id, quantity: 1, kind: o.kind, source: "marketplace", slug: p.slug, seller: p.display_name,
                    title: o.title, image: o.image || "", price_cents: o.price_cents });
         btn.disabled = false; btn.classList.add("ok");
-        btn.innerHTML = ico(I.check) + '<span>Ajouté<em> · Voir le panier</em></span>';
+        btn.innerHTML = ico(I.check) + '<span class="l">Ajouté · Voir le panier</span><span class="s">Ajouté</span>';
         clearTimeout(btn._t);
-        btn._t = setTimeout(function () { btn.classList.remove("ok"); btn.innerHTML = ico(I.cart) + '<span>Ajouter<em> au panier</em></span>'; }, 2500);
+        btn._t = setTimeout(function () { btn.classList.remove("ok"); btn.innerHTML = ico(I.cart) + '<span class="l">Ajouter au panier</span><span class="s">Ajouter</span>'; }, 2500);
       }).catch(function () {
         btn.disabled = false;
         btn.innerHTML = ico(I.cart) + '<span>Réessayer</span>';
