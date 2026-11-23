@@ -21,6 +21,7 @@ from app.db.database import get_db
 from app.kitly import catalog
 from app.kitly.config import KITLY_NEW_PROFILES_DAYS, KITLY_POPULAR_WINDOW_DAYS
 from app.kitly.models import KitlyOffer, KitlyProfile, KitlyUser
+from app.kitly.routers import shop
 from app.kitly.queries import (
     marketplace_profiles,
     min_price_subquery,
@@ -185,8 +186,13 @@ def search(
     }
 
 
-def _offer_card(o: KitlyOffer, p: KitlyProfile) -> dict:
-    """Carte « offre » de la marketplace : l'offre et la vitrine qui la propose."""
+def _offer_card(o: KitlyOffer, p: KitlyProfile, ready: bool = False) -> dict:
+    """
+    Carte « offre » de la marketplace : l'offre et la vitrine qui la propose.
+    `buyable` : ajout au panier possible depuis la carte ; `needs_options` : l'offre a des
+    options (taille, couleur…) à choisir sur sa fiche avant l'ajout.
+    """
+    variants = (o.details or {}).get("variants") or [] if o.kind == "physical" else []
     return {
         "id": o.id,
         "kind": o.kind,
@@ -196,6 +202,8 @@ def _offer_card(o: KitlyOffer, p: KitlyProfile) -> dict:
         "price_cents": o.price_cents,
         "image": (o.images or [None])[0],
         "badge": o.badge,
+        "buyable": shop.offer_buyable(o, ready),
+        "needs_options": bool(variants),
         "profile": {"slug": p.slug, "display_name": p.display_name, "avatar_url": p.avatar_url,
                     "headline": p.headline, "location": p.location, "category": p.category},
     }
@@ -245,7 +253,11 @@ def offers(
 
     total = db.execute(select(func.count()).select_from(base.with_only_columns(KitlyOffer.id).subquery())).scalar_one()
     rows = db.execute(base.order_by(*order, KitlyOffer.id.desc()).offset((page - 1) * page_size).limit(page_size)).all()
-    return {"items": [_offer_card(o, p) for o, p in rows], "total": total, "page": page, "page_size": page_size}
+    ready: dict[int, bool] = {}
+    for _, p in rows:
+        if p.id not in ready:
+            ready[p.id] = shop.shop_ready(p)
+    return {"items": [_offer_card(o, p, ready[p.id]) for o, p in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/ranking-info")
