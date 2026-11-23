@@ -79,20 +79,21 @@
 
 
   /* ── visiteur : grand hero photo pleine largeur ── */
-  #kh .sh { position: relative; width: 100%; min-height: 680px; display: flex; align-items: center; overflow: hidden; color: #fff; background: #1a1714; isolation: isolate; }
+  /* hauteur : tout l'écran visible sous le header du site (calculée par le script, voir fitHero) */
+  #kh .sh { position: relative; width: 100%; min-height: var(--sh-h, 680px); display: flex; align-items: center; overflow: hidden; color: #fff; background: #1a1714; isolation: isolate; }
   #kh .sh-img { position: absolute; inset: 0; background: center 30% / cover no-repeat; z-index: -2; transform: scale(1.06); animation: kh-zoom 14s ease-out forwards; }
   @keyframes kh-zoom { to { transform: scale(1); } }
   #kh .sh::before { content: ""; position: absolute; inset: 0; z-index: -1;
     background: linear-gradient(90deg, rgba(14,11,9,.86) 0%, rgba(14,11,9,.66) 34%, rgba(14,11,9,.18) 62%, rgba(14,11,9,0) 80%),
                 linear-gradient(0deg, rgba(14,11,9,.55) 0%, rgba(14,11,9,0) 30%); }
-  #kh .sh-in { width: 100%; max-width: 1240px; margin: 0 auto; padding: 120px 40px 150px; }
+  #kh .sh-in { width: 100%; max-width: 1240px; margin: 0 auto; padding: 72px 40px 128px; }
   #kh .sh-txt { max-width: 620px; }
   #kh .fr { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 8px; border-radius: 99px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-size: 13px; font-weight: 700; letter-spacing: .01em; }
   #kh .flag { width: 24px; height: 16px; border-radius: 3px; overflow: hidden; display: flex; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
   #kh .flag i { flex: 1; display: block; } #kh .flag i:nth-child(1) { background: #1f3f9a; } #kh .flag i:nth-child(2) { background: #fff; } #kh .flag i:nth-child(3) { background: #e1262d; }
-  #kh .sh h1 { color: #fff; text-align: left; margin: 22px 0 0; max-width: none; font-size: clamp(44px, 6.2vw, 84px); line-height: .98; letter-spacing: -.05em; text-shadow: 0 2px 30px rgba(0,0,0,.25); }
+  #kh .sh h1 { color: #fff; text-align: left; margin: 22px 0 0; max-width: none; font-size: clamp(40px, min(6.2vw, calc(var(--sh-h, 680px) * .085)), 84px); line-height: .98; letter-spacing: -.05em; text-shadow: 0 2px 30px rgba(0,0,0,.25); }
   #kh .sh h1 em { color: #fff; }
-  #kh .sh .lead { color: rgba(255,255,255,.86); font-size: 18.5px; line-height: 1.55; margin: 24px 0 34px; max-width: 540px; }
+  #kh .sh .lead { color: rgba(255,255,255,.86); font-size: 18.5px; line-height: 1.55; margin: 22px 0 30px; max-width: 540px; }
   #kh .sh .actions { justify-content: flex-start; }
   #kh .sh .btn { background: #fff; color: #0a0a0a; border-color: #fff; padding: 16px 28px; font-size: 15.5px; }
   #kh .sh .btn:hover { background: #f1efe9; }
@@ -128,10 +129,12 @@
   #kh .steps-h { text-align: center; font-size: clamp(26px, 3.2vw, 36px); font-weight: 900; letter-spacing: -.035em; margin: 72px 0 0; }
   #kh .guest .steps { margin-top: 28px; }
   @media (max-width: 760px) {
-    #kh .sh { min-height: 0; flex-direction: column; align-items: stretch; }
+    #kh .sh { flex-direction: column; align-items: stretch; min-height: 0; }
+    #kh .sh-in { min-height: var(--sh-h, 640px); display: flex; flex-direction: column; justify-content: flex-end; }
+    #kh .sh h1 { font-size: clamp(36px, min(11vw, calc(var(--sh-h, 640px) * .065)), 52px); margin-top: 18px; }
     #kh .sh-img { background-position: 72% 30%; }
     #kh .sh::before { background: linear-gradient(0deg, rgba(14,11,9,.94) 0%, rgba(14,11,9,.78) 44%, rgba(14,11,9,.2) 72%, rgba(14,11,9,.05) 100%); }
-    #kh .sh-in { padding: 300px 20px 28px; }
+    #kh .sh-in { padding: 96px 20px 24px; }
     #kh .sh .lead { font-size: 16px; margin: 16px 0 24px; }
     #kh .sh-trust { position: static; background: rgba(14,11,9,.94); -webkit-backdrop-filter: none; backdrop-filter: none; }
     #kh .sh-trust > div { grid-template-columns: 1fr; gap: 12px; padding: 18px 20px 22px; }
@@ -253,6 +256,8 @@
         '<span>' + ico(ICO.shop) + 'Pensé pour les petits commerces et les artisans</span>' +
         '<span>' + ico(ICO.lock) + 'Paiements sécurisés par Stripe, versés au commerçant</span>' +
       '</div></div></section>';
+    fitHero(true);
+    setTimeout(function () { fitHero(true); }, 400);   // position définitive de l'embed dans la page
     top.innerHTML =
       '<div class="guest"><section class="why"><div class="why-h">' +
         '<h2>Le commerce indépendant, <em>made in France.</em></h2>' +
@@ -269,6 +274,26 @@
           '<div class="step"><span class="n">03</span><b>Partage ton lien</b><p>Sur Instagram, LinkedIn, WhatsApp… et reçois des demandes et des commandes.</p></div>' +
         '</div></section></div>';
   }
+
+  // Le hero prend tout l'écran visible (fenêtre du site moins ce qui est au-dessus de l'embed,
+  // le header) et suit les redimensionnements. Sur téléphone, la barre d'adresse qui se replie
+  // ne fait pas sauter la page : on ne recalcule que si la largeur change.
+  var heroW = 0;
+  function fitHero(force) {
+    var sh = heroEl.querySelector(".sh");
+    if (!sh) return;
+    var vw, vh, above = 0;
+    try {
+      vw = HOST.innerWidth; vh = HOST.innerHeight;
+      if (frameEl) above = Math.max(0, Math.min(frameEl.getBoundingClientRect().top + HOST.scrollY, 160));
+    } catch (e) { return; }
+    if (!vh || (!force && vw === heroW)) return;
+    heroW = vw;
+    var minH = vw <= 760 ? 560 : 600;
+    sh.style.setProperty("--sh-h", Math.max(minH, Math.round(vh - above)) + "px");
+  }
+  try { HOST.addEventListener("resize", function () { fitHero(false); }); } catch (e) {}
+  try { HOST.addEventListener("orientationchange", function () { setTimeout(function () { fitHero(true); }, 300); }); } catch (e) {}
 
   function renderMember(me, stats, leads) {
     heroEl.innerHTML = "";
