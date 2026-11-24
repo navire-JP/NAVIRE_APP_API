@@ -382,6 +382,7 @@
     API: "https://navire-app-api.onrender.com",
     TOKEN_KEY: "navire_token",
     LOGIN_URL: "https://navire-ai.com/login",
+    SIGNUP_URL: "https://navire-ai.com/register",
     SITE: "https://navire-ai.com",         // préfixe des liens NAVIRE Lib (/lib?doc=…, /lib?prepa=devoirs)
     ACTUS_URL: "https://navire-ai.com/actus"  // page Actus (une actu enregistrée s'y ouvre : ?actu=ID)
   };
@@ -880,8 +881,10 @@
     var main = el("main");
     if (S.loading && !S.data) { main.innerHTML = '<div class="fx-center"><div class="fx-spin"></div><span>Chargement de tes fichiers…</span></div>'; renderTree(); return; }
     if (S.error === "auth") {
-      main.innerHTML = '<div class="fx-center">' + ic("user", 26, "rgba(255,255,255,0.5)") + '<b style="color:var(--text);font-weight:500">Connecte-toi pour voir tes fichiers</b>'
-        + '<span>Tes PDF, tes devoirs et la veille t\'attendent ici.</span><button class="fx-btn is-primary" data-act="login">Se connecter</button></div>';
+      // Visiteur : les fichiers sont personnels, il faut un compte
+      main.innerHTML = '<div class="fx-center">' + ic("user", 26, "rgba(255,255,255,0.5)") + '<b style="color:var(--text);font-weight:500">Connecte-toi pour accéder à tes fichiers</b>'
+        + '<span style="max-width:380px;text-align:center;line-height:1.6">Range tes PDF, retrouve tes devoirs, tes cours NAVIRE Lib et les actus enregistrées au même endroit. Crée ton compte gratuit ou connecte-toi.</span>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="fx-btn is-primary" data-act="signup">Créer mon compte gratuit</button><button class="fx-btn" data-act="login">Se connecter</button></div></div>';
       renderTree(); return;
     }
     if (S.error && !S.data) {
@@ -935,6 +938,7 @@
       case "actus": var an = IDX[id].node, num = String(an.link || an.id).match(/(\d+)$/); go(isArticle(an) ? (an.meta.url || an.meta.source_url) : CONFIG.ACTUS_URL + (num ? "?actu=" + num[1] : "")); break;
       case "go": go(CONFIG.SITE + t.getAttribute("data-link")); break;
       case "login": go(CONFIG.LOGIN_URL); break;
+      case "signup": go(CONFIG.SIGNUP_URL); break;
       case "retry": fetchAll(); break;
     }
   });

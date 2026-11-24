@@ -138,6 +138,15 @@
 #nv-profil .pf-btn svg { width: 15px; height: 15px; }
 #nv-profil .pf-btn.is-primary { background: #fff; color: #0b0b12; }
 #nv-profil .pf-btn.is-primary:hover { background: rgba(255,255,255,0.86); }
+/* Visiteur (sans compte) : « voir plus en se connectant » */
+#nv-profil .pf-gate { margin: 18px 0 8px; padding: 22px 20px; border-radius: 18px; background: linear-gradient(180deg, var(--blue-soft), var(--panel)); text-align: center; letter-spacing: 0; }
+#nv-profil .pf-gate b { display: block; font-size: 15.5px; color: #fff; margin-bottom: 4px; }
+#nv-profil .pf-gate p { margin: 0 auto; max-width: 440px; font-size: 13px; line-height: 1.6; color: var(--text-2); }
+#nv-profil .pf-gate-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+#nv-profil .pf-gate-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 16px auto 0; max-width: 520px; text-align: left; }
+#nv-profil .pf-gate-list span { padding: 10px 12px; border-radius: 12px; background: var(--panel-2); font-size: 12.5px; line-height: 1.45; color: var(--text-2); }
+#nv-profil .pf-gate-list span b { font-size: 13px; margin: 0 0 2px; }
+#nv-profil .pf-state .pf-gate { margin: 0; }
 #nv-profil .pf-btn.is-blue { background: var(--blue-deep); color: #fff; }
 #nv-profil .pf-btn.is-blue:hover { background: #6690ff; }
 #nv-profil .pf-btn.is-discord { background: var(--discord); color: #fff; }
@@ -566,6 +575,8 @@
       <div class="pf-more is-hidden" data-el="more"><button class="pf-btn" data-act="more">Voir plus</button></div>
     </div>
 
+    <div data-el="pgate"></div>
+
     <div data-ppane="saved" class="is-hidden">
       <div class="pf-posts" data-el="saved"></div>
       <div class="pf-more is-hidden" data-el="smore"><button class="pf-btn" data-act="smore">Voir plus</button></div>
@@ -687,6 +698,8 @@
     OFFRES_URL: 'https://navire-ai.com/offres',   // « Voir les offres » d'un compte gratuit
     ACTUS_URL: 'https://navire-ai.com/actus',     // page de la veille : ?actu=<id> ouvre une actu
     ARTICLE_URL: 'https://navire-ai.com/actus/NA', // + id : adresse d'un article
+    LOGIN_URL: 'https://navire-ai.com/login',      // visiteur : « Se connecter »
+    SIGNUP_URL: 'https://navire-ai.com/register',  // visiteur : « Créer mon compte »
     PLANS: { membre: 'Membre', 'membre+': 'Membre+', prepa: 'Prépa' }
   };
   var API = CONFIG.API;
@@ -844,7 +857,11 @@
     } else if (token) {
       p = loadMine();
     } else {
-      $('state').textContent = 'Connecte-toi pour voir ton profil.';
+      // Visiteur sans ?u= : ce qu'il trouvera sur son profil, et l'accès au compte
+      $('state').innerHTML = gateHtml('Ton profil NAVIRE',
+        'Crée ton compte gratuit pour avoir ton profil, ton Elo et ta place au classement, suivre d\'autres élèves et partager tes fiches.',
+        '<div class="pf-gate-list"><span><b>Elo et rang</b>Gagne des points sur les QCM.</span><span><b>Statistiques</b>Réussite, documents, deep work.</span>' +
+        '<span><b>Abonnés</b>Suis les élèves de ta fac.</span><span><b>Posts</b>Partage un devoir ou une fiche.</span></div>');
       return Promise.resolve();
     }
     return p.catch(function (err) {
@@ -948,7 +965,7 @@
       var so = S.social || {};
       box.innerHTML = token
         ? (so.follows_me ? '<span class="pf-follows-me">Te suit</span>' : '') + followBtnHtml(so.is_following, 'follow')
-        : '';
+        : '<a class="pf-btn is-primary" href="' + esc(CONFIG.SIGNUP_URL) + '" target="_top" title="Crée ton compte pour suivre cet élève">Suivre</a>';
       return;
     }
     var u = S.user;
@@ -1102,7 +1119,7 @@
     syncMore();
   }
 
-  function syncMore() { show($('more'), S.shown < S.posts.length || S.postsHasMore); }
+  function syncMore() { show($('more'), !!token && (S.shown < S.posts.length || S.postsHasMore)); syncGuestGate(); }
 
   // Ajoute à la liste les posts déjà chargés jusqu'à `upto`
   function revealPosts(upto) {
@@ -1727,6 +1744,21 @@
     S.ptab = !S.mine && !S.upostsTotal && S.postsTotal ? 'veille' : 'posts';
   }
 
+  function gateHtml(title, text, extra) {
+    return '<div class="pf-gate"><b>' + title + '</b><p>' + text + '</p>' + (extra || '') + '<div class="pf-gate-btns">' +
+      '<a class="pf-btn is-primary" href="' + esc(CONFIG.SIGNUP_URL) + '" target="_top">Créer mon compte gratuit</a>' +
+      '<a class="pf-btn" href="' + esc(CONFIG.LOGIN_URL) + '" target="_top">Se connecter</a></div></div>';
+  }
+  // Visiteur sur le profil d'un élève : les premiers posts, puis « connecte-toi pour voir la suite »
+  function syncGuestGate() {
+    var g = $('pgate'); if (!g) return;
+    if (token) { g.innerHTML = ''; return; }
+    var more = S.ptab === 'veille' ? (S.shown < S.posts.length || S.postsHasMore) : S.upostsHasMore;
+    var name = esc(S.user.username || 'cet élève');
+    g.innerHTML = gateHtml(more ? 'Vois tous les posts de ' + name : 'Suis ' + name + ' sur NAVIRE',
+      'Crée ton compte gratuit pour suivre ' + name + ', enregistrer ses posts et retrouver ton propre profil, ton Elo et ton classement.');
+  }
+
   function followBtnHtml(on, act, id) {
     return '<button class="pf-btn ' + (on ? 'is-following' : 'is-primary') + '" data-act="' + act + '"' + (id ? ' data-id="' + id + '"' : '') +
       ' data-on="' + (on ? '1' : '') + '">' + (on ? 'Abonné' : 'Suivre') + '</button>';
@@ -1750,6 +1782,7 @@
     });
     [].forEach.call(root.querySelectorAll('[data-ppane]'), function (p) { show(p, p.getAttribute('data-ppane') === name); });
     if (name === 'saved' && S.saved === null) loadSaved(null, false);
+    syncGuestGate();
   }
 
   function fmtSize(n) {
@@ -1794,7 +1827,8 @@
       : (S.mine
         ? '<div class="pf-empty"><b>Aucun post pour l\'instant</b>Écris ton premier post : une pensée, une fiche, un devoir à partager.</div>'
         : '<div class="pf-empty"><b>Aucun post pour l\'instant</b>' + esc(S.user.username || 'Cet élève') + ' n\'a encore rien posté.</div>');
-    show($('umore'), S.upostsHasMore);
+    show($('umore'), !!token && S.upostsHasMore);
+    syncGuestGate();
   }
 
   function loadMoreUposts(btn) {

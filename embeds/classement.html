@@ -106,6 +106,13 @@
 #nv-top .nt-more { display: flex; justify-content: center; margin-top: 18px; }
 #nv-top .nt-btn { height: 38px; padding: 0 20px; border: 0; border-radius: 99px; background: var(--panel-2); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
 #nv-top .nt-btn:hover { background: var(--panel-3); }
+#nv-top .nt-btn.is-primary { background: #fff; color: #0a0a12; text-decoration: none; display: inline-flex; align-items: center; }
+#nv-top a.nt-btn { text-decoration: none; display: inline-flex; align-items: center; }
+/* Visiteur (sans compte) : « voir la suite en se connectant » */
+#nv-top .nt-gate { margin-top: 18px; padding: 22px 20px; border-radius: 18px; background: linear-gradient(180deg, var(--blue-soft), var(--panel)); text-align: center; }
+#nv-top .nt-gate b { display: block; font-size: 15.5px; color: #fff; margin-bottom: 4px; }
+#nv-top .nt-gate p { margin: 0 auto; max-width: 440px; font-size: 13px; line-height: 1.6; color: var(--text-2); }
+#nv-top .nt-gate-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 #nv-top .nt-empty { padding: 50px 20px; text-align: center; color: var(--text-3); font-size: 13px; line-height: 1.6; }
 #nv-top .nt-empty b { display: block; color: var(--text-2); font-size: 15px; margin-bottom: 4px; }
 #nv-top .nt-skel { border-radius: 16px; aspect-ratio: 3 / 2.6; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nt-shimmer 1.4s linear infinite; }
@@ -147,6 +154,7 @@
   <div data-el="me"></div>
   <div data-el="list"></div>
   <div class="nt-more" data-el="more" hidden><button class="nt-btn" data-act="more">Voir plus</button></div>
+  <div data-el="gate"></div>
 </div>
 
 <script>
@@ -156,12 +164,16 @@
     API: "https://navire-app-api.onrender.com",
     TOKEN_KEY: "navire_token",
     PROFIL_URL: "https://navire-ai.com/profile",   // ?u=<id> ouvre le profil
+    LOGIN_URL: "https://navire-ai.com/login",
+    SIGNUP_URL: "https://navire-ai.com/register",
+    GUEST: 13,                                       // visiteur (sans compte) : joueurs visibles (podium + 2 rangées)
     LIMIT: 200,                                      // joueurs chargés
     PAGE: 25                                         // affichés, puis + PAGE à chaque « Voir plus »
   };
   var root = document.getElementById("nv-top");
-  var S = { periode: "general", scope: "all", data: null, shown: CONFIG.PAGE, seq: 0 };
   var token = ""; try { token = localStorage.getItem(CONFIG.TOKEN_KEY) || ""; } catch (e) {}
+  var FIRST = token ? CONFIG.PAGE : CONFIG.GUEST;
+  var S = { periode: "general", scope: "all", data: null, shown: FIRST, seq: 0 };
 
   function el(n) { return root.querySelector('[data-el="' + n + '"]'); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -204,13 +216,19 @@
     el("me").innerHTML = me && !vis ? '<a class="nt-me" href="' + esc(profil(me.id)) + '" target="_top"><span class="nt-av" style="' + bg(me.avatar_url) + '">' + (bg(me.avatar_url) ? "" : esc(initial(me.username))) + "</span>" +
       "<span><b>Ta place</b> · " + num(S.periode === "general" ? me.elo : me.score) + " Elo" + (S.periode === "general" ? "" : " gagnés") + '</span><span class="nt-pos">#' + me.rank + "</span></a>" : "";
     if (!items.length) {
+      el("gate").innerHTML = "";
       el("list").innerHTML = '<div class="nt-empty"><b>Personne pour l\'instant</b>' + (S.periode === "general" ? "Les élèves apparaîtront ici dès leurs premiers points d'Elo." : "Aucun Elo gagné sur cette période.") + "</div>";
       el("more").hidden = true;
       return fit();
     }
     var top = items.slice(0, Math.min(3, items.length)), rest = items.slice(3, S.shown);
     el("list").innerHTML = '<div class="nt-podium">' + top.map(card).join("") + "</div>" + (rest.length ? '<div class="nt-grid">' + rest.map(function (u, i) { return card(u, i + 3); }).join("") + "</div>" : "");
-    el("more").hidden = S.shown >= items.length;
+    el("more").hidden = !token || S.shown >= items.length;
+    // Visiteur : le haut du classement, puis « crée ton compte pour voir la suite »
+    el("gate").innerHTML = !token && items.length > S.shown ? '<div class="nt-gate"><b>Vois tout le classement et ta place</b>' +
+      '<p>' + num((d.total_joueurs || items.length) - S.shown) + ' autres élèves classés. Crée ton compte gratuit pour voir tout le classement, celui de ta fac, et gagner de l\'Elo sur les QCM.</p>' +
+      '<div class="nt-gate-btns"><a class="nt-btn is-primary" href="' + esc(CONFIG.SIGNUP_URL) + '" target="_top">Créer mon compte gratuit</a>' +
+      '<a class="nt-btn" href="' + esc(CONFIG.LOGIN_URL) + '" target="_top">Se connecter</a></div></div>' : "";
     fit();
   }
   function loadData() {
@@ -224,7 +242,7 @@
     fac = fac || S.facKnown;
     if (S.scope === "fac" && !fac) { el("list").innerHTML = '<div class="nt-empty"><b>Pas de fac renseignée</b>Ajoute ton université dans ton profil pour voir le classement de ta fac.</div>'; el("me").innerHTML = ""; return fit(); }
     api("/leaderboard/classement?limit=" + CONFIG.LIMIT + "&periode=" + S.periode + (S.scope === "fac" ? "&fac=" + encodeURIComponent(fac) : ""))
-      .then(function (d) { if (seq !== S.seq) return; S.data = d; S.shown = CONFIG.PAGE; render(); })
+      .then(function (d) { if (seq !== S.seq) return; S.data = d; S.shown = FIRST; render(); })
       .catch(function () { if (seq !== S.seq) return; el("list").innerHTML = '<div class="nt-empty"><b>Classement indisponible</b>Réessaie dans un instant.</div>'; fit(); });
   }
 
@@ -235,7 +253,7 @@
       if (sc.getAttribute("data-scope") === "fac" && !token) return;
       S.scope = sc.getAttribute("data-scope"); el("scope").querySelectorAll("button").forEach(function (b) { b.classList.toggle("is-on", b === sc); }); loadData();
     }
-    if (m) { S.shown += CONFIG.PAGE; render(); }
+    if (m && token) { S.shown += CONFIG.PAGE; render(); }
   });
   if (!token) el("scope").style.display = "none";
 
