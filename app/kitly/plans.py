@@ -42,6 +42,7 @@ DEFAULT_PLANS: list[dict] = [
             "marketplace": False,
             "marketplace_boost": False,
             "acquisition_stats": False,
+            "custom_font": False,
         },
         "features": [
             "Vitrine publique et URL kitly.fr/ton-nom",
@@ -71,6 +72,7 @@ DEFAULT_PLANS: list[dict] = [
             "marketplace": False,
             "marketplace_boost": False,
             "acquisition_stats": False,
+            "custom_font": False,
         },
         "features": [
             "Tout Free",
@@ -101,6 +103,7 @@ DEFAULT_PLANS: list[dict] = [
             "marketplace": True,
             "marketplace_boost": True,
             "acquisition_stats": True,
+            "custom_font": True,
         },
         "features": [
             "Tout Custom",
@@ -108,6 +111,7 @@ DEFAULT_PLANS: list[dict] = [
             "Présence dans les résultats de recherche",
             "Profil enrichi et mise en avant des prestations",
             "Statistiques d'acquisition (visites marketplace)",
+            "Ta propre police d'écriture sur ta vitrine",
         ],
     },
 ]

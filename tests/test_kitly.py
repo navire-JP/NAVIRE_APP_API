@@ -1632,3 +1632,77 @@ def test_cart_replaces_previous_and_needs_key(client, monkeypatch):
     assert fake.canceled == [fake.intents[0]["id"]]
     assert client.get(f"/kitly/checkout/{first['ref']}").json()["status"] == "canceled"
     assert client.get(f"/kitly/checkout/{second['ref']}").json()["status"] == "pending"
+
+
+# ============================================================
+# Fiche produit détaillée et police personnalisée
+# ============================================================
+
+def test_offer_detailed_sheet(client):
+    _, h = register(client)
+    slug = make_vitrine(client, h)
+    details = {"highlights": ["Coton bio", "  ", "Fabriqué en France"],
+               "specs": [{"label": "Matière", "value": "Coton 180 g/m²"}],
+               "faq": [{"question": "Délais ?", "answer": "48 h"}],
+               "guarantee": "Retours sous 14 jours.", "sku": "TSH-01", "weight_grams": 250, "dimensions": "30 × 20 cm",
+               "delivery_zones": ["fr_metro", "eu"], "shipping_options": [{"label": "Colissimo", "price_cents": 600, "delay": "2 j"}]}
+    r = client.post("/kitly/me/offers", json={"kind": "physical", "title": "T-shirt", "price_cents": 2900,
+                                              "status": "published", "details": details}, headers=h)
+    assert r.status_code == 201, r.text
+    d = client.get(f"/kitly/public/profiles/{slug}").json()["offers"][0]["details"]
+    assert d["highlights"] == ["Coton bio", "Fabriqué en France"]
+    assert d["specs"][0]["label"] == "Matière" and d["faq"][0]["answer"] == "48 h"
+    assert d["guarantee"] == "Retours sous 14 jours." and d["shipping_options"][0]["delay"] == "2 j"
+    # Toutes les catégories ont la fiche détaillée.
+    r = client.post("/kitly/me/offers", json={"kind": "service", "title": "Logo", "price_mode": "quote",
+                                              "details": {"highlights": ["Fichiers sources"], "deliverables": ["Logo"]}}, headers=h)
+    assert r.status_code == 201, r.text
+    bad = client.post("/kitly/me/offers", json={"kind": "digital", "title": "E-book", "price_cents": 900,
+                                                "details": {"highlights": ["x" * 201]}}, headers=h)
+    assert bad.status_code == 422
+    bad = client.post("/kitly/me/offers", json={"kind": "digital", "title": "E-book", "price_cents": 900,
+                                                "details": {"specs": [{"label": "Pages"}]}}, headers=h)
+    assert bad.status_code == 422
+
+
+WOFF2 = b"wOF2" + b"\0" * 60
+
+
+def test_custom_font_premium_only(client, monkeypatch):
+    email, h = register(client)
+    slug = make_vitrine(client, h)
+    font = {"url": "https://res.cloudinary.com/demo/raw/upload/kitly/u1/font/abc.woff2", "name": "Gilroy", "format": "woff2"}
+    calls = []
+    monkeypatch.setattr("app.kitly.routers.vitrine.upload_font", lambda data, uid, fmt: calls.append(fmt) or font["url"])
+
+    # Free et Custom : refusé (import et thème).
+    for plan in ("free", "custom"):
+        set_plan(email, plan)
+        r = client.post("/kitly/me/font", headers=h, files={"file": ("Gilroy-Bold.woff2", WOFF2, "font/woff2")})
+        assert r.status_code == 403 and r.json()["detail"]["code"] == "plan_required"
+        r = client.patch("/kitly/me/profile", json={"theme": {"custom_font": font}}, headers=h)
+        assert r.status_code == 403
+    assert not calls
+
+    set_plan(email, "premium")
+    r = client.post("/kitly/me/font", headers=h, files={"file": ("Gilroy-Bold.woff2", WOFF2, "application/octet-stream")})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"url": font["url"], "format": "woff2", "name": "Gilroy Bold"} and calls == ["woff2"]
+    r = client.post("/kitly/me/font", headers=h, files={"file": ("virus.woff2", b"MZ" + b"\0" * 40, "font/woff2")})
+    assert r.status_code == 415
+    r = client.patch("/kitly/me/profile", json={"theme": {"custom_font": {**font, "url": "javascript:alert(1)"}}}, headers=h)
+    assert r.status_code == 422
+    r = client.patch("/kitly/me/profile", json={"theme": {"custom_font": {**font, "name": "Gil'roy</style>", "apply_to": "headings"}}}, headers=h)
+    assert r.status_code == 200, r.text
+    cf = client.get(f"/kitly/public/profiles/{slug}").json()["theme"]["custom_font"]
+    assert cf["url"] == font["url"] and cf["name"] == "Gilroystyle" and cf["apply_to"] == "headings"
+
+    # Retour à Custom : la police n'est plus affichée (mais reste enregistrée pour un retour à Premium+).
+    set_plan(email, "custom")
+    assert "custom_font" not in client.get(f"/kitly/public/profiles/{slug}").json()["theme"]
+    set_plan(email, "premium")
+    assert client.get(f"/kitly/public/profiles/{slug}").json()["theme"]["custom_font"]["url"] == font["url"]
+
+    # Retrait : adresse vide.
+    r = client.patch("/kitly/me/profile", json={"theme": {"custom_font": {"url": ""}}}, headers=h)
+    assert r.status_code == 200 and "custom_font" not in r.json()["profile"]["theme"]

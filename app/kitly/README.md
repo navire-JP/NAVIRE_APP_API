@@ -176,6 +176,25 @@ blocs forment des sections pleine largeur (section `content`, les sections titr�
 menu) ; les liens et vidéos restent groupés dans la section `links`. Ordre par défaut des sections :
 en-tête, à propos, contenu, offres, boutique, réalisations, liens, contact.
 
+**Fiche produit détaillée** (toutes les catégories d'offres, champs de `details`, tous facultatifs) :
+`highlights` (points clés, 10 × 200 car.), `specs` (`[{label, value}]`, 30 lignes : tableau « Caractéristiques »),
+`faq` (`[{question, answer}]`, 15), `guarantee` (garantie et retours, 2000 car.). Dans la vitrine, la fiche s'ouvre en
+grand (deux colonnes sur ordinateur) : galerie avec vignettes et flèches, prix (mis à jour selon l'option), stock,
+points clés, achat, modes de livraison et tarifs, puis description, « Ce qui est inclus » (livrables d'une prestation),
+caractéristiques (lignes du vendeur + champs de la catégorie : référence, poids, dimensions, format, licence…), FAQ,
+garantie et vendeur. Toute image (fiche, galerie, section, projet) s'ouvre dans une visionneuse plein écran : flèches,
+vignettes, clavier (← → Échap), glisser sur téléphone, clic pour zoomer. Le builder édite ces champs, ainsi que
+les options (variantes), modes de livraison, zones, référence, poids et dimensions.
+
+**Police personnalisée (Premium+, limite `custom_font`)** : `POST /kitly/me/font` (multipart `file`, WOFF2 / WOFF /
+TTF / OTF reconnus à leur signature, 3 Mo max) envoie le fichier sur Cloudinary (fichier brut, dossier `kitly/u<id>/font`)
+et rend `{url, format, name}`, à enregistrer dans `theme.custom_font` (`{url, name, format, apply_to: all|headings|body}`)
+via `PATCH /kitly/me/profile` ; `{"custom_font": {"url": ""}}` la retire. La police s'applique quel que soit le
+template. Une formule sans `custom_font` ne peut ni importer ni enregistrer de police, et la vitrine publique
+l'ignore (elle reste enregistrée et revient si le compte repasse en Premium+). La limite est ajoutée
+automatiquement aux formules existantes au démarrage ; la ligne « Ta propre police d'écriture sur ta vitrine »
+n'apparaît dans la liste des avantages Premium+ qu'une fois ajoutée depuis la console admin (Formules).
+
 **Marketplace — offre de bienvenue** : tout compte de moins de `KITLY_WELCOME_MARKETPLACE_DAYS`
 jours (défaut 30, 0 = désactivé) est référencé dans la marketplace quelle que soit sa formule
 (s'il n'a pas refusé d'y apparaître) ; `/auth/me` renvoie `marketplace_welcome_until`.

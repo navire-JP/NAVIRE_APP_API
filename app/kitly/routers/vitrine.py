@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.kitly import catalog
-from app.kitly.media import MEDIA_PURPOSES, check_image, upload_image
+from app.kitly.media import MEDIA_PURPOSES, check_image, font_format, upload_font, upload_image
 from app.kitly.models import (
     KitlyLead,
     KitlyOffer,
@@ -109,9 +109,18 @@ def _apply_profile(db: Session, user: KitlyUser, profile: KitlyProfile, payload:
                 raise _upsell("Ce template")
             if any(k in incoming for k in ("colors", "font_heading", "font_body", "background")):
                 raise _upsell("La personnalisation des couleurs, typographies et fonds")
+        font = incoming.pop("custom_font", None)
         merged = dict(profile.theme or {})
         for key, value in incoming.items():
             merged[key] = {**(merged.get(key) or {}), **value} if isinstance(value, dict) else value
+        if font is not None:
+            # Police importée : remplacée d'un bloc (jamais fusionnée), retirée si l'adresse est vide.
+            if font.get("url"):
+                if not limits.get("custom_font"):
+                    raise _upsell("La police d'écriture personnalisée")
+                merged["custom_font"] = font
+            else:
+                merged.pop("custom_font", None)
         profile.theme = merged
 
     if "blocks" in data and data["blocks"] is not None:
@@ -241,6 +250,25 @@ async def upload_media(
     data = await file.read(media.KITLY_MAX_IMAGE_BYTES + 1)
     check_image(file.content_type, len(data))
     return {"url": upload_image(data, user.id, purpose)}
+
+
+@router.post("/me/font")
+async def upload_custom_font(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: KitlyUser = Depends(current_user),
+):
+    """
+    Importe une police (WOFF2, WOFF, TTF ou OTF) pour la vitrine — Premium+. Rend
+    {url, format, name} : à enregistrer ensuite dans theme.custom_font (PATCH /me/profile).
+    """
+    if not plan_limits(db, user).get("custom_font"):
+        raise _upsell("La police d'écriture personnalisée")
+    from app.kitly import media
+
+    data = await file.read(media.KITLY_MAX_FONT_BYTES + 1)
+    fmt = font_format(data)
+    return {"url": upload_font(data, user.id, fmt), "format": fmt, "name": media.font_name(file.filename)}
 
 
 # ============================================================

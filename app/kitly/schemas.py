@@ -194,6 +194,30 @@ class ThemeBackgroundIn(_In):
     _u = field_validator("image_url")(lambda cls, v: _url_or_empty(v))
 
 
+_FONT_NAME_BAD = re.compile(r"[^\w \-]", re.UNICODE)
+
+
+class CustomFontIn(_In):
+    """Police importée par le titulaire (Premium+). url vide : retour aux typographies du thème."""
+    url: str = Field(default="", max_length=500)
+    name: str = Field(default="", max_length=60)
+    format: Literal["woff2", "woff", "truetype", "opentype", ""] = ""
+    apply_to: Literal["all", "headings", "body"] = "all"
+
+    @field_validator("url")
+    @classmethod
+    def _url(cls, v: str) -> str:
+        v = (v or "").strip()
+        if v and not re.match(r"^https://[^\s'\"()<>]+$", v, re.I):
+            raise ValueError("Adresse de la police invalide (https:// attendu).")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        return " ".join(_FONT_NAME_BAD.sub("", v or "").split())[:60]
+
+
 class ThemeIn(_In):
     template: Optional[str] = None
     layout: Optional[str] = None
@@ -202,6 +226,7 @@ class ThemeIn(_In):
     font_body: Optional[str] = None
     button_shape: Optional[str] = None
     background: Optional[ThemeBackgroundIn] = None
+    custom_font: Optional[CustomFontIn] = None
 
     @field_validator("template")
     @classmethod
@@ -355,6 +380,36 @@ class _Details(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
+class SpecIn(_Details):
+    """Ligne du tableau « Caractéristiques » de la fiche (Matière : coton bio)."""
+    label: str = Field(min_length=1, max_length=60)
+    value: str = Field(min_length=1, max_length=300)
+
+
+class FaqIn(_Details):
+    question: str = Field(min_length=1, max_length=200)
+    answer: str = Field(min_length=1, max_length=2000)
+
+
+class _SheetDetails(_Details):
+    """
+    Fiche détaillée, commune à toutes les catégories (façon grandes boutiques en ligne) :
+    points clés, caractéristiques, questions fréquentes, garantie et retours.
+    """
+    highlights: list[str] = Field(default_factory=list, max_length=10)
+    specs: list[SpecIn] = Field(default_factory=list, max_length=30)
+    faq: list[FaqIn] = Field(default_factory=list, max_length=15)
+    guarantee: str = Field(default="", max_length=2000)
+
+    @field_validator("highlights")
+    @classmethod
+    def _hl(cls, v: list[str]) -> list[str]:
+        out = [str(x).strip() for x in v if str(x or "").strip()]
+        if any(len(x) > 200 for x in out):
+            raise ValueError("Un point clé fait au plus 200 caractères.")
+        return out
+
+
 class VariantIn(_Details):
     id: Optional[str] = None
     label: str = Field(min_length=1, max_length=60)  # « M / Noir »
@@ -374,7 +429,7 @@ class ShippingOptionIn(_Details):
     delay: str = Field(default="", max_length=60)
 
 
-class PhysicalDetails(_Details):
+class PhysicalDetails(_SheetDetails):
     sku: str = Field(default="", max_length=60)
     stock: Optional[int] = Field(default=None, ge=0)  # None = non suivi
     variants: list[VariantIn] = Field(default_factory=list, max_length=100)
@@ -387,7 +442,7 @@ class PhysicalDetails(_Details):
     pickup_location: str = Field(default="", max_length=160)
 
 
-class DigitalDetails(_Details):
+class DigitalDetails(_SheetDetails):
     file_format: str = Field(default="", max_length=40)  # PDF, Figma, Notion…
     delivery_mode: Literal["download", "email_link", "account_access"] = "download"
     access_duration_days: Optional[int] = Field(default=None, ge=1, le=3650)
@@ -407,7 +462,7 @@ class DigitalDetails(_Details):
         return v
 
 
-class ServiceDetails(_Details):
+class ServiceDetails(_SheetDetails):
     duration_label: str = Field(default="", max_length=60)  # « 2 semaines »
     delay_min_days: Optional[int] = Field(default=None, ge=0, le=730)
     delay_max_days: Optional[int] = Field(default=None, ge=0, le=730)
@@ -418,7 +473,7 @@ class ServiceDetails(_Details):
     conditions: str = Field(default="", max_length=2000)
 
 
-class AppointmentDetails(_Details):
+class AppointmentDetails(_SheetDetails):
     duration_minutes: int = Field(default=60, ge=5, le=24 * 60)
     location_mode: Literal["visio", "onsite", "phone"] = "visio"
     location: str = Field(default="", max_length=160)
