@@ -1706,3 +1706,26 @@ def test_custom_font_premium_only(client, monkeypatch):
     # Retrait : adresse vide.
     r = client.patch("/kitly/me/profile", json={"theme": {"custom_font": {"url": ""}}}, headers=h)
     assert r.status_code == 200 and "custom_font" not in r.json()["profile"]["theme"]
+
+
+def test_new_plan_feature_added_once(client):
+    from app.db.database import SessionLocal
+    from app.kitly.models import KitlyAdminAction, KitlyPlan
+    from app.kitly.plans import seed_plans
+
+    line = "Ta propre police d'écriture sur ta vitrine"
+    with SessionLocal() as db:
+        # Formule en base d'avant la fonctionnalité : la ligne est ajoutée au démarrage.
+        db.query(KitlyAdminAction).filter_by(action="add_feature").delete()
+        plan = db.get(KitlyPlan, "premium")
+        plan.features = [f for f in plan.features if f != line]
+        db.commit()
+        seed_plans(db)
+        assert db.get(KitlyPlan, "premium").features.count(line) == 1
+        # Retirée ensuite depuis la console : elle ne revient pas.
+        plan = db.get(KitlyPlan, "premium")
+        plan.features = [f for f in plan.features if f != line]
+        db.commit()
+        seed_plans(db)
+        assert line not in db.get(KitlyPlan, "premium").features
+    assert line not in [f for p in client.get("/kitly/plans").json()["items"] if p["code"] != "premium" for f in p["features"]]

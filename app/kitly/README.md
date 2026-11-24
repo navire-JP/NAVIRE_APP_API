@@ -192,8 +192,9 @@ et rend `{url, format, name}`, à enregistrer dans `theme.custom_font` (`{url, n
 via `PATCH /kitly/me/profile` ; `{"custom_font": {"url": ""}}` la retire. La police s'applique quel que soit le
 template. Une formule sans `custom_font` ne peut ni importer ni enregistrer de police, et la vitrine publique
 l'ignore (elle reste enregistrée et revient si le compte repasse en Premium+). La limite est ajoutée
-automatiquement aux formules existantes au démarrage ; la ligne « Ta propre police d'écriture sur ta vitrine »
-n'apparaît dans la liste des avantages Premium+ qu'une fois ajoutée depuis la console admin (Formules).
+automatiquement aux formules existantes au démarrage, ainsi que la ligne « Ta propre police d'écriture sur ta
+vitrine » dans les avantages Premium+ (une seule fois, notée `add_feature` dans le journal admin : retirée depuis la
+console, elle ne revient pas). Mécanisme réutilisable : `FEATURE_ADDITIONS` dans `plans.py`.
 
 **Marketplace — offre de bienvenue** : tout compte de moins de `KITLY_WELCOME_MARKETPLACE_DAYS`
 jours (défaut 30, 0 = désactivé) est référencé dans la marketplace quelle que soit sa formule
