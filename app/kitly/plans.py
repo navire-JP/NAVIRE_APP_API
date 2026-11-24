@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.kitly.config import KITLY_STRIPE_PRICES
-from app.kitly.models import KitlyPlan, KitlyUser
+from app.kitly.models import KitlyAdminAction, KitlyPlan, KitlyUser
 
 PLAN_CODES = ("free", "custom", "premium")
 PAID_PLANS = ("custom", "premium")
@@ -117,17 +117,38 @@ DEFAULT_PLANS: list[dict] = [
 ]
 
 
+# Avantages ajoutés après coup aux formules déjà en base (code, clé, texte). Chacun n'est
+# inscrit qu'une fois, noté dans le journal admin (action « add_feature ») : une ligne retirée
+# ensuite depuis la console ne revient pas au démarrage suivant.
+FEATURE_ADDITIONS: list[tuple[str, str, str]] = [
+    ("premium", "custom_font", "Ta propre police d'écriture sur ta vitrine"),
+]
+
+
 def seed_plans(db: Session) -> None:
-    """Crée les formules manquantes et complète les limites absentes."""
+    """Crée les formules manquantes, complète les limites absentes et ajoute les nouveaux avantages."""
     existing = {p.code: p for p in db.execute(select(KitlyPlan)).scalars()}
     for spec in DEFAULT_PLANS:
         plan = existing.get(spec["code"])
         if plan is None:
-            db.add(KitlyPlan(**spec))
+            plan = KitlyPlan(**spec)
+            db.add(plan)
+            existing[spec["code"]] = plan
             continue
         merged = {**spec["limits"], **(plan.limits or {})}
         if merged != plan.limits:
             plan.limits = merged
+    for code, key, text in FEATURE_ADDITIONS:
+        plan, target = existing.get(code), f"{code}:{key}"
+        done = db.execute(select(KitlyAdminAction.id).where(
+            KitlyAdminAction.action == "add_feature", KitlyAdminAction.target_type == "plan",
+            KitlyAdminAction.target_id == target)).first()
+        if plan is None or done:
+            continue
+        if text not in (plan.features or []):
+            plan.features = [*(plan.features or []), text]  # nouvelle liste : SQLAlchemy détecte la modification
+        db.add(KitlyAdminAction(admin_email="système", action="add_feature", target_type="plan",
+                                target_id=target, details={"feature": text}))
     db.commit()
 
 
