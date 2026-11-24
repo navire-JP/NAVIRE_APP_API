@@ -169,7 +169,9 @@
 
 /* Cartes à halo (comme les accès de l'accueil) */
 /* Visiteur (sans compte) : aperçu de l'espace, puis « connecte-toi » */
-#nv-prepa .np-guest-hero { padding: 36px 4px 18px; }
+#nv-prepa .np-guest-hero { padding: 16px 4px 16px; }
+#nv-prepa .np-cards.is-guest4 { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+#nv-prepa .np-card.is-guest { min-height: 0; }
 #nv-prepa .np-guest-hero .nv-grad { background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 #nv-prepa .np-guest-hero h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.6px; color: #fff; }
 #nv-prepa .np-guest-hero p { margin: 8px 0 0; max-width: 560px; font-size: 14px; line-height: 1.6; color: var(--text-2); }
@@ -1092,7 +1094,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     ];
     setPage('<div class="np-guest-hero"><h1>Ton espace <span class="nv-grad">Prépa</span></h1>' +
       '<p>Prép\'AdJuris : des cours chaque semaine avec un chargé de TD, des épreuves en conditions réelles et des copies corrigées. Tout se retrouve ici.</p></div>' +
-      '<div class="np-cards">' + feat.map(function (f) { return card({ cls: "is-guest", attrs: 'tabindex="-1"', art: f[0], titre: esc(f[1]), sous: esc(f[2]) }); }).join("") + '</div>' +
+      '<div class="np-cards is-guest4">' + feat.map(function (f) { return card({ cls: "is-guest", attrs: 'tabindex="-1"', art: f[0], titre: esc(f[1]), sous: esc(f[2]) }); }).join("") + '</div>' +
       '<div class="np-gate"><b>Connecte-toi pour voir ton espace</b><p>Déjà inscrit ? Connecte-toi pour retrouver ton calendrier, tes épreuves et tes copies. Pas encore de compte ? Crée-le gratuitement, puis découvre Prép\'AdJuris.</p>' +
       '<div class="np-gate-btns"><button class="nv-btn is-blue" data-act="login">Se connecter</button>' +
       '<button class="nv-btn" data-act="signup">Créer mon compte</button>' +
