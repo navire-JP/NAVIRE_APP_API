@@ -36,6 +36,26 @@
 | `framer/redirection_articles.html` | Site Settings → Custom Code | Renvoie les liens d'articles `/actus/NA<id>` (sinon en 404) vers `/actus?actu=NA<id>` |
 | `framer/FlashcardsApp.tsx` | page Flashcards | Decks, cartes, révision, génération depuis un PDF ; charte bleu et blanc. Code File `FlashcardsApp`, le composant remplit son cadre |
 
+## Vue visiteur (sans compte)
+
+Chaque page s'ouvre sans compte et montre une partie du contenu, puis un
+encart « Créer mon compte gratuit » / « Se connecter » pour voir la suite
+(liens : `SIGNUP_URL` = `/register`, `LOGIN_URL` = `/login`, bloc CONFIG de
+chaque embed). Limite côté affichage uniquement : l'API reste inchangée.
+
+| Page | Ce que voit le visiteur |
+|---|---|
+| Actus (`veille.html`) | Les 8 premières actus (`GUEST_SIZE`), puis « Encore N actus à découvrir ». Une actu : « L'essentiel » seul (pas l'impact, les textes cités, la source, les cours Lib). Un article : le début, en fondu |
+| Lib (`lib.html`) | Inchangé : bibliothèque parcourable, aperçu de chaque document |
+| Classement | Podium + 2 rangées (13 élèves, `GUEST`), pas de « Voir plus » ni « Ma fac » |
+| Profil | Sans `?u=` : présentation du profil NAVIRE. Profil d'un élève : visible, « Suivre » mène à l'inscription, pas de « Voir plus » sur les posts |
+| Prépa | Aperçu des quatre rubriques de l'espace, puis connexion / compte / Prép'AdJuris |
+| Ambassadeur | Présentation, simulateur de gains, aperçu du tableau de bord, conditions, puis connexion |
+| Professeurs, Abonnements, Rejoindre | Inchangés (présentation + connexion, ou pages publiques) |
+| Fichiers, Flashcards | Compte obligatoire : écran « Créer mon compte gratuit » / « Se connecter », sans aperçu |
+| QCM | Compte obligatoire (page hors de ce dépôt) |
+| NAVIRE AI (`home.html`) | Non concerné |
+
 Charte : celle de NAVIRE AI (Inter + IBM Plex Mono, fond transparent,
 panneaux blancs translucides, bouton principal blanc, états vert / jaune /
 rouge `#5BE3A3` / `#FFD166` / `#FF6B6B`), y compris dans la console, sauf

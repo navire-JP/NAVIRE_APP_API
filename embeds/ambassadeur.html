@@ -506,8 +506,30 @@
       '<div class="nv-sep">ou</div>' +
       '<button class="nv-chip" style="width:100%;justify-content:center;height:42px" data-act="google">Continuer avec Google</button>' +
       '<div class="nv-err" data-el="err"></div>' +
-      '<div style="font-size:12.5px;color:var(--text-3)">Pas encore de compte ? <button class="nv-link-btn" data-act="signup">Crée-le ici</button>, puis reviens sur cette page.</div>' +
-      '</div>', true);
+      '<div style="font-size:12.5px;color:var(--text-3)">Pas encore de compte ? Crée-le, puis reviens sur cette page.</div>' +
+      '<div style="margin-top:10px"><button class="nv-chip" style="width:100%;justify-content:center;height:42px" data-act="signup">Créer mon compte gratuit</button></div>' +
+      '</div>' + guestPreview(), true);
+    bindSim();
+  }
+  // Visiteur : ce qu'il gagnerait (simulateur) et ce que contient le tableau de bord, visible avant de se connecter
+  function guestPreview() {
+    var c = S.terms ? S.terms.commission_par_matiere_cents : 200;
+    var t = (S.terms && S.terms.conditions) || [];
+    return '<div class="nv-group-label">Combien tu peux gagner</div>' +
+      '<div class="nv-card">' +
+      '<label class="nv-field"><span>Filleuls qui s\'inscrivent : <b style="color:#fff" data-el="sim-n">' + S.sim + '</b></span><input class="nv-range" type="range" min="1" max="100" value="' + S.sim + '" data-el="sim"></label>' +
+      '<label class="nv-field"><span>Matières par filleul : <b style="color:#fff" data-el="sim-m">' + S.simMat + '</b></span><input class="nv-range" type="range" min="1" max="3" value="' + S.simMat + '" data-el="simm"></label>' +
+      '<div class="nv-sim-total"><span style="color:var(--text-3);font-size:13px">Tu gagnerais</span><b class="nv-grad" data-el="sim-v">' + eur(S.sim * S.simMat * c) + '</b></div></div>' +
+      '<div class="nv-group-label">Ton tableau de bord, une fois validé</div>' +
+      '<div class="nv-stats">' + stat("Ton lien", "Perso") + stat("Filleuls", "—") + stat("En attente", "—") + stat("Disponible", "—") + '</div>' +
+      '<div class="nv-card"><div class="nv-card-sub" style="margin:0">Ton lien personnel à partager, tes filleuls (seul leur pseudo est visible), tes gains en attente et disponibles, et le versement par virement. Connecte-toi pour candidater et y accéder.</div></div>' +
+      (t.length ? '<div class="nv-group-label">Conditions du programme</div><div class="nv-card"><ol class="nv-terms">' + t.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join("") + '</ol></div>' : '');
+  }
+  function bindSim() {
+    var sim = el("sim"), simm = el("simm"); if (!sim || !simm) return;
+    var c = S.terms ? S.terms.commission_par_matiere_cents : 200;
+    function upd() { S.sim = +sim.value; S.simMat = +simm.value; el("sim-n").textContent = S.sim; el("sim-m").textContent = S.simMat; el("sim-v").textContent = eur(S.sim * S.simMat * c); }
+    sim.addEventListener("input", upd); simm.addEventListener("input", upd);
   }
 
   // ----- Candidature -----

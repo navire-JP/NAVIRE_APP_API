@@ -168,6 +168,17 @@
 #nv-prepa .np-sec .nv-chip { height: 28px; font-size: 11.5px; padding: 0 11px; }
 
 /* Cartes à halo (comme les accès de l'accueil) */
+/* Visiteur (sans compte) : aperçu de l'espace, puis « connecte-toi » */
+#nv-prepa .np-guest-hero { padding: 36px 4px 18px; }
+#nv-prepa .np-guest-hero .nv-grad { background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#nv-prepa .np-guest-hero h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.6px; color: #fff; }
+#nv-prepa .np-guest-hero p { margin: 8px 0 0; max-width: 560px; font-size: 14px; line-height: 1.6; color: var(--text-2); }
+#nv-prepa .np-card.is-guest { cursor: default; }
+#nv-prepa .np-card.is-guest:hover { transform: none; background: var(--panel); }
+#nv-prepa .np-gate { margin-top: 18px; padding: 22px 20px; border-radius: var(--radius); background: linear-gradient(180deg, var(--blue-soft), var(--panel)); text-align: center; }
+#nv-prepa .np-gate b { display: block; font-size: 15.5px; color: #fff; margin-bottom: 4px; }
+#nv-prepa .np-gate p { margin: 0 auto; max-width: 460px; font-size: 13px; line-height: 1.6; color: var(--text-2); }
+#nv-prepa .np-gate-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 #nv-prepa .np-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 #nv-prepa .np-card { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 128px; padding: 16px; border-radius: var(--radius); border: 0; background: var(--panel); text-align: left; text-decoration: none; color: inherit; cursor: pointer; transition: background .2s, transform .2s var(--ease); animation: nv-rise .45s var(--ease) both; }
 #nv-prepa .np-card::after { content: ''; position: absolute; right: -40px; top: -40px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(122,167,255,0.16), transparent 70%); pointer-events: none; transition: transform .4s var(--ease); }
@@ -596,6 +607,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     API: "https://navire-app-api.onrender.com",
     TOKEN_KEY: "navire_token",                       // même clé que les autres embeds
     LOGIN_URL: "https://navire-ai.com/login",
+    SIGNUP_URL: "https://navire-ai.com/register",
     LIB_URL: "https://navire-ai.com/lib",              // NAVIRE Lib (?doc=ID ouvre un cours)
     FACTURES_URL: "https://navire-ai.com/profil?onglet=factures",
     ADJURIS_URL: "https://navire-ai.com/adjuris"      // présentation et inscription Prép'AdJuris
@@ -1071,7 +1083,20 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function renderLogin() {
     setTitle("Prépa");
     el("side").innerHTML = ""; el("admin").innerHTML = "";
-    setPage('<div class="nv-empty" style="padding-top:80px"><b>Ton espace Prépa</b>Connecte-toi pour retrouver ton calendrier, tes épreuves et tes copies.<div style="margin-top:16px"><button class="nv-btn is-blue" data-act="login">Se connecter</button></div></div>');
+    // Visiteur : aperçu de ce que contient l'espace, puis l'accès au compte
+    var feat = [
+      ["home-veilles", "Calendrier des cours", "Tes séances de la semaine et du mois, le lien pour rejoindre le cours en direct."],
+      ["profil-qcm", "Épreuves chronométrées", "Dissertation, commentaire, cas pratique, fiche d'arrêt en conditions réelles."],
+      ["home-fichiers", "Copies corrigées", "Tes copies annotées par ton chargé de TD, en .docx ou .pdf."],
+      ["home-cours", "Cours suivis", "Les cours NAVIRE Lib de tes matières, prêts à réviser."]
+    ];
+    setPage('<div class="np-guest-hero"><h1>Ton espace <span class="nv-grad">Prépa</span></h1>' +
+      '<p>Prép\'AdJuris : des cours chaque semaine avec un chargé de TD, des épreuves en conditions réelles et des copies corrigées. Tout se retrouve ici.</p></div>' +
+      '<div class="np-cards">' + feat.map(function (f) { return card({ cls: "is-guest", attrs: 'tabindex="-1"', art: f[0], titre: esc(f[1]), sous: esc(f[2]) }); }).join("") + '</div>' +
+      '<div class="np-gate"><b>Connecte-toi pour voir ton espace</b><p>Déjà inscrit ? Connecte-toi pour retrouver ton calendrier, tes épreuves et tes copies. Pas encore de compte ? Crée-le gratuitement, puis découvre Prép\'AdJuris.</p>' +
+      '<div class="np-gate-btns"><button class="nv-btn is-blue" data-act="login">Se connecter</button>' +
+      '<button class="nv-btn" data-act="signup">Créer mon compte</button>' +
+      '<a class="nv-chip" href="' + esc(CONFIG.ADJURIS_URL) + '" target="_top">Découvrir Prép\'AdJuris</a></div></div>');
   }
   function renderNoPrepa() {
     setTitle("Prépa");
@@ -1895,6 +1920,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       case "close-drawer": return root.classList.remove("is-drawer");
       case "pop-close": if (e.target === t || t.tagName === "BUTTON") popClose(); return;
       case "login": return go(CONFIG.LOGIN_URL);
+      case "signup": return go(CONFIG.SIGNUP_URL);
       case "vue-etudiant":
         S.voir = S.voir ? null : (load("navire_prepa_niveau") || "L1");
         store("navire_prepa_voir", S.voir);

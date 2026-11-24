@@ -56,6 +56,8 @@ type View =
 // DESIGN TOKENS (charte NAVIRE : bleu et blanc)
 // ═══════════════════════════════════════════════════════════════
 const API_BASE = "https://navire-app-api.onrender.com"
+const LOGIN_URL = "https://navire-ai.com/login"
+const SIGNUP_URL = "https://navire-ai.com/register"
 const C = {
     blue: "#7AA7FF",
     blueHi: "#B5CDFF",
@@ -1378,6 +1380,49 @@ function GeneratePdfView({
     )
 }
 
+// Visiteur (sans compte) : les flashcards sont personnelles, il faut un compte
+function goTop(url: string) {
+    try {
+        window.top!.location.href = url
+    } catch (e) {
+        window.open(url, "_blank")
+    }
+}
+function GuestGate() {
+    return (
+        <Card style={{ padding: "34px 20px", textAlign: "center" }}>
+            <div
+                style={{
+                    width: 48,
+                    height: 48,
+                    margin: "0 auto 14px",
+                    borderRadius: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: C.blueSoft,
+                    color: C.blue,
+                }}
+            >
+                <Icon d={I.cards} size={22} />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 4 }}>
+                Connecte-toi pour accéder à tes flashcards
+            </div>
+            <div style={{ fontSize: 13, color: C.text3, lineHeight: 1.6, maxWidth: 380, margin: "0 auto" }}>
+                Crée tes decks, génère des cartes depuis tes PDF et révise à ton rythme. Crée ton compte
+                gratuit ou connecte-toi.
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: 16 }}>
+                <GlassBtn variant="primary" onClick={() => goTop(SIGNUP_URL)}>
+                    Créer mon compte gratuit
+                </GlassBtn>
+                <GlassBtn onClick={() => goTop(LOGIN_URL)}>Se connecter</GlassBtn>
+            </div>
+        </Card>
+    )
+}
+
 // ═══════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════
@@ -1648,7 +1693,7 @@ export default function FlashcardsApp({ apiBase = API_BASE }: { apiBase?: string
                 </AnimatePresence>
 
                 {!token ? (
-                    <EmptyState icon={I.cards} title="Connecte-toi" text="Pour accéder à tes flashcards." />
+                    <GuestGate />
                 ) : (
                     <AnimatePresence mode="wait">
                         <motion.div
