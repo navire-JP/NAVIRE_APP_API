@@ -57,6 +57,8 @@ def vitrine_payload(db: Session, profile: KitlyProfile) -> dict:
         show_branding=not limits.get("remove_branding", False),
         has_terms=_has_terms(profile),
     )
+    if not limits.get("custom_font"):
+        payload["theme"].pop("custom_font", None)  # formule sans police perso (ex. après un passage à Custom)
     return mark_buyable(payload, profile, offers)
 
 

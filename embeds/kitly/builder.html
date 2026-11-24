@@ -211,6 +211,19 @@
   #kb .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 99px; padding: 3px; }
   #kb .seg button { border: 0; background: none; padding: 7px 14px; border-radius: 99px; font-size: 12.5px; font-weight: 700; color: var(--mut); cursor: pointer; }
   #kb .seg button.on { background: var(--ink); color: var(--paper); }
+  #kb .font-card { display: flex; gap: 14px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  #kb .font-aa { font-size: 42px; line-height: 1; width: 64px; text-align: center; flex-shrink: 0; }
+  #kb .sheet { border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; margin: 14px 0 6px; }
+  #kb .sheet > summary { cursor: pointer; font-size: 13.5px; font-weight: 800; padding: 13px 0; list-style: none; display: flex; justify-content: space-between; gap: 10px; }
+  #kb .sheet > summary::-webkit-details-marker { display: none; }
+  #kb .sheet > summary::after { content: "+"; font-size: 18px; line-height: 1; }
+  #kb .sheet[open] > summary::after { content: "–"; }
+  #kb .sheet > summary small { display: block; font-weight: 600; color: var(--mut); font-size: 12px; margin-top: 2px; }
+  #kb .sheet .field { margin-bottom: 14px; }
+  #kb .rw { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 6px; }
+  #kb .rw > input, #kb .rw .stack { min-width: 0; }
+  #kb .rw .stack { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  #kb .zones { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 
   /* barre de publication */
   #kb .pub { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 20px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--paper); }
@@ -593,7 +606,10 @@
       if (o.kind === "physical") { d.in_stock = d.stock == null || d.stock > 0; delete d.stock; }
       return Object.assign({}, o, { details: d });
     });
+    var theme = p.theme || {};
+    if (theme.custom_font && !limits().custom_font) { theme = Object.assign({}, theme); delete theme.custom_font; }
     return Object.assign({}, p, {
+      theme: theme,
       contact: { email: p.contact_email, phone: p.phone, website: p.website },
       offers: offers, portfolio: (S.portfolio || []).filter(function (x) { return x.is_visible !== false; }), legal: null,
       show_kitly_branding: !limits().remove_branding
@@ -1096,12 +1112,60 @@
       }).join("") + '</div></div>' +
       '<div class="sec"><h3>Template</h3><div class="tpls">' + tpls + '</div>' +
       (adv ? '' : '<p class="note" style="margin-top:10px">Les templates Bold et Studio, les couleurs et les typographies sont inclus à partir de Custom.</p>') + '</div>' +
-      colors +
+      colors + fontSection() +
       '<div class="sec"><h3>Forme des boutons</h3><div class="seg">' + ["pill", "rounded", "square"].map(function (s) {
         return '<button type="button" data-shape="' + s + '" class="' + (shape === s ? "on" : "") + '">' + { pill: "Pilule", rounded: "Arrondi", square: "Carré" }[s] + '</button>';
       }).join("") + '</div></div>' +
       '<div class="sec"><h3>Sections</h3><p class="lead">Ordre d\'affichage de ta vitrine.</p>' + sections + '</div>' + nav();
   };
+
+  // Police importée (Premium+) : s'applique quel que soit le template.
+  function fontSection() {
+    var th = S.profile.theme || {}, cf = th.custom_font && th.custom_font.url ? th.custom_font : null;
+    var head = '<div class="sec"><h3>Ta police d\'écriture <span class="lock">Premium+</span></h3>';
+    if (!limits().custom_font) {
+      return head + '<p class="lead">Importe la police de ta marque : elle s\'applique à toute ta vitrine et à tes fiches produits.</p>' +
+        '<button type="button" class="btn sm" data-font-upsell>Découvrir Premium+</button></div>';
+    }
+    if (!cf) {
+      return head + '<p class="lead">Importe le fichier de ta police (WOFF2, WOFF, TTF ou OTF, 3 Mo max). Vérifie que sa licence autorise l\'usage sur un site web.</p>' +
+        '<button type="button" class="btn sm dark" data-font-upload>Importer ma police</button></div>';
+    }
+    var fam = window.KitlyVitrine && window.KitlyVitrine.customFont ? window.KitlyVitrine.customFont(cf) : "";
+    var ff = fam ? "font-family:'" + fam + "',sans-serif;" : "";
+    var to = cf.apply_to || "all";
+    return head + '<div class="font-card"><div class="font-aa" style="' + ff + '">Aa</div><div class="grow" style="min-width:0">' +
+      '<input type="text" data-cf="name" maxlength="60" value="' + esc(cf.name || "") + '" placeholder="Nom de la police">' +
+      '<div class="note" style="' + ff + 'font-size:15px;color:var(--ink);margin-top:8px">Portez ce vieux whisky au juge blond qui fume.</div></div></div>' +
+      '<label class="lb" style="margin-top:12px">Appliquer à</label><div class="seg">' + [["all", "Tout le site"], ["headings", "Titres"], ["body", "Texte"]].map(function (x) {
+        return '<button type="button" data-font-apply="' + x[0] + '" class="' + (to === x[0] ? "on" : "") + '">' + x[1] + '</button>';
+      }).join("") + '</div>' +
+      '<div class="item-l" style="gap:8px;margin-top:12px"><button type="button" class="btn sm" data-font-upload>Changer de fichier</button>' +
+      '<button type="button" class="btn sm" data-font-remove>Retirer</button></div></div>';
+  }
+  function setFont(cf) {
+    if (cf) S.profile.theme.custom_font = cf; else delete S.profile.theme.custom_font;
+    queue({ theme: { custom_font: cf || { url: "" } } }, true);
+  }
+  function pickFont() {
+    var input = document.createElement("input");
+    input.type = "file"; input.accept = ".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf";
+    input.onchange = function () {
+      var f = input.files && input.files[0];
+      if (!f) return;
+      if (f.size > 3 * 1024 * 1024) return toast("Police trop lourde (3 Mo maximum).");
+      var fd = new FormData();
+      fd.append("file", f);
+      toast("Envoi de la police…", 20000);
+      api("POST", "/me/font", fd, true).then(function (r) {
+        var prev = (S.profile.theme || {}).custom_font || {};
+        setFont({ url: r.url, name: r.name, format: r.format, apply_to: prev.apply_to || "all" });
+        renderStep(); renderPreview();
+        toast("Police importée ✓", 2000);
+      }).catch(handleError);
+    };
+    input.click();
+  }
 
   function verifyBanner() {
     if (!S.me || S.me.user.email_verified) return "";
@@ -1144,6 +1208,10 @@
         S.portfolio[pi][t.dataset.k] = t.value;
         pfSave(pi, [t.dataset.k]);
         renderPreview();
+      } else if (t.dataset.cf === "name") {
+        var cfn = Object.assign({}, S.profile.theme.custom_font, { name: t.value });
+        S.profile.theme.custom_font = cfn;
+        queue({ theme: { custom_font: cfn } });
       } else if (t.id === "kb-slug") {
         checkSlug(t);
       } else if (t.dataset.color) {
@@ -1170,6 +1238,10 @@
       else if (d.fulfill) { fulfillOrder(d.fulfill); }
       else if (d.unfulfill) { api("PATCH", "/me/orders/" + encodeURIComponent(d.unfulfill), { fulfilled: false }).then(function () { toast("Remise à traiter."); loadSales(); }).catch(function (e2) { toast(esc(e2.message)); }); }
       else if (d.stripeDash !== undefined) { api("POST", "/connect/dashboard-link").then(function (r) { openTab(r.url); }).catch(function (e2) { toast(esc(e2.message)); }); }
+      else if (d.fontUpsell !== undefined) { upsell("Ta propre police d'écriture est incluse dans la formule Premium+."); }
+      else if (d.fontUpload !== undefined) { pickFont(); }
+      else if (d.fontRemove !== undefined) { setFont(null); renderStep(); renderPreview(); }
+      else if (d.fontApply) { setFont(Object.assign({}, S.profile.theme.custom_font, { apply_to: d.fontApply })); renderStep(); renderPreview(); }
       else if (d.publish !== undefined) { togglePublish(); }
       else if (d.verify !== undefined) { openVerify(); }
       else if (d.upload) {
@@ -1392,8 +1464,74 @@
       return "";
     }
 
+    // Lignes répétables (caractéristiques, FAQ, options, livraisons).
+    // cols : [clé, texte d'aide, type (""|eur|int|hidden|area), largeur, longueur max]
+    var ROW_MAX = { specs: 30, faq: 15, variants: 100, shipping_options: 10 };
+    function rows(key, cols, items, addLabel, stack) {
+      var field = function (c, it) {
+        var v = it[c[0]];
+        if (c[2] === "eur") v = euros(v);
+        if (c[2] === "hidden") return '<input type="hidden" data-c="' + c[0] + '" value="' + esc(v || "") + '">';
+        if (c[2] === "area") return '<textarea data-c="' + c[0] + '" rows="2" maxlength="' + (c[4] || 2000) + '" placeholder="' + esc(c[1]) + '">' + esc(v || "") + '</textarea>';
+        return '<input type="text" data-c="' + c[0] + '" data-t="' + (c[2] || "") + '"' + (c[2] === "eur" ? ' inputmode="decimal"' : c[2] === "int" ? ' inputmode="numeric"' : '') +
+          ' maxlength="' + (c[4] || 300) + '" value="' + esc(v == null ? "" : v) + '" placeholder="' + esc(c[1]) + '" style="flex:' + (c[3] || 1) + '">';
+      };
+      return '<div data-rows="' + key + '">' + items.map(function (it, i) {
+        var f = cols.map(function (c) { return field(c, it); }).join("");
+        return '<div class="rw">' + (stack ? '<div class="stack">' + f + '</div>' : f) +
+          '<button type="button" class="icon-btn" data-rm-row="' + key + '" data-i="' + i + '" title="Retirer">✕</button></div>';
+      }).join("") + (items.length < ROW_MAX[key] ? '<button type="button" class="add" data-add-row="' + key + '">+ ' + addLabel + '</button>' : '') + '</div>';
+    }
+    function readRows(key) {
+      var box = bg.querySelector('[data-rows="' + key + '"]');
+      if (!box) return null;
+      return Array.prototype.map.call(box.querySelectorAll(".rw"), function (rw) {
+        var o = {};
+        Array.prototype.forEach.call(rw.querySelectorAll("[data-c]"), function (el) {
+          var t = el.dataset.t, v = el.value.trim();
+          o[el.dataset.c] = t === "eur" ? (v === "" ? null : cents(v)) : t === "int" ? (v === "" ? null : (/^\d+$/.test(v) ? parseInt(v, 10) : NaN)) : v;
+        });
+        return o;
+      });
+    }
+    // Fiche détaillée (facultative) : ce que le client voit en ouvrant l'offre.
+    function sheetFields() {
+      var d = draft.details || {};
+      var t = function (k, label, ph, type, max) {
+        return '<div class="field"><label>' + label + '</label><input type="' + (type || "text") + '" data-d="' + k + '"' + (max ? ' maxlength="' + max + '"' : '') + ' value="' + esc(d[k] == null ? "" : d[k]) + '" placeholder="' + esc(ph || "") + '"></div>';
+      };
+      var lines = function (k, label, ph, n) {
+        return '<div class="field"><label>' + label + '</label><textarea data-d="' + k + '" data-lines rows="' + (n || 4) + '" placeholder="' + esc(ph) + '">' + esc((d[k] || []).join("\n")) + '</textarea></div>';
+      };
+      var html = lines("highlights", "Points clés — un par ligne (10 max), affichés à côté du prix",
+        draft.kind === "physical" ? "Coton bio certifié\nFabriqué en France\nLavable à 30 °C" : draft.kind === "digital" ? "48 pages illustrées\nMis à jour chaque année\nAccès à vie" : "Premier échange offert\nLivraison des fichiers sources\nSuivi personnalisé");
+      if (draft.kind === "service") html += lines("deliverables", "Ce qui est inclus — un élément par ligne", "Logo principal + déclinaisons\nCharte graphique PDF\nFichiers sources", 3);
+      if (draft.kind === "physical") {
+        var zones = d.delivery_zones || [];
+        html += '<div class="row" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">' + t("sku", "Référence", "TSH-BIO-01", "text", 60) + t("weight_grams", "Poids (g)", "250", "number") + t("dimensions", "Dimensions", "30 × 20 × 5 cm", "text", 60) + '</div>' +
+          '<div class="field"><label>Options (taille, couleur…) — prix et stock facultatifs</label>' +
+          rows("variants", [["id", "", "hidden"], ["sku", "", "hidden"], ["label", "M / Noir", "", 2, 60], ["price_cents", "Prix €", "eur"], ["stock", "Stock", "int"]], d.variants || [], "Ajouter une option") + '</div>' +
+          '<div class="field"><label>Modes de livraison proposés</label>' +
+          rows("shipping_options", [["label", "Colissimo", "", 2, 60], ["price_cents", "Prix € (0 = offert)", "eur"], ["delay", "2 à 3 jours", "", 1.4, 60]], d.shipping_options || [], "Ajouter un mode de livraison") + '</div>' +
+          '<div class="field"><label>Zones de livraison</label><div class="zones">' + [["fr_metro", "France métropolitaine"], ["fr_dom_tom", "Outre-mer"], ["eu", "Union européenne"], ["world", "Monde"]].map(function (z) {
+            return '<label class="check"><input type="checkbox" data-zone="' + z[0] + '"' + (zones.indexOf(z[0]) >= 0 ? " checked" : "") + '>' + z[1] + '</label>';
+          }).join("") + '</div></div>' +
+          t("pickup_location", "Lieu de retrait (si retrait sur place)", "Atelier, 12 rue des Lilas, Lyon", "text", 160);
+      }
+      if (draft.kind === "digital") html += '<div class="row">' + t("access_duration_days", "Durée d'accès (jours, vide = illimitée)", "365", "number") + t("license", "Licence", "Usage personnel et commercial", "text", 300) + '</div>';
+      if (draft.kind === "appointment") html += t("location", "Adresse ou précision sur le lieu", "Cabinet, 4 place Bellecour, Lyon", "text", 160);
+      html += '<div class="field"><label>Caractéristiques (tableau de la fiche)</label>' +
+        rows("specs", [["label", "Matière", "", 1, 60], ["value", "Coton biologique 180 g/m²", "", 2, 300]], d.specs || [], "Ajouter une caractéristique") + '</div>' +
+        '<div class="field"><label>Questions fréquentes</label>' +
+        rows("faq", [["question", "Question (ex. Quels sont les délais ?)", "", 1, 200], ["answer", "Réponse", "area", 1, 2000]], d.faq || [], "Ajouter une question", true) + '</div>' +
+        '<div class="field"><label>Garantie et retours</label><textarea data-d="guarantee" rows="3" maxlength="2000" placeholder="Retours acceptés sous 14 jours, produit non porté. Garantie légale de conformité de 2 ans.">' + esc(d.guarantee || "") + '</textarea></div>';
+      var filled = (d.highlights || []).length || (d.specs || []).length || (d.faq || []).length || d.guarantee || (d.variants || []).length || (d.shipping_options || []).length || d.sku || d.weight_grams || d.dimensions;
+      return '<details class="sheet" data-sheet' + (filled || draft._sheetOpen ? " open" : "") + '><summary><span>Fiche détaillée<small>Points clés, caractéristiques, options, livraison, FAQ, garantie</small></span></summary>' + html + '</details>';
+    }
+
     function form() {
       var meta = KIND_META[draft.kind];
+      var prevModal = bg.querySelector(".modal"), keepScroll = prevModal ? prevModal.scrollTop : 0;
       var maxImg = limits().images_per_offer || 3;
       var ctas = CTA_BY_KIND[draft.kind];
       bg.innerHTML = '<div class="modal"><button type="button" class="icon-btn x" data-close>✕</button>' +
@@ -1410,7 +1548,7 @@
         '<div class="field"><label>Bouton client</label><select data-o="cta">' + ctas.map(function (c) {
           return '<option value="' + c + '"' + (draft.cta === c ? " selected" : "") + '>' + CTA_LABEL[c] + (c === "book" && !limits().appointments ? " (Custom)" : "") + '</option>';
         }).join("") + '</select></div></div>' +
-        detailFields() +
+        detailFields() + sheetFields() +
         '<div class="field"><label class="lb">Images (' + draft.images.length + '/' + maxImg + ')</label><div class="imgs">' +
         draft.images.map(function (u, i) { return '<div class="img-th" style="background-image:' + cssUrl(u) + '"><button type="button" data-rm-img="' + i + '">✕</button></div>'; }).join("") +
         (draft.images.length < maxImg ? '<button type="button" class="img-add" data-add-img>+</button>' : '') + '</div></div>' +
@@ -1432,6 +1570,24 @@
       if (addImg) addImg.onclick = function () { readForm(); pickFile("offer", function (url) { draft.images.push(url); form(); }); };
       bg.querySelectorAll("[data-rm-img]").forEach(function (b) { b.onclick = function () { readForm(); draft.images.splice(+b.dataset.rmImg, 1); form(); }; });
       bg.querySelector("[data-save]").onclick = save;
+      var sheet = bg.querySelector("[data-sheet]");
+      if (sheet) sheet.addEventListener("toggle", function () { draft._sheetOpen = sheet.open; });
+      bg.querySelectorAll("[data-add-row]").forEach(function (b) {
+        b.onclick = function () {
+          readForm();
+          var k = b.dataset.addRow;
+          draft.details[k] = (draft.details[k] || []).concat([k === "shipping_options" ? { label: "", price_cents: null, delay: "" } : {}]);
+          draft._sheetOpen = true;
+          form();
+          var box = bg.querySelector('[data-rows="' + k + '"]'), rws = box ? box.querySelectorAll(".rw") : [];
+          var last = rws[rws.length - 1], inp = last && last.querySelector('input[type="text"]');
+          if (inp) inp.focus();
+        };
+      });
+      bg.querySelectorAll("[data-rm-row]").forEach(function (b) {
+        b.onclick = function () { readForm(); draft.details[b.dataset.rmRow].splice(+b.dataset.i, 1); form(); };
+      });
+      if (keepScroll) bg.querySelector(".modal").scrollTop = keepScroll;
     }
 
     function readForm() {
@@ -1443,19 +1599,45 @@
       var d = Object.assign({}, draft.details || {});
       bg.querySelectorAll("[data-d]").forEach(function (el) {
         var k = el.dataset.d;
-        if (el.type === "checkbox") d[k] = el.checked;
+        if (el.dataset.lines !== undefined) d[k] = el.value.split(/\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+        else if (el.type === "checkbox") d[k] = el.checked;
         else if (el.type === "number") { if (el.value === "") delete d[k]; else d[k] = parseInt(el.value, 10); }
         else d[k] = el.value;
       });
+      if (bg.querySelector("[data-zone]")) {
+        d.delivery_zones = Array.prototype.filter.call(bg.querySelectorAll("[data-zone]"), function (x) { return x.checked; }).map(function (x) { return x.dataset.zone; });
+      }
+      ["specs", "faq", "variants", "shipping_options"].forEach(function (k) { var r = readRows(k); if (r) d[k] = r; });
       draft.details = d;
+    }
+    // Détails envoyés : lignes vides retirées, montants vérifiés.
+    function cleanDetails(d) {
+      d = Object.assign({}, d);
+      var bad = "", nan = function (v) { return typeof v === "number" && isNaN(v); };
+      if (d.specs) d.specs = d.specs.filter(function (x) { return x.label && x.value; });
+      if (d.faq) d.faq = d.faq.filter(function (x) { return x.question && x.answer; });
+      if (d.variants) d.variants = d.variants.filter(function (x) { return x.label; }).map(function (x) {
+        if (nan(x.price_cents) || nan(x.stock)) bad = "Option « " + x.label + " » : prix ou stock invalide.";
+        var v = { label: x.label, sku: x.sku || "", price_cents: x.price_cents, stock: x.stock };
+        if (x.id) v.id = x.id;
+        return v;
+      });
+      if (d.shipping_options) d.shipping_options = d.shipping_options.filter(function (x) { return x.label; }).map(function (x) {
+        if (nan(x.price_cents)) bad = "Livraison « " + x.label + " » : prix invalide.";
+        return { label: x.label, price_cents: x.price_cents == null ? 0 : x.price_cents, delay: x.delay || "" };
+      });
+      if (bad) throw new Error(bad);
+      return d;
     }
 
     function save() {
       readForm();
       var err = bg.querySelector("#kb-offer-err");
       if (!draft.title) { err.textContent = "Donne un titre à ton offre."; return; }
+      var details;
+      try { details = cleanDetails(draft.details); } catch (e0) { err.textContent = e0.message; return; }
       var body = { kind: draft.kind, title: draft.title, description: draft.description, price_mode: draft.price_mode,
-                   badge: draft.badge, cta: draft.cta, images: draft.images, details: draft.details, status: draft.status };
+                   badge: draft.badge, cta: draft.cta, images: draft.images, details: details, status: draft.status };
       if (draft.price_mode === "fixed" || draft.price_mode === "range") {
         var p = cents(draft._price), pm = cents(draft._price_max);
         if (p === null || isNaN(p)) { err.textContent = "Indique un prix valide."; return; }
