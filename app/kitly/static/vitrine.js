@@ -1070,6 +1070,31 @@
       }, function () { throw new Error("Connexion impossible, réessaie."); });
     }
 
+    // Header du site (Framer, fixé en haut de la page parente) : hauteur qu'il recouvre en haut de
+    // la partie visible de l'embed. Les fiches et la visionneuse commencent en dessous, pour que la
+    // croix de fermeture reste visible et cliquable.
+    function headerInset() {
+      if (!frameEl) return 0;
+      try {
+        var d = HOST.document, fr = frameEl.getBoundingClientRect(), w = HOST.innerWidth, bottom = 0;
+        [w / 2, 24, w - 24].forEach(function (x) {
+          var els = d.elementsFromPoint(x, 4);
+          for (var i = 0; i < els.length; i++) {
+            for (var n = els[i]; n && n !== d.body && n !== d.documentElement; n = n.parentElement) {
+              if (n === frameEl || n.contains(frameEl)) break;
+              var pos = HOST.getComputedStyle(n).position;
+              if (pos === "fixed" || pos === "sticky") {
+                var b = n.getBoundingClientRect().bottom;
+                if (b > bottom && b < HOST.innerHeight * 0.4) bottom = b;
+                break;
+              }
+            }
+          }
+        });
+        return Math.max(0, Math.round(bottom - Math.max(0, fr.top)));
+      } catch (e) { return 0; }
+    }
+
     function modal(html, onClose, cls) {
       var bg = document.createElement("div");
       bg.className = "kv-mbg";
@@ -1079,7 +1104,11 @@
       // Dans une iframe qui prend toute la hauteur du contenu (embed Framer), la
       // modale est placée sur la partie visible de la page, et la page est figée.
       var vp = opts.frameViewport ? opts.frameViewport() : null;
-      if (vp) { bg.style.position = "absolute"; bg.style.top = vp.top + "px"; bg.style.height = vp.height + "px"; bg.style.bottom = "auto"; }
+      if (vp) {
+        bg.style.position = "absolute"; bg.style.top = vp.top + "px"; bg.style.height = vp.height + "px"; bg.style.bottom = "auto";
+        var inset = headerInset();
+        if (inset) bg.style.paddingTop = (inset + (window.innerWidth >= 620 ? 12 : 8)) + "px";
+      }
       document.body.appendChild(bg);
       var prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
@@ -1138,7 +1167,11 @@
           '<div class="th">' + imgs.map(function (u, j) { return '<button type="button" data-j="' + j + '" aria-label="Image ' + (j + 1) + '" style="background-image:' + cssUrl(u) + '"></button>'; }).join("") + '</div>'
           : '<span class="tip">Clique sur l\'image pour zoomer</span>');
       var vp = opts.frameViewport ? opts.frameViewport() : null;
-      if (vp) { bg.style.position = "absolute"; bg.style.top = vp.top + "px"; bg.style.height = vp.height + "px"; bg.style.bottom = "auto"; }
+      if (vp) {
+        var lbInset = Math.min(headerInset(), vp.height - 200);
+        bg.style.position = "absolute"; bg.style.top = (vp.top + Math.max(0, lbInset)) + "px";
+        bg.style.height = (vp.height - Math.max(0, lbInset)) + "px"; bg.style.bottom = "auto";
+      }
       document.body.appendChild(bg);
       var stage = bg.querySelector(".stage"), img = stage.querySelector("img"), cnt = bg.querySelector(".cnt"), th = bg.querySelector(".th");
       // Ouverte par-dessus une fiche : la page est déjà figée, on ne la libère pas en fermant.
