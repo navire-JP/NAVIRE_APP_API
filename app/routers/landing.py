@@ -5,10 +5,12 @@ Public (sans compte) :
   GET /landing/hero          → 4 premiers du classement (pseudo, photo) et nombre de membres
   GET /landing/avis          → avis affichés, dans l'ordre de la console
   GET /landing/professeurs   → professeurs actifs : prénom + initiale, photo, grade, matières, bio
+  GET /landing/agenda        → séances Prép'AdJuris à venir (agenda de la console), sans lien de visio
   GET /landing/embed/hero    → embeds/landing_hero.html servi par l'API
   GET /landing/embed/avis    → embeds/landing_avis.html servi par l'API
   GET /landing/embed/features → embeds/landing_features.html servi par l'API
   GET /landing/embed/professeurs → embeds/landing_professeurs.html servi par l'API
+  GET /landing/embed/suite   → embeds/landing_suite.html (dernière actu, emploi du temps) servi par l'API
 
 Console (admin, onglet « Avis ») :
   GET    /admin/avis         → tous les avis, masqués compris
@@ -23,9 +25,10 @@ sans vrai compte NAVIRE.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
@@ -33,8 +36,8 @@ from sqlalchemy.orm import Session
 
 from app.core.cloudinary_client import resolve_avatar_url
 from app.db.database import get_db
-from app.core.prepa_adjuris_config import PREPA_MATIERE_NAMES, PREPA_PRICES, matiere_niveau
-from app.db.models import LandingAvis, PrepaAdjurisProfesseur, User
+from app.core.prepa_adjuris_config import PREPA_MATIERE_NAMES, PREPA_NIVEAUX, PREPA_PRICES, matiere_niveau
+from app.db.models import LandingAvis, PrepaAdjurisProfesseur, PrepaAdjurisSeance, User
 from app.routers.admin_console import require_admin
 
 router = APIRouter(tags=["landing"])
@@ -171,6 +174,46 @@ def landing_professeurs(db: Session = Depends(get_db)):
     return {"items": items}
 
 
+@router.get("/landing/agenda")
+def landing_agenda(jours: int = Query(default=28, ge=1, le=90), db: Session = Depends(get_db)):
+    """
+    Emploi du temps public de la Prép'AdJuris : les séances prévues dans la
+    console (onglet agenda) sur les `jours` à venir. Séances annulées exclues.
+    Jamais de lien de visio : il reste réservé aux inscrits (espace Prépa).
+    """
+    maintenant = datetime.now(timezone.utc)
+    rows = db.execute(
+        select(PrepaAdjurisSeance)
+        .where(
+            PrepaAdjurisSeance.statut != "annulee",
+            # séance en cours comprise : début jusqu'à 3 h avant maintenant
+            PrepaAdjurisSeance.date_debut >= maintenant - timedelta(hours=3),
+            PrepaAdjurisSeance.date_debut < maintenant + timedelta(days=jours),
+        )
+        .order_by(PrepaAdjurisSeance.date_debut, PrepaAdjurisSeance.id)
+    ).scalars().all()
+
+    def utc(dt: datetime) -> datetime:
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+    items = []
+    for s in rows:
+        debut = utc(s.date_debut)
+        fin = debut + timedelta(minutes=int(s.duree_minutes or 60))
+        if fin <= maintenant:
+            continue
+        items.append({
+            "id": s.id,
+            "niveau": s.niveau,
+            "matiere": PREPA_MATIERE_NAMES.get(s.matiere_key, "") if s.matiere_key else "",
+            "titre": (s.titre or "").strip(),
+            "date_debut": debut.isoformat(),
+            "duree_minutes": int(s.duree_minutes or 60),
+            "en_cours": debut <= maintenant < fin,
+        })
+    return {"niveaux": list(PREPA_NIVEAUX), "items": items}
+
+
 @router.get("/landing/embed/hero", response_class=HTMLResponse, include_in_schema=False)
 def embed_hero():
     return _embed("landing_hero.html", "NAVIRE")
@@ -184,6 +227,11 @@ def embed_avis():
 @router.get("/landing/embed/features", response_class=HTMLResponse, include_in_schema=False)
 def embed_features():
     return _embed("landing_features.html", "Fonctionnalités NAVIRE", fond="#f6f7fb")
+
+
+@router.get("/landing/embed/suite", response_class=HTMLResponse, include_in_schema=False)
+def embed_suite():
+    return _embed("landing_suite.html", "NAVIRE", fond="#ffffff")
 
 
 @router.get("/landing/embed/professeurs", response_class=HTMLResponse, include_in_schema=False)
