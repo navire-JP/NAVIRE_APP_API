@@ -12,8 +12,10 @@
       voile de verre flou avec Sources officielles, NAVIRE AI et NAVIRE Lib.
       Sur téléphone, l'embed prend la hauteur de son contenu : rien ne défile
       à l'intérieur, c'est la page qui défile ; une flèche ramène en haut.
-  Hauteur (ordinateur) : l'embed prend toute la hauteur de l'écran sous sa
-  position (sous le header du site) ; seul le contenu défile.
+  Hauteur (ordinateur aussi) : l'embed prend la hauteur de son contenu (au
+  moins l'écran) ; c'est la page du site qui défile. Ordinateur : pas de
+  barre du haut, un dock de boutons fixe en bas de l'écran (menu, retour,
+  recherche, écrire), comme NAVIRE Lib.
 
   Chaque actu affiche qui l'a postée (photo, pseudo, rôle : Équipe NAVIRE,
   Professeur, Étudiant — champ `author` de l'API) ; un clic sur l'auteur
@@ -509,11 +511,11 @@
 #nv-news .nv-pop-item .nv-pop-check { width: 15px; height: 15px; color: #fff; }
 #nv-news .nv-pop-sep { height: 6px; }
 #nv-news .nv-pop .nv-goal { padding: 10px 12px 8px; }
-/* Téléphone : l'embed a la hauteur de son contenu, c'est la page qui défile */
-#nv-news.is-compact { height: auto !important; overflow: visible; }
-#nv-news.is-compact .nv-main { min-height: inherit; }
-#nv-news.is-compact .nv-content { flex: none; overflow: visible; }
-#nv-news.is-compact .nv-toasts { bottom: auto; }
+/* Téléphone et ordinateur : l'embed a la hauteur de son contenu, c'est la page qui défile */
+#nv-news { height: auto !important; overflow: visible; }
+#nv-news .nv-main { min-height: inherit; }
+#nv-news .nv-content { flex: none; overflow: visible; }
+#nv-news .nv-toasts { bottom: auto; }
 @keyframes nv-popfade { from { opacity: 0; } }
 @keyframes nv-pop { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
 
@@ -682,8 +684,8 @@
     var win = HOST || window;
     var top = anchorTop();
     var h = Math.max(460, Math.round(win.innerHeight - top - 12));
-    if (isPhone()) {
-      // Téléphone : hauteur du contenu (au moins l'écran), sans défilement interne
+    if (true) {
+      // Téléphone et ordinateur : hauteur du contenu (au moins l'écran), sans défilement interne
       root.style.minHeight = h + 'px';
       h = Math.max(h, Math.ceil(root.scrollHeight));
       if (!frameEl && FRAMED) { try { window.parent.postMessage({ type: 'NAVIRE_EMBED_HEIGHT', height: h }, '*'); } catch (e) {} }
@@ -739,7 +741,7 @@
     if (!upBtn) return;
     var win = HOST || window;
     var r = (frameEl || root).getBoundingClientRect();
-    var on = isPhone() && r.top < -win.innerHeight * 0.8 && r.bottom > win.innerHeight * 0.5;
+    var on = r.top < -win.innerHeight * 0.8 && r.bottom > win.innerHeight * 0.5;
     upBtn.style.opacity = on ? '1' : '0';
     upBtn.style.transform = on ? 'none' : 'translateY(10px) scale(.9)';
     upBtn.style.pointerEvents = on ? 'auto' : 'none';
@@ -806,7 +808,7 @@
     t.className = 'nv-toast' + (kind ? ' is-' + kind : '');
     t.textContent = msg;
     var box = el('toasts');
-    if (isPhone()) { var v = viewBox(); box.style.top = Math.max(0, v.top + v.h - 80) + 'px'; } else box.style.top = '';
+    var v = viewBox(); box.style.top = Math.max(0, v.top + v.h - 80) + 'px';
     box.appendChild(t);
     setTimeout(function () { t.remove(); }, 2900);
   }
@@ -943,7 +945,7 @@
   }
 
   // ================= RESPONSIVE =================
-  var refit = null;
+  var refit = null, lastW = 0;
   function updateLayout() {
     var compact = root.clientWidth < 760;
     root.classList.toggle('is-compact', compact);
@@ -955,6 +957,8 @@
     if (!compact) { root.classList.remove('is-drawer'); closePop(); }
     sizeApp(); paintUp();
     // La place a changé : on recalcule combien d'actus tiennent à l'écran
+    if (root.clientWidth === lastW) return;   // la hauteur seule a changé : rien à recalculer
+    lastW = root.clientWidth;
     clearTimeout(refit);
     refit = setTimeout(function () { if (state.view === 'list' && state.items.length && !state.loading) renderList(); }, 350);
   }
@@ -962,7 +966,7 @@
     new ResizeObserver(updateLayout).observe(root);
     // Téléphone : l'embed suit la hauteur de son contenu
     var sizing = 0;
-    new ResizeObserver(function () { cancelAnimationFrame(sizing); sizing = requestAnimationFrame(function () { if (isPhone()) sizeApp(); }); }).observe(content);
+    new ResizeObserver(function () { cancelAnimationFrame(sizing); sizing = requestAnimationFrame(function () { sizeApp(); }); }).observe(content);
   }
   else window.addEventListener('resize', updateLayout);
   updateLayout();
@@ -1076,7 +1080,7 @@
     state.view = view;
     content.innerHTML = '<div class="nv-inner' + (view === 'list' ? ' is-list' : '') + '">' + html + '</div>';
     content.scrollTop = 0;
-    if (isPhone()) scrollToTop(false);
+    scrollToTop(false);
     root.classList.remove('is-drawer');
     closePop();
     markNav();
@@ -1264,7 +1268,8 @@
     var box = el('list'); if (!box) return;
     var cards = [].slice.call(box.querySelectorAll('.nv-card, .nv-feature'));
     // Téléphone : la liste défile normalement, une page entière à la fois
-    if (root.classList.contains('is-compact')) { state.shown = cards.length; return; }
+    // La page défile (téléphone et ordinateur) : toute la page d'actus s'affiche.
+    state.shown = cards.length; return;
     var limit = content.getBoundingClientRect().bottom - 72;   // place du bouton + marge du bas
     var shown = 0;
     for (var i = 0; i < cards.length; i++) {
@@ -1296,7 +1301,7 @@
     state.starts.push(state.start);
     state.start += Math.max(1, state.shown);
     content.scrollTop = 0;
-    if (isPhone()) scrollToTop(true);
+    scrollToTop(true);
     if (state.start + PAGE_SIZE > state.items.length && state.hasMore) loadPage();
     else renderList();
   }
@@ -1304,7 +1309,7 @@
     if (!state.starts.length) return;
     state.start = state.starts.pop();
     content.scrollTop = 0;
-    if (isPhone()) scrollToTop(true);
+    scrollToTop(true);
     renderList();
   }
 
@@ -1983,5 +1988,85 @@
     if (side && root.contains(side) && e.target.closest("a[href], button, [data-view], [data-filter], [data-tab], [role='button']")) setTimeout(function () { setOpen(false); }, 0);
   }, true);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !compact()) setOpen(false); });
+})();
+</script>
+
+<style>
+/* ================= ORDINATEUR : PAS DE BARRE DU HAUT ================= */
+/* Ses boutons passent dans un dock fixe en bas de l'écran (voir DOCK). */
+#nv-news:not(.is-compact) .nv-topbar { display: none !important; }
+#nv-news:not(.is-compact) .nv-content { padding-top: 14px; padding-bottom: 90px; }
+</style>
+<script>
+/* DOCK : boutons fixes en bas de l'écran (ordinateur), posés sur la page du site.
+   Menu, retour (actu ouverte), recherche, écrire. Ils déclenchent les boutons
+   d'origine de l'embed, qui gardent toute leur logique. */
+(function () {
+  var root = document.getElementById("nv-news");
+  if (!root || root.__nvDock) return;
+  root.__nvDock = true;
+  var HOST = null, frameEl = null;
+  try { if (window.self !== window.top && window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+  var W = HOST || window, home = W.document;
+  var CSS = ".nv-news-dock{position:fixed;left:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:2147482999;display:flex;gap:2px;padding:5px;border-radius:16px;background:rgba(20,22,34,0.94);-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);box-shadow:0 10px 30px rgba(0,0,0,0.35),inset 0 0 0 1px rgba(255,255,255,0.08);transition:opacity .2s,transform .2s}" +
+    ".nv-news-dock.is-hidden{opacity:0;transform:translateY(8px);pointer-events:none}" +
+    ".nv-news-dock button{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:11px;background:transparent;color:rgba(255,255,255,0.8);cursor:pointer;padding:0;margin:0;transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent}" +
+    ".nv-news-dock button[hidden]{display:none}" +
+    ".nv-news-dock button:hover{background:rgba(255,255,255,0.1);color:#fff}" +
+    ".nv-news-dock button.is-on{color:#7AA7FF}" +
+    ".nv-news-dock svg{width:19px;height:19px;display:block}" +
+    ".nv-news-dock img{width:19px;height:19px;object-fit:contain;display:block}";
+  function svg(p) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>'; }
+  var ICONS = {
+    menu: svg('<path d="M4 7h16M4 12h16M4 17h10"/>'),
+    back: svg('<path d="m15 18-6-6 6-6"/>'),
+    search: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
+    write: svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>')
+  };
+  try { if (!home.getElementById("nv-news-dock-css")) { var s = home.createElement("style"); s.id = "nv-news-dock-css"; s.textContent = CSS; home.head.appendChild(s); } } catch (e) { return; }
+  function orig(sel) { return root.querySelector(sel); }
+  var ACTS = {
+    menu: function () { var b = orig('.nv-topbar [data-act="open-drawer"]'); if (b) b.click(); },
+    back: function () { var b = orig('[data-el="content"] [data-act="back"]'); if (b) b.click(); },
+    search: function () { var b = orig('.nv-topbar [data-act="search"]'); if (b) b.click(); },
+    write: function () { var b = orig('.nv-topbar [data-act="write"]'); if (b) b.click(); }
+  };
+  var LABELS = { menu: "Menu", back: "Retour", search: "Rechercher", write: "Écrire un article" };
+  var dock = home.createElement("div"), btn = {};
+  dock.className = "nv-news-dock is-hidden";
+  ["menu", "back", "search", "write"].forEach(function (k) {
+    var b = home.createElement("button");
+    b.type = "button"; b.title = LABELS[k]; b.setAttribute("aria-label", LABELS[k]);
+    b.innerHTML = ICONS[k];
+    b.addEventListener("click", function () { ACTS[k](); setTimeout(sync, 0); });
+    btn[k] = b; dock.appendChild(b);
+  });
+  home.body.appendChild(dock);
+  // Icône « Articles » de l'embed pour le bouton Écrire, si elle est chargée.
+  function writeIcon() {
+    var im = orig('.nv-topbar img[data-art-ic]');
+    if (im && im.src && !btn.write.querySelector("img")) btn.write.innerHTML = '<img src="' + im.src + '" alt="" aria-hidden="true">';
+  }
+  function drop() { try { dock.remove(); } catch (e) {} }
+  window.addEventListener("pagehide", drop);
+  window.addEventListener("unload", drop);
+  function sync() {
+    if (frameEl && !frameEl.isConnected) return drop();
+    writeIcon();
+    var c = root.classList, compact = c.contains("is-compact");
+    btn.back.hidden = !orig('[data-el="content"] [data-act="back"]');
+    btn.menu.classList.toggle("is-on", c.contains("is-drawer"));
+    var r = (frameEl || root).getBoundingClientRect(), vh = W.innerHeight || 800;
+    var vis = r.width > 0 && r.bottom > 150 && r.top < vh - 90;
+    dock.style.left = Math.max(12, Math.round((frameEl ? r.left : 0) + 16)) + "px";
+    var pop = orig('[data-el="pop"]');
+    dock.classList.toggle("is-hidden", compact || !vis || c.contains("is-drawer") || c.contains("is-solo") || !!(pop && !pop.hidden));
+  }
+  var ticking = false;
+  function tick() { if (ticking) return; ticking = true; requestAnimationFrame(function () { ticking = false; sync(); }); }
+  W.addEventListener("scroll", tick, { passive: true });
+  W.addEventListener("resize", tick);
+  if (window.MutationObserver) new MutationObserver(tick).observe(root, { attributes: true, attributeFilter: ["class", "hidden"], childList: true, subtree: true });
+  setTimeout(sync, 0); setTimeout(sync, 800);
 })();
 </script>
