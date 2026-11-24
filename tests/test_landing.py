@@ -148,3 +148,28 @@ def test_professeurs(client):
     ]
     assert set(julie) == {"nom", "avatar_url", "grade", "bio", "matieres"}   # ni email ni rémunération
     assert not any(i["nom"].startswith("Paul") for i in items)               # suspendu : absent
+
+
+def test_agenda_public(client):
+    """Séances à venir de la console, sans lien de visio ; annulées et passées exclues."""
+    from datetime import datetime, timedelta, timezone
+    from app.db.database import SessionLocal
+    from app.db.models import PrepaAdjurisSeance
+
+    now = datetime.now(timezone.utc)
+    with SessionLocal() as db:
+        a = PrepaAdjurisSeance(niveau="L1", matiere_key="L1_droit_constit", titre="Séance test", date_debut=now + timedelta(days=2), duree_minutes=60, lien="https://meet.secret/xyz")
+        b = PrepaAdjurisSeance(niveau="L2", titre="Annulée", date_debut=now + timedelta(days=3), statut="annulee")
+        c = PrepaAdjurisSeance(niveau="L3", titre="Passée", date_debut=now - timedelta(days=2))
+        d = PrepaAdjurisSeance(niveau="M1", titre="En cours", date_debut=now - timedelta(minutes=10), duree_minutes=60)
+        db.add_all([a, b, c, d]); db.commit()
+        ids = {a.id: "a", b.id: "b", c.id: "c", d.id: "d"}
+    r = client.get("/landing/agenda")
+    assert r.status_code == 200
+    data = r.json()
+    vus = {ids[i["id"]]: i for i in data["items"] if i["id"] in ids}
+    assert set(vus) == {"a", "d"}
+    assert vus["d"]["en_cours"] is True and vus["a"]["en_cours"] is False
+    assert vus["a"]["matiere"] and "lien" not in vus["a"]
+    assert "secret" not in r.text
+    assert data["niveaux"] == ["L1", "L2", "L3", "M1"]

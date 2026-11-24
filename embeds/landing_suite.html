@@ -1,0 +1,303 @@
+<!--
+  NAVIRE, embed de la page d'accueil après « Fonctionnalités » (fond clair)
+  =========================================================================
+  Fond transparent : la couleur claire de la section est posée dans Framer.
+
+  Trois blocs, tous tournés vers l'inscription :
+    - Dernière actu : la plus récente de la veille (GET /veille/actus), avec
+      les deux suivantes en liens ; « Lire l'actu » ouvre Actus.
+    - Emploi du temps Prép'AdJuris : les séances prévues dans la console
+      (onglet agenda), sur les 4 semaines à venir (GET /landing/agenda),
+      filtrables par niveau. Jamais de lien de visio.
+    - Bandeau final : « Créer mon compte gratuit » et « Rejoindre Prép'AdJuris ».
+  Connecté : les boutons mènent à l'espace (accueil, Prépa) au lieu de l'inscription.
+
+  Hauteur : l'embed agrandit son iframe à la hauteur du contenu.
+  Réglages : bloc CONFIG du script.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+#nv-suite {
+  --ink: #0A0E1F;
+  --ink-2: rgba(10,14,31,0.64);
+  --ink-3: rgba(10,14,31,0.42);
+  --line: rgba(10,14,31,0.08);
+  --card: #ffffff;
+  --soft: #F4F6FC;
+  --accent: #5B6FFF;
+  --accent-soft: rgba(91,111,255,0.1);
+  --live: #12B76A;
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --L1: #5B6FFF; --L2: #0EA5E9; --L3: #F59E0B; --M1: #A855F7;
+  position: relative;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 20px 32px;
+  box-sizing: border-box;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+#nv-suite *, #nv-suite *::before, #nv-suite *::after { box-sizing: border-box; }
+#nv-suite a { color: inherit; text-decoration: none; }
+
+#nv-suite .ns-head { text-align: center; margin: 0 auto 32px; max-width: 640px; }
+#nv-suite .ns-kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--accent); }
+#nv-suite .ns-kicker i { width: 7px; height: 7px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 4px rgba(18,183,106,0.15); animation: ns-pulse 2s infinite; }
+#nv-suite .ns-head h2 { margin: 12px 0 0; font-size: clamp(28px, 4vw, 42px); line-height: 1.1; font-weight: 800; letter-spacing: -1.2px; }
+#nv-suite .ns-head p { margin: 12px 0 0; font-size: 16px; line-height: 1.55; color: var(--ink-2); }
+
+#nv-suite .ns-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: stretch; }
+#nv-suite.is-m .ns-grid { grid-template-columns: 1fr; }
+
+#nv-suite .ns-card { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 24px; border-radius: 24px; background: var(--card); box-shadow: 0 1px 2px rgba(10,14,31,0.04), 0 8px 24px rgba(10,14,31,0.06); border: 1px solid var(--line); overflow: hidden; }
+#nv-suite .ns-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 18px; }
+#nv-suite .ns-label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+#nv-suite .ns-label svg { width: 18px; height: 18px; color: var(--accent); }
+#nv-suite .ns-more { font-size: 13px; font-weight: 600; color: var(--accent); white-space: nowrap; }
+#nv-suite .ns-more:hover { text-decoration: underline; }
+
+/* Dernière actu */
+#nv-suite .ns-actu { display: block; padding: 20px; border-radius: 18px; background: linear-gradient(160deg, #EEF1FF, #F8F9FE 60%); transition: transform .25s var(--ease); }
+#nv-suite .ns-actu:hover { transform: translateY(-2px); }
+#nv-suite .ns-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); }
+#nv-suite .ns-tag { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
+#nv-suite .ns-tag.is-new { background: rgba(18,183,106,0.12); color: #0B8A50; }
+#nv-suite .ns-actu h3 { margin: 12px 0 8px; font-size: 21px; line-height: 1.25; font-weight: 750; letter-spacing: -.4px; }
+#nv-suite .ns-actu p { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#nv-suite .ns-read { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+#nv-suite .ns-read svg { width: 15px; height: 15px; transition: transform .2s; }
+#nv-suite .ns-actu:hover .ns-read svg { transform: translateX(3px); }
+#nv-suite .ns-list { margin-top: 12px; display: flex; flex-direction: column; }
+#nv-suite .ns-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-top: 1px solid var(--line); font-size: 14px; font-weight: 600; line-height: 1.35; }
+#nv-suite .ns-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#nv-suite .ns-row small { color: var(--ink-3); font-weight: 500; font-size: 12px; white-space: nowrap; }
+#nv-suite .ns-row:hover span { color: var(--accent); }
+
+/* Emploi du temps */
+#nv-suite .ns-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+#nv-suite .ns-chip { height: 32px; padding: 0 13px; border-radius: 99px; border: 1px solid var(--line); background: #fff; color: var(--ink-2); font: 600 12.5px 'Inter', sans-serif; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .15s, color .15s, border-color .15s; }
+#nv-suite .ns-chip i { width: 8px; height: 8px; border-radius: 50%; }
+#nv-suite .ns-chip.is-on { background: var(--ink); color: #fff; border-color: var(--ink); }
+#nv-suite .ns-days { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+#nv-suite .ns-seance { display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 16px; background: var(--soft); animation: ns-rise .4s var(--ease) both; }
+#nv-suite .ns-date { flex-shrink: 0; width: 52px; height: 56px; border-radius: 13px; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(10,14,31,0.06); }
+#nv-suite .ns-date small { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-3); }
+#nv-suite .ns-date b { font-size: 20px; font-weight: 800; line-height: 1.1; }
+#nv-suite .ns-info { flex: 1; min-width: 0; }
+#nv-suite .ns-info b { display: block; font-size: 14.5px; font-weight: 700; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#nv-suite .ns-info > span { display: block; margin-top: 3px; font-size: 12.5px; color: var(--ink-3); }
+#nv-suite .ns-niv { flex-shrink: 0; height: 26px; min-width: 38px; padding: 0 9px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 800; color: #fff; }
+#nv-suite .ns-live { display: inline-flex; align-items: center; gap: 5px; color: #0B8A50; font-weight: 700; }
+#nv-suite .ns-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--live); animation: ns-pulse 1.6s infinite; }
+#nv-suite .ns-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 26px 16px; border-radius: 16px; background: var(--soft); font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
+#nv-suite .ns-empty b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+#nv-suite .ns-skel { height: 80px; border-radius: 16px; background: linear-gradient(90deg, var(--soft), #EBEEF8, var(--soft)); background-size: 200% 100%; animation: ns-shimmer 1.4s linear infinite; }
+#nv-suite .ns-list, #nv-suite .ns-days { margin-bottom: 16px; }
+#nv-suite .ns-foot { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#nv-suite .ns-foot p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.45; flex: 1; min-width: 180px; }
+
+/* Boutons */
+#nv-suite .ns-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 99px; font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer; border: 0; transition: transform .15s, box-shadow .2s, background .2s; }
+#nv-suite .ns-btn svg { width: 16px; height: 16px; }
+#nv-suite .ns-btn:hover { transform: translateY(-1px); }
+#nv-suite .ns-btn.is-dark { background: var(--ink); color: #fff; box-shadow: 0 6px 18px rgba(10,14,31,0.18); }
+#nv-suite .ns-btn.is-accent { background: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(91,111,255,0.3); }
+#nv-suite .ns-btn.is-white { background: #fff; color: var(--ink); }
+#nv-suite .ns-btn.is-ghost { background: rgba(255,255,255,0.1); color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22); }
+
+/* Bandeau final */
+#nv-suite .ns-cta { position: relative; overflow: hidden; margin-top: 18px; padding: 40px 32px; border-radius: 28px; background: radial-gradient(120% 140% at 0% 0%, #2B3A9E 0%, #0A0E1F 55%); color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+#nv-suite .ns-cta::after { content: ''; position: absolute; right: -80px; top: -80px; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(122,167,255,0.35), transparent 70%); pointer-events: none; }
+#nv-suite .ns-cta-txt { position: relative; z-index: 1; max-width: 520px; }
+#nv-suite .ns-cta h3 { margin: 0; font-size: clamp(24px, 3vw, 32px); line-height: 1.15; font-weight: 800; letter-spacing: -.8px; }
+#nv-suite .ns-cta p { margin: 10px 0 0; font-size: 15px; line-height: 1.55; color: rgba(255,255,255,0.72); }
+#nv-suite .ns-cta-btns { position: relative; z-index: 1; display: flex; gap: 10px; flex-wrap: wrap; }
+#nv-suite.is-m .ns-cta { padding: 30px 22px; }
+#nv-suite.is-m .ns-cta-btns, #nv-suite.is-m .ns-cta-btns .ns-btn { width: 100%; }
+#nv-suite.is-m .ns-card { padding: 18px; }
+
+@keyframes ns-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ns-shimmer { to { background-position: -200% 0; } }
+@keyframes ns-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { #nv-suite * { animation: none !important; transition: none !important; } }
+</style>
+
+<div id="nv-suite">
+  <div class="ns-head">
+    <span class="ns-kicker"><i></i>Cette semaine sur NAVIRE</span>
+    <h2>L'actu du droit et tes cours, au même endroit</h2>
+    <p>Une veille juridique mise à jour chaque jour et des séances en direct avec un chargé de TD, chaque semaine.</p>
+  </div>
+
+  <div class="ns-grid">
+    <section class="ns-card">
+      <div class="ns-card-top">
+        <span class="ns-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>Dernière actu</span>
+        <a class="ns-more" data-el="actus-link" target="_top">Toute la veille</a>
+      </div>
+      <div data-el="actu"><div class="ns-skel" style="height:200px"></div></div>
+      <div class="ns-list" data-el="actus"></div>
+      <div class="ns-foot">
+        <p>Toute la veille, les articles des doctorants et tes actus à relire, avec ton compte gratuit.</p>
+        <a class="ns-btn is-dark" data-cta="signup" target="_top">Créer mon compte</a>
+      </div>
+    </section>
+
+    <section class="ns-card">
+      <div class="ns-card-top">
+        <span class="ns-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Emploi du temps Prép'AdJuris</span>
+        <span class="ns-more" data-el="count" style="color:var(--ink-3)"></span>
+      </div>
+      <div class="ns-chips" data-el="chips"></div>
+      <div class="ns-days" data-el="agenda"><div class="ns-skel"></div><div class="ns-skel"></div><div class="ns-skel"></div></div>
+      <div class="ns-foot">
+        <p>Une séance par semaine et par matière, en direct sur Discord, avec copies corrigées.</p>
+        <a class="ns-btn is-accent" data-cta="adjuris" target="_top">Réserver ma place</a>
+      </div>
+    </section>
+  </div>
+
+  <div class="ns-cta">
+    <div class="ns-cta-txt">
+      <h3 data-el="cta-title">Prêt à réussir ton année ?</h3>
+      <p data-el="cta-sub">Crée ton compte gratuit en une minute : cours NAVIRE Lib, veille, QCM et classement. Passe à la Prép'AdJuris quand tu veux.</p>
+    </div>
+    <div class="ns-cta-btns">
+      <a class="ns-btn is-white" data-cta="signup" target="_top">Créer mon compte gratuit<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      <a class="ns-btn is-ghost" data-cta="adjuris" target="_top">Rejoindre Prép'AdJuris</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",
+    SIGNUP_URL: "https://navire-ai.com/register",
+    ADJURIS_URL: "https://navire-ai.com/adjuris",
+    ACTUS_URL: "https://navire-ai.com/actus",       // ?actu=ID ouvre une actu
+    APP_URL: "https://navire-ai.com/home",          // connecté : « Accéder à mon espace »
+    PREPA_URL: "https://navire-ai.com/prepa",       // connecté : espace Prépa
+    JOURS: 28,                                      // emploi du temps : jours à venir
+    MAX_SEANCES: 5                                  // séances affichées
+  };
+  var NIV_COLORS = { L1: "var(--L1)", L2: "var(--L2)", L3: "var(--L3)", M1: "var(--M1)" };
+
+  var root = document.getElementById("nv-suite");
+  function el(n) { return root.querySelector('[data-el="' + n + '"]'); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function api(path) { return fetch(CONFIG.API + path).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
+  var token = ""; try { token = localStorage.getItem(CONFIG.TOKEN_KEY) || ""; } catch (e) {}
+
+  // ---- Boutons : inscription (visiteur) ou espace (connecté)
+  root.querySelectorAll('[data-cta="signup"]').forEach(function (a) {
+    a.href = token ? CONFIG.APP_URL : CONFIG.SIGNUP_URL;
+    if (token) a.firstChild.textContent = a.closest(".ns-cta") ? "Accéder à mon espace" : "Ouvrir la veille";
+    if (token && !a.closest(".ns-cta")) a.href = CONFIG.ACTUS_URL;
+  });
+  root.querySelectorAll('[data-cta="adjuris"]').forEach(function (a) { a.href = CONFIG.ADJURIS_URL; });
+  el("actus-link").href = CONFIG.ACTUS_URL;
+  if (token) { el("cta-title").textContent = "Continue sur ta lancée"; el("cta-sub").textContent = "Tes cours, ta veille et tes QCM t'attendent dans ton espace NAVIRE."; }
+
+  // ---- Dates
+  var JOURS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+  var MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  function hhmm(d) { return String(d.getHours()).padStart(2, "0") + "h" + String(d.getMinutes()).padStart(2, "0"); }
+  function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  function dayLabel(d) {
+    var now = new Date(), tom = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    if (sameDay(d, now)) return "Aujourd'hui";
+    if (sameDay(d, tom)) return "Demain";
+    var s = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function rel(iso) {
+    var d = new Date(iso), diff = (Date.now() - d.getTime()) / 3600000;
+    if (isNaN(diff)) return "";
+    if (diff < 1) return "à l'instant";
+    if (diff < 24) return "il y a " + Math.floor(diff) + " h";
+    if (diff < 48) return "hier";
+    return d.getDate() + " " + MOIS[d.getMonth()];
+  }
+  function actuUrl(it) { return CONFIG.ACTUS_URL + "?actu=" + (it.kind === "article" ? "NA" : "") + it.id; }
+
+  // ---- Dernière actu
+  api("/veille/actus?limit=4").then(function (d) {
+    var items = d.items || [];
+    if (!items.length) { el("actu").innerHTML = '<div class="ns-empty"><b>La veille arrive</b>Les premières actus seront publiées très bientôt.</div>'; return fit(); }
+    var a = items[0], fresh = (Date.now() - new Date(a.published_at).getTime()) < 48 * 3600000;
+    el("actu").innerHTML = '<a class="ns-actu" href="' + esc(actuUrl(a)) + '" target="_top">' +
+      '<div class="ns-meta">' + (a.category_label ? '<span class="ns-tag">' + esc(a.category_label) + '</span>' : '') +
+        (fresh ? '<span class="ns-tag is-new">Nouveau</span>' : '') + '<span>' + esc(rel(a.published_at)) + (a.reading_minutes ? ' · ' + a.reading_minutes + ' min de lecture' : '') + '</span></div>' +
+      '<h3>' + esc(a.title) + '</h3><p>' + esc(a.essentiel || "") + '</p>' +
+      '<span class="ns-read">Lire l\'actu<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>';
+    el("actus").innerHTML = items.slice(1).map(function (it) {
+      return '<a class="ns-row" href="' + esc(actuUrl(it)) + '" target="_top"><span>' + esc(it.title) + '</span><small>' + esc(rel(it.published_at)) + '</small></a>';
+    }).join("");
+    fit();
+  }).catch(function () { el("actu").innerHTML = '<div class="ns-empty"><b>Veille indisponible</b>Réessaie dans un instant.</div>'; fit(); });
+
+  // ---- Emploi du temps (agenda de la console)
+  var A = { items: [], niveaux: ["L1", "L2", "L3", "M1"], filtre: "" };
+  function renderChips() {
+    var present = {}; A.items.forEach(function (s) { present[s.niveau] = 1; });
+    el("chips").innerHTML = ['<button class="ns-chip' + (A.filtre ? '' : ' is-on') + '" data-niv="">Tous</button>'].concat(A.niveaux.filter(function (n) { return present[n]; }).map(function (n) {
+      return '<button class="ns-chip' + (A.filtre === n ? ' is-on' : '') + '" data-niv="' + n + '"><i style="background:' + NIV_COLORS[n] + '"></i>' + n + '</button>';
+    })).join("");
+  }
+  function renderAgenda() {
+    var list = A.items.filter(function (s) { return !A.filtre || s.niveau === A.filtre; });
+    el("count").textContent = list.length ? list.length + " séance" + (list.length > 1 ? "s" : "") + " à venir" : "";
+    if (!list.length) {
+      el("agenda").innerHTML = '<div class="ns-empty"><b>Le calendrier arrive</b>Les prochaines séances sont en cours de programmation. Réserve ta place pour être prévenu dès l\'ouverture.</div>';
+      return fit();
+    }
+    el("agenda").innerHTML = list.slice(0, CONFIG.MAX_SEANCES).map(function (s, i) {
+      var d = new Date(s.date_debut), fin = new Date(d.getTime() + s.duree_minutes * 60000);
+      var nom = s.matiere || s.titre || ("Séance " + s.niveau);
+      var sous = s.en_cours ? '<span class="ns-live"><i></i>En direct</span> · ' + hhmm(d) + ' – ' + hhmm(fin)
+        : esc(dayLabel(d)) + ' · ' + hhmm(d) + ' – ' + hhmm(fin);
+      return '<div class="ns-seance" style="animation-delay:' + i * 0.05 + 's"><div class="ns-date"><small>' + JOURS[d.getDay()] + '</small><b>' + d.getDate() + '</b></div>' +
+        '<div class="ns-info"><b>' + esc(nom) + '</b><span>' + sous + '</span></div>' +
+        '<span class="ns-niv" style="background:' + (NIV_COLORS[s.niveau] || "var(--accent)") + '">' + esc(s.niveau) + '</span></div>';
+    }).join("");
+    fit();
+  }
+  api("/landing/agenda?jours=" + CONFIG.JOURS).then(function (d) {
+    A.items = d.items || []; A.niveaux = d.niveaux || A.niveaux;
+    renderChips(); renderAgenda();
+  }).catch(function () { A.items = []; renderChips(); renderAgenda(); });
+  root.addEventListener("click", function (e) {
+    var c = e.target.closest("[data-niv]"); if (!c) return;
+    A.filtre = c.getAttribute("data-niv"); renderChips(); renderAgenda();
+  });
+
+  // ---- Mise en page : téléphone sous 760 px de large
+  function layout() { root.classList.toggle("is-m", root.clientWidth < 760); }
+  if (window.ResizeObserver) new ResizeObserver(function () { layout(); fit(); }).observe(root); else window.addEventListener("resize", layout);
+  layout();
+
+  // ---- Hauteur du contenu : l'embed agrandit son iframe
+  var framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
+  var frame = null, wraps = [], host = null;
+  if (framed) {
+    var st = document.createElement("style"); st.textContent = "html,body{margin:0;background:transparent;overflow:hidden}"; document.head.appendChild(st);
+    try { if (window.frameElement && window.parent.document) { host = window.parent; frame = window.frameElement; } } catch (e) {}
+    if (frame) for (var n = frame.parentElement, i = 0; n && i < 4 && n !== host.document.body; i++, n = n.parentElement) wraps.push(n);
+  }
+  var lastH = 0;
+  function fit() {
+    if (!framed) return;
+    var h = Math.ceil(root.getBoundingClientRect().height + root.offsetTop + 2);
+    if (Math.abs(h - lastH) < 2) return;
+    lastH = h;
+    if (frame) { frame.style.height = h + "px"; wraps.forEach(function (w) { if (w.childElementCount === 1) w.style.minHeight = h + "px"; }); }
+    else { try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {} }
+  }
+  window.addEventListener("load", fit);
+})();
+</script>
