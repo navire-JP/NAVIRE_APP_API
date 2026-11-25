@@ -6,7 +6,9 @@
 
   Professeurs → GET /landing/professeurs : professeurs actifs de la console
                 (onglet « Prof. ») : prénom + initiale, photo et bio du compte,
-                grade, matières des groupes actifs. Rangée de cartes qui défile
+                grade, matières des groupes actifs. Professeur avec une fiche
+                publique : la carte ouvre sa fiche (/professeurs#slug, champ
+                `lien`), avec « Voir la fiche ». Rangée de cartes qui défile
                 sur le côté (glisser sur téléphone, flèches sur ordinateur).
                 Aucun professeur : seule la partie recrutement s'affiche.
   Recrutement → étapes du bloc CONFIG (RECRUTEMENT), en 4 colonnes sur
@@ -92,6 +94,9 @@
   border-radius: 22px; border: 1px solid var(--line);
   background: var(--card); box-shadow: var(--shadow);
 }
+#nv-profs a.np-card { color: inherit; text-decoration: none; transition: transform .2s ease, border-color .2s ease; }
+#nv-profs a.np-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+#nv-profs .np-more { margin-top: auto; font-size: 13px; font-weight: 600; color: var(--accent); }
 #nv-profs .np-top { display: flex; align-items: center; gap: 14px; min-width: 0; }
 #nv-profs .np-av {
   width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
@@ -240,13 +245,14 @@
     var mats = (p.matieres || []).map(function (m) {
       return '<span class="np-mat"><b>' + esc(m.niveau) + "</b>" + esc(m.nom) + "</span>";
     }).join("");
-    return '<article class="np-card">'
+    var lien = /^https?:\/\//i.test(p.lien || "") ? p.lien : "";
+    return (lien ? '<a class="np-card" href="' + esc(lien) + '" target="_top">' : '<article class="np-card">')
       + '<div class="np-top">' + av + '<div style="min-width:0"><div class="np-name">' + esc(nom) + "</div>"
       + (p.grade ? '<span class="np-grade">' + CHECK + esc(p.grade) + "</span>" : "")
       + "</div></div>"
       + (p.bio ? '<p class="np-bio">' + esc(p.bio) + "</p>" : "")
       + (mats ? '<div class="np-mats">' + mats + "</div>" : "")
-      + "</article>";
+      + (lien ? '<span class="np-more">Voir la fiche →</span></a>' : "</article>");
   }
 
   function updateArrows() {

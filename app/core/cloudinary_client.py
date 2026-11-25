@@ -85,6 +85,30 @@ def upload_avatar(file_bytes: bytes, user_id: int) -> str:
     )
     return result["secure_url"]
 
+PROF_PHOTO_FOLDER = "navire/professeurs"
+
+
+def upload_photo_prof(file_bytes: bytes, professeur_id: int, cle: str) -> str:
+    """
+    Photo de la fiche publique d'un professeur : carré 600x600 recadré sur le
+    visage. Un public_id par envoi (prof_<id>_<cle>) et non un id fixe : la
+    fiche publiée doit garder son ancienne photo tant qu'un admin n'a pas
+    validé le nouveau brouillon. Écraser l'image la changerait en ligne.
+    """
+    result = cloudinary.uploader.upload(
+        file_bytes,
+        folder=PROF_PHOTO_FOLDER,
+        public_id=f"prof_{professeur_id}_{cle}",
+        overwrite=False,
+        resource_type="image",
+        transformation=[
+            {"width": 600, "height": 600, "crop": "fill", "gravity": "face"},
+            {"quality": "auto", "fetch_format": "auto"},
+        ],
+    )
+    return result["secure_url"]
+
+
 BANNER_FOLDER = "navire/banners"
 
 

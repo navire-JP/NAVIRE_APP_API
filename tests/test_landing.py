@@ -146,7 +146,8 @@ def test_professeurs(client):
         {"niveau": "L1", "nom": "Droit constitutionnel"},
         {"niveau": "L2", "nom": "Droit administratif"},
     ]
-    assert set(julie) == {"nom", "avatar_url", "grade", "bio", "matieres"}   # ni email ni rémunération
+    assert set(julie) == {"nom", "avatar_url", "grade", "bio", "matieres", "slug", "lien"}   # ni email ni rémunération
+    assert julie["slug"] is None and julie["lien"] is None                    # pas de fiche publique
     assert not any(i["nom"].startswith("Paul") for i in items)               # suspendu : absent
 
 

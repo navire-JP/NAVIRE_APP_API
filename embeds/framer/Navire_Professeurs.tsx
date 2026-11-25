@@ -6,6 +6,10 @@
 // € par étudiant et par séance), suspendre, détacher.
 // Groupes : un ou plusieurs par matière, avec le salon Discord et des liens ;
 // étudiants du groupe et changement de groupe.
+// Fiches : fiches publiques de la page Professeurs (/professeurs#slug). Le
+// professeur la remplit et la soumet ; ici on compare version en ligne et
+// brouillon, on publie ou on refuse avec un motif, on pose le badge
+// « Vérifié », on masque, on règle l'ordre du catalogue.
 // Rémunérations : tableau de pilotage, mois par mois (montant calculé, montant
 // fixé à la main, versé), et « Détail » : séance par séance, élèves, extras,
 // encaissé, part professeur et part NAVIRE au centime. Aucun lien avec Stripe : le virement se fait à la
@@ -429,7 +433,43 @@ function Ligne({
 }
 
 // ── Types ──
-type Vue = "professeurs" | "groupes" | "remunerations"
+type Vue = "professeurs" | "groupes" | "fiches" | "remunerations"
+
+interface ContenuFiche {
+    nom_complet_public: boolean
+    photo_url: string | null
+    statut_pro: string
+    poste: string
+    experience_annees: number | null
+    formation: { diplome: string; etablissement: string; annee: string }[]
+    description: string
+    linkedin_url: string | null
+}
+
+interface Fiche {
+    id: number
+    professeur_id: number
+    prenom: string
+    nom: string
+    email: string | null
+    professeur_status: string | null
+    etat: "brouillon" | "en_attente" | "publie" | "refuse"
+    motif_refus: string
+    soumis_le: string | null
+    publie_le: string | null
+    verifie_le: string | null
+    masque: boolean
+    ordre: number
+    slug: string | null
+    visible: boolean
+    lien: string | null
+    publie: ContenuFiche | null
+    brouillon: ContenuFiche | null
+    manques: string[]
+    nom_affiche: string
+    photo_url: string
+    matieres: { key: string; niveau: string; nom: string }[]
+}
 
 interface Lien {
     label: string
@@ -1770,6 +1810,211 @@ function RemunerationsPanel({ tick }: { tick: number }) {
 // Section
 // ══════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════
+// Fiches publiques
+// ══════════════════════════════════════════════════════════
+
+const STATUTS_PRO: Record<string, string> = { juriste: "Juriste", charge_td: "Chargé de TD", avocat: "Avocat" }
+
+const ETATS_FICHE: Record<Fiche["etat"], [string, string]> = {
+    brouillon: ["BROUILLON", t2],
+    en_attente: ["À VALIDER", WARN],
+    publie: ["PUBLIÉE", OK],
+    refuse: ["REFUSÉE", BAD],
+}
+
+function ContenuFicheVue({ titre, c, nomAffiche }: { titre: string; c: ContenuFiche; nomAffiche?: string }) {
+    const ligne = (l: string, v: React.ReactNode) => (
+        <div style={{ display: "flex", gap: 8, fontSize: 11.5, fontFamily: mono, lineHeight: 1.5 }}>
+            <span style={{ color: t2, minWidth: 92, flexShrink: 0 }}>{l}</span>
+            <span style={{ color: t0, minWidth: 0, wordBreak: "break-word" as const }}>{v || <span style={{ color: t2 }}>—</span>}</span>
+        </div>
+    )
+    return (
+        <div style={{ flex: 1, minWidth: 240, border: `1px solid ${b0}`, borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 5 }}>
+            <FL>{titre}</FL>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 4 }}>
+                {c.photo_url ? (
+                    <img src={c.photo_url} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover" as const }} />
+                ) : (
+                    <div style={{ width: 52, height: 52, borderRadius: "50%", background: sA, display: "grid", placeItems: "center", fontSize: 10, color: t2 }}>
+                        photo
+                    </div>
+                )}
+                <div style={{ fontSize: 13, fontWeight: 600, color: t0 }}>{nomAffiche}</div>
+            </div>
+            {ligne("Nom affiché", c.nom_complet_public ? "Nom complet" : "Prénom + initiale")}
+            {ligne("Statut", STATUTS_PRO[c.statut_pro] || c.statut_pro)}
+            {ligne("Poste", c.poste)}
+            {ligne("Expérience", c.experience_annees ? `${c.experience_annees} an(s)` : "")}
+            {ligne(
+                "Formation",
+                c.formation.length ? (
+                    <span>
+                        {c.formation.map((f, i) => (
+                            <div key={i}>
+                                {[f.diplome, f.etablissement, f.annee].filter(Boolean).join(" · ")}
+                            </div>
+                        ))}
+                    </span>
+                ) : (
+                    ""
+                )
+            )}
+            {ligne(
+                "LinkedIn",
+                c.linkedin_url ? (
+                    <a href={c.linkedin_url} target="_blank" rel="noopener" style={{ color: BLUE }}>
+                        {c.linkedin_url}
+                    </a>
+                ) : (
+                    ""
+                )
+            )}
+            <div style={{ fontSize: 11.5, fontFamily: mono, color: t1, whiteSpace: "pre-line" as const, lineHeight: 1.55, marginTop: 4 }}>
+                {c.description || "—"}
+            </div>
+        </div>
+    )
+}
+
+function FicheRow({ f, onChanged }: { f: Fiche; onChanged: () => void }) {
+    const [open, setOpen] = React.useState(f.etat === "en_attente")
+    const [msg, setMsg] = React.useState("")
+    const [motif, setMotif] = React.useState("")
+    const [ordre, setOrdre] = React.useState(String(f.ordre))
+    const { busy, appel } = useAppel(setMsg, onChanged)
+    const base = `/professeurs/admin/profils/${f.professeur_id}`
+    const [lib, clr] = ETATS_FICHE[f.etat]
+    const aPublier = !!f.brouillon && f.manques.length === 0
+    const nom = `${f.prenom} ${f.nom}`.trim() || f.email || `Professeur ${f.professeur_id}`
+
+    return (
+        <div style={{ borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+            <Ligne open={open} onToggle={() => setOpen((v) => !v)} faded={f.professeur_status !== "active"}>
+                <img src={f.photo_url} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" as const, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={TITRE}>{nom}</div>
+                    <div style={SOUS_TITRE}>
+                        {f.visible ? `en ligne · #${f.slug}` : f.publie_le ? (f.masque ? "masquée" : "hors ligne (professeur suspendu)") : "jamais publiée"}
+                        {f.soumis_le ? ` · soumise le ${fmtDate(f.soumis_le)}` : ""}
+                    </div>
+                </div>
+                {f.verifie_le && (
+                    <Tag color={OK} border="rgba(91,227,163,0.4)">
+                        VÉRIFIÉ
+                    </Tag>
+                )}
+                {f.masque && (
+                    <Tag color={t1} border={b1}>
+                        MASQUÉE
+                    </Tag>
+                )}
+                <Tag color={clr} border={clr === t2 ? b1 : clr}>
+                    {f.publie_le && f.etat === "brouillon" && f.brouillon ? "MODIFS NON SOUMISES" : lib}
+                </Tag>
+            </Ligne>
+            {open && (
+                <div style={DEPLIE}>
+                    {f.etat === "refuse" && f.motif_refus && <SM text={`Erreur : refusée — ${f.motif_refus}`} />}
+                    {f.brouillon && f.manques.length > 0 && (
+                        <div style={{ fontSize: 11, fontFamily: mono, color: WARN }}>Incomplète : il manque {f.manques.join(", ")}.</div>
+                    )}
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const }}>
+                        {f.publie && <ContenuFicheVue titre="En ligne" c={f.publie} nomAffiche={f.nom_affiche} />}
+                        {f.brouillon && (
+                            <ContenuFicheVue titre={f.publie ? "Nouvelle version (brouillon)" : "Brouillon"} c={f.brouillon} nomAffiche={f.nom_affiche} />
+                        )}
+                    </div>
+                    <div style={{ fontSize: 11, fontFamily: mono, color: t1 }}>
+                        Matières (groupes actifs) : {f.matieres.map((m) => `${m.niveau} ${m.nom}`).join(", ") || "aucune"}
+                        {f.lien && (
+                            <>
+                                {" · "}
+                                <a href={f.lien} target="_blank" rel="noopener" style={{ color: BLUE }}>
+                                    voir la fiche
+                                </a>
+                            </>
+                        )}
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
+                        <Btn primary disabled={busy || !aPublier} onClick={() => appel(`${base}/publier`, "POST", undefined, "Fiche publiée, le professeur est prévenu par email")}>
+                            Publier
+                        </Btn>
+                        <TI value={motif} onChange={(e: any) => setMotif(e.target.value)} placeholder="Motif du refus (envoyé au professeur)" style={{ width: 260 }} />
+                        <Btn danger disabled={busy || !motif.trim() || !f.brouillon} onClick={() => appel(`${base}/refuser`, "POST", { motif }, "Fiche refusée, le professeur est prévenu par email")}>
+                            Refuser
+                        </Btn>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
+                        <Btn disabled={busy} onClick={() => appel(`${base}/verifier`, "POST", { verifie: !f.verifie_le }, f.verifie_le ? "Badge retiré" : "Badge « Vérifié » posé")}>
+                            {f.verifie_le ? "Retirer « Vérifié »" : "Marquer « Vérifié »"}
+                        </Btn>
+                        <Btn disabled={busy || !f.publie_le} onClick={() => appel(`${base}/masquer`, "POST", { masque: !f.masque }, f.masque ? "Fiche réaffichée" : "Fiche masquée")}>
+                            {f.masque ? "Réafficher" : "Masquer"}
+                        </Btn>
+                        <span style={{ fontSize: 10, fontFamily: mono, color: t2, marginLeft: 6 }}>Ordre</span>
+                        <TI value={ordre} onChange={(e: any) => setOrdre(e.target.value)} type="number" style={{ width: 64 }} />
+                        <Btn disabled={busy || String(f.ordre) === ordre} onClick={() => appel(`${base}/ordre`, "POST", { ordre: parseInt(ordre, 10) || 0 }, "Ordre enregistré")}>
+                            OK
+                        </Btn>
+                    </div>
+                    <SM text={msg} />
+                </div>
+            )}
+        </div>
+    )
+}
+
+function FichesPanel({ tick, onCount }: { tick: number; onCount: (n: number) => void }) {
+    const [items, setItems] = React.useState<Fiche[]>([])
+    const [loading, setLoading] = React.useState(true)
+    const [err, setErr] = React.useState("")
+    const [filtre, setFiltre] = React.useState<"" | Fiche["etat"]>("")
+    const [t, setT] = React.useState(0)
+
+    React.useEffect(() => {
+        setLoading(true)
+        api("/professeurs/admin/profils")
+            .then((d) => {
+                setItems(d?.items || [])
+                onCount(d?.a_valider || 0)
+                setErr("")
+            })
+            .catch((e) => setErr(e.message))
+            .finally(() => setLoading(false))
+    }, [tick, t])
+
+    const visibles = items.filter((f) => !filtre || f.etat === filtre)
+    return (
+        <>
+            <div style={{ display: "flex", gap: 5, padding: "8px 14px", borderBottom: `1px solid ${b0}`, flexShrink: 0, flexWrap: "wrap" as const }}>
+                {([["", "Toutes"], ["en_attente", "À valider"], ["publie", "Publiées"], ["refuse", "Refusées"], ["brouillon", "Brouillons"]] as const).map(([k, l]) => (
+                    <MiniBtn key={k} actif={filtre === k} onClick={() => setFiltre(k as any)}>
+                        {l} ({k ? items.filter((f) => f.etat === k).length : items.length})
+                    </MiniBtn>
+                ))}
+            </div>
+            {err && (
+                <div style={{ padding: "8px 14px" }}>
+                    <SM text={`Erreur : ${err}`} />
+                </div>
+            )}
+            {loading ? (
+                <div style={VIDE}>Chargement…</div>
+            ) : visibles.length === 0 ? (
+                <div style={VIDE}>Aucune fiche. Chaque professeur remplit la sienne dans son espace (rubrique « Profil public »).</div>
+            ) : (
+                <div style={{ flex: 1, overflowY: "auto" }}>
+                    {visibles.map((f) => (
+                        <FicheRow key={f.id} f={f} onChanged={() => setT((x) => x + 1)} />
+                    ))}
+                </div>
+            )}
+        </>
+    )
+}
+
 export function ProfesseursSection() {
     const [vue, setVue] = React.useState<Vue>("professeurs")
     const [profs, setProfs] = React.useState<Professeur[]>([])
@@ -1779,10 +2024,14 @@ export function ProfesseursSection() {
     const [ajout, setAjout] = React.useState(false)
     const [err, setErr] = React.useState("")
     const [tick, setTick] = React.useState(0)
+    const [aValider, setAValider] = React.useState(0)
 
     React.useEffect(() => {
         setLoading(true)
         setErr("")
+        api("/professeurs/admin/profils")
+            .then((d) => setAValider(d?.a_valider || 0))
+            .catch(() => {})
         Promise.all([
             api("/professeurs/admin/list").then((d) => setProfs(d?.items || [])),
             api("/professeurs/admin/classes").then((d) => setGroupes(d?.items || [])),
@@ -1813,6 +2062,9 @@ export function ProfesseursSection() {
                         <MiniBtn actif={vue === "groupes"} onClick={() => setVue("groupes")}>
                             Groupes ({groupes.length})
                         </MiniBtn>
+                        <MiniBtn actif={vue === "fiches"} onClick={() => setVue("fiches")}>
+                            Fiches{aValider ? ` · ${aValider} à valider` : ""}
+                        </MiniBtn>
                         <MiniBtn actif={vue === "remunerations"} onClick={() => setVue("remunerations")}>
                             Rémunérations
                         </MiniBtn>
@@ -1820,7 +2072,7 @@ export function ProfesseursSection() {
                 }
                 right={
                     <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        {vue !== "remunerations" && (
+                        {vue !== "remunerations" && vue !== "fiches" && (
                             <>
                                 <TI
                                     value={search}
@@ -1840,7 +2092,7 @@ export function ProfesseursSection() {
                 }
             />
 
-            {vue !== "remunerations" && (
+            {vue !== "remunerations" && vue !== "fiches" && (
                 <div
                     style={{
                         display: "flex",
@@ -1869,6 +2121,8 @@ export function ProfesseursSection() {
 
             {vue === "remunerations" ? (
                 <RemunerationsPanel tick={tick} />
+            ) : vue === "fiches" ? (
+                <FichesPanel tick={tick} onCount={setAValider} />
             ) : (
                 <>
                     {ajout &&

@@ -1438,6 +1438,11 @@ class PrepaAdjurisEnrollment(Base):
     )
     # Groupe de la matière, choisi dans la console. NULL = premier groupe
     # actif de la matière (voir app/services/professeurs.py).
+    professeur_ref_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_professeurs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Professeur dont la fiche publique a amené l'inscription (bouton
+    # « S'inscrire à la Prép'AdJuris » d'une fiche). NULL = inscription directe.
 
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Échéance d'un accès accordé à la main (source="admin"). NULL pour un
@@ -2111,6 +2116,61 @@ class PrepaAdjurisProfesseur(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+
+class ProfProfil(Base):
+    """
+    Fiche publique d'un professeur (page /professeurs#slug). Règles :
+    app/services/prof_profils.py.
+
+    Les colonnes de contenu portent la version PUBLIÉE ; `brouillon` porte la
+    version que le professeur édite, en attente de validation. La fiche est
+    visible du public dès sa première publication (publie_le), tant qu'elle
+    n'est pas masquée et que le professeur est actif.
+    etat : brouillon | en_attente | publie | refuse (suit le brouillon).
+    """
+    __tablename__ = "prof_profils"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    professeur_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_professeurs.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
+    slug: Mapped[str | None] = mapped_column(String(100), unique=True, index=True, nullable=True)
+
+    nom_complet_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    statut_pro: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    poste: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    experience_annees: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # [{"diplome": "...", "etablissement": "...", "annee": "2021"}]
+    formation: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    linkedin_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+    brouillon: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    etat: Mapped[str] = mapped_column(String(16), default="brouillon", nullable=False, index=True)
+    motif_refus: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    soumis_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    verifie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verifie_par_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    masque: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    publie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    professeur: Mapped["PrepaAdjurisProfesseur"] = relationship("PrepaAdjurisProfesseur")
 
 
 class PrepaAdjurisAffectation(Base):

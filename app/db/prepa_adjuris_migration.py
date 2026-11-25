@@ -174,6 +174,11 @@ _STATEMENTS: list[str] = [
     "ALTER TABLE prepa_adjuris_devoirs ADD COLUMN IF NOT EXISTS contenu JSON",
     # ── Copies saisies dans NAVIRE (écran d'épreuve) : brouillon enregistré.
     "ALTER TABLE prepa_epreuve_sessions ADD COLUMN IF NOT EXISTS brouillon JSON",
+
+    # ── Fiches publiques des professeurs (novembre 2026) : table prof_profils
+    # créée par create_all ; inscription attribuée au professeur de la fiche.
+    "ALTER TABLE prepa_adjuris_enrollments ADD COLUMN IF NOT EXISTS professeur_ref_id INTEGER REFERENCES prepa_adjuris_professeurs (id) ON DELETE SET NULL",
+    "CREATE INDEX IF NOT EXISTS ix_prepa_adjuris_enrollments_professeur_ref_id ON prepa_adjuris_enrollments (professeur_ref_id)",
 ]
 
 
