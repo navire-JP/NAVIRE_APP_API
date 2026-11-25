@@ -6,7 +6,9 @@ app/services/ambassadors.py.
 
 Endpoints publics (page /rejoindre, sans compte) :
   GET  /ambassadors/terms               → conditions du programme
-  GET  /ambassadors/ref/{code}          → nom affiché de l'ambassadeur du lien
+  GET  /ambassadors/ref/{code}          → nom affiché et photo de l'ambassadeur du lien
+  GET  /ambassadors/invite/{code}       → lien de partage : aperçu (photo de l'ambassadeur)
+                                          puis redirection vers /rejoindre?ref=CODE
   GET  /ambassadors/embed/{page}        → page d'embed (rejoindre | ambassadeur)
 
 Endpoints utilisateur (auth NAVIRE, page /ambassadeur) :
@@ -32,18 +34,21 @@ Le rattachement d'un prospect se fait aussi à la création du compte
 
 from __future__ import annotations
 
+import html
+import json
 import logging
 import re
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from app.core.config import FRONTEND_URL
+from app.core.cloudinary_client import resolve_avatar_url
+from app.core.config import FRONTEND_URL, PUBLIC_API_URL
 from app.db.database import get_db
 from app.db.models import Ambassador, AmbassadorCommission, AmbassadorReferral, User
 from app.routers.auth import get_current_user
@@ -72,6 +77,20 @@ def _eur(cents: int) -> str:
 
 def referral_link(code: str) -> str:
     return f"{FRONTEND_URL}/rejoindre?ref={code}"
+
+
+def share_link(code: str) -> str:
+    """
+    Lien à envoyer dans une conversation (WhatsApp, Messenger, iMessage…) :
+    servi par l'API, il porte l'aperçu « Julie t'invite sur NAVIRE » avec la
+    photo de l'ambassadeur, puis redirige vers referral_link(code). Le site
+    Framer ne peut pas changer son aperçu selon le ?ref=.
+    """
+    return f"{PUBLIC_API_URL}/ambassadors/invite/{code}"
+
+
+def _avatar(amb: Ambassador) -> str:
+    return resolve_avatar_url(amb.user.avatar_url if amb.user else None)
 
 
 def _iso(dt) -> str | None:
@@ -122,9 +141,10 @@ def resolve_referral_code(
     db: Session = Depends(get_db),
 ):
     """
-    Nom à afficher sur la page d'invitation. Un code inconnu, refusé ou
-    suspendu répond valid=false : la page affiche alors l'inscription normale.
-    Seul le nom choisi par l'ambassadeur est rendu, jamais son identité.
+    Nom et photo à afficher sur la page d'invitation. Un code inconnu, refusé
+    ou suspendu répond valid=false : la page affiche alors l'inscription
+    normale. Seuls le nom choisi par l'ambassadeur et la photo de son compte
+    sont rendus, jamais son identité.
     """
     amb = svc.find_active(db, code)
     if amb is None:
@@ -137,7 +157,66 @@ def resolve_referral_code(
         "code": amb.code,
         "display_name": amb.display_name,
         "university": amb.university,
+        "avatar_url": _avatar(amb),
     }
+
+
+# Robots qui fabriquent les aperçus de liens. Ils ne reçoivent pas la
+# redirection : certains la suivent et afficheraient alors l'aperçu générique
+# du site au lieu de celui de l'ambassadeur.
+_PREVIEW_BOTS = re.compile(
+    r"facebookexternalhit|facebot|whatsapp|twitterbot|slackbot|telegrambot|discordbot|"
+    r"linkedinbot|skypeuripreview|snapchat|pinterest|redditbot|embedly|applebot|"
+    r"googlebot|bingbot|iframely|vkshare|viber|line-poker|kakaotalk",
+    re.I,
+)
+
+
+@router.get("/invite/{code}", response_class=HTMLResponse, include_in_schema=False)
+def invite_page(code: str, request: Request, db: Session = Depends(get_db)):
+    """
+    Lien de partage d'un ambassadeur. Les robots d'aperçu (WhatsApp,
+    Messenger, iMessage, X…) lisent les balises og:* : titre au nom de
+    l'ambassadeur et sa photo. Un visiteur est aussitôt redirigé vers la page
+    d'invitation du site, qui compte la visite.
+    """
+    amb = svc.find_active(db, code)
+    if amb is None:
+        return RedirectResponse(f"{FRONTEND_URL}/rejoindre", status_code=302)
+    cible = referral_link(amb.code)
+    titre = f"{amb.display_name} t'invite sur NAVIRE"
+    desc = (
+        "Rejoins Prép'AdJuris : des séances de soutien en droit, en petit groupe, "
+        "matière par matière, avec des chargés de TD."
+    )
+    e = lambda v: html.escape(v, quote=True)  # noqa: E731
+    cible_js = json.dumps(cible).replace("</", "<\\/")
+    robot = bool(_PREVIEW_BOTS.search(request.headers.get("user-agent", "")))
+    redirection = "" if robot else (
+        f'<meta http-equiv="refresh" content="0;url={e(cible)}">\n'
+    )
+    script = "" if robot else f"<script>location.replace({cible_js});</script>\n"
+    page = f"""<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{e(titre)}</title>
+<meta name="description" content="{e(desc)}">
+<meta name="robots" content="noindex">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="NAVIRE">
+<meta property="og:title" content="{e(titre)}">
+<meta property="og:description" content="{e(desc)}">
+<meta property="og:url" content="{e(share_link(amb.code))}">
+<meta property="og:image" content="{e(_avatar(amb))}">
+<meta property="og:image:alt" content="{e(amb.display_name)}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{e(titre)}">
+<meta name="twitter:image" content="{e(_avatar(amb))}">
+{redirection}</head><body style="margin:0;background:#090914;color:#fff;font-family:Inter,Arial,sans-serif">
+{script}<p style="text-align:center;padding:40px 16px"><a style="color:#7AA7FF" href="{e(cible)}">{e(titre)}</a></p>
+</body></html>"""
+    return HTMLResponse(page, headers={"Cache-Control": "private, max-age=300", "Vary": "User-Agent"})
 
 
 # ============================================================
@@ -243,6 +322,7 @@ def _me_payload(amb: Ambassador | None) -> dict:
     if amb.status == "approved" and amb.code:
         out["code"] = amb.code
         out["link"] = referral_link(amb.code)
+        out["share_link"] = share_link(amb.code)
     return out
 
 

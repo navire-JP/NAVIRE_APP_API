@@ -32,6 +32,9 @@
   --ok: #5BE3A3;
   --warn: #FFD166;
   --blue: #7AA7FF;
+  --blue-hi: #B5CDFF;
+  --blue-deep: #4F7DFF;
+  --line-2: rgba(255,255,255,0.16);
   --radius: 14px;
   --ease: cubic-bezier(.2,.8,.2,1);
 
@@ -116,7 +119,7 @@
 
 #nv-amb .nv-page { flex: 1 0 auto; animation: nv-fade .28s var(--ease); }
 #nv-amb .nv-page-inner { max-width: 760px; margin: 0 auto; padding: 8px 20px 34px; }
-#nv-amb.is-solo .nv-page-inner { padding-top: 24px; }
+#nv-amb.is-solo .nv-page-inner { max-width: 880px; padding-top: 24px; }
 @keyframes nv-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes nv-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes nv-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
@@ -127,25 +130,37 @@
 #nv-amb .nv-page-head p { margin: 4px 0 0; font-size: 13px; color: var(--text-3); line-height: 1.55; }
 
 /* Accueil (non connecté, candidature, attente) */
-#nv-amb .nv-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 10px 6px; gap: 6px; }
-#nv-amb .nv-hero-logo { width: 64px; height: 64px; border-radius: 15px; background: center/contain no-repeat; margin-bottom: 14px; box-shadow: 0 20px 60px rgba(120,150,255,0.18); animation: nv-float 6s ease-in-out infinite; }
-#nv-amb .nv-hero h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.6px; line-height: 1.2; }
-#nv-amb .nv-hero p { margin: 0; font-size: 13.5px; color: var(--text-3); max-width: 460px; line-height: 1.55; }
-#nv-amb .nv-grad { background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-#nv-amb .nv-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin: 24px 0 8px; }
-#nv-amb .nv-step { text-align: left; padding: 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); animation: nv-rise .5s var(--ease) both; }
+#nv-amb .nv-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 6px 10px; }
+#nv-amb .nv-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 99px; border: 1px solid var(--line-2); background: rgba(255,255,255,0.05); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; animation: nv-rise .6s var(--ease) both; }
+#nv-amb .nv-pill-logo { width: 22px; height: 22px; border-radius: 7px; background: center/contain no-repeat; }
+#nv-amb .nv-pill b { font-weight: 700; color: var(--blue-hi); }
+#nv-amb .nv-hero h1 { margin: 24px auto 0; max-width: 760px; font-size: clamp(32px, 6vw, 58px); font-weight: 800; letter-spacing: -.045em; line-height: 1.04; text-wrap: balance; animation: nv-rise .7s var(--ease) .06s both; }
+#nv-amb .nv-hero p { margin: 18px auto 0; font-size: 16px; color: var(--text-2); max-width: 540px; line-height: 1.55; text-wrap: pretty; animation: nv-rise .7s var(--ease) .12s both; }
+#nv-amb .nv-grad, #nv-amb .nv-hl { background: linear-gradient(92deg, var(--blue-hi) 0%, var(--blue) 45%, var(--blue-deep) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+#nv-amb .nv-hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 30px; animation: nv-rise .7s var(--ease) .18s both; }
+#nv-amb .nv-ghost { display: inline-flex; align-items: center; height: 48px; padding: 0 22px; border-radius: 99px; border: 1px solid var(--line-2); background: rgba(255,255,255,0.05); color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; transition: background .2s, border-color .2s, transform .25s var(--ease); }
+#nv-amb .nv-ghost:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.28); transform: translateY(-1px); }
+#nv-amb .nv-solid { display: inline-flex; align-items: center; gap: 12px; height: 48px; padding: 0 6px 0 22px; border-radius: 99px; border: 0; background: #fff; color: #090914; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; box-shadow: 0 6px 18px rgba(9,9,20,.18); transition: box-shadow .25s, transform .25s var(--ease); }
+#nv-amb .nv-solid:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(91,111,255,.45); }
+#nv-amb .nv-solid i { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 99px; background: #090914; color: #fff; font-style: normal; transition: transform .22s var(--ease); }
+#nv-amb .nv-solid:hover i { transform: translateX(2px); }
+#nv-amb .nv-solid i svg { width: 14px; height: 14px; }
+#nv-amb .nv-ghost:focus-visible, #nv-amb .nv-solid:focus-visible, #nv-amb .nv-btn:focus-visible, #nv-amb .nv-chip:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+#nv-amb .nv-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; margin: 40px 0 14px; }
+#nv-amb .nv-step { text-align: left; padding: 18px; border-radius: 18px; border: 1px solid var(--line); background: linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); animation: nv-rise .5s var(--ease) both; }
 #nv-amb .nv-step:nth-child(2) { animation-delay: .05s; }
 #nv-amb .nv-step:nth-child(3) { animation-delay: .1s; }
-#nv-amb .nv-step i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; color: var(--text-4); }
-#nv-amb .nv-step b { display: block; font-size: 13px; font-weight: 600; margin: 4px 0 3px; }
-#nv-amb .nv-step span { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+#nv-amb .nv-step i { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 8px; border-radius: 99px; border: 1px solid var(--line-2); font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600; color: var(--blue-hi); }
+#nv-amb .nv-step b { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.2px; margin: 12px 0 4px; }
+#nv-amb .nv-step span { font-size: 13px; color: var(--text-3); line-height: 1.5; }
 
 /* Cartes */
-#nv-amb .nv-card { padding: 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; animation: nv-rise .4s var(--ease) both; }
+#nv-amb .nv-card { padding: 20px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; animation: nv-rise .4s var(--ease) both; }
 #nv-amb .nv-card.is-on { border-color: rgba(255,255,255,0.14); background: var(--panel-2); }
-#nv-amb .nv-card-title { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
-#nv-amb .nv-card-sub { font-size: 12px; color: var(--text-3); margin: 0 0 12px; line-height: 1.5; }
-#nv-amb .nv-group-label { font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-4); margin: 22px 4px 8px; }
+#nv-amb .nv-card-title { font-size: 15px; font-weight: 700; letter-spacing: -.2px; margin: 0 0 4px; }
+#nv-amb .nv-card-sub { font-size: 12.5px; color: var(--text-3); margin: 0 0 12px; line-height: 1.5; }
+#nv-amb .nv-group-label { display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text-3); margin: 28px 4px 10px; }
+#nv-amb .nv-group-label::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 10px var(--blue); }
 #nv-amb .nv-notice { padding: 12px 14px; border-radius: 12px; background: rgba(255,209,102,0.08); border: 1px solid rgba(255,209,102,0.2); font-size: 12.5px; color: #ffe2a3; margin: 12px 0; line-height: 1.5; }
 #nv-amb .nv-notice.is-bad { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.2); color: #ffb3b3; }
 
@@ -169,7 +184,7 @@
 #nv-amb .nv-btn:hover:not(:disabled) { transform: translateY(-1px); }
 #nv-amb .nv-btn:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; transform: none; }
 #nv-amb .nv-btn svg { width: 15px; height: 15px; }
-#nv-amb .nv-btn.is-block { width: 100%; height: 42px; }
+#nv-amb .nv-btn.is-block { width: 100%; height: 46px; font-size: 14px; }
 #nv-amb .nv-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: transparent; font-size: 12px; color: var(--text-2); cursor: pointer; text-decoration: none; white-space: nowrap; transition: background .15s, color .15s; }
 #nv-amb .nv-chip:hover { background: var(--panel-2); color: #fff; }
 #nv-amb .nv-chip svg { width: 14px; height: 14px; }
@@ -180,7 +195,7 @@
 #nv-amb .nv-field { display: block; margin-top: 12px; }
 #nv-amb .nv-field > span { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin-bottom: 6px; }
 #nv-amb .nv-field em { font-style: normal; color: var(--text-4); }
-#nv-amb .nv-input { width: 100%; height: 42px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: #fff; font: inherit; font-size: 13.5px; outline: none; transition: border-color .15s, background .15s; }
+#nv-amb .nv-input { width: 100%; height: 44px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: #fff; font: inherit; font-size: 13.5px; outline: none; transition: border-color .15s, background .15s; }
 #nv-amb textarea.nv-input { height: auto; min-height: 92px; padding: 11px 14px; line-height: 1.55; resize: vertical; }
 #nv-amb select.nv-input option { background: #111118; color: #fff; }
 #nv-amb .nv-input::placeholder { color: var(--text-4); }
@@ -252,7 +267,12 @@
 #nv-amb.is-compact .nv-stats { grid-template-columns: 1fr 1fr; }
 #nv-amb.is-compact .nv-steps { grid-template-columns: 1fr; }
 #nv-amb.is-compact .nv-row2 { grid-template-columns: 1fr; }
-#nv-amb.is-compact .nv-hero h1 { font-size: 22px; }
+#nv-amb.is-compact .nv-hero { padding-top: 26px; }
+#nv-amb.is-compact .nv-hero h1 { font-size: clamp(30px, 9vw, 40px); }
+#nv-amb.is-compact .nv-hero p { font-size: 15px; }
+#nv-amb.is-compact .nv-hero-actions { width: 100%; }
+#nv-amb.is-compact .nv-hero-actions > * { flex: 1 1 100%; justify-content: center; }
+#nv-amb.is-compact .nv-solid { justify-content: space-between; }
 #nv-amb.is-compact .nv-icon-btn { width: 42px; height: 42px; border-radius: 12px; }
 #nv-amb.is-compact .nv-icon-btn svg { width: 22px; height: 22px; }
 #nv-amb.is-compact .nv-nav { padding: 12px; font-size: 15px; gap: 12px; }
@@ -475,9 +495,14 @@
     applyLogos(p);
   }
 
-  function hero(title, sub) {
-    return '<div class="nv-hero"><div class="nv-hero-logo" data-logo></div><h1>' + title + '</h1><p>' + sub + '</p></div>';
+  // Hero : même DA que le hero de la page d'accueil (pastille, grand titre,
+  // mot en dégradé bleu, boutons pilule).
+  function hero(title, sub, actions) {
+    var c = S.terms ? S.terms.commission_par_matiere_cents : 200;
+    return '<div class="nv-hero"><span class="nv-pill"><span class="nv-pill-logo" data-logo></span>Programme ambassadeur · <b>' + eur(c) + '</b> par matière</span>' +
+      '<h1>' + title + '</h1><p>' + sub + '</p>' + (actions ? '<div class="nv-hero-actions">' + actions + '</div>' : '') + '</div>';
   }
+  var CHEVRON = '<svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function steps() {
     var c = S.terms ? S.terms.commission_par_matiere_cents : 200;
     return '<div class="nv-steps">' +
@@ -496,9 +521,11 @@
   // Connexion dans l'embed même : il ne dépend pas d'un jeton posé par une
   // autre page.
   function viewLoggedOut() {
-    setPage(hero('Deviens ambassadeur <span class="nv-grad">NAVIRE</span>',
-      'Fais découvrir Prép\'AdJuris à ta promo et touche une commission sur chaque inscription.') + steps() +
-      '<div class="nv-card" style="margin-top:14px"><div class="nv-card-title">Connecte-toi pour candidater</div>' +
+    setPage(hero('Deviens <span class="nv-hl">ambassadeur</span> NAVIRE',
+      'Fais découvrir Prép\'AdJuris à ta promo et touche une commission sur chaque inscription payée.',
+      '<button class="nv-ghost" data-act="signup">Créer mon compte</button>' +
+      '<button class="nv-solid" data-act="to-login">Candidater<i>' + CHEVRON + '</i></button>') + steps() +
+      '<div class="nv-card" id="nv-login-card" style="margin-top:14px"><div class="nv-card-title">Connecte-toi pour candidater</div>' +
       '<div class="nv-card-sub">Avec ton compte NAVIRE habituel.</div>' +
       '<div class="nv-row2">' + field("Email", input("l-email", "", 'type="email" autocomplete="email"')) +
       field("Mot de passe", input("l-pass", "", 'type="password" autocomplete="current-password"')) + '</div>' +
@@ -539,8 +566,8 @@
     var notice = me.status === "rejected"
       ? '<div class="nv-notice is-bad"><b>Ta précédente candidature n\'a pas été retenue.</b>' +
         (me.rejection_reason ? '<br>' + esc(me.rejection_reason) : '') + '<br>Tu peux en envoyer une nouvelle.</div>' : '';
-    setPage(hero('Deviens ambassadeur <span class="nv-grad">NAVIRE</span>',
-      'Fais découvrir Prép\'AdJuris à ta promo et touche une commission sur chaque inscription.') + steps() + notice +
+    setPage(hero('Deviens <span class="nv-hl">ambassadeur</span> NAVIRE',
+      'Fais découvrir Prép\'AdJuris à ta promo et touche une commission sur chaque inscription payée.') + steps() + notice +
       '<div class="nv-group-label">Conditions du programme</div>' +
       '<div class="nv-card"><ol class="nv-terms">' + t.conditions.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join("") + '</ol></div>' +
       '<div class="nv-group-label">Ta candidature</div>' +
@@ -560,7 +587,7 @@
   }
 
   function viewPending() {
-    setPage(hero('Candidature envoyée',
+    setPage(hero('Candidature <span class="nv-hl">envoyée</span>',
       'Merci ' + esc(S.me.prenom) + ' ! L\'équipe NAVIRE examine ta candidature. Tu recevras un email dès qu\'elle sera validée, et ton lien d\'invitation apparaîtra ici.') +
       '<div style="text-align:center;margin-top:16px"><span class="nv-tag warn"><i></i>en attente depuis le ' + date(S.me.applied_at) + '</span></div>', true);
   }
@@ -571,7 +598,10 @@
   function linkCard(big) {
     var me = S.dash.ambassador;
     if (me.status === "suspended") return '<div class="nv-notice is-bad">Ton lien est suspendu : il n\'enregistre plus de nouveaux filleuls. Contacte l\'équipe NAVIRE. Tes commissions acquises restent dues.</div>';
-    var msg = "Rejoins-moi sur Prép'AdJuris by NAVIRE : " + me.link;
+    // share_link : même destination, mais l'aperçu du lien dans WhatsApp,
+    // Messenger, iMessage… affiche « <nom> t'invite sur NAVIRE » et ta photo.
+    var share = me.share_link || me.link;
+    var msg = "Rejoins-moi sur Prép'AdJuris by NAVIRE : " + share;
     return '<div class="nv-card is-on"><div class="nv-card-title">Ton lien d\'invitation</div>' +
       '<div class="nv-card-sub">Chaque étudiant qui crée son compte avec ce lien puis paie son inscription te rapporte ' + eur(S.dash.commission_par_matiere_cents) + ' par matière.</div>' +
       '<div class="nv-link"><code>' + esc(me.link) + '</code><button class="nv-btn" data-act="copy-link">' + ICON.copy + 'Copier</button></div>' +
@@ -580,9 +610,11 @@
       '<a class="nv-chip" target="_blank" rel="noopener" href="mailto:?subject=' + encodeURIComponent("Prép'AdJuris by NAVIRE") + '&body=' + encodeURIComponent(msg) + '">' + ICON.mail + 'Email</a>' +
       (navigator.share ? '<button class="nv-chip" data-act="native-share">' + ICON.share + 'Partager</button>' : '') +
       '<span class="nv-tag" style="margin-left:auto;align-self:center">code ' + esc(me.code) + '</span></div>' +
+      (me.share_link ? '<div class="nv-card-sub" style="margin:12px 0 0">Envoyé depuis ces boutons, ton lien s\'affiche avec ta photo de profil dans la conversation.' +
+        ' <button class="nv-link-btn" data-act="copy-share">Copier ce lien</button></div>' : '') +
       (big ? '<div class="nv-group-label" style="margin-top:18px">Message prêt à envoyer</div>' +
         '<div class="nv-link" style="border-radius:12px;align-items:flex-start;padding:12px 12px 12px 14px"><code style="white-space:normal;line-height:1.55">' + esc(
-          "Hello ! Je fais partie des ambassadeurs NAVIRE. Prép'AdJuris, ce sont des séances de soutien en droit, matière par matière, en petit groupe. Inscris-toi avec mon lien : " + me.link) +
+          "Hello ! Je fais partie des ambassadeurs NAVIRE. Prép'AdJuris, ce sont des séances de soutien en droit, matière par matière, en petit groupe. Inscris-toi avec mon lien : " + share) +
         '</code><button class="nv-chip" data-act="copy-msg">' + ICON.copy + 'Copier</button></div>' : '') +
       '</div>';
   }
@@ -701,7 +733,9 @@
     else if (act === "refresh") loadDash().then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
     else if (act === "copy-link") copyText(S.dash.ambassador.link, function () { toast("Lien copié"); });
     else if (act === "copy-msg") copyText(a.parentElement.querySelector("code").textContent, function () { toast("Message copié"); });
-    else if (act === "native-share") navigator.share({ title: "Prép'AdJuris by NAVIRE", url: S.dash.ambassador.link }).catch(function () {});
+    else if (act === "copy-share") copyText(S.dash.ambassador.share_link || S.dash.ambassador.link, function () { toast("Lien avec photo copié"); });
+    else if (act === "native-share") navigator.share({ title: "Prép'AdJuris by NAVIRE", url: S.dash.ambassador.share_link || S.dash.ambassador.link }).catch(function () {});
+    else if (act === "to-login") { var lc = el("login-card") || root.querySelector("#nv-login-card"); if (lc) { lc.scrollIntoView({ behavior: "smooth", block: "center" }); var f = lc.querySelector("input"); if (f) setTimeout(function () { try { f.focus({ preventScroll: true }); } catch (e) {} }, 400); } }
     else if (act === "logout") { S.token = null; S.dash = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); }
     else if (act === "signup") go(CONFIG.SIGNUP_URL);
     else if (act === "toggle-cgu") a.classList.toggle("is-on");

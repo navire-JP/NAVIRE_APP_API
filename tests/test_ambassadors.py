@@ -181,10 +181,43 @@ def test_candidature_puis_validation(env, mails):
 
 def test_page_rejoindre_affiche_le_nom(monde):
     client, code = monde["client"], monde["code"]
-    r = client.get(f"/ambassadors/ref/{code.lower()}")
-    assert r.json() == {"valid": True, "code": code, "display_name": "Julie", "university": None}
+    r = client.get(f"/ambassadors/ref/{code.lower()}").json()
+    avatar = r.pop("avatar_url")
+    assert r == {"valid": True, "code": code, "display_name": "Julie", "university": None}
+    assert avatar.startswith("http")  # photo du compte (ou avatar prédéfini)
     assert client.get("/ambassadors/ref/INCONNU-123").json() == {"valid": False}
     assert client.get("/ambassadors/ref/<script>").json() == {"valid": False}
+
+
+def test_lien_de_partage_avec_photo(monde):
+    from app.db.database import SessionLocal
+    from app.db.models import User
+
+    client, code, julie = monde["client"], monde["code"], monde["julie"]
+    db = SessionLocal()
+    u = db.get(User, julie.id)
+    u.avatar_url = "https://res.cloudinary.com/navire/image/upload/julie.jpg"
+    db.commit()
+    db.close()
+
+    me = client.get("/ambassadors/me", headers=_headers(julie)).json()
+    assert me["share_link"].endswith(f"/ambassadors/invite/{code}")
+    assert client.get(f"/ambassadors/ref/{code}").json()["avatar_url"].endswith("julie.jpg")
+
+    # Robot d'aperçu : balises og avec la photo, sans redirection.
+    bot = client.get(f"/ambassadors/invite/{code}", headers={"User-Agent": "WhatsApp/2.23"})
+    assert bot.status_code == 200
+    assert '<meta property="og:image" content="https://res.cloudinary.com/navire/image/upload/julie.jpg">' in bot.text
+    assert "Julie t&#x27;invite sur NAVIRE" in bot.text
+    assert "http-equiv" not in bot.text and "location.replace" not in bot.text
+
+    # Visiteur : redirigé vers la page d'invitation du site.
+    humain = client.get(f"/ambassadors/invite/{code}", headers={"User-Agent": "Mozilla/5.0"})
+    assert f"/rejoindre?ref={code}" in humain.text and "location.replace" in humain.text
+
+    # Code inconnu : inscription normale.
+    r = client.get("/ambassadors/invite/INCONNU-123", follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"].endswith("/rejoindre")
 
 
 def test_inscription_avec_code_puis_paiement(monde, mails):
