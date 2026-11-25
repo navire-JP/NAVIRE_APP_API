@@ -805,6 +805,47 @@ def mail_ambassador_rejected(prenom: str, reason: str | None) -> tuple[str, str]
     return subject, html
 
 
+def mail_prof_profil_publie(prenom: str, lien: str) -> tuple[str, str]:
+    """(subject, html) envoyé au professeur quand la console publie sa fiche."""
+    from html import escape
+    subject = "Ta fiche professeur est en ligne"
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {escape(prenom)},</p>
+    <p>
+      Ta fiche publique est <strong>validée et en ligne</strong> sur la page
+      Professeurs de NAVIRE. Les étudiants peuvent la consulter et s'inscrire
+      à tes cours depuis ta fiche.
+    </p>
+    <p>Ton lien à partager :</p>
+    <div style="font-family: 'Courier New', monospace; font-size: 14px;
+                background: #1f1f1f; border-radius: 8px; padding: 16px; margin: 16px 0;
+                word-break: break-all;">{escape(lien)}</div>
+    {_bouton(escape(lien, quote=True), "Voir ma fiche")}
+""", preheader="Ta fiche est visible sur la page Professeurs.")
+    return subject, html
+
+
+def mail_prof_profil_refuse(prenom: str, motif: str) -> tuple[str, str]:
+    """(subject, html) envoyé au professeur quand la console refuse sa fiche."""
+    from html import escape
+    bloc = (
+        f'<p style="background: #1f1f1f; border-radius: 8px; padding: 16px;">{escape(motif)}</p>'
+        if (motif or "").strip() else ""
+    )
+    subject = "Ta fiche professeur est à reprendre"
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {escape(prenom)},</p>
+    <p>
+      L'équipe NAVIRE a relu ta fiche publique et te demande quelques
+      modifications avant de la mettre en ligne.
+    </p>
+    {bloc}
+    <p>Tu peux la corriger et la soumettre à nouveau depuis ton espace professeur, rubrique « Mon profil public ».</p>
+    {_bouton(f"{FRONTEND_URL}/professeurs", "Mon espace professeur")}
+""", preheader="Quelques modifications avant la mise en ligne.")
+    return subject, html
+
+
 def mail_status_verification(
     username: str, label: str, approved: bool, reason: str | None = None,
 ) -> tuple[str, str]:
@@ -937,6 +978,16 @@ EMAIL_CATALOG: dict[str, dict] = {
         "label": "Ambassadeur : candidature refusée",
         "trigger": "Console : POST /ambassadors/admin/{id}/reject",
         "render": lambda: mail_ambassador_rejected("Julie", "Profil incomplet."),
+    },
+    "prof_profil_publie": {
+        "label": "Professeur : fiche publique en ligne",
+        "trigger": "Console, onglet Prof. : fiche publiée",
+        "render": lambda: mail_prof_profil_publie("Camille", "https://navire-ai.com/professeurs#camille-martin"),
+    },
+    "prof_profil_refuse": {
+        "label": "Professeur : fiche publique à reprendre",
+        "trigger": "Console, onglet Prof. : fiche refusée avec un motif",
+        "render": lambda: mail_prof_profil_refuse("Camille", "Merci d'ajouter une photo plus nette."),
     },
     "ambassador_commission": {
         "label": "Ambassadeur : nouvelle commission",

@@ -218,6 +218,11 @@ def _eleves_du_groupe(db: Session, classe: PrepaAdjurisClasse) -> list[PrepaAdju
     return sorted(out, key=lambda x: x.nom.lower())
 
 
+# Utilisés aussi par la présence (app/services/presences.py).
+eleves_du_groupe = _eleves_du_groupe
+seance_proche = _seance_proche
+
+
 def ajouter_extra(db: Session, c: PrepaAdjurisCours, maintenant: datetime | None = None) -> PrepaAdjurisCours:
     maintenant = maintenant or utcnow()
     p = phase(c, maintenant)

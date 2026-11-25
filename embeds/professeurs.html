@@ -6,9 +6,18 @@
   l'autre). Téléphone (< 760 px) : police DM Sans plus petite, menu en voile
   opaque ; la page du site défile, pas l'embed.
 
+  Page publique (non connecté, ou compte étudiant) : « Nos professeurs »
+    GET /professeurs/public          → cartes, filtre par niveau
+    GET /professeurs/public/{slug}   → fiche : statut, formation, description, et par
+                                       matière le créneau, les prochaines séances et
+                                       « S'inscrire à la Prép'AdJuris » (CONFIG.INSCRIPTION_URL
+                                       + ?prof=slug&matiere=clé). Partager : /p/{slug}.
+    L'adresse de la page porte la fiche ouverte : /professeurs#camille-martin.
+    Connexion professeur : lien discret sous les cartes.
+
   Selon GET /professeurs/me :
-    - non connecté          → présentation + connexion (email ou Google)
-    - compte non rattaché   → message (l'admin attache le compte dans la console)
+    - non connecté          → page publique
+    - compte non rattaché   → page publique (étudiant) ; admin : aperçu admin
     - professeur suspendu   → message
     - professeur actif      → cinq rubriques :
         Accueil       ce qui attend (copies à corriger, épreuves ouvertes, le mois)
@@ -16,6 +25,13 @@
         Épreuves      planifier un contrôle pour un groupe, voir qui l'a rendu
         Groupes       Discord, liens, étudiants et documents de chaque groupe
         Rémunération  prévisionnel, séance par séance
+        Présences     ses cours : qui était là (relevé du salon vocal du groupe
+                      par le bot, présent dès 5 min), à corriger pendant 48 h
+                      (GET /professeurs/me/cours, GET|PATCH /professeurs/cours/{id}/presences)
+        Profil public la fiche de la page Professeurs : le professeur la remplit
+                      (photo, statut, poste, formation, description), la soumet,
+                      l'équipe la publie depuis la console (GET|PUT /professeurs/me/profil,
+                      POST /professeurs/me/profil/photo, POST …/soumettre)
 
   Corriger : un écran blanc sur tout l'écran (header du site masqué), la copie
   en texte, sans page simulée. On écrit directement dedans, comme dans un
@@ -804,6 +820,98 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 #nv-prof.is-compact .nv-topbar { gap: 6px; padding: 6px 2px 6px 0; }
 #nv-prof .np-tabs, #nv-prof .nv-tabs { display: none !important; }
 #nv-prof .nv-apercu .nv-esp-inline, #nv-prof .np-apercu .nv-esp-inline { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: 99px; background: rgba(255,255,255,0.08); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+/* ================= PAGE PUBLIQUE : NOS PROFESSEURS ================= */
+#nv-prof .nv-pub { max-width: 980px; margin: 0 auto; }
+#nv-prof .nv-pub-filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 18px 0 16px; }
+#nv-prof .nv-pub-filters .nv-chip.is-active { background: #fff; color: #0a0a12; border-color: #fff; }
+#nv-prof .nv-pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+#nv-prof .nv-pcard { display: flex; flex-direction: column; gap: 10px; text-align: left; width: 100%; padding: 18px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); color: inherit; font: inherit; cursor: pointer; animation: nv-rise .4s var(--ease) both; transition: transform .2s var(--ease), border-color .2s, background .2s; }
+#nv-prof .nv-pcard:hover { transform: translateY(-2px); border-color: rgba(122,167,255,0.35); background: var(--panel-2); }
+#nv-prof .nv-pcard.is-static { cursor: default; }
+#nv-prof .nv-pcard.is-static:hover { transform: none; border-color: var(--line); background: var(--panel); }
+#nv-prof .nv-pcard-top { display: flex; align-items: center; gap: 12px; }
+#nv-prof .nv-pphoto { width: 64px; height: 64px; border-radius: 50%; background: var(--panel-3) center/cover no-repeat; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(122,167,255,0.18); }
+#nv-prof .nv-pphoto.is-xl { width: 104px; height: 104px; }
+#nv-prof .nv-pname { font-size: 16px; font-weight: 700; letter-spacing: -.2px; line-height: 1.25; }
+#nv-prof .nv-pbadges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+#nv-prof .nv-pbadge { display: inline-flex; align-items: center; gap: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .4px; padding: 3px 8px; border-radius: 99px; background: rgba(122,167,255,0.12); color: var(--blue); }
+#nv-prof .nv-pbadge.is-ok { background: rgba(91,227,163,0.12); color: var(--ok); }
+#nv-prof .nv-pbadge svg { width: 11px; height: 11px; }
+#nv-prof .nv-ppost { font-size: 12.5px; color: var(--text-2); line-height: 1.45; }
+#nv-prof .nv-pdesc { font-size: 12.5px; color: var(--text-3); line-height: 1.55; }
+#nv-prof .nv-pmat { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; }
+#nv-prof .nv-pmat span { font-size: 11px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--text-2); white-space: nowrap; }
+#nv-prof .nv-pmat b { font-weight: 700; color: #fff; margin-right: 4px; }
+#nv-prof .nv-pub-foot { display: flex; justify-content: center; gap: 8px; margin: 26px 0 6px; font-size: 12.5px; color: var(--text-3); align-items: center; flex-wrap: wrap; }
+
+/* Fiche */
+#nv-prof .nv-fiche { max-width: 760px; margin: 0 auto; }
+#nv-prof .nv-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--text-3); font-size: 12.5px; cursor: pointer; padding: 6px 0; margin-bottom: 8px; }
+#nv-prof .nv-back:hover { color: #fff; }
+#nv-prof .nv-back svg { width: 14px; height: 14px; }
+#nv-prof .nv-fhead { display: flex; gap: 18px; align-items: center; padding: 22px; border-radius: 20px; background: linear-gradient(135deg, rgba(122,167,255,0.12), rgba(255,255,255,0.02)); border: 1px solid var(--line); margin-bottom: 12px; animation: nv-rise .4s var(--ease) both; }
+#nv-prof .nv-fhead h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.5px; }
+#nv-prof .nv-fhead .nv-ppost { font-size: 13.5px; margin-top: 6px; }
+#nv-prof .nv-fhead-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+#nv-prof .nv-ftext { font-size: 13.5px; color: var(--text-2); line-height: 1.7; white-space: pre-line; margin: 0; }
+#nv-prof .nv-forma { list-style: none; margin: 0; padding: 0; }
+#nv-prof .nv-forma li { display: flex; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; }
+#nv-prof .nv-forma li:first-child { border-top: 0; padding-top: 2px; }
+#nv-prof .nv-forma b { font-weight: 600; }
+#nv-prof .nv-forma small { display: block; color: var(--text-3); font-size: 12px; margin-top: 2px; }
+#nv-prof .nv-forma i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-4); min-width: 38px; padding-top: 2px; }
+#nv-prof .nv-cours { padding: 18px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 10px; animation: nv-rise .4s var(--ease) both; }
+#nv-prof .nv-cours-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#nv-prof .nv-cours-head h3 { margin: 0; font-size: 16px; font-weight: 700; }
+#nv-prof .nv-cours-head small { display: block; color: var(--text-3); font-size: 12.5px; margin-top: 3px; }
+#nv-prof .nv-cours-dates { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 14px; }
+#nv-prof .nv-cours-dates span { font-size: 11.5px; padding: 4px 10px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); }
+#nv-prof .nv-cours-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+#nv-prof .nv-cours-cta small { color: var(--text-3); font-size: 12px; }
+#nv-prof .nv-price { font-size: 20px; font-weight: 700; letter-spacing: -.4px; white-space: nowrap; }
+#nv-prof .nv-price small { font-size: 12px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
+
+/* Présences (espace prof) */
+#nv-prof .nv-pr-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+#nv-prof .nv-pr-head b { display: block; font-size: 13.5px; font-weight: 600; }
+#nv-prof .nv-pr-head small { display: block; font-size: 12px; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-pr-head > svg { width: 14px; height: 14px; color: var(--text-3); transition: transform .2s; }
+#nv-prof .nv-card.is-on .nv-pr-head > svg { transform: rotate(180deg); }
+#nv-prof .nv-pr-count { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+#nv-prof .nv-pr-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; margin-top: 4px; }
+#nv-prof .nv-pr { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .15s, border-color .15s; }
+#nv-prof .nv-pr:hover:not(:disabled) { background: var(--panel-2); }
+#nv-prof .nv-pr:disabled { cursor: default; }
+#nv-prof .nv-pr .nv-pr-nom { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-pr small { font-size: 11px; color: var(--text-4); white-space: nowrap; }
+#nv-prof .nv-pr.is-on { border-color: rgba(91,227,163,0.35); background: rgba(91,227,163,0.06); }
+#nv-prof .nv-pr.is-on .nv-check { background: var(--ok); border-color: var(--ok); }
+#nv-prof .nv-pr.is-on .nv-check svg { opacity: 1; transform: none; }
+#nv-prof.is-compact .nv-pr-list { grid-template-columns: 1fr; }
+
+/* Profil public (espace prof) */
+#nv-prof .nv-pf { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+#nv-prof .nv-pf-side { position: sticky; top: 12px; }
+#nv-prof .nv-pf-photo { display: flex; align-items: center; gap: 14px; }
+#nv-prof .nv-pf-row { display: grid; grid-template-columns: 1.4fr 1.4fr 80px 34px; gap: 6px; margin-top: 6px; }
+#nv-prof .nv-pf-row .nv-input { height: 38px; font-size: 13px; padding: 0 10px; }
+#nv-prof .nv-pf-x { width: 34px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text-3); cursor: pointer; font-size: 16px; }
+#nv-prof .nv-pf-x:hover { color: #fff; background: var(--panel-2); }
+#nv-prof .nv-pf-count { float: right; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-4); }
+#nv-prof .nv-pf-url { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--text-3); margin: 2px 0 0 36px; word-break: break-all; }
+#nv-prof .nv-pf-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+#nv-prof .nv-pf-state { padding: 12px 14px; border-radius: 12px; font-size: 12.5px; line-height: 1.5; margin-bottom: 12px; background: var(--panel-2); color: var(--text-2); border: 1px solid var(--line); }
+#nv-prof .nv-pf-state.is-ok { background: rgba(91,227,163,0.08); border-color: rgba(91,227,163,0.22); color: #b9f5d8; }
+#nv-prof .nv-pf-state.is-warn { background: rgba(255,209,102,0.08); border-color: rgba(255,209,102,0.2); color: #ffe2a3; }
+#nv-prof .nv-pf-state.is-bad { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.2); color: #ffb3b3; }
+#nv-prof .nv-pf-state b { color: #fff; }
+#nv-prof.is-compact .nv-pf { grid-template-columns: 1fr; }
+#nv-prof.is-compact .nv-pf-side { position: static; }
+#nv-prof.is-compact .nv-pf-row { grid-template-columns: 1fr 1fr; }
+#nv-prof.is-compact .nv-pf-row .nv-input:nth-child(3) { grid-column: 1; }
+#nv-prof.is-compact .nv-fhead { flex-direction: column; text-align: center; padding: 20px 16px; }
+#nv-prof.is-compact .nv-fhead .nv-pbadges, #nv-prof.is-compact .nv-fhead-links { justify-content: center; }
+#nv-prof.is-compact .nv-pgrid { grid-template-columns: 1fr; }
 </style>
 
 <div id="nv-prof" class="is-solo">
@@ -845,6 +953,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   <input type="file" accept="application/pdf,.pdf" data-el="file" style="display:none">
   <input type="file" accept="application/pdf,.pdf" data-el="ep-file" style="display:none">
   <input type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" data-el="cp-file" style="display:none">
+  <input type="file" accept="image/jpeg,image/png,image/webp" data-el="pf-file" style="display:none">
 </div>
 
 <script>
@@ -856,16 +965,21 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     SIGNUP_URL: "https://navire-ai.com/register",
     CONTACT_URL: "",                     // ex. "mailto:…" : bouton « Contacter l'équipe »
     LIB_URL: "https://navire-ai.com/lib",  // NAVIRE Lib (lien du menu)
+    // Page du formulaire Prép'AdJuris (embeds/adjuris.html) : le bouton
+    // « S'inscrire » d'une fiche y ajoute ?prof=<slug>&matiere=<clé>.
+    INSCRIPTION_URL: "https://navire-ai.com/",
     DISCORD_URL: ""                      // serveur Discord NAVIRE (lien du menu), facultatif
   };
   var LOGO = CONFIG.API + "/assets/logo-navire-app.png";
   var ART = function (k) { return CONFIG.API + "/assets/" + k + ".png"; };
-  var TITLES = { home: "Accueil", copies: "Copies", epreuves: "Épreuves", groupes: "Groupes", earnings: "Rémunération" };
+  var TITLES = { home: "Accueil", copies: "Copies", epreuves: "Épreuves", groupes: "Groupes", presences: "Présences", earnings: "Rémunération", profil: "Profil public" };
 
   var root = document.getElementById("nv-prof");
   var S = { token: null, me: null, dash: null, view: "home", devoirs: [], eps: null, dvFilter: "todo",
     earnMonth: null, earnDetail: {}, earnOpen: null, uploadClass: null, uploadFile: null, epf: null,
-    admin: false, voir: null, profs: null };
+    admin: false, voir: null, profs: null,
+    cat: null, catNiv: "", fiche: null, profil: null, pf: null, pfBusy: false,
+    cours: null, coursOpen: null, pres: {}, prBusy: false };
   var VOIR_KEY = "navire_prof_voir_comme";
   var CX = { node: null };   // éditeur de correction (plus bas)
 
@@ -1204,7 +1318,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function empty(title, sub) { return '<div class="nv-empty"><b>' + title + '</b>' + (sub || "") + '</div>'; }
   function aCorriger() { return S.devoirs.filter(function (x) { return x.statut === "depose"; }); }
 
-  // ----- Non connecté -----
+  // ----- Connexion professeur (lien discret de la page publique) -----
   function viewLoggedOut() {
     setPage(hero('Espace <span class="nv-grad">professeurs</span>',
       'Tes copies à corriger, tes épreuves, tes groupes et ta rémunération, au même endroit.') +
@@ -1217,7 +1331,130 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       '<button class="nv-chip" style="width:100%;justify-content:center;height:42px" data-act="google">Continuer avec Google</button>' +
       '<div class="nv-err" data-el="err"></div>' +
       '<div style="font-size:12.5px;color:var(--text-3)">Pas encore de compte ? <button class="nv-link-btn" data-act="signup">Crée-le ici</button>, puis demande à l\'équipe de le rattacher.</div>' +
-      '</div>', true);
+      '</div>' +
+      '<div style="display:flex;justify-content:center"><button class="nv-back" data-act="cat-back">' + ICON_BACK + 'Voir nos professeurs</button></div>', true);
+  }
+
+  // ================= PAGE PUBLIQUE : NOS PROFESSEURS =================
+  var ICON_BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';
+  var ICON_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  var NIVEAUX = ["L1", "L2", "L3", "M1"];
+  function slugOk(x) { return /^[a-z0-9-]{1,100}$/.test(x || ""); }
+  function hashWin() { return HOST || window; }
+  function hashGet() {
+    var h = "";
+    try { h = hashWin().location.hash; } catch (e) { h = window.location.hash; }
+    try { h = decodeURIComponent((h || "").replace(/^#/, "")).toLowerCase(); } catch (e) { h = ""; }
+    return slugOk(h) ? h : "";
+  }
+  function hashSet(slug) {
+    try {
+      var w = hashWin();
+      w.history.replaceState(w.history.state, "", slug ? "#" + slug : w.location.pathname + w.location.search);
+    } catch (e) {}
+  }
+  function pubVisible() { return !S.token || (S.me && S.me.status === "none" && !S.admin); }
+  function photoStyle(url) { return url ? ' style="background-image:url(&quot;' + esc(url) + '&quot;)"' : ""; }
+  function badges(c) {
+    return '<div class="nv-pbadges">' + (c.statut_label ? '<span class="nv-pbadge">' + esc(c.statut_label) + '</span>' : '') +
+      (c.verifie ? '<span class="nv-pbadge is-ok">' + ICON_OK + 'Vérifié</span>' : '') + '</div>';
+  }
+  function poste(c) {
+    var x = [c.poste, c.experience_annees ? c.experience_annees + " an" + (c.experience_annees > 1 ? "s" : "") + " d'expérience" : ""].filter(Boolean);
+    return x.length ? '<div class="nv-ppost">' + esc(x.join(" · ")) + '</div>' : '';
+  }
+  function matieresHtml(ms) {
+    return (ms || []).length ? '<div class="nv-pmat">' + ms.map(function (m) { return '<span><b>' + esc(m.niveau) + '</b>' + esc(m.nom) + '</span>'; }).join("") + '</div>' : '';
+  }
+  // Carte du catalogue ; aussi l'aperçu de « Profil public » (statique).
+  function carteHtml(c, statique) {
+    var tag = statique ? "div" : "button";
+    return '<' + tag + ' class="nv-pcard' + (statique ? " is-static" : "") + '"' + (statique ? "" : ' data-act="fiche" data-slug="' + esc(c.slug) + '"') + '>' +
+      '<div class="nv-pcard-top"><span class="nv-pphoto"' + photoStyle(c.photo_url) + '></span><div><div class="nv-pname">' + esc(c.nom) + '</div>' + badges(c) + '</div></div>' +
+      poste(c) + (c.extrait ? '<div class="nv-pdesc">' + esc(c.extrait) + '</div>' : '') + matieresHtml(c.matieres) +
+      '</' + tag + '>';
+  }
+  function piedPublic() {
+    if (!S.token) return '<div class="nv-pub-foot">Tu enseignes chez NAVIRE ? <button class="nv-link-btn" data-act="prof-login">Espace professeur</button></div>';
+    return '<div class="nv-pub-foot">Connecté · <button class="nv-link-btn" data-act="logout">Changer de compte</button></div>';
+  }
+  function viewPublic() {
+    var slug = hashGet();
+    return slug ? viewFiche(slug) : viewCatalogue();
+  }
+  function viewCatalogue() {
+    hashSet("");
+    S.fiche = null;
+    var p = S.cat ? Promise.resolve(S.cat) : api("GET", "/professeurs/public").then(function (r) { S.cat = r.items || []; return S.cat; });
+    if (!S.cat) setPage('<div class="nv-pub">' + hero('Nos <span class="nv-grad">professeurs</span>', 'Des juristes en poste qui enseignent le droit, matière par matière.') + '<div class="nv-pgrid" style="margin-top:22px"><div class="nv-skel" style="height:190px"></div><div class="nv-skel" style="height:190px"></div><div class="nv-skel" style="height:190px"></div></div></div>', true);
+    return p.then(renderCatalogue).catch(function (x) { setPage(empty("Page indisponible", esc(x.message)) + piedPublic(), true); });
+  }
+  function renderCatalogue() {
+    var niv = S.catNiv;
+    var items = S.cat.filter(function (c) { return !niv || c.matieres.some(function (m) { return m.niveau === niv; }); });
+    var dispo = NIVEAUX.filter(function (n) { return S.cat.some(function (c) { return c.matieres.some(function (m) { return m.niveau === n; }); }); });
+    var h = '<div class="nv-pub">' + hero('Nos <span class="nv-grad">professeurs</span>', 'Des juristes en poste qui enseignent le droit, matière par matière. Choisis ton professeur et rejoins son groupe Prép\'AdJuris.');
+    if (dispo.length > 1) {
+      h += '<div class="nv-pub-filters">' + [["", "Tous"]].concat(dispo.map(function (n) { return [n, n]; })).map(function (f) {
+        return '<button class="nv-chip' + (niv === f[0] ? " is-active" : "") + '" data-act="cat-niv" data-n="' + f[0] + '">' + f[1] + '</button>';
+      }).join("") + '</div>';
+    } else h += '<div style="height:18px"></div>';
+    h += items.length ? '<div class="nv-pgrid">' + items.map(function (c) { return carteHtml(c); }).join("") + '</div>'
+      : empty(S.cat.length ? "Aucun professeur pour ce niveau" : "Nos professeurs arrivent", S.cat.length ? "" : "Les fiches de nos professeurs seront bientôt en ligne.");
+    setPage(h + piedPublic() + '</div>', true);
+  }
+  function seanceCourte(iso) {
+    var d = new Date(iso);
+    return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }).replace(/^./, function (c) { return c.toUpperCase(); }) +
+      " · " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }).replace(":", " h ");
+  }
+  function inscriptionUrl(slug, key) {
+    var u = CONFIG.INSCRIPTION_URL || "";
+    return u + (u.indexOf("?") < 0 ? "?" : "&") + "prof=" + encodeURIComponent(slug) + "&matiere=" + encodeURIComponent(key);
+  }
+  function ficheHtml(f) {
+    var h = '<div class="nv-fhead"><span class="nv-pphoto is-xl"' + photoStyle(f.photo_url) + '></span><div style="min-width:0">' +
+      '<h1>' + esc(f.nom) + '</h1>' + badges(f) + poste(f) +
+      '<div class="nv-fhead-links">' + (lienSur(f.linkedin_url) ? '<a class="nv-chip" href="' + esc(f.linkedin_url) + '" target="_blank" rel="noopener">LinkedIn' + ICON.ext + '</a>' : '') +
+      (f.lien_partage ? '<button class="nv-chip" data-act="share" data-url="' + esc(f.lien_partage) + '">' + ICON.link + 'Partager</button>' : '') + '</div>' +
+      '</div></div>';
+    if (f.description) h += '<div class="nv-card"><div class="nv-card-title">Présentation</div><p class="nv-ftext">' + esc(f.description) + '</p></div>';
+    if ((f.formation || []).length) {
+      h += '<div class="nv-card"><div class="nv-card-title" style="margin-bottom:10px">Formation</div><ul class="nv-forma">' + f.formation.map(function (l) {
+        return '<li><i>' + esc(l.annee || "") + '</i><div><b>' + esc(l.diplome || "") + '</b>' + (l.etablissement ? '<small>' + esc(l.etablissement) + '</small>' : '') + '</div></li>';
+      }).join("") + '</ul></div>';
+    }
+    h += '<div class="nv-group-label">Ses cours Prép\'AdJuris</div>';
+    if (!(f.cours || []).length) h += empty("Pas de cours ouvert en ce moment", "");
+    (f.cours || []).forEach(function (c) {
+      h += '<div class="nv-cours"><div class="nv-cours-head"><div><h3>' + esc(c.niveau) + ' · ' + esc(c.nom) + '</h3>' +
+        '<small>' + esc(c.creneau ? c.creneau + " · en visio, en petit groupe" : "En visio, en petit groupe") + '</small></div>' +
+        '<div class="nv-price">' + eur(c.abonnement.prix_seance_cents) + ' <small>par séance</small></div></div>' +
+        (c.prochaines_seances.length ? '<div class="nv-cours-dates">' + c.prochaines_seances.slice(0, 3).map(function (x) { return '<span>' + esc(seanceCourte(x.date)) + '</span>'; }).join("") + '</div>' : '<div style="height:12px"></div>') +
+        '<div class="nv-cours-cta"><a class="nv-btn" href="' + esc(inscriptionUrl(f.slug, c.key)) + '" target="_top">S\'inscrire à la Prép\'AdJuris</a>' +
+        '<small>20 € à l\'inscription pour ta prochaine séance, puis les séances du mois prélevées en fin de mois.</small></div></div>';
+    });
+    return h;
+  }
+  function viewFiche(slug) {
+    hashSet(slug);
+    setPage('<div class="nv-fiche"><div class="nv-skel" style="height:150px;margin-top:10px"></div><div class="nv-skel"></div></div>', true);
+    return api("GET", "/professeurs/public/" + encodeURIComponent(slug)).then(function (f) {
+      S.fiche = f;
+      setPage('<div class="nv-fiche"><button class="nv-back" data-act="cat-back">' + ICON_BACK + 'Tous nos professeurs</button>' + ficheHtml(f) + piedPublic() + '</div>', true);
+    }).catch(function (x) {
+      if (x.status === 404) { S.cat = null; return viewCatalogue(); }
+      setPage(empty("Fiche indisponible", esc(x.message)) + piedPublic(), true);
+    });
+  }
+  // Le visiteur change l'adresse (#slug) ou revient en arrière.
+  try { hashWin().addEventListener("hashchange", function () { if (pubVisible() && !CX.node) viewPublic(); }); } catch (e) {}
+  function partager(url, b) {
+    function ok() { toast("Lien copié"); }
+    if (navigator.share && root.classList.contains("is-compact")) { navigator.share({ url: url }).catch(function () {}); return; }
+    try { navigator.clipboard.writeText(url).then(ok, function () { window.prompt("Lien de la fiche", url); }); }
+    catch (e) { window.prompt("Lien de la fiche", url); }
+    void b;
   }
 
   // ----- Aperçu admin -----
@@ -1248,7 +1485,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function voirComme(id) {
     S.voir = id || null;
     store(VOIR_KEY, S.voir ? String(S.voir) : null);
-    S.dash = null; S.devoirs = []; S.earnDetail = {}; S.earnMonth = null; S.earnOpen = null; S.dvOpen = null; S.dvDraft = {};
+    S.dash = null; S.devoirs = []; S.earnDetail = {}; S.earnMonth = null; S.earnOpen = null; S.dvOpen = null; S.dvDraft = {}; S.profil = null; S.pf = null; S.cours = null; S.pres = {}; S.coursOpen = null;
     S.view = "home"; S.classFilter = "all"; S.uploadClass = null;
     boot();
   }
@@ -1261,7 +1498,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
         '<small>' + esc(p.email || "") + ' · ' + n + ' groupe' + (n > 1 ? 's' : '') + '</small></div>' +
         (p.status !== "active" ? '<span class="nv-tag warn"><i></i>suspendu</span>' : '<span class="nv-tag ok"><i></i>actif</span>') + '</button>';
     });
-    html += '<div style="display:flex;justify-content:center;margin-top:14px"><button class="nv-chip" data-act="logout">Changer de compte</button></div>';
+    html += '<div style="display:flex;justify-content:center;gap:8px;margin-top:14px"><button class="nv-chip" data-act="cat-back">Page publique</button><button class="nv-chip" data-act="logout">Changer de compte</button></div>';
     setPage('<div style="max-width:520px;margin:0 auto">' + html + '</div>', true);
   }
 
@@ -1482,7 +1719,9 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       ["copies", "Copies", art("files-cristal"), todo ? '<span class="nv-badge is-blue">' + todo + "</span>" : ""],
       ["epreuves", "Épreuves", art("profil-qcm"), eps ? '<span class="nv-badge">' + eps + "</span>" : ""],
       ["groupes", "Groupes", art("home-fichiers"), t.classes ? '<span class="nv-badge">' + t.classes + "</span>" : ""],
-      ["earnings", "Rémunération", art("profil-rang"), ""]
+      ["presences", "Présences", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/></svg>', ""],
+      ["earnings", "Rémunération", art("profil-rang"), ""],
+      ["profil", "Profil public", ICON.eye, S.profil && S.profil.etat === "refuse" ? '<span class="nv-badge">!</span>' : ""]
     ];
     el("nav").innerHTML = items.map(function (it) {
       return '<button class="nv-nav' + (S.view === it[0] ? " is-active" : "") + '" data-view="' + it[0] + '">' + it[2] + esc(it[1]) + it[3] + "</button>";
@@ -1719,7 +1958,200 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       .catch(function (x) { if (w) w.close(); toast(x.message, true); });
   }
 
-  var VIEWS = { home: viewHome, copies: viewCopies, epreuves: viewEpreuves, groupes: viewGroupes, earnings: viewEarnings };
+  // ----- Présences : qui était là, cours par cours -----
+  function viewPresences() {
+    if (S.cours) return renderPresences();
+    setPage('<div class="nv-skel" style="margin-top:10px"></div><div class="nv-skel"></div>');
+    return api("GET", "/professeurs/me/cours?jours=60").then(function (r) { S.cours = r; renderPresences(); })
+      .catch(function (x) { setPage(empty("Présences indisponibles", esc(x.message))); });
+  }
+  function prCoursTags(c) {
+    var t = [];
+    if (c.statut === "en_cours") t.push('<span class="nv-tag ok"><i></i>en cours</span>');
+    if (c.cree_par_admin) t.push('<span class="nv-tag">ajouté par l\'équipe</span>');
+    else if (!c.vocal) t.push('<span class="nv-tag warn">sans relevé auto</span>');
+    return t.join("");
+  }
+  function prListe(cid) {
+    var d = S.pres[cid];
+    if (!d) return '<div class="nv-skel" style="height:80px;margin:8px 0 0"></div>';
+    if (d.erreur) return '<div class="nv-notice is-bad">' + esc(d.erreur) + '</div>';
+    var ro = !!S.voir || !d.modifiable;
+    var h = d.modifiable ? '' : '<div class="nv-notice">' + esc(d.raison || "Lecture seule.") + '</div>';
+    if (!d.cours.vocal && !d.cours.cree_par_admin) h += '<div class="nv-notice">Relevé automatique inactif : l\'équipe NAVIRE doit renseigner le salon vocal du groupe. Coche les présents à la main.</div>';
+    h += '<div class="nv-pr-list">' + d.eleves.map(function (e) {
+      var attrs = e.presence_id ? 'data-pid="' + e.presence_id + '"' : 'data-eid="' + (e.enrollment_id || "") + '"';
+      return '<button class="nv-pr' + (e.present ? " is-on" : "") + '" data-act="pr-toggle" data-c="' + cid + '" data-v="' + (e.present ? 0 : 1) + '" ' + attrs + (ro ? " disabled" : "") + '>' +
+        '<span class="nv-check">' + ICON_OK + '</span><span class="nv-pr-nom">' + esc(e.nom) + '</span>' +
+        '<small>' + (e.minutes ? e.minutes + " min" : (e.discord_relie ? "absent du vocal" : "Discord non relié")) +
+        (e.source === "prof" || e.source === "admin" ? " · corrigé" : "") + '</small></button>';
+    }).join("") + '</div>';
+    if (d.autres.length) {
+      h += '<div class="nv-group-label">Aussi dans le vocal</div><div class="nv-eleves">' + d.autres.map(function (a) {
+        return '<span class="nv-eleve" title="' + (a.non_relie ? "Compte Discord non relié à NAVIRE : coche l'étudiant dans la liste" : "Pas (ou plus) inscrit dans ce groupe") + '">' +
+          esc(a.nom || "Membre Discord") + ' · ' + a.minutes + ' min' + (a.non_relie ? ' · non relié' : ' · hors groupe') + '</span>';
+      }).join("") + '</div>';
+    }
+    return h + '<div style="font-size:11.5px;color:var(--text-4);margin-top:8px">Présent dès ' + d.seuil_minutes + ' minutes dans le salon vocal du groupe pendant le cours.</div>';
+  }
+  function renderPresences() {
+    var r = S.cours, items = r.items || [];
+    var h = head("Présences", "Qui était là à chacun de tes cours, relevé dans le salon vocal du groupe. Tu peux corriger pendant " + r.correction_heures + " h après le cours.");
+    if (!items.length) h += empty("Aucun cours ces 60 derniers jours", "Lance tes cours depuis le salon #cours-start de Discord : la présence s'y relève toute seule.");
+    items.forEach(function (c) {
+      var jh = jourHeure(c.debut), open = S.coursOpen === c.id;
+      h += '<div class="nv-card' + (open ? " is-on" : "") + '" style="padding:0">' +
+        '<button class="nv-pr-head" data-act="pr-open" data-c="' + c.id + '"><div style="min-width:0;flex:1"><b>' + esc(jh.jour) + ' · ' + esc(jh.heure) + '</b>' +
+        '<small>' + esc(c.matiere_label) + ' · ' + esc(c.groupe) + '</small></div>' + prCoursTags(c) +
+        '<span class="nv-pr-count">' + c.nb_presents + ' présent' + (c.nb_presents > 1 ? "s" : "") + '</span>' + CHEV + '</button>' +
+        (open ? '<div style="padding:0 16px 16px">' + prListe(c.id) + '</div>' : '') + '</div>';
+    });
+    setPage(h);
+  }
+  function prOuvrir(cid) {
+    S.coursOpen = S.coursOpen === cid ? null : cid;
+    renderPresences();
+    if (S.coursOpen && !S.pres[cid]) {
+      api("GET", "/professeurs/cours/" + cid + "/presences").then(function (d) { S.pres[cid] = d; })
+        .catch(function (x) { S.pres[cid] = { erreur: x.message }; })
+        .then(function () { if (S.view === "presences") renderPresences(); });
+    }
+  }
+  function prBasculer(a) {
+    if (S.prBusy) return;
+    var cid = +a.getAttribute("data-c"), body = { present: a.getAttribute("data-v") === "1" };
+    if (a.getAttribute("data-pid")) body.presence_id = +a.getAttribute("data-pid"); else body.enrollment_id = +a.getAttribute("data-eid");
+    S.prBusy = true;
+    a.classList.toggle("is-on", body.present);
+    api("PATCH", "/professeurs/cours/" + cid + "/presences", body).then(function (d) {
+      S.pres[cid] = d;
+      (S.cours.items || []).forEach(function (c) { if (c.id === cid) c.nb_presents = d.cours.nb_presents; });
+    }).catch(function (x) { toast(x.message, true); })
+      .then(function () { S.prBusy = false; if (S.view === "presences") renderPresences(); });
+  }
+
+  // ----- Profil public : la fiche de la page Professeurs -----
+  function viewProfil() {
+    if (S.profil) return renderProfil();
+    setPage('<div class="nv-skel" style="margin-top:10px"></div><div class="nv-skel"></div>');
+    return chargerProfil().then(renderProfil).catch(function (x) { setPage(empty("Profil indisponible", esc(x.message))); });
+  }
+  function chargerProfil() {
+    return api("GET", "/professeurs/me/profil").then(function (r) { S.profil = r; S.pf = JSON.parse(JSON.stringify(r.contenu)); return r; });
+  }
+  function pfEtat(r) {
+    if (r.etat === "en_attente") return '<div class="nv-pf-state is-warn"><b>En attente de validation.</b> L\'équipe NAVIRE relit ta fiche' + (r.publie ? ' ; la version en ligne reste affichée en attendant.' : ' avant de la mettre en ligne.') + '</div>';
+    if (r.etat === "refuse") return '<div class="nv-pf-state is-bad"><b>À reprendre.</b> ' + esc(r.motif_refus || "L'équipe te demande quelques modifications.") + ' Corrige ta fiche puis soumets-la à nouveau.</div>';
+    if (r.visible && !r.brouillon_en_cours) return '<div class="nv-pf-state is-ok"><b>En ligne.</b> Ta fiche est visible sur la page Professeurs.' + (r.lien ? ' <a href="' + esc(r.lien) + '" target="_blank" rel="noopener" style="color:#fff">Voir ma fiche</a>' : '') + '</div>';
+    if (r.publie && r.masque) return '<div class="nv-pf-state is-warn"><b>Masquée.</b> L\'équipe a retiré ta fiche de la page Professeurs pour le moment.</div>';
+    if (r.brouillon_en_cours) return '<div class="nv-pf-state is-warn"><b>Modifications non soumises.</b> Ta fiche en ligne reste l\'ancienne version tant que tu ne les soumets pas.</div>';
+    return '<div class="nv-pf-state"><b>Brouillon.</b> Remplis ta fiche, puis soumets-la : l\'équipe NAVIRE la valide avant sa mise en ligne.</div>';
+  }
+  function pfCarte() {
+    var r = S.profil, c = S.pf, statut = (r.statuts.filter(function (x) { return x.key === c.statut_pro; })[0] || {}).label || "";
+    var d = (c.description || "").trim();
+    return carteHtml({
+      nom: c.nom_complet_public ? r.apercu.nom_complet : r.apercu.nom_court,
+      photo_url: c.photo_url || r.apercu.photo_url, statut_label: statut, verifie: r.verifie,
+      poste: c.poste, experience_annees: +c.experience_annees || null,
+      extrait: d.length <= 180 ? d : d.slice(0, 177).replace(/\s+\S*$/, "") + "…", matieres: r.apercu.matieres
+    }, true);
+  }
+  function pfUrl() {
+    var r = S.profil, slug = S.pf.nom_complet_public ? r.apercu.slug_complet : r.apercu.slug_court;
+    return (r.page_url || "") + "#" + slug;
+  }
+  function renderProfil() {
+    var r = S.profil, c = S.pf, L = r.limites, ro = !!S.voir;
+    var dis = ro ? " disabled" : "";
+    var h = head("Profil public", "Ta fiche sur la page Professeurs : les étudiants la consultent avant de s'inscrire dans ton groupe.") + pfEtat(r);
+    h += '<div class="nv-pf"><div>';
+    h += '<div class="nv-card"><div class="nv-card-title">Photo et nom</div><div class="nv-card-sub">Une photo nette de ton visage, de face.</div>' +
+      '<div class="nv-pf-photo"><span class="nv-pphoto is-xl"' + photoStyle(c.photo_url || r.apercu.photo_url) + '></span>' +
+      '<div><button class="nv-chip" data-act="pf-photo"' + dis + '>' + ICON.upload + (c.photo_url ? 'Changer la photo' : 'Ajouter une photo') + '</button>' +
+      '<div style="font-size:11.5px;color:var(--text-4);margin-top:6px">JPG, PNG ou WEBP, 8 Mo maximum.</div></div></div>' +
+      '<button type="button" class="nv-check-row' + (c.nom_complet_public ? " is-on" : "") + '" data-act="pf-nom" style="margin-top:12px;width:100%;background:none;border:0;text-align:left"' + dis + '><span class="nv-check">' + ICON_OK + '</span>' +
+      '<span>Afficher mon nom complet (' + esc(r.apercu.nom_complet) + '). Sinon : ' + esc(r.apercu.nom_court) + '</span></button>' +
+      '<div class="nv-pf-url" data-el="pf-url">' + esc(pfUrl()) + '</div></div>';
+    h += '<div class="nv-card"><div class="nv-card-title">Parcours</div>' +
+      '<div class="nv-row2">' + field("Statut", '<select class="nv-input" id="pf-statut"' + dis + '><option value="">Choisir…</option>' + r.statuts.map(function (x) {
+        return '<option value="' + x.key + '"' + (c.statut_pro === x.key ? " selected" : "") + '>' + esc(x.label) + '</option>';
+      }).join("") + '</select>') +
+      field("Années d'expérience", input("pf-exp", c.experience_annees == null ? "" : String(c.experience_annees), 'type="number" min="1" max="60" inputmode="numeric"' + dis)) + '</div>' +
+      field("Poste actuel", input("pf-poste", c.poste, 'maxlength="160" placeholder="Ex. Juriste en droit social, groupe industriel"' + dis)) +
+      field("LinkedIn", input("pf-linkedin", c.linkedin_url, 'placeholder="https://www.linkedin.com/in/…"' + dis), true) + '</div>';
+    h += '<div class="nv-card"><div class="nv-card-title">Formation</div><div class="nv-card-sub">Diplôme, établissement, année. ' + L.formation_max + ' lignes au maximum.</div>' +
+      (c.formation.length ? c.formation : [{ diplome: "", etablissement: "", annee: "" }]).map(function (l, i) {
+        return '<div class="nv-pf-row">' + input("pf-f-" + i + "-diplome", l.diplome, 'data-pf-f="' + i + ':diplome" placeholder="M2 Droit des affaires" maxlength="160"' + dis) +
+          input("pf-f-" + i + "-etablissement", l.etablissement, 'data-pf-f="' + i + ':etablissement" placeholder="Université Paris 1" maxlength="160"' + dis) +
+          input("pf-f-" + i + "-annee", l.annee, 'data-pf-f="' + i + ':annee" placeholder="2022" maxlength="20"' + dis) +
+          '<button class="nv-pf-x" data-act="pf-f-del" data-i="' + i + '" title="Retirer"' + dis + '>×</button></div>';
+      }).join("") +
+      (c.formation.length < L.formation_max ? '<button class="nv-chip" style="margin-top:10px" data-act="pf-f-add"' + dis + '>+ Ajouter une ligne</button>' : '') + '</div>';
+    h += '<div class="nv-card"><div class="nv-card-title">Présentation <span class="nv-pf-count" data-el="pf-count">' + (c.description || "").length + ' / ' + L.description_max + '</span></div>' +
+      '<div class="nv-card-sub">Ton parcours, ta façon d\'enseigner, ce que les étudiants trouveront dans ton groupe. ' + L.description_min + ' caractères minimum.</div>' +
+      '<textarea class="nv-input" id="pf-desc" rows="7" maxlength="' + L.description_max + '"' + dis + '>' + esc(c.description) + '</textarea></div>';
+    if (!ro && r.manques.length && r.etat !== "en_attente") {
+      h += '<div class="nv-card-sub" style="margin:14px 2px 0">Pour soumettre ta fiche, il manque encore : ' + esc(r.manques.join(", ")) + '.</div>';
+    }
+    if (!ro) {
+      h += '<div class="nv-pf-actions"><button class="nv-btn" data-act="pf-submit"' + (S.pfBusy ? " disabled" : "") + '>Soumettre à validation</button>' +
+        '<button class="nv-chip" data-act="pf-save"' + (S.pfBusy ? " disabled" : "") + '>Enregistrer le brouillon</button></div>';
+    }
+    h += '</div><div class="nv-pf-side"><div class="nv-group-label" style="margin-top:0">Aperçu de ta carte</div><div data-el="pf-carte">' + pfCarte() + '</div>' +
+      (r.apercu.matieres.length ? '' : '<div class="nv-notice">Aucun groupe actif : tes matières s\'afficheront dès que l\'équipe t\'aura affecté un groupe.</div>') +
+      '</div></div>';
+    setPage(h);
+  }
+  // Champs du formulaire → S.pf (avant un nouveau rendu ou un envoi).
+  function pfLire() {
+    if (!S.pf || !document.getElementById("pf-desc")) return;
+    S.pf.statut_pro = val("pf-statut");
+    var e = val("pf-exp"); S.pf.experience_annees = e === "" ? null : Math.max(0, Math.min(60, parseInt(e, 10) || 0));
+    S.pf.poste = val("pf-poste");
+    S.pf.linkedin_url = val("pf-linkedin") || null;
+    S.pf.description = (document.getElementById("pf-desc").value || "").trim();
+    var lignes = [];
+    root.querySelectorAll("[data-pf-f]").forEach(function (n) {
+      var k = n.getAttribute("data-pf-f").split(":"), i = +k[0];
+      lignes[i] = lignes[i] || { diplome: "", etablissement: "", annee: "" };
+      lignes[i][k[1]] = n.value.trim();
+    });
+    S.pf.formation = lignes.filter(Boolean);
+  }
+  function pfPayload() {
+    var c = S.pf;
+    return {
+      nom_complet_public: !!c.nom_complet_public, statut_pro: c.statut_pro || "", poste: c.poste || "",
+      experience_annees: c.experience_annees, description: c.description || "", linkedin_url: c.linkedin_url || null,
+      formation: c.formation.filter(function (l) { return l.diplome || l.etablissement; })
+    };
+  }
+  function pfApres(r, msg) { S.profil = r; S.pf = JSON.parse(JSON.stringify(r.contenu)); S.pfBusy = false; renderProfil(); if (msg) toast(msg); }
+  function pfEnregistrer(soumettre) {
+    pfLire();
+    S.pfBusy = true; renderProfil();
+    var p = api("PUT", "/professeurs/me/profil", pfPayload());
+    if (soumettre) p = p.then(function (r) { S.profil = r; return api("POST", "/professeurs/me/profil/soumettre"); });
+    p.then(function (r) { pfApres(r, soumettre ? "Fiche envoyée à l'équipe NAVIRE" : "Brouillon enregistré"); })
+      .catch(function (x) { S.pfBusy = false; renderProfil(); toast(x.message, true); });
+  }
+  function pfPhoto(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return toast("Photo en JPG, PNG ou WEBP.", true);
+    if (file.size > 8 * 1048576) return toast("Photo trop lourde (8 Mo maximum).", true);
+    pfLire();
+    var garde = JSON.parse(JSON.stringify(S.pf));
+    var fd = new FormData(); fd.append("file", file);
+    toast("Envoi de la photo…");
+    // La photo s'enregistre seule ; on renvoie ensuite le reste du formulaire
+    // tel qu'il est à l'écran, pour ne rien perdre de ce qui n'était pas enregistré.
+    upload("/professeurs/me/profil/photo", fd).then(function (r) {
+      garde.photo_url = r.contenu.photo_url; S.pf = garde;
+      return api("PUT", "/professeurs/me/profil", pfPayload());
+    }).then(function (r) { pfApres(r, "Photo ajoutée"); }).catch(function (x) { toast(x.message, true); });
+  }
+
+  var VIEWS = { home: viewHome, copies: viewCopies, epreuves: viewEpreuves, groupes: viewGroupes, earnings: viewEarnings, profil: viewProfil, presences: viewPresences };
   function renderApp() {
     var t = S.dash.totaux;
     renderNav();
@@ -2384,7 +2816,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     var a = e.target.closest("[data-act]");
     if (!a || !root.contains(a)) return;
     var act = a.getAttribute("data-act"), id = +a.getAttribute("data-id");
-    if (S.voir && /^(upload|pick|del-doc|doc-new|ep-new|ep-create|ep-del)$/.test(act)) { toast("Aperçu admin : lecture seule", true); return; }
+    if (S.voir && /^(upload|pick|del-doc|doc-new|ep-new|ep-create|ep-del|pf-save|pf-submit|pf-photo|pf-nom|pf-f-add|pf-f-del|pr-toggle)$/.test(act)) { toast("Aperçu admin : lecture seule", true); return; }
     if (act === "voir") { voirComme(id); return; }
     if (act === "close-drawer") root.classList.remove("is-drawer");
     else if (act === "side-close") { if (root.classList.contains("is-compact")) root.classList.remove("is-drawer"); else setSide(false); }
@@ -2420,16 +2852,35 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     else if (act === "upload") docUpload(a);
     else if (act === "open-doc") openDoc(id);
     else if (act === "del-doc") delDoc(a, id);
-    else if (act === "refresh") (S.earnDetail = {}, loadDash()).then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
-    else if (act === "logout") { S.token = null; S.dash = null; S.voir = null; S.admin = false; S.profs = null; store(CONFIG.TOKEN_KEY, null); store(VOIR_KEY, null); renderApercu(); viewLoggedOut(); }
+    else if (act === "refresh") (S.earnDetail = {}, S.profil = null, S.cours = null, S.pres = {}, loadDash()).then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
+    else if (act === "logout") { S.token = null; S.me = null; S.dash = null; S.voir = null; S.admin = false; S.profs = null; S.profil = null; S.pf = null; store(CONFIG.TOKEN_KEY, null); store(VOIR_KEY, null); renderApercu(); viewPublic(); }
     else if (act === "signup") go(CONFIG.SIGNUP_URL);
     else if (act === "login") login(a);
     else if (act === "google") google();
     else if (act === "earn-month") { var cm = a.getAttribute("data-m"); S.earnMonth = S.earnMonth === cm ? null : cm; S.earnOpen = null; rerenderEarnings(); }
     else if (act === "earn-seance") { var sk = a.getAttribute("data-k"); S.earnOpen = S.earnOpen === sk ? null : sk; rerenderEarnings(); }
     else if (act === "dv-filter") { S.dvFilter = a.getAttribute("data-f"); viewCopies(); }
+    // Page publique
+    else if (act === "fiche") viewFiche(a.getAttribute("data-slug"));
+    else if (act === "cat-back") viewCatalogue();
+    else if (act === "cat-niv") { S.catNiv = a.getAttribute("data-n") || ""; renderCatalogue(); }
+    else if (act === "prof-login") { hashSet(""); viewLoggedOut(); }
+    else if (act === "share") partager(a.getAttribute("data-url"), a);
+    // Profil public
+    else if (act === "pf-photo") el("pf-file").click();
+    else if (act === "pf-nom") { pfLire(); S.pf.nom_complet_public = !S.pf.nom_complet_public; renderProfil(); }
+    else if (act === "pf-f-add") { pfLire(); if (!S.pf.formation.length) S.pf.formation.push({ diplome: "", etablissement: "", annee: "" }); S.pf.formation.push({ diplome: "", etablissement: "", annee: "" }); renderProfil(); }
+    else if (act === "pf-f-del") { pfLire(); S.pf.formation.splice(+a.getAttribute("data-i"), 1); renderProfil(); }
+    else if (act === "pr-open") prOuvrir(+a.getAttribute("data-c"));
+    else if (act === "pr-toggle") prBasculer(a);
+    else if (act === "pf-save") pfEnregistrer(false);
+    else if (act === "pf-submit") pfEnregistrer(true);
   });
   root.addEventListener("input", function (e) {
+    if (S.view === "profil" && S.pf && e.target.id && /^pf-/.test(e.target.id)) {
+      if (e.target.id === "pf-desc") { var cn = el("pf-count"); if (cn) cn.textContent = e.target.value.length + " / " + S.profil.limites.description_max; }
+      pfLire(); var pc = el("pf-carte"); if (pc) pc.innerHTML = pfCarte();
+    }
     var ck = e.target.getAttribute && e.target.getAttribute("data-cp");
     if (ck && S.cpf) S.cpf[ck] = e.target.value;
     var ek = e.target.getAttribute && e.target.getAttribute("data-ep");
@@ -2452,6 +2903,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       if (S.cpf) { S.cpf.file = cf; if (!S.cpf.titre) S.cpf.titre = cf.name.replace(/\.(pdf|docx)$/i, ""); }
       return popCopie();
     }
+    if (e.target.getAttribute("data-el") === "pf-file" && e.target.files[0]) { var ph = e.target.files[0]; e.target.value = ""; pfPhoto(ph); return; }
+    if (e.target.id === "pf-statut" && S.pf) { pfLire(); var pc2 = el("pf-carte"); if (pc2) pc2.innerHTML = pfCarte(); return; }
     if (e.target.getAttribute("data-el") === "voir") { voirComme(+e.target.value || null); return; }
     if (e.target.getAttribute("data-el") === "file" && e.target.files[0]) { pickFile(e.target.files[0]); e.target.value = ""; }
     if (e.target.id === "u-classe") S.uploadClass = +e.target.value;
@@ -2479,7 +2932,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     var s = S.me.status;
     renderApercu();
     if (S.admin && !S.voir && s !== "active") return viewPickProf();
-    if (s === "none") return viewNotProf(false);
+    if (s === "none") return viewPublic();   // compte étudiant : la page publique
     if (s !== "active") return viewNotProf(true);
     root.classList.remove("is-solo");
     el("page").innerHTML = '<div class="nv-page-inner"><div class="nv-cards"><div class="nv-skel" style="height:124px"></div><div class="nv-skel" style="height:124px"></div><div class="nv-skel" style="height:124px"></div></div><div class="nv-skel"></div></div>';
@@ -2489,7 +2942,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     });
   }
   function boot() {
-    if (!S.token) { viewLoggedOut(); return; }
+    if (!S.token) { viewPublic(); return; }
     setPage('<div class="nv-skel" style="margin-top:20px"></div><div class="nv-skel"></div>', true);
     api("GET", "/professeurs/me")
       .then(function (m) {
@@ -2499,7 +2952,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       })
       .then(route)
       .catch(function (x) {
-        if (x.status === 401) { S.token = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); return; }
+        if (x.status === 401) { S.token = null; store(CONFIG.TOKEN_KEY, null); viewPublic(); return; }
         // Aperçu admin sur un professeur qui n'existe plus : on l'oublie et on recharge.
         if (x.status === 404 && S.voir) { S.voir = null; store(VOIR_KEY, null); boot(); return; }
         setPage(empty("Erreur", esc(x.message)), true);

@@ -107,6 +107,7 @@ from app.services.prepa_adjuris_billing import (
     recalculer,
 )
 from app.services import prepa_adjuris_facturation as facturation_adjuris
+from app.services import prof_profils
 
 logger = logging.getLogger(__name__)
 
@@ -1445,9 +1446,14 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
             return
         sub_id = _creer_abonnement_adjuris(session, devis_abonnement, meta)
 
+    # Inscription partie d'une fiche professeur : groupe et professeur retenus
+    # au checkout (app/services/prof_profils.py).
+    prof_id, groupes_prof = prof_profils.lire_metadata_prof(meta)
     for key in matiere_keys:
         ech = par_matiere.get(key)
         db.add(PrepaAdjurisEnrollment(
+            classe_id=groupes_prof.get(key),
+            professeur_ref_id=prof_id if key in groupes_prof else None,
             user_id=user.id if user else None,
             email=email or (user.email if user else None),
             matiere_key=key,

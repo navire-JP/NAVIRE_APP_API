@@ -174,3 +174,17 @@ async def cours_action(discord_id: str, cours_id: int, action: str) -> dict:
 
 async def cours_toggle_eleve(discord_id: str, cours_id: int, eleve_id: int) -> dict:
     return await _post(f"/discord/cours/{cours_id}/eleves/{eleve_id}/toggle", {"discord_id": discord_id})
+
+
+# ── Présence aux cours (salon vocal du groupe) ──────────────────────────────
+
+
+async def cours_vocaux() -> list[dict]:
+    """Cours en cours dont le groupe a un salon vocal : [{cours_id, channel_id}]."""
+    data = await _get("/discord/cours/vocaux")
+    return (data or {}).get("items", []) if isinstance(data, dict) else []
+
+
+async def cours_presence(cours_id: int, membres: list[dict]) -> dict:
+    """Relevé du salon vocal : membres = [{discord_id, nom}]."""
+    return await _post(f"/discord/cours/{cours_id}/presence", {"membres": membres})

@@ -4,7 +4,8 @@ Page d'accueil publique (landing) : données des embeds hero et avis.
 Public (sans compte) :
   GET /landing/hero          → 4 premiers du classement (pseudo, photo) et nombre de membres
   GET /landing/avis          → avis affichés, dans l'ordre de la console
-  GET /landing/professeurs   → professeurs actifs : prénom + initiale, photo, grade, matières, bio
+  GET /landing/professeurs   → professeurs actifs : nom, photo, grade, matières, bio ; fiche
+                               publique en ligne : données de la fiche + lien /professeurs#slug
   GET /landing/agenda        → séances Prép'AdJuris à venir (agenda de la console), sans lien de visio
   GET /landing/embed/hero    → embeds/landing_hero.html servi par l'API
   GET /landing/embed/avis    → embeds/landing_avis.html servi par l'API
@@ -141,16 +142,28 @@ GRADES_AFFICHES = {"ChargéTD": "Chargé de TD", "ChargeeTD": "Chargée de TD", 
 @router.get("/landing/professeurs")
 def landing_professeurs(db: Session = Depends(get_db)):
     """
-    Professeurs actifs de la Prép'AdJuris, pour la page d'accueil. Nom réduit
-    au prénom et à l'initiale ; ni email, ni rémunération, ni groupe.
-    Matières : celles des groupes actifs où le professeur est affecté.
+    Professeurs actifs de la Prép'AdJuris, pour la page d'accueil. Ni email,
+    ni rémunération, ni groupe. Matières : celles des groupes actifs où le
+    professeur est affecté.
+
+    Fiche publique en ligne (app/services/prof_profils.py) : nom tel que le
+    professeur l'a choisi, photo, statut et extrait de la fiche, `slug` et
+    `lien` vers /professeurs#slug ; ces professeurs passent en premier, dans
+    l'ordre du catalogue. Sans fiche : prénom + initiale, photo et bio du
+    compte, `slug` et `lien` à null.
     """
+    from app.routers.prof_profils import lien_fiche
+    from app.services import prof_profils
+
     ordre = {k: i for i, k in enumerate(PREPA_PRICES)}
+    fiches = {f.professeur_id: f for f in prof_profils.profils_publics(db)}
+    rang = {pid: i for i, pid in enumerate(fiches)}
     profs = db.execute(
         select(PrepaAdjurisProfesseur)
         .where(PrepaAdjurisProfesseur.status == "active")
         .order_by(PrepaAdjurisProfesseur.created_at, PrepaAdjurisProfesseur.id)
     ).scalars().all()
+    profs = sorted(profs, key=lambda p: rang.get(p.id, len(rang)))
     items = []
     for p in profs:
         u = p.user
@@ -160,6 +173,20 @@ def landing_professeurs(db: Session = Depends(get_db)):
             {a.classe.matiere_key for a in p.affectations if a.classe and a.classe.is_active},
             key=lambda k: ordre.get(k, 99),
         )
+        matieres = [{"niveau": matiere_niveau(k), "nom": PREPA_MATIERE_NAMES.get(k, k)} for k in cles]
+        f = fiches.get(p.id)
+        if f is not None:
+            carte = prof_profils.carte_publique(f)
+            items.append({
+                "nom": carte["nom"],
+                "avatar_url": carte["photo_url"],
+                "grade": carte["statut_label"] or GRADES_AFFICHES.get(p.grade, p.grade or ""),
+                "bio": carte["extrait"],
+                "matieres": matieres,
+                "slug": f.slug,
+                "lien": lien_fiche(f.slug),
+            })
+            continue
         prenom = (p.prenom or "").strip() or (u.username or "").strip()
         initiale = (p.nom or "").strip()[:1].upper()
         items.append({
@@ -167,9 +194,9 @@ def landing_professeurs(db: Session = Depends(get_db)):
             "avatar_url": resolve_avatar_url(u.avatar_url),
             "grade": GRADES_AFFICHES.get(p.grade, p.grade or ""),
             "bio": (u.bio or "").strip(),
-            "matieres": [
-                {"niveau": matiere_niveau(k), "nom": PREPA_MATIERE_NAMES.get(k, k)} for k in cles
-            ],
+            "matieres": matieres,
+            "slug": None,
+            "lien": None,
         })
     return {"items": items}
 

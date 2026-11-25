@@ -1438,6 +1438,11 @@ class PrepaAdjurisEnrollment(Base):
     )
     # Groupe de la matière, choisi dans la console. NULL = premier groupe
     # actif de la matière (voir app/services/professeurs.py).
+    professeur_ref_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_professeurs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Professeur dont la fiche publique a amené l'inscription (bouton
+    # « S'inscrire à la Prép'AdJuris » d'une fiche). NULL = inscription directe.
 
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Échéance d'un accès accordé à la main (source="admin"). NULL pour un
@@ -2068,6 +2073,9 @@ class PrepaAdjurisClasse(Base):
     nom: Mapped[str] = mapped_column(String(120), nullable=False)
 
     discord_url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    # Salon vocal du groupe (identifiant Discord) : la présence y est relevée
+    # pendant les cours lancés depuis #cours-start. Vide = pas de relevé.
+    discord_vocal_id: Mapped[str] = mapped_column(String(32), default="", server_default="", nullable=False)
     # Autres liens du groupe : [{"label": "Drive", "url": "https://…"}]
     liens: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
 
@@ -2111,6 +2119,61 @@ class PrepaAdjurisProfesseur(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+
+class ProfProfil(Base):
+    """
+    Fiche publique d'un professeur (page /professeurs#slug). Règles :
+    app/services/prof_profils.py.
+
+    Les colonnes de contenu portent la version PUBLIÉE ; `brouillon` porte la
+    version que le professeur édite, en attente de validation. La fiche est
+    visible du public dès sa première publication (publie_le), tant qu'elle
+    n'est pas masquée et que le professeur est actif.
+    etat : brouillon | en_attente | publie | refuse (suit le brouillon).
+    """
+    __tablename__ = "prof_profils"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    professeur_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_professeurs.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
+    slug: Mapped[str | None] = mapped_column(String(100), unique=True, index=True, nullable=True)
+
+    nom_complet_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    statut_pro: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    poste: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    experience_annees: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # [{"diplome": "...", "etablissement": "...", "annee": "2021"}]
+    formation: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    linkedin_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+    brouillon: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    etat: Mapped[str] = mapped_column(String(16), default="brouillon", nullable=False, index=True)
+    motif_refus: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    soumis_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    verifie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verifie_par_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    masque: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    publie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    professeur: Mapped["PrepaAdjurisProfesseur"] = relationship("PrepaAdjurisProfesseur")
 
 
 class PrepaAdjurisAffectation(Base):
@@ -2222,6 +2285,10 @@ class PrepaAdjurisCours(Base):
 
     duree_comptee_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     # 60, ou 90 avec un extra.
+    presence_releve_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Dernier relevé du salon vocal par le bot (app/services/presences.py).
+    cree_par_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    # Cours ajouté après coup dans la console (oublié sur Discord).
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -2276,6 +2343,47 @@ class PrepaAdjurisCoursEleve(Base):
     )
 
     cours: Mapped["PrepaAdjurisCours"] = relationship("PrepaAdjurisCours", back_populates="eleves")
+
+
+class PrepaPresence(Base):
+    """
+    Présence d'une personne à un cours (PrepaAdjurisCours). Règles :
+    app/services/presences.py.
+
+    Relevée par le bot dans le salon vocal du groupe pendant le cours
+    (secondes cumulées ; présent au-delà du seuil), puis corrigeable par le
+    professeur (48 h) ou la console. Une correction fixe `present` : les
+    relevés suivants ne le recalculent plus.
+    source : discord | prof | admin
+    user_id NULL : membre Discord sans compte NAVIRE relié (affiché, jamais
+    compté) ou inscription payée sans compte (marquée à la main).
+    """
+    __tablename__ = "prepa_presences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cours_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_cours.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    enrollment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_enrollments.id", ondelete="SET NULL"), nullable=True
+    )
+    discord_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    nom: Mapped[str] = mapped_column(String(170), default="", nullable=False)
+    secondes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    present: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    source: Mapped[str] = mapped_column(String(16), default="discord", nullable=False)
+    modifie_par_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    modifie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    cours: Mapped["PrepaAdjurisCours"] = relationship("PrepaAdjurisCours")
 
 
 # ============================================================

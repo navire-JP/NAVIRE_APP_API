@@ -97,6 +97,9 @@ class PrepaAdjurisCheckoutIn(BaseModel):
     promo_code: str | None = None
     # Code ambassadeur de la page /rejoindre (programme de parrainage).
     ref: str | None = Field(None, max_length=40)
+    # Slug de la fiche professeur d'où part l'inscription (?prof=…) : l'élève
+    # rejoint le groupe de ce professeur dans les matières qu'il enseigne.
+    prof: str | None = Field(None, max_length=100)
 
 
 class LinkDiscordAdjurisIn(BaseModel):
@@ -123,6 +126,9 @@ class PrepaAdjurisInscriptionIn(BaseModel):
 
     # Code ambassadeur de la page /rejoindre (programme de parrainage).
     ref: str | None = Field(None, max_length=40)
+
+    # Slug de la fiche professeur d'où part l'inscription (?prof=…).
+    prof: str | None = Field(None, max_length=100)
 
 
 # ============================================================
@@ -479,6 +485,22 @@ def _devis_public(
     }
 
 
+def _metadata_fiche_prof(db: Session, slug: str | None, matieres: list[str]) -> dict:
+    """
+    Inscription partie d'une fiche professeur (bouton « S'inscrire à la
+    Prép'AdJuris ») : groupe du professeur pour les matières qu'il enseigne,
+    lu par le webhook. Slug inconnu ou fiche hors ligne : rien. Jamais bloquant.
+    """
+    from app.services import prof_profils
+    try:
+        pid, groupes = prof_profils.groupes_pour_inscription(db, slug, matieres)
+        return prof_profils.metadata_prof(pid, groupes)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("Fiche professeur ignorée au checkout")
+        return {}
+
+
 def _metadata_parrainage(db: Session, ref: str | None, user: User | None = None) -> dict:
     """
     Programme ambassadeur : code à porter dans la metadata du Checkout, lu par
@@ -544,7 +566,10 @@ def create_prepa_adjuris_checkout(
 
     session = _creer_checkout_session(
         db, a_payer, user.email, user=user,
-        metadata_extra=_metadata_parrainage(db, payload.ref, user=user),
+        metadata_extra={
+            **_metadata_parrainage(db, payload.ref, user=user),
+            **_metadata_fiche_prof(db, payload.prof, a_payer),
+        },
         override_price_cents=override_price_cents,
         success_path="/login",
     )
@@ -754,6 +779,7 @@ def create_prepa_adjuris_public_checkout(
             "prenom": payload.prenom.strip()[:80],
             "nom": payload.nom.strip()[:80],
             **_metadata_parrainage(db, payload.ref),
+            **_metadata_fiche_prof(db, payload.prof, a_payer),
         },
         override_price_cents=override_price_cents,
     )
