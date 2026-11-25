@@ -73,7 +73,7 @@
     ".kv-card{background:var(--card);border:1px solid var(--card-line);border-radius:22px;padding:22px 20px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px -22px rgba(0,0,0,.35);min-width:0}",
     ".kv-card.flush{padding:0;overflow:hidden}",
     ".kv-card-t{font-family:var(--fh);font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1.15;margin:0 0 16px}",
-    ".kv-card .kv-offer,.kv-card .kv-svc,.kv-card .kv-row,.kv-card .kv-proj,.kv-card .kv-stat,.kv-card .kv-tags span{background:var(--inner);border-color:var(--card-line)}",
+    ".kv-card .kv-offer,.kv-card .kv-svc,.kv-card .kv-row,.kv-card .kv-stat,.kv-card .kv-tags span{background:var(--inner);border-color:var(--card-line)}",
     ".kv-card .kv-form{box-shadow:none}",
     ".kv.is-wide .kv-main{padding-top:32px;gap:18px}",
     ".kv.lay-site.is-wide .kv-card{padding:34px 38px;border-radius:26px}",
@@ -128,8 +128,8 @@
     ".kv-offers{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
     ".kv-offers.list{grid-template-columns:1fr}",
     ".kv-offer{border:1px solid var(--line2);border-radius:16px;overflow:hidden;background:color-mix(in srgb,var(--bg) 92%,var(--fg));text-align:left;font:inherit;color:inherit;padding:0;width:100%;cursor:default;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}",
-    ".kv.live .kv-offer,.kv.live .kv-row,.kv.live .kv-proj{cursor:pointer;transition:transform .15s,border-color .15s}",
-    ".kv.live .kv-offer:hover,.kv.live .kv-row:hover,.kv.live .kv-proj:hover{transform:translateY(-2px);border-color:var(--fg)}",
+    ".kv.live .kv-offer,.kv.live .kv-row{cursor:pointer;transition:transform .15s,border-color .15s}",
+    ".kv.live .kv-offer:hover,.kv.live .kv-row:hover{transform:translateY(-2px);border-color:var(--fg)}",
     ".kv-offer .im{height:120px;background:color-mix(in srgb,var(--fg) 7%,var(--bg)) center/cover;display:flex;align-items:center;justify-content:center;color:var(--mut2)}",
     ".kv-offer .im svg{width:24px;height:24px;opacity:.6}",
     ".kv-offer .bd{padding:10px 12px 12px}",
@@ -143,14 +143,22 @@
     ".kv-row .tt{font-weight:700;font-size:14.5px;overflow-wrap:anywhere}",
     ".kv-row .ds{font-size:12.5px;color:var(--mut2);margin-top:2px}",
     ".kv-row .pr{font-weight:800;font-size:13.5px;white-space:nowrap}",
-    ".kv-projs{display:grid;grid-template-columns:1fr 1fr;gap:10px}",
-    ".kv-proj{border:1px solid var(--line2);border-radius:16px;overflow:hidden;padding:0;background:none;text-align:left;font:inherit;color:inherit;width:100%;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}",
-    ".kv-proj .im{aspect-ratio:4/3;background:color-mix(in srgb,var(--fg) 7%,var(--bg)) center/cover}",
-    ".kv-proj .tt{padding:10px 12px 0;font-weight:700;font-size:13.5px;overflow-wrap:anywhere}",
-    ".kv-proj .tt:last-child{padding-bottom:12px}",
-    ".kv-proj .mt{padding:2px 12px 12px;font-size:11.5px;color:var(--mut2);font-weight:600}",
-    ".kv-proj .im{position:relative}",
-    ".kv-proj .nb{position:absolute;right:8px;bottom:8px;font-size:10.5px;font-weight:800;background:rgba(0,0,0,.6);color:#fff;padding:3px 8px;border-radius:99px}",
+    /* réalisations : mosaïque d'images (tuiles hautes, larges et normales), sans texte autour */
+    ".kv-mosw{container-type:inline-size}",
+    ".kv-mos{--g:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--g);grid-auto-rows:150px;grid-auto-rows:calc((100cqw - var(--g)) / 2 * .8)}",
+    ".kv-tile{position:relative;display:block;border:0;padding:0;margin:0;min-width:0;border-radius:14px;overflow:hidden;font:inherit;color:#fff;text-align:left;background:color-mix(in srgb,var(--fg) 8%,var(--bg)) center/cover no-repeat}",
+    ".kv:not(.is-wide) .kv-tile.t{grid-row:span 2}",
+    ".kv:not(.is-wide) .kv-tile.w{grid-column:span 2}",
+    ".kv-tile .cap{position:absolute;left:0;right:0;bottom:0;padding:34px 14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.62));opacity:0;transition:opacity .2s;pointer-events:none}",
+    ".kv-tile .cap b{display:block;font-weight:700;font-size:14px;line-height:1.3;overflow-wrap:anywhere}",
+    ".kv-tile .cap small{display:block;font-size:11.5px;font-weight:600;opacity:.8;margin-top:2px}",
+    ".kv-tile.noimg{color:var(--fg)}",
+    ".kv-tile.noimg .cap{opacity:1;background:none}",
+    ".kv-tile .nb{position:absolute;right:8px;top:8px;font-size:10.5px;font-weight:800;background:rgba(0,0,0,.55);color:#fff;padding:3px 8px;border-radius:99px}",
+    ".kv.live .kv-tile{cursor:pointer}",
+    ".kv-tile:focus-visible{outline:2px solid var(--fg);outline-offset:2px}",
+    ".kv-tile:focus-visible .cap{opacity:1}",
+    "@media (hover:hover){.kv.live .kv-tile:hover .cap{opacity:1}}",
     ".kv-svc-grid{display:grid;gap:12px}",
     ".kv-svc{display:flex;flex-direction:column;text-align:left;border:1px solid var(--line2);border-radius:18px;background:color-mix(in srgb,var(--bg) 94%,var(--fg));padding:0;overflow:hidden;font:inherit;color:inherit;width:100%}",
     ".kv.live .kv-svc{cursor:pointer;transition:transform .15s,border-color .15s}",
@@ -164,11 +172,9 @@
     ".kv-svc .ds{font-size:14px;line-height:1.5;color:var(--mut2);margin:4px 0 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}",
     ".kv-svc .ct{margin-top:auto;padding-top:10px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}",
     ".kv.is-wide .kv-offers:not(.list){grid-template-columns:repeat(3,1fr)}",
-    ".kv.is-wide .kv-projs{grid-template-columns:repeat(3,1fr)}",
     ".kv.lay-site.is-wide .kv-svc-grid{grid-template-columns:repeat(2,1fr);gap:16px}",
     ".kv.lay-site.is-wide .kv-shop-grid{grid-template-columns:repeat(4,1fr);gap:16px}",
     ".kv.lay-site.is-wide .kv-shop-grid .kv-offer .im{height:180px}",
-    ".kv.lay-site.is-wide .kv-projs{gap:16px}",
     /* contact */
     ".kv-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--acc);color:var(--btn-fg);border:1.5px solid var(--acc);border-radius:var(--r-btn);padding:13px 22px;font:700 15px var(--fb);cursor:pointer;text-decoration:none;transition:transform .15s}",
     ".kv-btn:hover{transform:translateY(-1px)}",
@@ -278,13 +284,15 @@
     ".kv.is-wide.live .kv-band .kv-shop-grid .kv-offer:hover{transform:none}",
     ".kv.is-wide.live .kv-shop-grid .kv-offer:hover .im{opacity:.88}",
     ".kv.is-wide .kv-shop-grid .kv-offer .im{transition:opacity .2s}",
-    /* réalisations : grandes images */
-    ".kv.is-wide .kv-band .kv-projs{grid-template-columns:repeat(auto-fit,minmax(300px,384px));justify-content:center;gap:36px 24px}",
-    ".kv.is-wide .kv-band .kv-proj{border:0;background:none;border-radius:0;overflow:visible}",
-    ".kv.is-wide .kv-proj .im{border-radius:18px}",
-    ".kv.is-wide .kv-proj .tt{padding:14px 2px 0;font-size:16px}",
-    ".kv.is-wide .kv-proj .mt{padding:3px 2px 0;font-size:13px}",
-    ".kv.is-wide.live .kv-band .kv-proj:hover{transform:none}",
+    /* réalisations : mosaïque plus grande, centrée */
+    ".kv.is-wide .kv-mosw{max-width:1120px;margin:0 auto}",
+    ".kv.is-wide .kv-mos{--g:14px;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:200px;grid-auto-rows:calc((100cqw - 3 * var(--g)) / 4 * .8)}",
+    ".kv.is-wide .kv-tile{border-radius:20px}",
+    ".kv.is-wide .kv-tile.dt{grid-row:span 2}",
+    ".kv.is-wide .kv-tile.dw{grid-column:span 2}",
+    ".kv.is-wide .kv-tile.df{grid-column:span 4}",
+    ".kv.is-wide .kv-tile .cap{padding:48px 20px 16px}",
+    ".kv.is-wide .kv-tile .cap b{font-size:16px}",
     /* liens, contenus */
     ".kv.is-wide .kv-links-wrap .kv-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;max-width:1040px;margin:0 auto}",
     ".kv.is-wide .kv-links-wrap .kv-video,.kv.is-wide .kv-links-wrap .kv-header{grid-column:1/-1}",
@@ -737,13 +745,42 @@
     return '<button type="button" class="kv-row" data-kv-offer="' + o.id + '"><div style="flex:1;min-width:0"><div class="tt">' + esc(o.title) + '</div>' +
       (sub ? '<div class="ds">' + esc(sub) + '</div>' : '') + '</div><div class="pr">' + esc(o.price_label || "") + '</div></button>';
   }
-  function projectCard(it) {
+  // Mosaïque du portfolio : motif répété « haute + 2 normales », « large »,
+  // puis le même en miroir (haute à droite), « large »… En fin de liste, il reste
+  // toujours une rangée pleine : 2 tuiles côte à côte ou 1 tuile large.
+  function mosaicShapes(n) {
+    var out = [], i = 0, k = 0;
+    while (i < n) {
+      var left = n - i;
+      if (k % 2 === 1) { out.push("w"); i += 1; }
+      else if (left >= 3) { out.push.apply(out, (k % 4 === 0) ? ["t", "n", "n"] : ["n", "t", "n"]); i += 3; }
+      else if (left === 2) { out.push("n", "n"); i += 2; }
+      else if (out[out.length - 1] === "w") { out[out.length - 1] = "n"; out.push("n"); i += 1; }   // pas 2 tuiles larges d'affilée
+      else { out.push("w"); i += 1; }
+      k++;
+    }
+    return out;
+  }
+  // Ordinateur (4 colonnes) : blocs de 6 sur 2 rangées, « haute + large + 4 normales »,
+  // la tuile haute alternant à gauche et à droite ; la fin remplit sa rangée.
+  function mosaicShapesWide(n) {
+    var out = [], i = 0, k = 0;
+    var TAIL = { 1: ["f"], 2: ["w", "w"], 3: ["w", "n", "n"], 4: ["n", "n", "n", "n"], 5: ["w", "n", "n", "w", "w"] };
+    while (i < n) {
+      var left = n - i;
+      if (left >= 6) { out.push.apply(out, k % 2 ? ["n", "w", "t", "n", "n", "n"] : ["t", "w", "n", "n", "n", "n"]); i += 6; k++; }
+      else { out.push.apply(out, TAIL[left]); i += left; }
+    }
+    return out;
+  }
+  function projectTile(it, shape) {
     var cover = it.cover_url || (it.media && it.media[0] && it.media[0].type === "image" ? it.media[0].url : "");
     var n = (it.media || []).filter(function (m) { return m.type !== "video"; }).length;
     var meta = [it.client_name, n > 1 ? n + " images" : ""].filter(Boolean).join(" · ");
-    return '<button type="button" class="kv-proj" data-kv-project="' + it.id + '"><div class="im" style="background-image:' + cssUrl(cover) + '">' +
-      (n > 1 ? '<span class="nb">' + n + '</span>' : '') + '</div><div class="tt">' + esc(it.title) + '</div>' +
-      (meta ? '<div class="mt">' + esc(meta) + '</div>' : '') + '</button>';
+    return '<button type="button" class="kv-tile ' + shape[0] + ' d' + shape[1] + (cover ? "" : " noimg") + '" data-kv-project="' + it.id + '" aria-label="' + esc(it.title) + '"' +
+      (cover ? ' style="background-image:' + cssUrl(cover) + '"' : '') + '>' +
+      (n > 1 ? '<span class="nb">' + n + '</span>' : '') +
+      '<span class="cap"><b>' + esc(it.title) + '</b>' + (meta ? '<small>' + esc(meta) + '</small>' : '') + '</span></button>';
   }
   function legalLines(p) {
     var seller = (p.legal || {}).seller, lines = [];
@@ -853,8 +890,9 @@
           products.map(productCard).join("") + '</div></section>';
       },
       portfolio: function () {
-        return '<section class="kv-card" id="kv-work"><h2 class="kv-card-t">Réalisations</h2><div class="kv-projs">' +
-          portfolio.map(projectCard).join("") + '</div></section>';
+        var shapes = mosaicShapes(portfolio.length), wide = mosaicShapesWide(portfolio.length);
+        return '<section class="kv-card" id="kv-work"><h2 class="kv-card-t">Réalisations</h2><div class="kv-mosw"><div class="kv-mos">' +
+          portfolio.map(function (it, i) { return projectTile(it, [shapes[i], wide[i]]); }).join("") + '</div></div></section>';
       },
       contact: function () {
         var phone = contact.phone ? String(contact.phone).replace(/[^\d+]/g, "") : "";

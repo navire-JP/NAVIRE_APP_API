@@ -39,6 +39,8 @@ servi par l'API (`GET /kitly/static/vitrine.js`) et chargé par `builder.html`
 est donc exactement la vitrine publiée. Pour modifier un template, on ne touche
 qu'à ce fichier.
 
+**Réalisations (portfolio)** : mosaïque d'images façon galerie d'artiste, sans texte autour. Sur téléphone, 2 colonnes : tuile haute + 2 normales, tuile large, puis le même motif en miroir. Sur ordinateur, 4 colonnes : blocs de 6 (haute + large + 4 normales), la tuile haute alternant à gauche et à droite. La fin de liste remplit toujours sa rangée. Le titre apparaît au survol (ordinateur) et dans la fiche du projet ; la couverture du projet sert d'image de tuile.
+
 La marketplace suit le même principe : `app/kitly/static/marketplace.js`
 (`GET /kitly/static/marketplace.js`), chargé par `marketplace.html` et `home.html`.
 
