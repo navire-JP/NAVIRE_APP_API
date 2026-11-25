@@ -12,15 +12,15 @@
 | `landing_avis.html` | page d'accueil (`/`), section sombre | Avis saisis dans la console (onglet « Avis »), reliés à de vrais comptes (pseudo et photo du compte) : pile de 3 cartes côte à côte, sur ordinateur comme sur téléphone, qui tourne au-delà de 3 avis (`GET /landing/avis`). Aucun avis : rien ne s'affiche |
 | `landing_features.html` | page d'accueil (`/`), section claire | Fonctionnalités : sélecteur en gemmes sur un anneau (une gemme au premier plan, les autres derrière ; vertical entre le texte et la capture sur ordinateur, horizontal au-dessus du texte sur téléphone), choisir une gemme fait tourner l'anneau et glisser la capture. Six fonctionnalités : Lib, NAVIRE AI et fichiers, Veille, Articles, Prépa, QCM et classement. Une ou plusieurs captures par fonctionnalité (`/assets/screen-*.png`, fichiers dans `assets/screens/`) ; capture absente : visuel provisoire. Réglages : bloc CONFIG |
 | `landing_suite.html` | page d'accueil (`/`), après Fonctionnalités, fond clair | Deux colonnes sobres (charte des Fonctionnalités, filets fins, un seul accent) : la veille (dernière actu + 3 suivantes, `GET /veille/actus`) et les prochaines séances Prép'AdJuris tirées de l'agenda de la console (`GET /landing/agenda` : 4 semaines, onglets L1–M1, « En direct », jamais de lien de visio), puis une ligne « Créer mon compte » / « Découvrir Prép'AdJuris ». Connecté : boutons vers l'espace. Réglages : bloc CONFIG |
-| `landing_professeurs.html` | page d'accueil (`/`), section blanche | Professeurs actifs de la console (`GET /landing/professeurs` : prénom + initiale, photo et bio du compte, grade, matières des groupes actifs) en rangée de cartes qui défile ; puis « Comment on recrute nos professeurs » en 4 étapes (2 × 2 sur téléphone). Aucun professeur : seule la partie recrutement. Thème clair par défaut (`THEME`), lien de candidature facultatif. Réglages : bloc CONFIG |
-| `adjuris.html` | page d'accueil (`/`) | Formulaire Prép'AdJuris en thème clair : même parcours que le bloc AdJuris de `subscribe.html` (niveau L1–M1, matières, compte, code promo vérifié en direct, échéancier, paiement Stripe), médaille `/assets/certification.png`. Sur ordinateur (≥ 960 px) : présentation, prix et accès donnés par l'inscription à gauche (cours hebdo, copies corrigées, espace Prépa, Lib+, Discord), formulaire à droite dans une carte, colonnes centrées l'une par rapport à l'autre ; sur téléphone, une colonne, accès en tuiles. « Encadrement certifié » toujours juste au-dessus de l'encart d'inscription. Connecté : compte reconnu, matières déjà suivies grisées. Reprend `?ref=CODE` |
+| `landing_professeurs.html` | page d'accueil (`/`), section blanche | Professeurs actifs de la console (`GET /landing/professeurs` : prénom + initiale, photo et bio du compte, grade, matières des groupes actifs ; avec une fiche publique en ligne, les données de la fiche et un lien « Voir la fiche » vers `/professeurs#slug`) en rangée de cartes qui défile ; puis « Comment on recrute nos professeurs » en 4 étapes (2 × 2 sur téléphone). Aucun professeur : seule la partie recrutement. Thème clair par défaut (`THEME`), lien de candidature facultatif. Réglages : bloc CONFIG |
+| `adjuris.html` | page d'accueil (`/`) | Formulaire Prép'AdJuris en thème clair : même parcours que le bloc AdJuris de `subscribe.html` (niveau L1–M1, matières, compte, code promo vérifié en direct, échéancier, paiement Stripe), médaille `/assets/certification.png`. Sur ordinateur (≥ 960 px) : présentation, prix et accès donnés par l'inscription à gauche (cours hebdo, copies corrigées, espace Prépa, Lib+, Discord), formulaire à droite dans une carte, colonnes centrées l'une par rapport à l'autre ; sur téléphone, une colonne, accès en tuiles. « Encadrement certifié » toujours juste au-dessus de l'encart d'inscription. Connecté : compte reconnu, matières déjà suivies grisées. Reprend `?ref=CODE`, et `?prof=<slug>&matiere=<clé>` depuis une fiche professeur (matière cochée, groupe du professeur retenu au paiement) |
 | `subscribe.html` | page `/subscribe` | Page d'offres tout-en-un : Prép'AdJuris en premier avec le formulaire intégré (niveau L1–M1, matières, compte, code promo, échéancier `GET /prepa/adjuris/echeancier`, paiement Stripe), puis Free / Membre / Membre+ (mensuel / annuel) avec compte et code promo ouverts sur place. Connecté : compte reconnu, matières déjà suivies grisées, offre en cours marquée. Reprend `?ref=CODE`. Contenu des offres aligné sur `app/core/limits.py` |
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe. Réseau entre élèves : abonnés / abonnements (liste cliquable), bouton « Suivre » sur le profil d'un autre ; onglets Posts (100 caractères, une image et un document PDF / Word pour partager un devoir, zone « Quoi de neuf ? » sur son profil), Veille et articles, Enregistrés (le sien). Routes `/social/*` (`app/routers/social.py`) ; le fil `/feed` viendra ensuite |
 | `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI). Pour les inscrits Prép'AdJuris : documents à pastille « Prépa », bouton « Suivre dans Prépa », bandeau vers l'onglet Prépa |
 | `prepa.html` | page `/prepa` | Onglet Prépa des inscrits Prép'AdJuris : calendrier (semaine / mois) tel que prévu ou déplacé dans la console, copies mises en forme avec révisions et commentaires du correcteur (photo de profil, marge), téléchargement .docx / .pdf, dépôt de copie (.docx ou .pdf), cours suivis, facturation, Discord |
-| `professeurs.html` | page `/professeurs` | Espace des chargés de TD, DA de Lib : groupes (Discord, liens), étudiants, dépôt de PDF, **À corriger** avec le mode correction plein écran (fond blanc, révisions et commentaires), rémunération prévisionnelle |
+| `professeurs.html` | page `/professeurs` | Non connecté ou compte étudiant : **Nos professeurs**, cartes et fiches publiques (`#slug` dans l'adresse), bouton « S'inscrire à la Prép'AdJuris » (`CONFIG.INSCRIPTION_URL`). Professeur : espace des chargés de TD, DA de Lib : groupes (Discord, liens), étudiants, dépôt de PDF, **À corriger** avec le mode correction plein écran (fond blanc, révisions et commentaires), **Présences** (relevé du salon vocal, correction 48 h), rémunération prévisionnelle, **Profil public** (sa fiche, validée par la console) |
 | `profil_badge.html` | header du site | Badge profil : photo, pseudo, pastilles (Elo, offre, rôles admin / chargé de TD / ambassadeur), rang, petit « v » « Aller au profil » ; tout le badge mène au profil. Le texte tient dans la hauteur du rond de la photo ; plus grand sur téléphone ; une pastille qui ne tient pas est masquée, jamais coupée |
 | `profil_badge_compact.html` | header (sans photo) | Même badge sans photo ni pseudo : pastilles Elo et offre, rôles, rang, « v » ; plus grand sur téléphone |
 | `classement.html` | page `/classement` | Classement en cartes profil : bannière, photo qui la chevauche, place, nom, fac, Elo et gain sur 7 jours ; top 3 en grandes cartes, puis 5 cartes par ligne sur PC (4 puis 3 sur téléphone) ; Général / 30 jours / 7 jours, Tous / Ma fac ; ta place rappelée en haut ; « Voir plus ». Un clic ouvre le profil (`PROFIL_URL?u=<id>`). Données : `GET /leaderboard/classement` (bannière comprise) |
@@ -30,7 +30,7 @@
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
 | `framer/Navire_Lib.tsx` | `/console` | Section « Lib » importée par la console (import des cours) |
-| `framer/Navire_Professeurs.tsx` | `/console` | Section « Prof. » importée par la console (professeurs, groupes, rémunération) |
+| `framer/Navire_Professeurs.tsx` | `/console` | Section « Prof. » importée par la console (professeurs, groupes avec salon vocal, cours et présences, fiches publiques, rémunération) |
 | `framer/Navire_Mails.tsx` | `/console` | Section « Mails » importée par la console : rédaction, destinataires par catégorie, PJ, aperçu signé, test, envoi Brevo |
 | `framer/Navire_Categories.tsx` | `/console` | Section « Catég. » importée par la console : universités et niveaux d'études de l'inscription, niveaux « à vérifier » (badge Doctorant), file des demandes de statut |
 | `framer/Navire_Avis.tsx` | `/console` | Section « Avis » importée par la console : avis de la page d'accueil, chacun relié à un compte (recherche pseudo / email), note, sous-titre, ordre, masquer, supprimer. Routes `/admin/avis` |
@@ -189,11 +189,32 @@ terminé ».
 **Embed HTML, comme l'ambassadeur.** Coller `professeurs.html` dans un Embed
 HTML de la page `/professeurs` (servi aussi par l'API :
 `GET /professeurs/embed`). Même charte que `ambassadeur.html`.
+Réglage `CONFIG.INSCRIPTION_URL` : page du formulaire Prép'AdJuris
+(`adjuris.html`), à laquelle une fiche ajoute `?prof=<slug>&matiere=<clé>`.
+
+Page publique **Nos professeurs** (visiteur non connecté, ou compte étudiant) :
+cartes filtrables par niveau, fiche complète à `/professeurs#slug` (statut,
+formation, présentation, et par matière le créneau, les prochaines séances,
+« S'inscrire à la Prép'AdJuris »). Lien de partage avec aperçu :
+`<API>/p/<slug>`. La connexion professeur passe par le lien « Espace
+professeur » sous les cartes.
+
+Côté professeur, deux rubriques de plus :
+
+- **Présences** : ses cours des 60 derniers jours, qui était là. Le bot relève
+  chaque minute le salon vocal du groupe pendant un cours lancé depuis
+  `#cours-start` ; présent dès 5 minutes (`PREPA_PRESENCE_MIN_MINUTES`).
+  Correction pendant 48 h (`PREPA_PRESENCE_CORRECTION_HEURES`), jamais sur un
+  mois versé.
+- **Profil public** : sa fiche (photo, statut, poste, expérience, formation,
+  présentation, LinkedIn, nom complet ou prénom + initiale). Il la soumet,
+  la console la publie.
 
 Côté console, onglet « Prof. » :
 
 - **Groupes** : un groupe par matière est créé au premier démarrage, avec son
-  salon Discord. On peut en ajouter d'autres (plusieurs groupes pour une même
+  salon Discord. Champ **Salon vocal** : identifiant (ou lien) du salon où le
+  bot relève la présence. On peut en ajouter d'autres (plusieurs groupes pour une même
   matière), renommer, changer le salon Discord, ajouter des liens (Drive,
   visio…), désactiver ou supprimer (refusé si le groupe a des documents). Un
   étudiant est dans le premier groupe actif de sa matière, sauf si on le
@@ -204,6 +225,11 @@ Côté console, onglet « Prof. » :
   séance (0 € par défaut, `PROF_REMU_SEANCE_CENTS`, `PROF_REMU_ETUDIANT_CENTS`).
   Suspendre coupe l'accès à l'espace ; détacher rend au compte le grade
   « Primo » (refusé dès qu'un mois a été versé : suspendre à la place).
+- **Cours** : les cours du mois, la présence de chacun, corrigeable sans
+  limite de temps (sauf mois versé) ; « + Cours oublié » crée un cours passé.
+- **Fiches** : fiches publiques des professeurs. Version en ligne et nouvelle
+  version côte à côte ; publier ou refuser avec un motif (email au
+  professeur), badge « Vérifié », masquer, ordre du catalogue.
 - **Rémunérations** : tableau de pilotage de tous les professeurs, mois par
   mois et groupe par groupe : montant calculé, montant fixé (saisi à la main,
   il remplace le calcul ; vide = retour au calcul), montant retenu, note.
