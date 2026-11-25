@@ -154,7 +154,6 @@
     ".kv-tile .cap small{display:block;font-size:11.5px;font-weight:600;opacity:.8;margin-top:2px}",
     ".kv-tile.noimg{color:var(--fg)}",
     ".kv-tile.noimg .cap{opacity:1;background:none}",
-    ".kv-tile .nb{position:absolute;right:8px;top:8px;font-size:10.5px;font-weight:800;background:rgba(0,0,0,.55);color:#fff;padding:3px 8px;border-radius:99px}",
     ".kv.live .kv-tile{cursor:pointer}",
     ".kv-tile:focus-visible{outline:2px solid var(--fg);outline-offset:2px}",
     ".kv-tile:focus-visible .cap{opacity:1}",
@@ -458,6 +457,10 @@
     ".kv-lb .th button{flex:0 0 58px;height:58px;border-radius:8px;border:2px solid transparent;background:#222 center/cover;opacity:.5;cursor:pointer;padding:0}",
     ".kv-lb .th button:first-child{margin-left:auto}.kv-lb .th button:last-child{margin-right:auto}",
     ".kv-lb .th button.on{opacity:1;border-color:#fff}",
+    ".kv-lb .prj{align-self:center;flex-shrink:0;margin:4px 16px 0;max-width:calc(100% - 32px);border:0;border-radius:99px;background:rgba(255,255,255,.14);color:#fff;font:700 13px var(--fb,Inter,sans-serif);padding:9px 16px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".kv-lb .prj span{font-weight:600;opacity:.75}",
+    ".kv-lb .prj:hover{background:rgba(255,255,255,.28)}",
+    ".kv-lb.zoomed .prj{opacity:0;pointer-events:none}",
     ".kv-lb .tip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);font-size:12px;opacity:.6;white-space:nowrap;pointer-events:none}",
     "@media(max-width:620px){.kv-lb .nav{display:none}}"
   ].join("\n");
@@ -773,14 +776,27 @@
     }
     return out;
   }
-  function projectTile(it, shape) {
-    var cover = it.cover_url || (it.media && it.media[0] && it.media[0].type === "image" ? it.media[0].url : "");
-    var n = (it.media || []).filter(function (m) { return m.type !== "video"; }).length;
-    var meta = [it.client_name, n > 1 ? n + " images" : ""].filter(Boolean).join(" · ");
-    return '<button type="button" class="kv-tile ' + shape[0] + ' d' + shape[1] + (cover ? "" : " noimg") + '" data-kv-project="' + it.id + '" aria-label="' + esc(it.title) + '"' +
-      (cover ? ' style="background-image:' + cssUrl(cover) + '"' : '') + '>' +
-      (n > 1 ? '<span class="nb">' + n + '</span>' : '') +
-      '<span class="cap"><b>' + esc(it.title) + '</b>' + (meta ? '<small>' + esc(meta) + '</small>' : '') + '</span></button>';
+  // Le portfolio est une galerie : chaque image de chaque projet est une tuile
+  // (couverture d'abord, sans doublon ; vidéos laissées à la fiche du projet).
+  // Un projet sans image garde une tuile avec son titre.
+  var PORTFOLIO_MAX_TILES = 40;
+  function portfolioImages(list) {
+    var out = [];
+    (list || []).forEach(function (p) {
+      var seen = {}, urls = [];
+      [p.cover_url].concat((p.media || []).filter(function (m) { return m && m.type !== "video"; }).map(function (m) { return m.url; }))
+        .forEach(function (u) { if (u && !seen[u]) { seen[u] = 1; urls.push(u); } });
+      if (!urls.length) out.push({ p: p, url: "" });
+      urls.forEach(function (u) { out.push({ p: p, url: u }); });
+    });
+    return out.slice(0, PORTFOLIO_MAX_TILES);
+  }
+  function projectTile(t, k, shape) {
+    var it = t.p;
+    return '<button type="button" class="kv-tile ' + shape[0] + ' d' + shape[1] + (t.url ? "" : " noimg") + '" ' +
+      (t.url ? 'data-kv-pimg="' + k + '"' : 'data-kv-project="' + it.id + '"') + ' aria-label="' + esc(it.title || "Image") + '"' +
+      (t.url ? ' style="background-image:' + cssUrl(t.url) + '"' : '') + '>' +
+      (it.title ? '<span class="cap"><b>' + esc(it.title) + '</b>' + (it.client_name ? '<small>' + esc(it.client_name) + '</small>' : '') + '</span>' : '') + '</button>';
   }
   function legalLines(p) {
     var seller = (p.legal || {}).seller, lines = [];
@@ -890,9 +906,9 @@
           products.map(productCard).join("") + '</div></section>';
       },
       portfolio: function () {
-        var shapes = mosaicShapes(portfolio.length), wide = mosaicShapesWide(portfolio.length);
+        var tiles = portfolioImages(portfolio), shapes = mosaicShapes(tiles.length), wide = mosaicShapesWide(tiles.length);
         return '<section class="kv-card" id="kv-work"><h2 class="kv-card-t">Réalisations</h2><div class="kv-mosw"><div class="kv-mos">' +
-          portfolio.map(function (it, i) { return projectTile(it, [shapes[i], wide[i]]); }).join("") + '</div></div></section>';
+          tiles.map(function (t, i) { return projectTile(t, i, [shapes[i], wide[i]]); }).join("") + '</div></div></section>';
       },
       contact: function () {
         var phone = contact.phone ? String(contact.phone).replace(/[^\d+]/g, "") : "";
@@ -1091,6 +1107,12 @@
     (data.offers || []).forEach(function (o) { offersById[o.id] = o; });
     var projectsById = {};
     (data.portfolio || []).forEach(function (p) { projectsById[p.id] = p; });
+    // Tuiles du portfolio (même liste que le rendu) : la visionneuse fait défiler toutes les images.
+    var pfTiles = portfolioImages(data.portfolio);
+    var pfShots = pfTiles.filter(function (t) { return t.url; });
+    function projectHasDetails(p) {
+      return !!(p.description || p.external_url || p.client_name || (p.media || []).some(function (m) { return m && m.type === "video"; }));
+    }
 
     function call(method, path, body) {
       return fetch(apiBase + "/kitly/public/profiles/" + encodeURIComponent(slug) + path, {
@@ -1189,7 +1211,8 @@
 
     // Visionneuse plein écran : flèches, vignettes, clavier (← → Échap), glisser sur
     // téléphone, clic sur l'image pour zoomer (le zoom suit la souris ou le doigt).
-    function lightbox(imgs, start) {
+    // info(i) facultatif → { label, open } : bouton « Voir le projet » sous l'image affichée.
+    function lightbox(imgs, start, info) {
       imgs = (imgs || []).filter(Boolean);
       if (!imgs.length) return null;
       var i = Math.max(0, Math.min(start || 0, imgs.length - 1));
@@ -1200,7 +1223,7 @@
       bg.setAttribute("style", root.getAttribute("style") || "");
       bg.style.background = "rgba(8,8,8,.985)";
       bg.innerHTML = '<span class="cnt"></span><button type="button" class="x" aria-label="Fermer">✕</button>' +
-        '<div class="stage"><img alt="" draggable="false"></div>' +
+        '<div class="stage"><img alt="" draggable="false"></div>' + (info ? '<button type="button" class="prj"></button>' : '') +
         (many ? '<button type="button" class="nav prev" aria-label="Image précédente">‹</button><button type="button" class="nav next" aria-label="Image suivante">›</button>' +
           '<div class="th">' + imgs.map(function (u, j) { return '<button type="button" data-j="' + j + '" aria-label="Image ' + (j + 1) + '" style="background-image:' + cssUrl(u) + '"></button>'; }).join("") + '</div>'
           : '<span class="tip">Clique sur l\'image pour zoomer</span>');
@@ -1211,7 +1234,7 @@
         bg.style.height = (vp.height - Math.max(0, lbInset)) + "px"; bg.style.bottom = "auto";
       }
       document.body.appendChild(bg);
-      var stage = bg.querySelector(".stage"), img = stage.querySelector("img"), cnt = bg.querySelector(".cnt"), th = bg.querySelector(".th");
+      var stage = bg.querySelector(".stage"), img = stage.querySelector("img"), cnt = bg.querySelector(".cnt"), th = bg.querySelector(".th"), prj = bg.querySelector(".prj");
       // Ouverte par-dessus une fiche : la page est déjà figée, on ne la libère pas en fermant.
       var stacked = !!document.querySelector(".kv-mbg");
       var prevOverflow = document.body.style.overflow;
@@ -1222,6 +1245,7 @@
         bg.classList.remove("zoomed");
         img.src = imgs[i];
         cnt.textContent = many ? (i + 1) + " / " + imgs.length : "";
+        if (prj) { var nf = info(i); prj.hidden = !nf; if (nf) prj.innerHTML = esc(nf.label) + ' <span>· Voir le projet →</span>'; }
         if (th) Array.prototype.forEach.call(th.children, function (b, k) {
           b.classList.toggle("on", k === i);
           if (k === i) th.scrollLeft = b.offsetLeft - th.clientWidth / 2 + b.offsetWidth / 2;
@@ -1249,6 +1273,7 @@
         var t = e.target;
         if (t === img) { if (!bg.classList.contains("zoomed")) origin(e.clientX, e.clientY); bg.classList.toggle("zoomed"); return; }
         if (t.closest(".x")) return close();
+        if (prj && t.closest(".prj")) { var nf = info(i); close(); if (nf) nf.open(); return; }
         if (t.closest(".prev")) return show(i - 1);
         if (t.closest(".next")) return show(i + 1);
         var b = t.closest("[data-j]");
@@ -1633,6 +1658,16 @@
       }
       var pic = e.target.closest(".kv-cb-img img,.kv-figure>img");
       if (pic) { lightbox([pic.currentSrc || pic.src], 0); return; }
+      var pt = e.target.closest("[data-kv-pimg]");
+      if (pt) {
+        e.preventDefault();
+        var shot = pfTiles[+pt.getAttribute("data-kv-pimg")];
+        lightbox(pfShots.map(function (x) { return x.url; }), Math.max(0, pfShots.indexOf(shot)), function (j) {
+          var p = pfShots[j] && pfShots[j].p;
+          return p && projectHasDetails(p) ? { label: p.title || "Projet", open: function () { openProject(p); } } : null;
+        });
+        return;
+      }
       var t = e.target.closest("[data-kv-offer],[data-kv-project],[data-kv-contact],[data-kv-terms],[data-kv-report],[data-kv-legal]");
       if (!t) return;
       e.preventDefault();
