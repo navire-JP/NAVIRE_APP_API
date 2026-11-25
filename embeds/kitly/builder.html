@@ -33,6 +33,9 @@
     --sans: 'Inter', -apple-system, 'Segoe UI', Arial, sans-serif;
     font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased;
     height: 100%; display: flex; flex-direction: column; background: var(--paper);
+    /* Framer centre le contenu de l'embed (body en flex) : sans largeur explicite,
+       #kb prenait la largeur de son contenu (> écran) et débordait des deux côtés. */
+    width: 100%; min-width: 0;
   }
   #kb button { font-family: inherit; }
   #kb .hidden { display: none !important; }
