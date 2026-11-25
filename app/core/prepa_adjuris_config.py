@@ -51,6 +51,13 @@ PREPA_EXTRA_PRIX_CENTS = int(os.getenv("PREPA_ADJURIS_EXTRA_PRIX_CENTS", "1000")
 # Un cours que le professeur n'a pas terminé est clos automatiquement.
 PREPA_COURS_CLOTURE_AUTO_HEURES = 4
 
+# ── Présence (salon vocal du groupe, app/services/presences.py) ──
+# Présent dès PREPA_PRESENCE_MIN_MINUTES dans le vocal pendant le cours. Le
+# professeur corrige pendant PREPA_PRESENCE_CORRECTION_HEURES après la fin du
+# cours ; ensuite, seule la console.
+PREPA_PRESENCE_MIN_MINUTES = int(os.getenv("PREPA_PRESENCE_MIN_MINUTES", "5"))
+PREPA_PRESENCE_CORRECTION_HEURES = int(os.getenv("PREPA_PRESENCE_CORRECTION_HEURES", "48"))
+
 # ── Niveaux et créneaux ───────────────────────────────────────
 PREPA_NIVEAUX: tuple[str, ...] = ("L1", "L2", "L3", "M1")
 

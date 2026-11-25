@@ -53,6 +53,7 @@ from app.routers.lib_prepa import router as lib_prepa_router
 from app.routers.prepa_epreuves import eleve_router as epreuves_eleve_router, prof_router as epreuves_prof_router
 from app.routers.professeurs import router as professeurs_router
 from app.routers.prof_profils import router as prof_profils_router
+from app.routers.presences import router as presences_router
 from app.routers.mailing import router as mailing_router
 from app.routers.landing import router as landing_router
 from app.routers.social import router as social_router
@@ -414,6 +415,7 @@ app.include_router(epreuves_prof_router)
 app.include_router(lib_prepa_router)
 app.include_router(lib_router)
 app.include_router(prof_profils_router)
+app.include_router(presences_router)
 app.include_router(professeurs_router)
 app.include_router(mailing_router)
 app.include_router(landing_router)

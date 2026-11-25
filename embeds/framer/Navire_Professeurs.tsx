@@ -6,6 +6,9 @@
 // € par étudiant et par séance), suspendre, détacher.
 // Groupes : un ou plusieurs par matière, avec le salon Discord et des liens ;
 // étudiants du groupe et changement de groupe.
+// Cours : les cours du mois (lancés depuis Discord ou ajoutés ici), la
+// présence relevée dans le salon vocal du groupe, corrigeable sans limite de
+// temps (sauf mois versé) ; « + Cours oublié » crée un cours passé.
 // Fiches : fiches publiques de la page Professeurs (/professeurs#slug). Le
 // professeur la remplit et la soumet ; ici on compare version en ligne et
 // brouillon, on publie ou on refuse avec un motif, on pose le badge
@@ -433,7 +436,38 @@ function Ligne({
 }
 
 // ── Types ──
-type Vue = "professeurs" | "groupes" | "fiches" | "remunerations"
+type Vue = "professeurs" | "groupes" | "cours" | "fiches" | "remunerations"
+
+interface CoursRow {
+    id: number
+    classe_id: number
+    groupe: string
+    matiere_key: string
+    matiere_label: string
+    professeur_id: number
+    professeur: string
+    debut: string
+    fin: string
+    statut: string
+    duree_comptee_minutes: number
+    cree_par_admin: boolean
+    vocal: boolean
+    releve: boolean
+    nb_presents: number
+}
+
+interface PresenceRow {
+    presence_id: number | null
+    enrollment_id: number | null
+    user_id: number | null
+    nom: string
+    minutes: number
+    present: boolean
+    source: string | null
+    discord_relie: boolean
+    non_relie?: boolean
+    hors_groupe?: boolean
+}
 
 interface ContenuFiche {
     nom_complet_public: boolean
@@ -482,6 +516,7 @@ interface Groupe {
     niveau: string
     nom: string
     discord_url: string
+    discord_vocal_id?: string
     liens: Lien[]
     is_active: boolean
     nb_etudiants?: number
@@ -956,6 +991,7 @@ function GroupeRow({ g, onChanged }: { g: Groupe; onChanged: () => void }) {
     const [msg, setMsg] = React.useState("")
     const [nom, setNom] = React.useState(g.nom)
     const [discord, setDiscord] = React.useState(g.discord_url)
+    const [vocal, setVocal] = React.useState(g.discord_vocal_id || "")
     const [liens, setLiens] = React.useState<Lien[]>(g.liens || [])
     const [etudiants, setEtudiants] = React.useState<Etudiant[] | null>(null)
     const [autres, setAutres] = React.useState<{ id: number; nom: string }[]>([])
@@ -992,7 +1028,8 @@ function GroupeRow({ g, onChanged }: { g: Groupe; onChanged: () => void }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={TITRE}>{g.nom}</div>
                     <div style={SOUS_TITRE}>
-                        {profs || "aucun professeur"} · {g.discord_url ? "Discord ✓" : "pas de Discord"}
+                        {profs || "aucun professeur"} · {g.discord_url ? "Discord ✓" : "pas de Discord"} ·{" "}
+                        {g.discord_vocal_id ? "présence relevée ✓" : "pas de salon vocal"}
                     </div>
                 </div>
                 {!g.is_active && (
@@ -1021,6 +1058,18 @@ function GroupeRow({ g, onChanged }: { g: Groupe; onChanged: () => void }) {
                             onChange={(e: any) => setDiscord(e.target.value)}
                             placeholder="https://discord.com/channels/…"
                         />
+                    </div>
+                    <div>
+                        <FL>Salon vocal (présence)</FL>
+                        <TI
+                            value={vocal}
+                            onChange={(e: any) => setVocal(e.target.value)}
+                            placeholder="Identifiant du salon vocal, ou son lien"
+                        />
+                        <div style={{ fontSize: 10, fontFamily: mono, color: t2, marginTop: 4 }}>
+                            Discord : clic droit sur le salon vocal → Copier l'identifiant. Pendant un cours lancé depuis #cours-start,
+                            le bot y relève les présents (5 minutes minimum).
+                        </div>
                     </div>
                     <div>
                         <FL>Liens ({liens.length})</FL>
@@ -1075,6 +1124,7 @@ function GroupeRow({ g, onChanged }: { g: Groupe; onChanged: () => void }) {
                                     {
                                         nom,
                                         discord_url: discord,
+                                        discord_vocal_id: vocal,
                                         liens: liens.filter((l) => l.label.trim() && l.url.trim()),
                                     },
                                     `${nom} enregistré`
@@ -1811,6 +1861,243 @@ function RemunerationsPanel({ tick }: { tick: number }) {
 // ══════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════
+// Cours et présences
+// ══════════════════════════════════════════════════════════
+
+function moisVoisin(cle: string, delta: number): string {
+    const [a, m] = cle.split("-").map(Number)
+    const d = new Date(a, m - 1 + delta, 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
+function PresencesCours({ c, onChanged }: { c: CoursRow; onChanged: () => void }) {
+    const [d, setD] = React.useState<any>(null)
+    const [msg, setMsg] = React.useState("")
+    const [busy, setBusy] = React.useState(false)
+    React.useEffect(() => {
+        api(`/professeurs/admin/cours/${c.id}/presences`)
+            .then(setD)
+            .catch((e) => setMsg(`Erreur : ${e.message}`))
+    }, [c.id])
+
+    async function basculer(e: PresenceRow) {
+        setBusy(true)
+        try {
+            const body: any = { present: !e.present }
+            if (e.presence_id) body.presence_id = e.presence_id
+            else body.enrollment_id = e.enrollment_id
+            setD(await api(`/professeurs/admin/cours/${c.id}/presences`, "PATCH", body))
+            setMsg(`✓ ${e.nom} ${e.present ? "absent" : "présent"}`)
+            onChanged()
+        } catch (x: any) {
+            setMsg(`Erreur : ${x.message}`)
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    if (!d) return <div style={{ ...DEPLIE, color: t2, fontSize: 11 }}>{msg || "Chargement…"}</div>
+    return (
+        <div style={DEPLIE}>
+            {!d.modifiable && <SM text={`Erreur : ${d.raison}`} />}
+            {!c.vocal && !c.cree_par_admin && (
+                <div style={{ fontSize: 11, fontFamily: mono, color: WARN }}>
+                    Groupe sans salon vocal : aucun relevé automatique. Renseigne-le dans Groupes.
+                </div>
+            )}
+            <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+                {(d.eleves as PresenceRow[]).map((e) => (
+                    <button
+                        key={`${e.enrollment_id}-${e.presence_id}`}
+                        disabled={busy || !d.modifiable}
+                        onClick={() => basculer(e)}
+                        title={e.source && e.source !== "discord" ? `corrigé (${e.source})` : "relevé Discord"}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "5px 10px",
+                            borderRadius: 99,
+                            border: `1px solid ${e.present ? "rgba(91,227,163,0.45)" : b0}`,
+                            background: e.present ? "rgba(91,227,163,0.08)" : "transparent",
+                            color: e.present ? OK : t1,
+                            fontSize: 11,
+                            fontFamily: mono,
+                            cursor: busy || !d.modifiable ? "default" : "pointer",
+                        }}
+                    >
+                        {e.present ? "✓" : "○"} {e.nom}
+                        <span style={{ color: t2 }}>
+                            {e.minutes ? `${e.minutes} min` : e.discord_relie ? "—" : "non relié"}
+                            {e.source && e.source !== "discord" ? " · corrigé" : ""}
+                        </span>
+                    </button>
+                ))}
+            </div>
+            {d.autres.length > 0 && (
+                <div style={{ fontSize: 10.5, fontFamily: mono, color: t2 }}>
+                    Aussi dans le vocal :{" "}
+                    {(d.autres as PresenceRow[])
+                        .map((a) => `${a.nom || "membre Discord"} (${a.minutes} min, ${a.non_relie ? "non relié" : "hors groupe"})`)
+                        .join(" · ")}
+                </div>
+            )}
+            <SM text={msg} />
+        </div>
+    )
+}
+
+function CoursOublie({ groupes, profs, onCreated }: { groupes: Groupe[]; profs: Professeur[]; onCreated: () => void }) {
+    const [classeId, setClasseId] = React.useState<number>(0)
+    const [profId, setProfId] = React.useState<number>(0)
+    const [debut, setDebut] = React.useState("")
+    const [duree, setDuree] = React.useState("60")
+    const [msg, setMsg] = React.useState("")
+    const { busy, appel } = useAppel(setMsg, onCreated)
+    const g = groupes.find((x) => x.id === classeId)
+    const profsDuGroupe = profs.filter((p) => (g?.professeurs || []).some((x) => x.professeur_id === p.id))
+    return (
+        <div style={{ ...DEPLIE, borderBottom: `1px solid ${b0}` }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, alignItems: "flex-end" }}>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                    <FL>Groupe</FL>
+                    <SI value={classeId} onChange={(e: any) => { setClasseId(+e.target.value); setProfId(0) }}>
+                        <option value={0}>Choisir…</option>
+                        {groupes.filter((x) => x.is_active).map((x) => (
+                            <option key={x.id} value={x.id}>
+                                {x.nom}
+                            </option>
+                        ))}
+                    </SI>
+                </div>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                    <FL>Professeur</FL>
+                    <SI value={profId} onChange={(e: any) => setProfId(+e.target.value)}>
+                        <option value={0}>Choisir…</option>
+                        {profsDuGroupe.map((p) => (
+                            <option key={p.id} value={p.id}>
+                                {`${p.prenom} ${p.nom}`.trim() || p.email}
+                            </option>
+                        ))}
+                    </SI>
+                </div>
+                <div style={{ width: 190 }}>
+                    <FL>Début</FL>
+                    <TI type="datetime-local" value={debut} onChange={(e: any) => setDebut(e.target.value)} />
+                </div>
+                <div style={{ width: 80 }}>
+                    <FL>Durée (min)</FL>
+                    <TI type="number" value={duree} onChange={(e: any) => setDuree(e.target.value)} />
+                </div>
+                <Btn
+                    primary
+                    disabled={busy || !classeId || !profId || !debut}
+                    onClick={() =>
+                        appel(
+                            "/professeurs/admin/cours",
+                            "POST",
+                            {
+                                classe_id: classeId,
+                                professeur_id: profId,
+                                debut: new Date(debut).toISOString(),
+                                duree_minutes: parseInt(duree, 10) || 60,
+                            },
+                            "Cours ajouté : coche maintenant les présents"
+                        )
+                    }
+                >
+                    Ajouter le cours
+                </Btn>
+            </div>
+            <SM text={msg} />
+        </div>
+    )
+}
+
+function CoursPanel({ tick, groupes, profs }: { tick: number; groupes: Groupe[]; profs: Professeur[] }) {
+    const [mois, setMois] = React.useState<string>(moisCourant())
+    const [items, setItems] = React.useState<CoursRow[]>([])
+    const [loading, setLoading] = React.useState(true)
+    const [err, setErr] = React.useState("")
+    const [open, setOpen] = React.useState<number | null>(null)
+    const [ajout, setAjout] = React.useState(false)
+    const [t, setT] = React.useState(0)
+
+    React.useEffect(() => {
+        setLoading(true)
+        api(`/professeurs/admin/cours?mois=${mois}`)
+            .then((d) => {
+                setItems(d?.items || [])
+                setErr("")
+            })
+            .catch((e) => setErr(e.message))
+            .finally(() => setLoading(false))
+    }, [mois, tick, t])
+
+    return (
+        <>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 14px", borderBottom: `1px solid ${b0}`, flexShrink: 0 }}>
+                <MiniBtn onClick={() => setMois(moisVoisin(mois, -1))}>‹</MiniBtn>
+                <span style={{ fontSize: 11, fontFamily: mono, color: t0, minWidth: 110, textAlign: "center" as const }}>{moisFr(mois)}</span>
+                <MiniBtn onClick={() => setMois(moisVoisin(mois, 1))}>›</MiniBtn>
+                <span style={{ fontSize: 11, fontFamily: mono, color: t1, marginLeft: 8 }}>
+                    {items.length} cours · {items.reduce((s, c) => s + c.nb_presents, 0)} présences
+                </span>
+                <span style={{ flex: 1 }} />
+                <Btn onClick={() => setAjout((v) => !v)} style={{ fontSize: 10, padding: "4px 10px" }}>
+                    {ajout ? "✕" : "+ Cours oublié"}
+                </Btn>
+            </div>
+            {ajout && <CoursOublie groupes={groupes} profs={profs} onCreated={() => { setAjout(false); setT((x) => x + 1) }} />}
+            {err && (
+                <div style={{ padding: "8px 14px" }}>
+                    <SM text={`Erreur : ${err}`} />
+                </div>
+            )}
+            {loading ? (
+                <div style={VIDE}>Chargement…</div>
+            ) : items.length === 0 ? (
+                <div style={VIDE}>Aucun cours ce mois-ci. Les professeurs les lancent depuis #cours-start sur Discord.</div>
+            ) : (
+                <div style={{ flex: 1, overflowY: "auto" }}>
+                    {items.map((c) => (
+                        <div key={c.id} style={{ borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+                            <Ligne open={open === c.id} onToggle={() => setOpen(open === c.id ? null : c.id)}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={TITRE}>
+                                        {jour(c.debut)} · {heure(c.debut)} — {c.groupe}
+                                    </div>
+                                    <div style={SOUS_TITRE}>
+                                        {c.professeur} · {c.matiere_label} · {c.duree_comptee_minutes} min
+                                    </div>
+                                </div>
+                                {c.statut === "en_cours" && (
+                                    <Tag color={OK} border="rgba(91,227,163,0.4)">
+                                        EN COURS
+                                    </Tag>
+                                )}
+                                {c.cree_par_admin && (
+                                    <Tag color={t1} border={b1}>
+                                        AJOUTÉ ICI
+                                    </Tag>
+                                )}
+                                {!c.vocal && !c.cree_par_admin && (
+                                    <Tag color={WARN} border="rgba(255,209,102,0.4)">
+                                        SANS VOCAL
+                                    </Tag>
+                                )}
+                                <span style={{ fontSize: 11, fontFamily: mono, color: t0, flexShrink: 0 }}>{c.nb_presents} prés.</span>
+                            </Ligne>
+                            {open === c.id && <PresencesCours c={c} onChanged={() => setT((x) => x + 1)} />}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </>
+    )
+}
+
+// ══════════════════════════════════════════════════════════
 // Fiches publiques
 // ══════════════════════════════════════════════════════════
 
@@ -2062,6 +2349,9 @@ export function ProfesseursSection() {
                         <MiniBtn actif={vue === "groupes"} onClick={() => setVue("groupes")}>
                             Groupes ({groupes.length})
                         </MiniBtn>
+                        <MiniBtn actif={vue === "cours"} onClick={() => setVue("cours")}>
+                            Cours
+                        </MiniBtn>
                         <MiniBtn actif={vue === "fiches"} onClick={() => setVue("fiches")}>
                             Fiches{aValider ? ` · ${aValider} à valider` : ""}
                         </MiniBtn>
@@ -2072,7 +2362,7 @@ export function ProfesseursSection() {
                 }
                 right={
                     <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        {vue !== "remunerations" && vue !== "fiches" && (
+                        {vue !== "remunerations" && vue !== "fiches" && vue !== "cours" && (
                             <>
                                 <TI
                                     value={search}
@@ -2092,7 +2382,7 @@ export function ProfesseursSection() {
                 }
             />
 
-            {vue !== "remunerations" && vue !== "fiches" && (
+            {vue !== "remunerations" && vue !== "fiches" && vue !== "cours" && (
                 <div
                     style={{
                         display: "flex",
@@ -2121,6 +2411,8 @@ export function ProfesseursSection() {
 
             {vue === "remunerations" ? (
                 <RemunerationsPanel tick={tick} />
+            ) : vue === "cours" ? (
+                <CoursPanel tick={tick} groupes={groupes} profs={profs} />
             ) : vue === "fiches" ? (
                 <FichesPanel tick={tick} onCount={setAValider} />
             ) : (

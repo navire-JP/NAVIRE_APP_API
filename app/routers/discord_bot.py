@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import BOT_SECRET
@@ -502,7 +502,7 @@ def deepwork_stats(discord_id: str, db: Session = Depends(get_db)):
 # {"ok": bool, "message"?: str, ...} : un refus attendu (pas professeur,
 # extra trop tôt) n'est pas une erreur réseau, le cog l'affiche tel quel.
 
-from app.services import cours_live  # noqa: E402
+from app.services import cours_live, presences  # noqa: E402
 
 _PAS_PROFESSEUR = (
     "Ce bouton est réservé aux professeurs Prép'AdJuris. Lie ton compte NAVIRE "
@@ -571,6 +571,33 @@ def cours_extra(cours_id: int, body: CoursDiscordIn, db: Session = Depends(get_d
 @router.post("/cours/{cours_id}/eleves/{eleve_id}/toggle", dependencies=[Depends(_require_bot)])
 def cours_toggle_eleve(cours_id: int, eleve_id: int, body: CoursDiscordIn, db: Session = Depends(get_db)):
     return _cours_action(db, body.discord_id, cours_id, lambda c: cours_live.basculer_eleve(db, c, eleve_id))
+
+
+# ── Présence : relevé du salon vocal du groupe (app/services/presences.py) ──
+
+class MembreVocalIn(BaseModel):
+    discord_id: str = Field(..., max_length=32)
+    nom: str = Field("", max_length=170)
+
+
+class ReleveVocalIn(BaseModel):
+    membres: list[MembreVocalIn] = Field(default_factory=list, max_length=200)
+
+
+@router.get("/cours/vocaux", dependencies=[Depends(_require_bot)])
+def cours_vocaux(db: Session = Depends(get_db)):
+    """Cours en cours dont le groupe a un salon vocal : le bot en relève les membres chaque minute."""
+    return {"items": presences.cours_a_relever(db)}
+
+
+@router.post("/cours/{cours_id}/presence", dependencies=[Depends(_require_bot)])
+def cours_presence(cours_id: int, body: ReleveVocalIn, db: Session = Depends(get_db)):
+    from app.db.models import PrepaAdjurisCours
+    c = db.get(PrepaAdjurisCours, cours_id)
+    if c is None:
+        return {"ok": False, "message": "Cours introuvable."}
+    credit = presences.enregistrer_releve(db, c, [m.model_dump() for m in body.membres])
+    return {"ok": True, "secondes": credit, "en_cours": c.statut == "en_cours"}
 
 
 @router.post("/cours/{cours_id}/end", dependencies=[Depends(_require_bot)])

@@ -28,6 +28,7 @@ _COGS = [
     "app.bot_discord.cogs.deepwork",
     "app.bot_discord.cogs.logs_cog",
     "app.bot_discord.cogs.cours_start",
+    "app.bot_discord.cogs.presence_cours",
 ]
 
 

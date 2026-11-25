@@ -261,6 +261,7 @@ def classe_row(c: PrepaAdjurisClasse) -> dict:
         "niveau": matiere_niveau(c.matiere_key),
         "nom": c.nom,
         "discord_url": c.discord_url,
+        "discord_vocal_id": c.discord_vocal_id or "",
         "liens": c.liens or [],
         "is_active": c.is_active,
     }

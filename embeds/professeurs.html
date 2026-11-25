@@ -25,6 +25,9 @@
         Épreuves      planifier un contrôle pour un groupe, voir qui l'a rendu
         Groupes       Discord, liens, étudiants et documents de chaque groupe
         Rémunération  prévisionnel, séance par séance
+        Présences     ses cours : qui était là (relevé du salon vocal du groupe
+                      par le bot, présent dès 5 min), à corriger pendant 48 h
+                      (GET /professeurs/me/cours, GET|PATCH /professeurs/cours/{id}/presences)
         Profil public la fiche de la page Professeurs : le professeur la remplit
                       (photo, statut, poste, formation, description), la soumet,
                       l'équipe la publie depuis la console (GET|PUT /professeurs/me/profil,
@@ -868,6 +871,24 @@ select.nvx-field { height: 42px; padding: 0 12px; }
 #nv-prof .nv-price { font-size: 20px; font-weight: 700; letter-spacing: -.4px; white-space: nowrap; }
 #nv-prof .nv-price small { font-size: 12px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
 
+/* Présences (espace prof) */
+#nv-prof .nv-pr-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+#nv-prof .nv-pr-head b { display: block; font-size: 13.5px; font-weight: 600; }
+#nv-prof .nv-pr-head small { display: block; font-size: 12px; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-pr-head > svg { width: 14px; height: 14px; color: var(--text-3); transition: transform .2s; }
+#nv-prof .nv-card.is-on .nv-pr-head > svg { transform: rotate(180deg); }
+#nv-prof .nv-pr-count { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+#nv-prof .nv-pr-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; margin-top: 4px; }
+#nv-prof .nv-pr { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .15s, border-color .15s; }
+#nv-prof .nv-pr:hover:not(:disabled) { background: var(--panel-2); }
+#nv-prof .nv-pr:disabled { cursor: default; }
+#nv-prof .nv-pr .nv-pr-nom { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-prof .nv-pr small { font-size: 11px; color: var(--text-4); white-space: nowrap; }
+#nv-prof .nv-pr.is-on { border-color: rgba(91,227,163,0.35); background: rgba(91,227,163,0.06); }
+#nv-prof .nv-pr.is-on .nv-check { background: var(--ok); border-color: var(--ok); }
+#nv-prof .nv-pr.is-on .nv-check svg { opacity: 1; transform: none; }
+#nv-prof.is-compact .nv-pr-list { grid-template-columns: 1fr; }
+
 /* Profil public (espace prof) */
 #nv-prof .nv-pf { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
 #nv-prof .nv-pf-side { position: sticky; top: 12px; }
@@ -951,13 +972,14 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   };
   var LOGO = CONFIG.API + "/assets/logo-navire-app.png";
   var ART = function (k) { return CONFIG.API + "/assets/" + k + ".png"; };
-  var TITLES = { home: "Accueil", copies: "Copies", epreuves: "Épreuves", groupes: "Groupes", earnings: "Rémunération", profil: "Profil public" };
+  var TITLES = { home: "Accueil", copies: "Copies", epreuves: "Épreuves", groupes: "Groupes", presences: "Présences", earnings: "Rémunération", profil: "Profil public" };
 
   var root = document.getElementById("nv-prof");
   var S = { token: null, me: null, dash: null, view: "home", devoirs: [], eps: null, dvFilter: "todo",
     earnMonth: null, earnDetail: {}, earnOpen: null, uploadClass: null, uploadFile: null, epf: null,
     admin: false, voir: null, profs: null,
-    cat: null, catNiv: "", fiche: null, profil: null, pf: null, pfBusy: false };
+    cat: null, catNiv: "", fiche: null, profil: null, pf: null, pfBusy: false,
+    cours: null, coursOpen: null, pres: {}, prBusy: false };
   var VOIR_KEY = "navire_prof_voir_comme";
   var CX = { node: null };   // éditeur de correction (plus bas)
 
@@ -1463,7 +1485,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
   function voirComme(id) {
     S.voir = id || null;
     store(VOIR_KEY, S.voir ? String(S.voir) : null);
-    S.dash = null; S.devoirs = []; S.earnDetail = {}; S.earnMonth = null; S.earnOpen = null; S.dvOpen = null; S.dvDraft = {}; S.profil = null; S.pf = null;
+    S.dash = null; S.devoirs = []; S.earnDetail = {}; S.earnMonth = null; S.earnOpen = null; S.dvOpen = null; S.dvDraft = {}; S.profil = null; S.pf = null; S.cours = null; S.pres = {}; S.coursOpen = null;
     S.view = "home"; S.classFilter = "all"; S.uploadClass = null;
     boot();
   }
@@ -1697,6 +1719,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       ["copies", "Copies", art("files-cristal"), todo ? '<span class="nv-badge is-blue">' + todo + "</span>" : ""],
       ["epreuves", "Épreuves", art("profil-qcm"), eps ? '<span class="nv-badge">' + eps + "</span>" : ""],
       ["groupes", "Groupes", art("home-fichiers"), t.classes ? '<span class="nv-badge">' + t.classes + "</span>" : ""],
+      ["presences", "Présences", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/></svg>', ""],
       ["earnings", "Rémunération", art("profil-rang"), ""],
       ["profil", "Profil public", ICON.eye, S.profil && S.profil.etat === "refuse" ? '<span class="nv-badge">!</span>' : ""]
     ];
@@ -1935,6 +1958,78 @@ select.nvx-field { height: 42px; padding: 0 12px; }
       .catch(function (x) { if (w) w.close(); toast(x.message, true); });
   }
 
+  // ----- Présences : qui était là, cours par cours -----
+  function viewPresences() {
+    if (S.cours) return renderPresences();
+    setPage('<div class="nv-skel" style="margin-top:10px"></div><div class="nv-skel"></div>');
+    return api("GET", "/professeurs/me/cours?jours=60").then(function (r) { S.cours = r; renderPresences(); })
+      .catch(function (x) { setPage(empty("Présences indisponibles", esc(x.message))); });
+  }
+  function prCoursTags(c) {
+    var t = [];
+    if (c.statut === "en_cours") t.push('<span class="nv-tag ok"><i></i>en cours</span>');
+    if (c.cree_par_admin) t.push('<span class="nv-tag">ajouté par l\'équipe</span>');
+    else if (!c.vocal) t.push('<span class="nv-tag warn">sans relevé auto</span>');
+    return t.join("");
+  }
+  function prListe(cid) {
+    var d = S.pres[cid];
+    if (!d) return '<div class="nv-skel" style="height:80px;margin:8px 0 0"></div>';
+    if (d.erreur) return '<div class="nv-notice is-bad">' + esc(d.erreur) + '</div>';
+    var ro = !!S.voir || !d.modifiable;
+    var h = d.modifiable ? '' : '<div class="nv-notice">' + esc(d.raison || "Lecture seule.") + '</div>';
+    if (!d.cours.vocal && !d.cours.cree_par_admin) h += '<div class="nv-notice">Relevé automatique inactif : l\'équipe NAVIRE doit renseigner le salon vocal du groupe. Coche les présents à la main.</div>';
+    h += '<div class="nv-pr-list">' + d.eleves.map(function (e) {
+      var attrs = e.presence_id ? 'data-pid="' + e.presence_id + '"' : 'data-eid="' + (e.enrollment_id || "") + '"';
+      return '<button class="nv-pr' + (e.present ? " is-on" : "") + '" data-act="pr-toggle" data-c="' + cid + '" data-v="' + (e.present ? 0 : 1) + '" ' + attrs + (ro ? " disabled" : "") + '>' +
+        '<span class="nv-check">' + ICON_OK + '</span><span class="nv-pr-nom">' + esc(e.nom) + '</span>' +
+        '<small>' + (e.minutes ? e.minutes + " min" : (e.discord_relie ? "absent du vocal" : "Discord non relié")) +
+        (e.source === "prof" || e.source === "admin" ? " · corrigé" : "") + '</small></button>';
+    }).join("") + '</div>';
+    if (d.autres.length) {
+      h += '<div class="nv-group-label">Aussi dans le vocal</div><div class="nv-eleves">' + d.autres.map(function (a) {
+        return '<span class="nv-eleve" title="' + (a.non_relie ? "Compte Discord non relié à NAVIRE : coche l'étudiant dans la liste" : "Pas (ou plus) inscrit dans ce groupe") + '">' +
+          esc(a.nom || "Membre Discord") + ' · ' + a.minutes + ' min' + (a.non_relie ? ' · non relié' : ' · hors groupe') + '</span>';
+      }).join("") + '</div>';
+    }
+    return h + '<div style="font-size:11.5px;color:var(--text-4);margin-top:8px">Présent dès ' + d.seuil_minutes + ' minutes dans le salon vocal du groupe pendant le cours.</div>';
+  }
+  function renderPresences() {
+    var r = S.cours, items = r.items || [];
+    var h = head("Présences", "Qui était là à chacun de tes cours, relevé dans le salon vocal du groupe. Tu peux corriger pendant " + r.correction_heures + " h après le cours.");
+    if (!items.length) h += empty("Aucun cours ces 60 derniers jours", "Lance tes cours depuis le salon #cours-start de Discord : la présence s'y relève toute seule.");
+    items.forEach(function (c) {
+      var jh = jourHeure(c.debut), open = S.coursOpen === c.id;
+      h += '<div class="nv-card' + (open ? " is-on" : "") + '" style="padding:0">' +
+        '<button class="nv-pr-head" data-act="pr-open" data-c="' + c.id + '"><div style="min-width:0;flex:1"><b>' + esc(jh.jour) + ' · ' + esc(jh.heure) + '</b>' +
+        '<small>' + esc(c.matiere_label) + ' · ' + esc(c.groupe) + '</small></div>' + prCoursTags(c) +
+        '<span class="nv-pr-count">' + c.nb_presents + ' présent' + (c.nb_presents > 1 ? "s" : "") + '</span>' + CHEV + '</button>' +
+        (open ? '<div style="padding:0 16px 16px">' + prListe(c.id) + '</div>' : '') + '</div>';
+    });
+    setPage(h);
+  }
+  function prOuvrir(cid) {
+    S.coursOpen = S.coursOpen === cid ? null : cid;
+    renderPresences();
+    if (S.coursOpen && !S.pres[cid]) {
+      api("GET", "/professeurs/cours/" + cid + "/presences").then(function (d) { S.pres[cid] = d; })
+        .catch(function (x) { S.pres[cid] = { erreur: x.message }; })
+        .then(function () { if (S.view === "presences") renderPresences(); });
+    }
+  }
+  function prBasculer(a) {
+    if (S.prBusy) return;
+    var cid = +a.getAttribute("data-c"), body = { present: a.getAttribute("data-v") === "1" };
+    if (a.getAttribute("data-pid")) body.presence_id = +a.getAttribute("data-pid"); else body.enrollment_id = +a.getAttribute("data-eid");
+    S.prBusy = true;
+    a.classList.toggle("is-on", body.present);
+    api("PATCH", "/professeurs/cours/" + cid + "/presences", body).then(function (d) {
+      S.pres[cid] = d;
+      (S.cours.items || []).forEach(function (c) { if (c.id === cid) c.nb_presents = d.cours.nb_presents; });
+    }).catch(function (x) { toast(x.message, true); })
+      .then(function () { S.prBusy = false; if (S.view === "presences") renderPresences(); });
+  }
+
   // ----- Profil public : la fiche de la page Professeurs -----
   function viewProfil() {
     if (S.profil) return renderProfil();
@@ -2056,7 +2151,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     }).then(function (r) { pfApres(r, "Photo ajoutée"); }).catch(function (x) { toast(x.message, true); });
   }
 
-  var VIEWS = { home: viewHome, copies: viewCopies, epreuves: viewEpreuves, groupes: viewGroupes, earnings: viewEarnings, profil: viewProfil };
+  var VIEWS = { home: viewHome, copies: viewCopies, epreuves: viewEpreuves, groupes: viewGroupes, earnings: viewEarnings, profil: viewProfil, presences: viewPresences };
   function renderApp() {
     var t = S.dash.totaux;
     renderNav();
@@ -2721,7 +2816,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     var a = e.target.closest("[data-act]");
     if (!a || !root.contains(a)) return;
     var act = a.getAttribute("data-act"), id = +a.getAttribute("data-id");
-    if (S.voir && /^(upload|pick|del-doc|doc-new|ep-new|ep-create|ep-del|pf-save|pf-submit|pf-photo|pf-nom|pf-f-add|pf-f-del)$/.test(act)) { toast("Aperçu admin : lecture seule", true); return; }
+    if (S.voir && /^(upload|pick|del-doc|doc-new|ep-new|ep-create|ep-del|pf-save|pf-submit|pf-photo|pf-nom|pf-f-add|pf-f-del|pr-toggle)$/.test(act)) { toast("Aperçu admin : lecture seule", true); return; }
     if (act === "voir") { voirComme(id); return; }
     if (act === "close-drawer") root.classList.remove("is-drawer");
     else if (act === "side-close") { if (root.classList.contains("is-compact")) root.classList.remove("is-drawer"); else setSide(false); }
@@ -2757,7 +2852,7 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     else if (act === "upload") docUpload(a);
     else if (act === "open-doc") openDoc(id);
     else if (act === "del-doc") delDoc(a, id);
-    else if (act === "refresh") (S.earnDetail = {}, S.profil = null, loadDash()).then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
+    else if (act === "refresh") (S.earnDetail = {}, S.profil = null, S.cours = null, S.pres = {}, loadDash()).then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
     else if (act === "logout") { S.token = null; S.me = null; S.dash = null; S.voir = null; S.admin = false; S.profs = null; S.profil = null; S.pf = null; store(CONFIG.TOKEN_KEY, null); store(VOIR_KEY, null); renderApercu(); viewPublic(); }
     else if (act === "signup") go(CONFIG.SIGNUP_URL);
     else if (act === "login") login(a);
@@ -2776,6 +2871,8 @@ select.nvx-field { height: 42px; padding: 0 12px; }
     else if (act === "pf-nom") { pfLire(); S.pf.nom_complet_public = !S.pf.nom_complet_public; renderProfil(); }
     else if (act === "pf-f-add") { pfLire(); if (!S.pf.formation.length) S.pf.formation.push({ diplome: "", etablissement: "", annee: "" }); S.pf.formation.push({ diplome: "", etablissement: "", annee: "" }); renderProfil(); }
     else if (act === "pf-f-del") { pfLire(); S.pf.formation.splice(+a.getAttribute("data-i"), 1); renderProfil(); }
+    else if (act === "pr-open") prOuvrir(+a.getAttribute("data-c"));
+    else if (act === "pr-toggle") prBasculer(a);
     else if (act === "pf-save") pfEnregistrer(false);
     else if (act === "pf-submit") pfEnregistrer(true);
   });

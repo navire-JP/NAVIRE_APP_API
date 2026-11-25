@@ -2073,6 +2073,9 @@ class PrepaAdjurisClasse(Base):
     nom: Mapped[str] = mapped_column(String(120), nullable=False)
 
     discord_url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    # Salon vocal du groupe (identifiant Discord) : la présence y est relevée
+    # pendant les cours lancés depuis #cours-start. Vide = pas de relevé.
+    discord_vocal_id: Mapped[str] = mapped_column(String(32), default="", server_default="", nullable=False)
     # Autres liens du groupe : [{"label": "Drive", "url": "https://…"}]
     liens: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
 
@@ -2282,6 +2285,10 @@ class PrepaAdjurisCours(Base):
 
     duree_comptee_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     # 60, ou 90 avec un extra.
+    presence_releve_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Dernier relevé du salon vocal par le bot (app/services/presences.py).
+    cree_par_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    # Cours ajouté après coup dans la console (oublié sur Discord).
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -2336,6 +2343,47 @@ class PrepaAdjurisCoursEleve(Base):
     )
 
     cours: Mapped["PrepaAdjurisCours"] = relationship("PrepaAdjurisCours", back_populates="eleves")
+
+
+class PrepaPresence(Base):
+    """
+    Présence d'une personne à un cours (PrepaAdjurisCours). Règles :
+    app/services/presences.py.
+
+    Relevée par le bot dans le salon vocal du groupe pendant le cours
+    (secondes cumulées ; présent au-delà du seuil), puis corrigeable par le
+    professeur (48 h) ou la console. Une correction fixe `present` : les
+    relevés suivants ne le recalculent plus.
+    source : discord | prof | admin
+    user_id NULL : membre Discord sans compte NAVIRE relié (affiché, jamais
+    compté) ou inscription payée sans compte (marquée à la main).
+    """
+    __tablename__ = "prepa_presences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cours_id: Mapped[int] = mapped_column(
+        ForeignKey("prepa_adjuris_cours.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    enrollment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prepa_adjuris_enrollments.id", ondelete="SET NULL"), nullable=True
+    )
+    discord_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    nom: Mapped[str] = mapped_column(String(170), default="", nullable=False)
+    secondes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    present: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    source: Mapped[str] = mapped_column(String(16), default="discord", nullable=False)
+    modifie_par_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    modifie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    cours: Mapped["PrepaAdjurisCours"] = relationship("PrepaAdjurisCours")
 
 
 # ============================================================

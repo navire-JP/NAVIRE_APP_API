@@ -34,7 +34,7 @@ espace AdJuris et dans NAVIRE Lib (GET /lib/adjuris).
 Console (auth NAVIRE, is_admin) :
   GET    /professeurs/admin/classes
   POST   /professeurs/admin/classes
-  PATCH  /professeurs/admin/classes/{id}          (nom, Discord, liens, actif)
+  PATCH  /professeurs/admin/classes/{id}          (nom, Discord, salon vocal, liens, actif)
   DELETE /professeurs/admin/classes/{id}
   GET    /professeurs/admin/classes/{id}/etudiants
   PATCH  /professeurs/admin/inscriptions/{id}     (changer l'étudiant de groupe)
@@ -664,6 +664,17 @@ class Lien(BaseModel):
         return v
 
 
+def _check_vocal(v: str) -> str:
+    """Identifiant du salon vocal (clic droit sur le salon → Copier l'identifiant),
+    ou son lien https://discord.com/channels/<serveur>/<salon>."""
+    v = (v or "").strip().rstrip("/")
+    if v.startswith("https://"):
+        v = v.rsplit("/", 1)[-1]
+    if v and not (v.isdigit() and 15 <= len(v) <= 22):
+        raise ValueError("Salon vocal : colle l'identifiant du salon (un nombre) ou son lien Discord.")
+    return v
+
+
 def _check_discord(v: str) -> str:
     v = v.strip()
     if v and not v.startswith("https://"):
@@ -675,6 +686,7 @@ class ClasseIn(BaseModel):
     matiere_key: str
     nom: str = Field(..., min_length=2, max_length=120)
     discord_url: str = Field("", max_length=500)
+    discord_vocal_id: str = Field("", max_length=200)
     liens: list[Lien] = Field(default_factory=list, max_length=20)
 
     @field_validator("discord_url")
@@ -682,10 +694,16 @@ class ClasseIn(BaseModel):
     def _discord(cls, v: str) -> str:
         return _check_discord(v)
 
+    @field_validator("discord_vocal_id")
+    @classmethod
+    def _vocal(cls, v: str) -> str:
+        return _check_vocal(v)
+
 
 class ClasseUpdateIn(BaseModel):
     nom: str | None = Field(None, min_length=2, max_length=120)
     discord_url: str | None = Field(None, max_length=500)
+    discord_vocal_id: str | None = Field(None, max_length=200)
     liens: list[Lien] | None = Field(None, max_length=20)
     is_active: bool | None = None
 
@@ -693,6 +711,11 @@ class ClasseUpdateIn(BaseModel):
     @classmethod
     def _discord(cls, v: str | None) -> str | None:
         return None if v is None else _check_discord(v)
+
+    @field_validator("discord_vocal_id")
+    @classmethod
+    def _vocal(cls, v: str | None) -> str | None:
+        return None if v is None else _check_vocal(v)
 
 
 def _classe_admin_row(db: Session, c: PrepaAdjurisClasse, par_matiere: dict) -> dict:
@@ -734,6 +757,7 @@ def admin_create_classe(payload: ClasseIn, db: Session = Depends(get_db), _: Use
         matiere_key=payload.matiere_key,
         nom=payload.nom.strip(),
         discord_url=payload.discord_url,
+        discord_vocal_id=payload.discord_vocal_id,
         liens=[l.model_dump() for l in payload.liens],
     )
     db.add(c)
@@ -751,6 +775,8 @@ def admin_update_classe(
         c.nom = payload.nom.strip()
     if payload.discord_url is not None:
         c.discord_url = payload.discord_url
+    if payload.discord_vocal_id is not None:
+        c.discord_vocal_id = payload.discord_vocal_id
     if payload.liens is not None:
         c.liens = [l.model_dump() for l in payload.liens]
     if payload.is_active is not None:
