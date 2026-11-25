@@ -3,7 +3,8 @@
   ============================================================
   Lien partagé par l'ambassadeur : https://navire-ai.com/rejoindre?ref=JULIE-7K2
 
-  1. Lit le code du lien (?ref=) et affiche « Julie t'invite » (GET /ambassadors/ref/{code}).
+  1. Lit le code du lien (?ref=) et affiche « Julie t'invite » avec la photo
+     de son compte (GET /ambassadors/ref/{code}).
   2. Création du compte NAVIRE complet (pseudo, email vérifié, université, niveau)
      ou connexion à un compte existant. Le code part avec l'inscription.
   3. Choix des matières Prép'AdJuris, récapitulatif, puis paiement Stripe.
@@ -59,6 +60,10 @@
   #nv-join .hero-pair { position: relative; margin-bottom: 14px; }
   #nv-join .hero-pair .hero-logo { margin: 0; }
   #nv-join .avatar { position: absolute; right: -14px; bottom: -8px; width: 34px; height: 34px; border-radius: 50%; background: #16161f; border: 2px solid rgba(255,255,255,0.14); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+  /* Photo de l'ambassadeur : au premier plan, le logo NAVIRE en pastille */
+  #nv-join .hero-pp { position: relative; width: 84px; height: 84px; margin-bottom: 16px; animation: nv-float 6s ease-in-out infinite; }
+  #nv-join .hero-pp .pp { width: 84px; height: 84px; border-radius: 50%; background: #16161f center/cover no-repeat; border: 2px solid rgba(255,255,255,0.16); box-shadow: 0 20px 60px rgba(120,150,255,0.22); display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 700; color: #fff; }
+  #nv-join .hero-pp .badge { position: absolute; right: -6px; bottom: -4px; width: 30px; height: 30px; border-radius: 9px; background: url("https://navire-app-api.onrender.com/assets/logo-navire-app.png") center/contain no-repeat; box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
   #nv-join .invite h1 { font-size: 24px; letter-spacing: -.5px; }
   #nv-join .invite .muted { font-size: 13.5px; max-width: 420px; line-height: 1.55; }
   #nv-join .grad { background: linear-gradient(90deg, #fff, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -148,8 +153,11 @@
       return '<div class="invite"><div class="hero-logo"></div><h1>Rejoins Prép\'AdJuris</h1><p class="muted">Les séances de soutien en droit de NAVIRE, matière par matière.</p>' +
         '<button class="linkbtn" id="nv-code-btn">Tu as un code d\'invitation ?</button></div>';
     }
-    var n = state.amb.display_name;
-    return '<div class="invite"><div class="hero-pair"><div class="hero-logo"></div><div class="avatar">' + esc(n.charAt(0).toUpperCase()) + '</div></div>' +
+    var n = state.amb.display_name, pp = state.amb.avatar_url;
+    var photo = /^https:\/\//.test(pp || "")
+      ? '<div class="pp" role="img" aria-label="' + esc(n) + '" style="background-image:url(\'' + esc(pp.replace(/['()\\]/g, encodeURIComponent)) + '\')"></div>'
+      : '<div class="pp">' + esc(n.charAt(0).toUpperCase()) + '</div>';
+    return '<div class="invite"><div class="hero-pp">' + photo + '<div class="badge"></div></div>' +
       '<h1>' + esc(n) + ' t\'invite sur <span class="grad">NAVIRE</span></h1>' +
       '<p class="muted">Crée ton compte et rejoins Prép\'AdJuris' + (state.amb.university ? ' — ' + esc(state.amb.university) : '') + '.</p></div>';
   }
