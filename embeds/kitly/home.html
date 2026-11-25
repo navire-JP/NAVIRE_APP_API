@@ -127,6 +127,30 @@
   #kh .why-c > i.flagbox .flag { width: 40px; height: 27px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); }
   #kh .why-c > b { display: block; font-size: 18px; letter-spacing: -.02em; margin-top: 18px; }
   #kh .why-c > p { color: var(--mut); font-size: 14.5px; line-height: 1.6; margin: 8px 0 0; }
+  /* exemples de vitrines (visiteurs) : de vraies vitrines Kitly, chargées depuis l'API publique */
+  #kh .ex-sec[hidden] { display: none; }
+  #kh .ex-sec[hidden] + .steps-h { margin-top: 0; }
+  #kh .ex-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  #kh .ex { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; border: 1px solid var(--line); border-radius: 26px; overflow: hidden; background: var(--paper); color: var(--ink); text-decoration: none; padding: 0 22px 22px; transition: transform .2s, box-shadow .2s; }
+  #kh .ex:hover { transform: translateY(-3px); box-shadow: 0 24px 50px -28px rgba(0,0,0,.35); }
+  #kh .ex.dark { background: #0d0d0d; color: #fff; border-color: #0d0d0d; }
+  #kh .ex-ban { align-self: stretch; margin: 0 -22px; height: 150px; background: var(--grey) center / cover no-repeat; -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
+  #kh .ex.dark .ex-ban { background-color: #222; }
+  #kh .ex-av { position: relative; width: 84px; height: 84px; border-radius: 50%; margin-top: -46px; background: #0a0a0a center / cover no-repeat; border: 4px solid var(--paper); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 28px; flex-shrink: 0; }
+  #kh .ex.dark .ex-av { border-color: #0d0d0d; }
+  #kh .ex-n { font-size: 22px; font-weight: 900; letter-spacing: -.03em; margin-top: 12px; line-height: 1.15; overflow-wrap: anywhere; }
+  #kh .ex-n.serif { font-family: var(--serif); font-weight: 400; font-size: 28px; letter-spacing: .02em; }
+  #kh .ex-h { color: var(--mut); font-size: 14.5px; margin-top: 4px; line-height: 1.4; }
+  #kh .ex-l { color: var(--mut); font-size: 12.5px; font-weight: 700; margin-top: 6px; }
+  #kh .ex.dark .ex-h, #kh .ex.dark .ex-l { color: rgba(255,255,255,.66); }
+  #kh .ex-shots { display: grid; gap: 6px; align-self: stretch; margin-top: 18px; }
+  #kh .ex-shots i { aspect-ratio: 1; border-radius: 12px; background: var(--grey) center / cover no-repeat; }
+  #kh .ex-go { margin-top: auto; padding-top: 20px; font-size: 13.5px; font-weight: 800; }
+  @media (max-width: 760px) {
+    #kh .ex-row { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; margin: 0 -20px; padding: 4px 20px 14px; scrollbar-width: none; }
+    #kh .ex-row::-webkit-scrollbar { display: none; }
+    #kh .ex { flex: 0 0 80%; scroll-snap-align: center; }
+  }
   #kh .steps-h { text-align: center; font-size: clamp(26px, 3.2vw, 36px); font-weight: 900; letter-spacing: -.035em; margin: 72px 0 0; }
   #kh .guest .steps { margin-top: 28px; }
   @media (max-width: 760px) {
@@ -180,6 +204,7 @@
     PRICING_URL: "/subscribe",
     PUBLIC_BASE: "/profile#",       // vitrine = PUBLIC_BASE + slug
     PROFILE_URL: "/profile#{slug}",  // liens des cartes marketplace
+    EXAMPLES: ["kronos", "meoles-shop", "navire-app"],   // vitrines montrées en exemple aux visiteurs (adresses)
     TOKEN_KEY: "kitly_token",
     HERO_IMAGE: ""                   // vide : image du hero servie par l'API (/kitly/static/hero-home.webp)
   };
@@ -242,6 +267,7 @@
   var FLAG = '<span class="flag" aria-hidden="true"><i></i><i></i><i></i></span>';
 
   function renderGuest() {
+    setTimeout(loadExamples, 0);   // section « Ils ont déjà leur vitrine » (remplie quand l'API répond)
     heroEl.innerHTML =
       '<section class="sh" aria-label="Kitly"><div class="sh-img" style="background-image:url(\'' + esc(HERO_IMG) + '\')" role="img" aria-label="Deux clients descendent un escalator, sacs Kitly à la main"></div>' +
       '<div class="sh-in"><div class="sh-txt">' +
@@ -260,14 +286,8 @@
     fitHero(true);
     setTimeout(function () { fitHero(true); }, 400);   // position définitive de l'embed dans la page
     top.innerHTML =
-      '<div class="guest"><section class="why"><div class="why-h">' +
-        '<h2>Le commerce indépendant, <em>made in France.</em></h2>' +
-        '<p>Face aux géants du e-commerce, les indépendants ont besoin d\'outils simples, pensés pour eux. C\'est pour ça qu\'on a créé Kitly.</p></div>' +
-        '<div class="why-g">' +
-          '<div class="why-c"><i class="flagbox">' + FLAG + '</i><b>Français, de A à Z</b><p>Une équipe en France, un support en français et une vitrine prête pour le droit français : CGV, mentions légales, données personnelles.</p></div>' +
-          '<div class="why-c"><i>' + ico(ICO.shop) + '</i><b>Pour les petits commerçants</b><p>Boutique, prestations, rendez-vous, réalisations : tout ce qu\'il faut pour vendre, sans abonnement à une agence ni ligne de code.</p></div>' +
-          '<div class="why-c"><i>' + ico(ICO.hand) + '</i><b>Tes clients restent les tiens</b><p>Ils te contactent directement et paient en ligne en toute sécurité. Ton nom, ta marque, ta relation client.</p></div>' +
-        '</div>' +
+      '<div class="guest"><section class="why">' +
+        '<div class="ex-sec" id="kh-ex" hidden></div>' +
         '<h2 class="steps-h">Ta vitrine en <em>3 étapes</em></h2>' +
         '<div class="steps">' +
           '<div class="step"><span class="n">01</span><b>Crée ton site</b><p>Ton nom, ton métier, ta photo : ta vitrine est prête en quelques minutes.</p></div>' +
@@ -295,6 +315,50 @@
   }
   try { HOST.addEventListener("resize", function () { fitHero(false); }); } catch (e) {}
   try { HOST.addEventListener("orientationchange", function () { setTimeout(function () { fitHero(true); }, 300); }); } catch (e) {}
+
+  // ============================================================
+  // Exemples de vitrines (visiteurs) — CONFIG.EXAMPLES, chargées depuis l'API
+  // publique (lecture seule, ne compte pas de visite). Une vitrine introuvable
+  // est ignorée ; si aucune ne répond, la section reste masquée.
+  // ============================================================
+  function exBg(u) { return u ? ' style="background-image:url(&quot;' + esc(String(u).replace(/["\\\n\r]/g, encodeURIComponent)) + '&quot;)"' : ''; }
+  function exShots(d) {
+    var out = [];
+    function add(u) { u = typeof u === "string" ? u : (u && u.url); if (u && out.indexOf(u) < 0) out.push(u); }
+    (d.portfolio || []).forEach(function (p) {
+      add(p.cover_url);
+      (p.media || []).forEach(function (m) { if (m && m.type !== "video") add(m.url); });
+    });
+    (d.offers || []).forEach(function (o) { (o.images || []).forEach(add); });
+    return out.slice(0, 3);
+  }
+  function exCard(d) {
+    var th = d.theme || {}, shots = exShots(d), name = d.display_name || d.slug;
+    return '<a class="ex' + (th.template === "noir" ? " dark" : "") + '" href="' + esc(CONFIG.PUBLIC_BASE + d.slug) + '" target="_top">' +
+      '<span class="ex-ban"' + exBg(d.banner_url) + '></span>' +
+      '<span class="ex-av"' + exBg(d.avatar_url) + '>' + (d.avatar_url ? '' : esc(name.charAt(0))) + '</span>' +
+      '<b class="ex-n' + (th.template === "edito" ? " serif" : "") + '">' + esc(name) + '</b>' +
+      (d.headline ? '<span class="ex-h">' + esc(d.headline) + '</span>' : '') +
+      (d.location ? '<span class="ex-l">' + esc(d.location) + '</span>' : '') +
+      (shots.length ? '<span class="ex-shots" style="grid-template-columns:repeat(' + shots.length + ',minmax(0,1fr))">' +
+        shots.map(function (u) { return '<i' + exBg(u) + '></i>'; }).join("") + '</span>' : '') +
+      '<span class="ex-go">Voir la vitrine →</span></a>';
+  }
+  function loadExamples() {
+    var box = document.getElementById("kh-ex");
+    if (!box || !CONFIG.EXAMPLES || !CONFIG.EXAMPLES.length) return;
+    Promise.all(CONFIG.EXAMPLES.map(function (slug) {
+      return fetch(CONFIG.API_BASE + "/kitly/public/profiles/" + encodeURIComponent(slug))
+        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+    })).then(function (list) {
+      list = list.filter(function (d) { return d && d.slug; });
+      if (!list.length || !box.isConnected) return;
+      box.innerHTML = '<div class="why-h"><h2>Ils ont déjà <em>leur vitrine.</em></h2>' +
+        '<p>Artistes, créateurs, marques : chacun la façonne à son image. Jette un œil, puis crée la tienne.</p></div>' +
+        '<div class="ex-row">' + list.map(exCard).join("") + '</div>';
+      box.hidden = false;
+    });
+  }
 
   function renderMember(me, stats, leads) {
     heroEl.innerHTML = "";
