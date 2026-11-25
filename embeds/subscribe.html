@@ -10,6 +10,8 @@
   Connecté (navire_token du site) : le bloc compte disparaît, les matières déjà
   suivies sont grisées, l'offre en cours est marquée.
   Lien d'ambassadeur : /subscribe?ref=CODE est repris (inscription + paiement).
+  Depuis une fiche professeur (page /professeurs) : /subscribe?prof=<slug>&matiere=<clé>
+  coche la matière, et l'inscription rejoint le groupe de ce professeur.
 
   Les offres affichées suivent app/core/limits.py (PLAN_LIMITS),
   app/core/navire_plans.py (prix) et app/core/prepa_adjuris_config.py
@@ -460,7 +462,7 @@
   var state = {
     token: null, user: null, plan: null,     // session du site (navire_token)
     enrolled: [],                            // matières AdJuris déjà actives
-    ref: null,
+    ref: null, prof: null,
     cycle: "mensuel",
     niveau: null, matieres: [],
     recapSeq: 0, recapOk: false, totalCents: null,
@@ -524,6 +526,18 @@
     }
     window.location.href = url;
     return true;
+  }
+  // Paramètre de la page (?nom=…), dans l'iframe ou sur la page qui l'accueille.
+  function readParam(nom) {
+    var sources = [];
+    try { sources.push(window.location.search); } catch (e) {}
+    try { sources.push(window.top.location.search); } catch (e) {}
+    var re = new RegExp("[?&]" + nom + "=([^&#]+)");
+    for (var i = 0; i < sources.length; i++) {
+      var m = re.exec(sources[i] || "");
+      if (m) { try { return decodeURIComponent(m[1]).trim(); } catch (e) { return null; } }
+    }
+    return null;
   }
   function readRef() {
     var sources = [];
@@ -862,7 +876,7 @@
     adjAccount.authenticate().then(function (token) {
       adjSubmit.textContent = "Ouverture du paiement…";
       return api("POST", "/prepa/adjuris/checkout-session",
-                 { matieres: state.matieres, promo_code: promo || null, ref: state.ref || null }, token);
+                 { matieres: state.matieres, promo_code: promo || null, ref: state.ref || null, prof: state.prof || null }, token);
     }).then(function (r) {
       if (!r || !r.checkout_url) throw new Error("Lien de paiement indisponible. Réessaie dans un instant.");
       adjForm.hidden = true;
@@ -1078,6 +1092,15 @@
   var savedCycle = store("getItem", CONFIG.BILLING_KEY);
   if (savedCycle === "annuel" || savedCycle === "mensuel") state.cycle = savedCycle;
   state.ref = readRef();
+  // Fiche professeur : matière cochée, groupe du professeur retenu au paiement.
+  (function () {
+    var prof = readParam("prof"), cle = readParam("matiere");
+    if (prof && /^[a-z0-9-]{1,100}$/.test(prof)) state.prof = prof;
+    if (!cle) return;
+    Object.keys(MATIERES).forEach(function (n) {
+      if (MATIERES[n].some(function (m) { return m[0] === cle; })) { state.niveau = n; state.matieres = [cle]; }
+    });
+  })();
   state.token = store("getItem", CONFIG.TOKEN_KEY);
   if (state.token) state.plan = "free";
 
