@@ -62,14 +62,13 @@ def _eur(cents: int) -> str:
 # ============================================================
 
 def _terms() -> list[str]:
-    parrain = _eur(svc.PARRAINAGE_CREDIT_PARRAIN_CENTS)
+    parrain = _eur(svc.PARRAINAGE_CREDIT_PARRAIN_PAR_MATIERE_CENTS)
     filleul = _eur(svc.PARRAINAGE_CREDIT_FILLEUL_CENTS)
     return [
         "Le parrainage est réservé aux élèves inscrits à Prép'AdJuris et porte uniquement sur "
         "les inscriptions à Prép'AdJuris.",
-        f"Quand un ami venu par ton lien paie son inscription, tu économises {parrain} et ton ami "
-        f"économise {filleul}. C'est une seule fois par ami, quel que soit le nombre de matières, "
-        "et rien sur les mensualités qui suivent.",
+        f"Tu gagnes {parrain} par matière dont un ami venu par ton lien paie l'inscription, et ton "
+        f"ami économise {filleul} sur sa première inscription. Rien sur les mensualités qui suivent.",
         "Ces réductions sont créditées automatiquement sur vos comptes Prép'AdJuris et déduites "
         "de vos prochains prélèvements. Elles ne sont pas versées en argent.",
         f"Ta réduction est créditée {svc.DELAI_CREDIT_JOURS} jours après le paiement de ton ami "
@@ -89,7 +88,7 @@ def _terms() -> list[str]:
 def get_terms():
     return {
         "version": svc.TERMS_VERSION,
-        "credit_parrain_cents": svc.PARRAINAGE_CREDIT_PARRAIN_CENTS,
+        "credit_parrain_par_matiere_cents": svc.PARRAINAGE_CREDIT_PARRAIN_PAR_MATIERE_CENTS,
         "credit_filleul_cents": svc.PARRAINAGE_CREDIT_FILLEUL_CENTS,
         "prix_inscription_cents": 2000,
         "delai_credit_jours": svc.DELAI_CREDIT_JOURS,
@@ -180,7 +179,7 @@ def join(payload: JoinIn, db: Session = Depends(get_db), user: User = Depends(ge
 
     try:
         send_mail(user.email, *mail_parrainage_bienvenue(
-            p.display_name, referral_link(p.code), _eur(svc.PARRAINAGE_CREDIT_PARRAIN_CENTS),
+            p.display_name, referral_link(p.code), _eur(svc.PARRAINAGE_CREDIT_PARRAIN_PAR_MATIERE_CENTS),
             _eur(svc.PARRAINAGE_CREDIT_FILLEUL_CENTS),
         ))
     except Exception:  # noqa: BLE001 — l'email ne bloque jamais l'inscription
@@ -207,7 +206,7 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(get_current_us
         raise HTTPException(403, detail="Inscris-toi d'abord au parrainage.")
     return {
         "parrain": _me_payload(db, user, p),
-        "credit_parrain_cents": svc.PARRAINAGE_CREDIT_PARRAIN_CENTS,
+        "credit_parrain_par_matiere_cents": svc.PARRAINAGE_CREDIT_PARRAIN_PAR_MATIERE_CENTS,
         "credit_filleul_cents": svc.PARRAINAGE_CREDIT_FILLEUL_CENTS,
         "prix_inscription_cents": 2000,
         "delai_credit_jours": svc.DELAI_CREDIT_JOURS,

@@ -906,8 +906,8 @@ def mail_parrainage_bienvenue(nom: str, link: str, credit_eur: str, credit_ami_e
     <p style="margin-top:0;">Bonjour {escape(nom)},</p>
     <p>
       Ton lien de parrainage Prép'AdJuris est actif. Chaque ami qui paie son
-      inscription avec ce lien te fait économiser <strong>{credit_eur}</strong>, et lui
-      économise <strong>{credit_ami_eur}</strong>. Les réductions sont déduites
+      inscription avec ce lien te fait gagner <strong>{credit_eur} par matière</strong>,
+      et lui économise <strong>{credit_ami_eur}</strong>. Les réductions sont déduites
       automatiquement de vos prochains prélèvements.
     </p>
     <p style="word-break: break-all;"><a href="{escape(link)}">{escape(link)}</a></p>
@@ -924,7 +924,7 @@ def mail_parrainage_recompense(nom: str, filleul: str, montant_eur: str, delai_j
     <p style="margin-top:0;">Bonjour {escape(nom)},</p>
     <p>
       <strong>{escape(filleul)}</strong> vient de payer son inscription Prép'AdJuris
-      grâce à ton lien. Tu économises <strong>{montant_eur}</strong> (et ton ami aussi).
+      grâce à ton lien. Tu gagnes <strong>{montant_eur}</strong> de réduction.
     </p>
     <p style="font-size: 0.85em; color: #888;">
       La réduction est créditée automatiquement sur ton compte après le délai de
@@ -1078,7 +1078,7 @@ EMAIL_CATALOG: dict[str, dict] = {
     "parrainage_recompense": {
         "label": "Parrainage : un ami a payé son inscription",
         "trigger": "Webhook Stripe : inscription Prép'AdJuris payée par un filleul",
-        "render": lambda: mail_parrainage_recompense("Julie", "marc_l2", "5,00 €", 14),
+        "render": lambda: mail_parrainage_recompense("Julie", "marc_l2", "10,00 €", 14),
     },
     "parrainage_filleul": {
         "label": "Parrainage : réduction de l'ami invité",
