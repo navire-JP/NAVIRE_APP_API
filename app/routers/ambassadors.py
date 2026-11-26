@@ -6,10 +6,11 @@ app/services/ambassadors.py.
 
 Endpoints publics (page /rejoindre, sans compte) :
   GET  /ambassadors/terms               → conditions du programme
-  GET  /ambassadors/ref/{code}          → nom affiché et photo de l'ambassadeur du lien
-  GET  /ambassadors/invite/{code}       → lien de partage : aperçu (photo de l'ambassadeur)
-                                          puis redirection vers /rejoindre?ref=CODE
-  GET  /ambassadors/embed/{page}        → page d'embed (rejoindre | ambassadeur)
+  GET  /ambassadors/ref/{code}          → nom affiché et photo de l'ambassadeur (ou du
+                                          parrain, voir app/routers/parrainage.py) du lien
+  GET  /ambassadors/invite/{code}       → lien de partage : aperçu (photo de l'ambassadeur
+                                          ou du parrain) puis redirection vers /rejoindre?ref=CODE
+  GET  /ambassadors/embed/{page}        → page d'embed (rejoindre | ambassadeur | parrainage)
 
 Endpoints utilisateur (auth NAVIRE, page /ambassadeur) :
   GET   /ambassadors/me                 → statut (none | pending | approved | rejected | suspended)
@@ -17,6 +18,7 @@ Endpoints utilisateur (auth NAVIRE, page /ambassadeur) :
   PATCH /ambassadors/me                 → nom affiché, téléphone, IBAN
   GET   /ambassadors/me/dashboard       → lien, statistiques, filleuls, gains
   POST  /ambassadors/claim              → rattache le compte connecté à un code
+                                          (ambassadeur ou parrain)
 
 Endpoints console (auth NAVIRE, is_admin) :
   GET  /ambassadors/admin/summary
@@ -50,9 +52,10 @@ from sqlalchemy.orm import Session
 from app.core.cloudinary_client import resolve_avatar_url
 from app.core.config import FRONTEND_URL, PUBLIC_API_URL
 from app.db.database import get_db
-from app.db.models import Ambassador, AmbassadorCommission, AmbassadorReferral, User
+from app.db.models import Ambassador, AmbassadorCommission, AmbassadorReferral, Parrain, ParrainageFilleul, User
 from app.routers.auth import get_current_user
 from app.services import ambassadors as svc
+from app.services import parrainage
 from app.services.email import (
     mail_ambassador_application,
     mail_ambassador_approved,
@@ -89,7 +92,7 @@ def share_link(code: str) -> str:
     return f"{PUBLIC_API_URL}/ambassadors/invite/{code}"
 
 
-def _avatar(amb: Ambassador) -> str:
+def _avatar(amb: Ambassador | Parrain) -> str:
     return resolve_avatar_url(amb.user.avatar_url if amb.user else None)
 
 
@@ -148,7 +151,22 @@ def resolve_referral_code(
     """
     amb = svc.find_active(db, code)
     if amb is None:
-        return {"valid": False}
+        # Même page pour le parrainage étudiant : le code peut être celui
+        # d'un parrain (app/services/parrainage.py).
+        parrain = parrainage.find_active(db, code)
+        if parrain is None:
+            return {"valid": False}
+        if track:
+            parrain.clicks = (parrain.clicks or 0) + 1
+            db.commit()
+        return {
+            "valid": True,
+            "program": "parrainage",
+            "code": parrain.code,
+            "display_name": parrain.display_name,
+            "university": parrain.user.university if parrain.user else None,
+            "avatar_url": _avatar(parrain),
+        }
     if track:
         amb.clicks = (amb.clicks or 0) + 1
         db.commit()
@@ -180,7 +198,7 @@ def invite_page(code: str, request: Request, db: Session = Depends(get_db)):
     l'ambassadeur et sa photo. Un visiteur est aussitôt redirigé vers la page
     d'invitation du site, qui compte la visite.
     """
-    amb = svc.find_active(db, code)
+    amb = svc.find_active(db, code) or parrainage.find_active(db, code)
     if amb is None:
         return RedirectResponse(f"{FRONTEND_URL}/rejoindre", status_code=302)
     cible = referral_link(amb.code)
@@ -229,7 +247,11 @@ def invite_page(code: str, request: Request, db: Session = Depends(get_db)):
 # leur passe le ?ref= de la page, et le jeton survit d'une visite à l'autre.
 
 _EMBEDS_DIR = Path(__file__).resolve().parents[2] / "embeds"
-_EMBED_PAGES = {"rejoindre": "Rejoindre NAVIRE", "ambassadeur": "Ambassadeurs NAVIRE"}
+_EMBED_PAGES = {
+    "rejoindre": "Rejoindre NAVIRE",
+    "ambassadeur": "Ambassadeurs NAVIRE",
+    "parrainage": "Parrainage NAVIRE",
+}
 
 
 @router.get("/embed/{page}", response_class=HTMLResponse, include_in_schema=False)
@@ -419,10 +441,15 @@ def claim(payload: ClaimIn, db: Session = Depends(get_db), user: User = Depends(
     rattachement n'a pas lieu (déjà filleul d'un autre, déjà client, code
     invalide, auto-parrainage) — la page continue normalement.
     """
-    ref = svc.attach_referral(db, payload.code, user=user, source="claim")
-    amb = db.get(Ambassador, ref.ambassador_id) if ref else None
-    mine = amb is not None and svc.normalize_code(payload.code) == amb.code
-    return {"attached": mine, "display_name": amb.display_name if mine else None}
+    ref = parrainage.attach_any(db, payload.code, user=user, source="claim")
+    if isinstance(ref, ParrainageFilleul):
+        lien = db.get(Parrain, ref.parrain_id)
+    elif ref is not None:
+        lien = db.get(Ambassador, ref.ambassador_id)
+    else:
+        lien = None
+    mine = lien is not None and svc.normalize_code(payload.code) == lien.code
+    return {"attached": mine, "display_name": lien.display_name if mine else None}
 
 
 # ============================================================

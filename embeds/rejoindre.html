@@ -1,10 +1,11 @@
 <!--
-  NAVIRE — Embed page /rejoindre (invitation d'un ambassadeur)
+  NAVIRE — Embed page /rejoindre (invitation d'un ambassadeur ou d'un parrain)
   ============================================================
-  Lien partagé par l'ambassadeur : https://navire-ai.com/rejoindre?ref=JULIE-7K2
+  Lien partagé par l'ambassadeur ou le parrain (élève Prép'AdJuris, voir
+  parrainage.html) : https://navire-ai.com/rejoindre?ref=JULIE-7K2
 
   1. Lit le code du lien (?ref=) et affiche « Julie t'invite » avec la photo
-     de son compte (GET /ambassadors/ref/{code}).
+     de son compte (GET /ambassadors/ref/{code}, qui reconnaît les deux codes).
   2. Création du compte NAVIRE complet (pseudo, email vérifié, université, niveau)
      ou connexion à un compte existant. Le code part avec l'inscription.
   3. Choix des matières Prép'AdJuris, récapitulatif, puis paiement Stripe.
@@ -237,7 +238,7 @@
     });
     var el;
     if ((el = document.getElementById("nv-code-btn"))) el.onclick = function () {
-      var c = window.prompt("Code d'invitation de ton ambassadeur :");
+      var c = window.prompt("Code d'invitation (ambassadeur ou parrain) :");
       if (c) { state.ref = c.trim().toUpperCase(); store(CONFIG.REF_KEY, state.ref); resolveRef().then(render); }
     };
     if ((el = document.getElementById("nv-signup"))) el.onclick = signup;

@@ -1,0 +1,918 @@
+<!--
+  NAVIRE — Embed page /parrainage (parrainage étudiant)
+  ======================================================
+  Même DA et même structure que l'embed /ambassadeur (ambassadeur.html) :
+    - s'adapte à la largeur de SON conteneur : >= 760px barre latérale,
+      < 760px menu tiroir ;
+    - pas de défilement interne : l'embed grandit avec son contenu.
+
+  Selon GET /parrainage/me :
+    - non connecté                  → présentation, simulateur + connexion
+    - pas élève Prép'AdJuris        → explication + lien vers l'inscription
+    - élève, pas encore parrain     → conditions + activation du lien (un clic)
+    - parrain                       → application : vue d'ensemble, partager,
+                                      filleuls, récompenses, réglages
+
+  Le lien du parrain mène à /rejoindre?ref=CODE (même page que les
+  ambassadeurs). La récompense est créditée automatiquement sur le solde
+  Stripe du parrain et déduite de ses prochains prélèvements.
+
+  Réglages : bloc CONFIG du script.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+#nv-parr {
+  --bg: transparent;
+  --panel: rgba(255,255,255,0.035);
+  --panel-2: rgba(255,255,255,0.06);
+  --panel-3: rgba(255,255,255,0.1);
+  --line: rgba(255,255,255,0.07);
+  --text: #fff;
+  --text-2: rgba(255,255,255,0.72);
+  --text-3: rgba(255,255,255,0.45);
+  --text-4: rgba(255,255,255,0.28);
+  --danger: #FF6B6B;
+  --ok: #5BE3A3;
+  --warn: #FFD166;
+  --blue: #7AA7FF;
+  --blue-hi: #B5CDFF;
+  --blue-deep: #4F7DFF;
+  --line-2: rgba(255,255,255,0.16);
+  --radius: 14px;
+  --ease: cubic-bezier(.2,.8,.2,1);
+
+  position: relative;
+  width: 100%;
+  min-height: 560px;      /* porté à la hauteur de l'écran au chargement */
+  display: flex;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+  background: var(--bg);
+  box-sizing: border-box;
+  font-size: 14px;
+}
+#nv-parr *, #nv-parr *::before, #nv-parr *::after { box-sizing: border-box; }
+#nv-parr button { font-family: inherit; color: inherit; }
+#nv-parr ::selection { background: rgba(255,255,255,0.22); }
+#nv-parr svg { flex-shrink: 0; }
+
+/* ================= SIDEBAR ================= */
+#nv-parr .nv-side {
+  width: 264px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  padding: 14px 10px 12px; gap: 4px;
+  border-right: 1px solid var(--line);
+  z-index: 30;
+}
+#nv-parr.is-solo .nv-side, #nv-parr.is-solo .nv-scrim, #nv-parr.is-solo .nv-topbar { display: none !important; }
+#nv-parr .nv-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 12px; }
+#nv-parr .nv-logo { width: 32px; height: 32px; background: center/contain no-repeat; flex-shrink: 0; }
+#nv-parr .nv-brand-name { font-weight: 800; font-size: 15px; letter-spacing: .6px; }
+#nv-parr .nv-brand-sub { font-size: 10.5px; color: var(--text-3); margin-top: 1px; }
+#nv-parr .nv-side-close { margin-left: auto; }
+#nv-parr:not(.is-compact) .nv-side-close { display: none; }
+
+#nv-parr .nv-cta {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 12px; border-radius: 11px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  cursor: pointer; font-size: 13px; font-weight: 600;
+  transition: background .15s, transform .15s; margin-bottom: 8px;
+}
+#nv-parr .nv-cta:hover { background: var(--panel-3); }
+#nv-parr .nv-cta:active { transform: scale(.98); }
+#nv-parr .nv-cta svg { width: 16px; height: 16px; }
+
+#nv-parr .nv-nav {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 12px; border-radius: 10px;
+  border: none; background: transparent; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  transition: background .15s, color .15s; text-align: left;
+}
+#nv-parr .nv-nav svg { width: 17px; height: 17px; opacity: .8; }
+#nv-parr .nv-nav:hover { background: var(--panel); color: var(--text); }
+#nv-parr .nv-nav.is-active { background: var(--panel-2); color: var(--text); }
+#nv-parr .nv-nav .nv-badge { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-3); }
+
+#nv-parr .nv-side-fill { flex: 0 0 18px; }
+#nv-parr .nv-wallet { padding: 12px; border-radius: 11px; background: var(--panel); font-size: 11.5px; color: var(--text-3); }
+#nv-parr .nv-wallet b { display: block; font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -.4px; margin: 2px 0 6px; }
+#nv-parr .nv-wallet-bar { height: 4px; border-radius: 9px; background: var(--panel-2); overflow: hidden; }
+#nv-parr .nv-wallet-bar i { display: block; height: 100%; background: var(--ok); border-radius: 9px; transition: width .4s var(--ease); }
+#nv-parr .nv-logout { margin-top: 8px; font-size: 11.5px; color: var(--text-4); background: none; border: 0; cursor: pointer; padding: 4px 12px; text-align: left; }
+#nv-parr .nv-logout:hover { color: var(--text-2); }
+
+#nv-parr .nv-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 25; }
+
+/* ================= MAIN ================= */
+#nv-parr .nv-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+#nv-parr .nv-topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; min-height: 52px; flex-shrink: 0; }
+#nv-parr .nv-topbar-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+#nv-parr .nv-icon-btn {
+  width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; border: none; background: transparent; color: var(--text-3);
+  cursor: pointer; transition: background .15s, color .15s; padding: 0;
+}
+#nv-parr .nv-icon-btn:hover { background: var(--panel-2); color: var(--text); }
+#nv-parr .nv-icon-btn svg { width: 18px; height: 18px; }
+#nv-parr .nv-menu-btn { display: none; }
+
+#nv-parr .nv-page { flex: 1 0 auto; animation: nv-fade .28s var(--ease); }
+#nv-parr .nv-page-inner { max-width: 760px; margin: 0 auto; padding: 8px 20px 34px; }
+#nv-parr.is-solo .nv-page-inner { max-width: 880px; padding-top: 24px; }
+@keyframes nv-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes nv-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes nv-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes nv-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+#nv-parr .nv-page-head { margin: 6px 0 18px; }
+#nv-parr .nv-page-head h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+#nv-parr .nv-page-head p { margin: 4px 0 0; font-size: 13px; color: var(--text-3); line-height: 1.55; }
+
+/* Accueil (non connecté, candidature, attente) */
+#nv-parr .nv-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 6px 10px; }
+#nv-parr .nv-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 99px; border: 1px solid var(--line-2); background: rgba(255,255,255,0.05); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; animation: nv-rise .6s var(--ease) both; }
+#nv-parr .nv-pill-logo { width: 22px; height: 22px; border-radius: 7px; background: center/contain no-repeat; }
+#nv-parr .nv-pill b { font-weight: 700; color: var(--blue-hi); }
+#nv-parr .nv-hero h1 { margin: 24px auto 0; max-width: 760px; font-size: clamp(32px, 6vw, 58px); font-weight: 800; letter-spacing: -.045em; line-height: 1.04; text-wrap: balance; animation: nv-rise .7s var(--ease) .06s both; }
+#nv-parr .nv-hero p { margin: 18px auto 0; font-size: 16px; color: var(--text-2); max-width: 540px; line-height: 1.55; text-wrap: pretty; animation: nv-rise .7s var(--ease) .12s both; }
+#nv-parr .nv-grad, #nv-parr .nv-hl { background: linear-gradient(92deg, var(--blue-hi) 0%, var(--blue) 45%, var(--blue-deep) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+#nv-parr .nv-hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 30px; animation: nv-rise .7s var(--ease) .18s both; }
+#nv-parr .nv-ghost { display: inline-flex; align-items: center; height: 48px; padding: 0 22px; border-radius: 99px; border: 1px solid var(--line-2); background: rgba(255,255,255,0.05); color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; transition: background .2s, border-color .2s, transform .25s var(--ease); }
+#nv-parr .nv-ghost:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.28); transform: translateY(-1px); }
+#nv-parr .nv-solid { display: inline-flex; align-items: center; gap: 12px; height: 48px; padding: 0 6px 0 22px; border-radius: 99px; border: 0; background: #fff; color: #090914; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; box-shadow: 0 6px 18px rgba(9,9,20,.18); transition: box-shadow .25s, transform .25s var(--ease); }
+#nv-parr .nv-solid:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(91,111,255,.45); }
+#nv-parr .nv-solid i { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 99px; background: #090914; color: #fff; font-style: normal; transition: transform .22s var(--ease); }
+#nv-parr .nv-solid:hover i { transform: translateX(2px); }
+#nv-parr .nv-solid i svg { width: 14px; height: 14px; }
+#nv-parr .nv-ghost:focus-visible, #nv-parr .nv-solid:focus-visible, #nv-parr .nv-btn:focus-visible, #nv-parr .nv-chip:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+#nv-parr .nv-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; margin: 40px 0 14px; }
+#nv-parr .nv-step { text-align: left; padding: 18px; border-radius: 18px; border: 1px solid var(--line); background: linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); animation: nv-rise .5s var(--ease) both; }
+#nv-parr .nv-step:nth-child(2) { animation-delay: .05s; }
+#nv-parr .nv-step:nth-child(3) { animation-delay: .1s; }
+#nv-parr .nv-step i { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 8px; border-radius: 99px; border: 1px solid var(--line-2); font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600; color: var(--blue-hi); }
+#nv-parr .nv-step b { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.2px; margin: 12px 0 4px; }
+#nv-parr .nv-step span { font-size: 13px; color: var(--text-3); line-height: 1.5; }
+
+/* Cartes */
+#nv-parr .nv-card { padding: 20px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; animation: nv-rise .4s var(--ease) both; }
+#nv-parr .nv-card.is-on { border-color: rgba(255,255,255,0.14); background: var(--panel-2); }
+#nv-parr .nv-card-title { font-size: 15px; font-weight: 700; letter-spacing: -.2px; margin: 0 0 4px; }
+#nv-parr .nv-card-sub { font-size: 12.5px; color: var(--text-3); margin: 0 0 12px; line-height: 1.5; }
+#nv-parr .nv-group-label { display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text-3); margin: 28px 4px 10px; }
+#nv-parr .nv-group-label::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 10px var(--blue); }
+#nv-parr .nv-notice { padding: 12px 14px; border-radius: 12px; background: rgba(255,209,102,0.08); border: 1px solid rgba(255,209,102,0.2); font-size: 12.5px; color: #ffe2a3; margin: 12px 0; line-height: 1.5; }
+#nv-parr .nv-notice.is-bad { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.2); color: #ffb3b3; }
+
+/* Statistiques */
+#nv-parr .nv-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+#nv-parr .nv-stat { padding: 14px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); animation: nv-rise .4s var(--ease) both; min-width: 0; }
+#nv-parr .nv-stat:nth-child(2) { animation-delay: .04s; }
+#nv-parr .nv-stat:nth-child(3) { animation-delay: .08s; }
+#nv-parr .nv-stat:nth-child(4) { animation-delay: .12s; }
+#nv-parr .nv-stat small { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-parr .nv-stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.5px; margin-top: 6px; }
+#nv-parr .nv-stat.is-ok b { color: var(--ok); }
+
+/* Lien */
+#nv-parr .nv-link { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-radius: 99px; background: rgba(0,0,0,0.25); border: 1px solid var(--line); }
+#nv-parr .nv-link code { flex: 1; min-width: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-parr .nv-share { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+/* Boutons */
+#nv-parr .nv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 18px; border-radius: 99px; border: none; background: #fff; color: #0a0a12; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; transition: transform .15s, background .2s; }
+#nv-parr .nv-btn:hover:not(:disabled) { transform: translateY(-1px); }
+#nv-parr .nv-btn:disabled { background: var(--panel-3); color: var(--text-4); cursor: default; transform: none; }
+#nv-parr .nv-btn svg { width: 15px; height: 15px; }
+#nv-parr .nv-btn.is-block { width: 100%; height: 46px; font-size: 14px; }
+#nv-parr .nv-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: transparent; font-size: 12px; color: var(--text-2); cursor: pointer; text-decoration: none; white-space: nowrap; transition: background .15s, color .15s; }
+#nv-parr .nv-chip:hover { background: var(--panel-2); color: #fff; }
+#nv-parr .nv-chip svg { width: 14px; height: 14px; }
+#nv-parr .nv-link-btn { background: none; border: none; color: var(--text-2); font-size: 12.5px; cursor: pointer; padding: 4px 6px; border-radius: 6px; text-decoration: underline; text-underline-offset: 3px; }
+#nv-parr .nv-link-btn:hover { color: #fff; }
+
+/* Formulaires */
+#nv-parr .nv-field { display: block; margin-top: 12px; }
+#nv-parr .nv-field > span { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin-bottom: 6px; }
+#nv-parr .nv-field em { font-style: normal; color: var(--text-4); }
+#nv-parr .nv-input { width: 100%; height: 44px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: #fff; font: inherit; font-size: 13.5px; outline: none; transition: border-color .15s, background .15s; }
+#nv-parr textarea.nv-input { height: auto; min-height: 92px; padding: 11px 14px; line-height: 1.55; resize: vertical; }
+#nv-parr select.nv-input option { background: #111118; color: #fff; }
+#nv-parr .nv-input::placeholder { color: var(--text-4); }
+#nv-parr .nv-input:focus { border-color: rgba(255,255,255,0.22); background: var(--panel-2); }
+#nv-parr .nv-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#nv-parr .nv-err { color: var(--danger); font-size: 12.5px; margin-top: 10px; min-height: 1em; }
+#nv-parr .nv-sep { display: flex; align-items: center; gap: 10px; color: var(--text-4); font-size: 11.5px; margin: 14px 0; }
+#nv-parr .nv-sep::before, #nv-parr .nv-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* Case à cocher (comme NAVIRE AI) */
+#nv-parr .nv-check-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 6px; border-radius: 9px; cursor: pointer; font-size: 13px; color: var(--text-2); line-height: 1.5; transition: background .15s; }
+#nv-parr .nv-check-row:hover { background: var(--panel); }
+#nv-parr .nv-check { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; transition: background .15s, border-color .15s; }
+#nv-parr .nv-check svg { width: 12px; height: 12px; color: #0a0a12; opacity: 0; transform: scale(.5); transition: opacity .15s, transform .2s var(--ease); }
+#nv-parr .nv-check-row.is-on .nv-check { background: #fff; border-color: #fff; }
+#nv-parr .nv-check-row.is-on .nv-check svg { opacity: 1; transform: none; }
+
+#nv-parr .nv-terms { margin: 0; padding: 0 0 0 20px; font-size: 13px; line-height: 1.65; color: var(--text-2); }
+#nv-parr .nv-terms li { margin-bottom: 6px; }
+#nv-parr .nv-terms li::marker { color: var(--text-4); }
+
+/* Lignes (filleuls) */
+#nv-parr .nv-search { display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 42px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 14px; }
+#nv-parr .nv-search svg { width: 16px; height: 16px; color: var(--text-3); }
+#nv-parr .nv-search input { flex: 1; background: none; border: none; outline: none; color: #fff; font: inherit; font-size: 13.5px; }
+#nv-parr .nv-search input::placeholder { color: var(--text-4); }
+#nv-parr .nv-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+#nv-parr .nv-filters .nv-chip.is-active { background: var(--panel-3); color: #fff; border-color: rgba(255,255,255,0.14); }
+#nv-parr .nv-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid transparent; margin-bottom: 6px; animation: nv-rise .35s var(--ease) both; }
+#nv-parr .nv-row-ico { width: 36px; height: 36px; border-radius: 10px; background: var(--panel-2); display: flex; align-items: center; justify-content: center; color: var(--text-2); flex-shrink: 0; font-weight: 700; font-size: 13px; }
+#nv-parr .nv-row-body { flex: 1; min-width: 0; }
+#nv-parr .nv-row-title { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nv-parr .nv-row-meta { font-size: 11.5px; color: var(--text-3); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+#nv-parr .nv-row-amount { font-size: 14px; font-weight: 700; flex-shrink: 0; }
+#nv-parr .nv-tag { display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 99px; background: var(--panel-2); color: var(--text-2); white-space: nowrap; }
+#nv-parr .nv-tag i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+#nv-parr .nv-tag.ok { color: var(--ok); background: rgba(91,227,163,0.1); }
+#nv-parr .nv-tag.warn { color: var(--warn); background: rgba(255,209,102,0.1); }
+#nv-parr .nv-tag.bad { color: var(--danger); background: rgba(255,107,107,0.1); }
+#nv-parr .nv-empty { text-align: center; padding: 34px 20px; font-size: 13px; color: var(--text-3); line-height: 1.6; }
+#nv-parr .nv-empty b { display: block; color: var(--text-2); font-size: 14px; margin-bottom: 4px; }
+#nv-parr .nv-skel { height: 62px; border-radius: 12px; margin-bottom: 6px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: nv-shimmer 1.4s linear infinite; }
+
+/* Simulateur */
+#nv-parr .nv-range { width: 100%; accent-color: #fff; margin: 6px 0 2px; }
+#nv-parr .nv-sim-total { display: flex; align-items: baseline; justify-content: space-between; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+#nv-parr .nv-sim-total b { font-size: 30px; font-weight: 800; letter-spacing: -.8px; }
+
+/* Toasts */
+#nv-parr .nv-toasts { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 50; pointer-events: none; }
+#nv-parr .nv-toast { padding: 9px 14px; border-radius: 11px; background: rgba(30,30,44,0.95); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); animation: nv-toast 2.6s var(--ease) both; white-space: nowrap; }
+#nv-parr .nv-toast.is-error { color: #ffb3b3; }
+@keyframes nv-toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* ================= COMPACT (téléphone / embed étroit) ================= */
+#nv-parr.is-compact .nv-side {
+  position: absolute; top: 0; bottom: 0; left: 0; overflow-y: auto;
+  visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s;
+  z-index: 1001; width: min(300px, 86%); transform: translateX(-102%);
+  background: #0c0c14; box-shadow: 20px 0 60px rgba(0,0,0,0.4);
+}
+#nv-parr.is-compact.is-drawer .nv-side { transform: none; visibility: visible; transition: transform .32s var(--ease); }
+#nv-parr.is-compact .nv-scrim { z-index: 1000; }
+#nv-parr.is-compact.is-drawer .nv-scrim { opacity: 1; pointer-events: auto; }
+#nv-parr.is-compact .nv-side-close, #nv-parr.is-compact .nv-menu-btn { display: inline-flex; }
+#nv-parr.is-compact .nv-topbar { padding: 8px; border-bottom: 1px solid var(--line); min-height: 58px; }
+#nv-parr.is-compact .nv-topbar-title { text-align: center; font-size: 15px; }
+#nv-parr.is-compact .nv-page-inner { padding-left: 14px; padding-right: 14px; }
+#nv-parr.is-compact .nv-stats { grid-template-columns: 1fr 1fr; }
+#nv-parr.is-compact .nv-steps { grid-template-columns: 1fr; }
+#nv-parr.is-compact .nv-row2 { grid-template-columns: 1fr; }
+#nv-parr.is-compact .nv-hero { padding-top: 26px; }
+#nv-parr.is-compact .nv-hero h1 { font-size: clamp(30px, 9vw, 40px); }
+#nv-parr.is-compact .nv-hero p { font-size: 15px; }
+#nv-parr.is-compact .nv-hero-actions { width: 100%; }
+#nv-parr.is-compact .nv-hero-actions > * { flex: 1 1 100%; justify-content: center; }
+#nv-parr.is-compact .nv-solid { justify-content: space-between; }
+#nv-parr.is-compact .nv-icon-btn { width: 42px; height: 42px; border-radius: 12px; }
+#nv-parr.is-compact .nv-icon-btn svg { width: 22px; height: 22px; }
+#nv-parr.is-compact .nv-nav { padding: 12px; font-size: 15px; gap: 12px; }
+#nv-parr.is-compact .nv-nav svg { width: 21px; height: 21px; }
+#nv-parr.is-compact .nv-input { font-size: 16px; } /* 16px : évite le zoom auto d'iOS */
+#nv-parr.is-compact .nv-btn { height: 42px; }
+#nv-parr.is-compact .nv-chip { height: 38px; padding: 0 14px; }
+#nv-parr.is-compact .nv-check { width: 22px; height: 22px; }
+
+@media (prefers-reduced-motion: reduce) {
+  #nv-parr *, #nv-parr *::before, #nv-parr *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+
+<div id="nv-parr" class="is-solo">
+  <aside class="nv-side">
+    <div class="nv-brand">
+      <div class="nv-logo" data-logo></div>
+      <div>
+        <div class="nv-brand-name">NAVIRE</div>
+        <div class="nv-brand-sub">Parrainage</div>
+      </div>
+      <button class="nv-icon-btn nv-side-close" data-act="close-drawer" aria-label="Fermer le menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <button class="nv-cta" data-act="copy-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+      Copier mon lien
+    </button>
+    <button class="nv-nav is-active" data-view="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      Vue d'ensemble
+    </button>
+    <button class="nv-nav" data-view="link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/></svg>
+      Partager
+    </button>
+    <button class="nv-nav" data-view="referrals">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+      Filleuls
+      <span class="nv-badge" data-el="ref-count"></span>
+    </button>
+    <button class="nv-nav" data-view="earnings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Récompenses
+    </button>
+    <button class="nv-nav" data-view="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      Réglages
+    </button>
+    <div class="nv-side-fill"></div>
+    <div class="nv-wallet" data-el="wallet"></div>
+    <button class="nv-logout" data-act="logout">Se déconnecter</button>
+  </aside>
+  <div class="nv-scrim" data-act="close-drawer"></div>
+
+  <main class="nv-main">
+    <div class="nv-topbar">
+      <button class="nv-icon-btn nv-menu-btn" data-act="open-drawer" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      </button>
+      <div class="nv-topbar-title" data-el="title">Vue d'ensemble</div>
+      <button class="nv-icon-btn" data-act="refresh" aria-label="Actualiser" title="Actualiser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      </button>
+    </div>
+    <div class="nv-page" data-el="page"></div>
+    <div class="nv-toasts" data-el="toasts"></div>
+  </main>
+</div>
+
+<script>
+(function () {
+  // ================= CONFIG =================
+  var CONFIG = {
+    API: "https://navire-app-api.onrender.com",
+    TOKEN_KEY: "navire_token",           // même clé que les autres embeds
+    SUBSCRIBE_URL: "https://navire-ai.com/subscribe"
+  };
+  var LOGO = "https://navire-app-api.onrender.com/assets/logo-navire-app.png";
+  var TITLES = { home: "Vue d'ensemble", link: "Partager", referrals: "Filleuls", earnings: "Récompenses", settings: "Réglages" };
+
+  var root = document.getElementById("nv-parr");
+  var S = { token: null, user: null, me: null, terms: null, dash: null, view: "home", sim: 3, simMat: 1, refQuery: "", refFilter: "all" };
+
+  // ================= OUTILS =================
+  function $(sel) { return root.querySelector(sel); }
+  function el(name) { return root.querySelector('[data-el="' + name + '"]'); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function eur(c) { return ((c || 0) / 100).toFixed(2).replace(".", ",") + " €"; }
+  function date(iso) { return iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : "—"; }
+  function detail(d) { if (!d) return "Une erreur est survenue."; if (typeof d === "string") return d; if (d.message) return d.message; if (Array.isArray(d)) return d.map(function (x) { return String(x.msg || "").replace(/^Value error, /, ""); }).join(" · "); return "Une erreur est survenue."; }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" };
+    if (S.token) h.Authorization = "Bearer " + S.token;
+    return fetch(CONFIG.API + path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(detail(j.detail)); e.status = r.status; throw e; } return j; }); });
+  }
+  function go(url) { try { window.top.location.href = url; } catch (e) { window.open(url, "_blank"); } }
+  function val(id) { var n = document.getElementById(id); return n ? n.value.trim() : ""; }
+  function err(msg) { var e = el("err"); if (e) e.textContent = msg || ""; }
+  function toast(msg, isError) {
+    var t = document.createElement("div");
+    t.className = "nv-toast" + (isError ? " is-error" : "");
+    t.textContent = msg;
+    el("toasts").style.top = (visibleTop() + 24) + "px";
+    el("toasts").appendChild(t);
+    setTimeout(function () { t.remove(); }, 2700);
+  }
+  function applyLogos(scope) {
+    (scope || root).querySelectorAll("[data-logo]").forEach(function (n) { n.style.backgroundImage = 'url("' + LOGO + '")'; });
+  }
+  function copyText(text, ok) {
+    function fallback() {
+      var t = document.createElement("textarea"); t.value = text; t.style.position = "fixed"; t.style.opacity = "0";
+      document.body.appendChild(t); t.select(); try { document.execCommand("copy"); } catch (e) {} t.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, function () { fallback(); ok(); });
+    else { fallback(); ok(); }
+  }
+
+  var ICON = {
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    wa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.5A8.4 8.4 0 1 1 21 11.5z"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>'
+  };
+
+  // ================= HAUTEUR =================
+  // Pas de défilement interne : l'embed fait au moins la hauteur de l'écran
+  // sous sa position, et grandit avec son contenu. Dans un Embed HTML Framer,
+  // on agrandit l'iframe et ses blocs parents ; affiché par le composant
+  // NavireEmbed, on lui envoie la hauteur.
+  var FRAMED = window.self !== window.top;
+  var HOST = null, frameEl = null, wrappers = [];
+  if (FRAMED) {
+    var hideBar = document.createElement("style");
+    hideBar.textContent = "html,body{margin:0;overflow:hidden;scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    document.head.appendChild(hideBar);
+    try { if (window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+    if (frameEl) for (var n = frameEl.parentElement, i = 0; n && i < 4 && n !== HOST.document.body; i++, n = n.parentElement) wrappers.push(n);
+  }
+  function minHeight() {
+    var win = HOST || window, h;
+    if (HOST || !FRAMED) {
+      var anchor = frameEl || root;
+      var top = anchor.getBoundingClientRect().top + (win.scrollY || win.pageYOffset || 0);
+      h = Math.round(win.innerHeight - top - 12);
+    } else {
+      // Iframe d'un autre domaine : la page parente n'est pas lisible.
+      h = Math.round((window.screen && window.screen.availHeight || 900) - 180);
+    }
+    root.style.minHeight = Math.max(560, h) + "px";
+  }
+  var lastH = 0;
+  function syncFrame() {
+    var h = Math.ceil(root.getBoundingClientRect().height);
+    if (!h || h === lastH) return;
+    lastH = h;
+    if (frameEl) {
+      frameEl.style.height = h + "px"; frameEl.style.minHeight = h + "px";
+      wrappers.forEach(function (w) { if (w.childElementCount === 1) { w.style.height = "auto"; w.style.minHeight = h + "px"; } });
+    } else if (FRAMED) {
+      try { window.parent.postMessage({ type: "NAVIRE_EMBED_HEIGHT", height: h }, "*"); } catch (e) {}
+    }
+  }
+  function sizeApp() { minHeight(); syncFrame(); }
+  sizeApp();
+  if (window.ResizeObserver) new ResizeObserver(syncFrame).observe(root);
+  else setInterval(syncFrame, 500);
+  (HOST || window).addEventListener("resize", sizeApp);
+  window.addEventListener("load", sizeApp);
+  setTimeout(sizeApp, 600);   // après la mise en place de la page Framer
+
+  // Haut de l'embed visible dans la page du site (changement de page, menu).
+  function revealTop() {
+    try {
+      if (frameEl) {
+        var r = frameEl.getBoundingClientRect();
+        if (r.top < 0) HOST.scrollBy({ top: r.top - 80, behavior: "smooth" });
+      } else if (FRAMED) {
+        root.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        var t = root.getBoundingClientRect().top;
+        if (t < 0) window.scrollBy({ top: t - 80, behavior: "smooth" });
+      }
+    } catch (e) {}
+  }
+  // Partie de l'embed visible à l'écran : les toasts s'y affichent.
+  function visibleTop() {
+    try {
+      if (frameEl) return Math.max(0, -frameEl.getBoundingClientRect().top);
+      if (!FRAMED) return Math.max(0, -root.getBoundingClientRect().top);
+    } catch (e) {}
+    return 0;
+  }
+
+  // ================= RESPONSIVE (largeur du conteneur) =================
+  function updateCompact() {
+    var compact = root.clientWidth < 760;
+    root.classList.toggle("is-compact", compact);
+    if (!compact) root.classList.remove("is-drawer");
+  }
+  if (window.ResizeObserver) new ResizeObserver(updateCompact).observe(root);
+  else window.addEventListener("resize", updateCompact);
+  updateCompact();
+  applyLogos();
+
+  // ================= RENDU =================
+  function setPage(html, solo) {
+    root.classList.toggle("is-solo", !!solo);
+    var p = el("page");
+    p.innerHTML = '<div class="nv-page-inner">' + html + '</div>';
+    applyLogos(p);
+  }
+
+  // Hero : même DA que la page ambassadeur (pastille, grand titre, mot en
+  // dégradé bleu, boutons pilule).
+  function credit() { return S.terms ? S.terms.credit_par_matiere_cents : 200; }
+  function delai() { return S.terms ? S.terms.delai_credit_jours : 14; }
+  function hero(title, sub, actions) {
+    return '<div class="nv-hero"><span class="nv-pill"><span class="nv-pill-logo" data-logo></span>Parrainage Prép\'AdJuris · <b>' + eur(credit()) + '</b> par matière</span>' +
+      '<h1>' + title + '</h1><p>' + sub + '</p>' + (actions ? '<div class="nv-hero-actions">' + actions + '</div>' : '') + '</div>';
+  }
+  var HERO_T = 'Parraine tes amis, <span class="nv-hl">réduis</span> tes prélèvements';
+  function heroSub() { return 'Invite un ami à Prép\'AdJuris : pour chaque matière qu\'il paie, ' + eur(credit()) + ' sont déduits automatiquement de tes prochains prélèvements.'; }
+  var CHEVRON = '<svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function steps() {
+    return '<div class="nv-steps">' +
+      '<div class="nv-step"><i>01</i><b>Active ton lien</b><span>En un clic, si tu es inscrit·e à Prép\'AdJuris. Pas de candidature.</span></div>' +
+      '<div class="nv-step"><i>02</i><b>Invite tes amis</b><span>Une page d\'inscription à ton nom : « Julie t\'invite sur NAVIRE ».</span></div>' +
+      '<div class="nv-step"><i>03</i><b>Économise ' + eur(credit()) + '</b><span>Par matière payée par ton ami, déduits tout seuls de ta facture.</span></div></div>';
+  }
+  function field(label, inner, opt) {
+    return '<label class="nv-field"><span>' + label + (opt ? ' <em>· facultatif</em>' : '') + '</span>' + inner + '</label>';
+  }
+  function input(id, value, attrs) {
+    return '<input class="nv-input" id="' + id + '" value="' + esc(value || "") + '" ' + (attrs || "") + '>';
+  }
+  function termsCard() {
+    var t = (S.terms && S.terms.conditions) || [];
+    return t.length ? '<div class="nv-group-label">Conditions du parrainage</div><div class="nv-card"><ol class="nv-terms">' + t.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join("") + '</ol></div>' : '';
+  }
+  function simCard() {
+    return '<div class="nv-card">' +
+      '<label class="nv-field"><span>Amis qui s\'inscrivent : <b style="color:#fff" data-el="sim-n">' + S.sim + '</b></span><input class="nv-range" type="range" min="1" max="20" value="' + S.sim + '" data-el="sim"></label>' +
+      '<label class="nv-field"><span>Matières par ami : <b style="color:#fff" data-el="sim-m">' + S.simMat + '</b></span><input class="nv-range" type="range" min="1" max="3" value="' + S.simMat + '" data-el="simm"></label>' +
+      '<div class="nv-sim-total"><span style="color:var(--text-3);font-size:13px">Tu économiserais</span><b class="nv-grad" data-el="sim-v">' + eur(S.sim * S.simMat * credit()) + '</b></div></div>';
+  }
+  function bindSim() {
+    var sim = el("sim"), simm = el("simm"); if (!sim || !simm) return;
+    function upd() { S.sim = +sim.value; S.simMat = +simm.value; el("sim-n").textContent = S.sim; el("sim-m").textContent = S.simMat; el("sim-v").textContent = eur(S.sim * S.simMat * credit()); }
+    sim.addEventListener("input", upd); simm.addEventListener("input", upd);
+  }
+
+  // ----- Non connecté -----
+  function viewLoggedOut() {
+    setPage(hero(HERO_T, heroSub(),
+      '<button class="nv-ghost" data-act="subscribe">Découvrir Prép\'AdJuris</button>' +
+      '<button class="nv-solid" data-act="to-login">Parrainer un ami<i>' + CHEVRON + '</i></button>') + steps() +
+      '<div class="nv-card" id="nv-login-card" style="margin-top:14px"><div class="nv-card-title">Connecte-toi pour parrainer</div>' +
+      '<div class="nv-card-sub">Avec le compte NAVIRE de ton inscription Prép\'AdJuris.</div>' +
+      '<div class="nv-row2">' + field("Email", input("l-email", "", 'type="email" autocomplete="email"')) +
+      field("Mot de passe", input("l-pass", "", 'type="password" autocomplete="current-password"')) + '</div>' +
+      '<div style="margin-top:16px"><button class="nv-btn is-block" data-act="login">Me connecter</button></div>' +
+      '<div class="nv-sep">ou</div>' +
+      '<button class="nv-chip" style="width:100%;justify-content:center;height:42px" data-act="google">Continuer avec Google</button>' +
+      '<div class="nv-err" data-el="err"></div>' +
+      '</div>' +
+      '<div class="nv-group-label">Combien tu peux économiser</div>' + simCard() + termsCard(), true);
+    bindSim();
+  }
+
+  // ----- Connecté, pas élève Prép'AdJuris -----
+  function viewNotEligible() {
+    setPage(hero(HERO_T, heroSub(),
+      '<button class="nv-solid" data-act="subscribe">S\'inscrire à Prép\'AdJuris<i>' + CHEVRON + '</i></button>') +
+      '<div class="nv-notice">Le parrainage est réservé aux élèves inscrits à Prép\'AdJuris : ta récompense est déduite de tes prélèvements. ' +
+      'Inscris-toi à une matière, puis reviens sur cette page pour activer ton lien.</div>' +
+      steps() + termsCard(), true);
+  }
+
+  // ----- Inscription au parrainage -----
+  function viewJoin() {
+    var u = S.user || {};
+    setPage(hero(HERO_T, heroSub()) + steps() + termsCard() +
+      '<div class="nv-group-label">Active ton lien</div>' +
+      '<div class="nv-card">' +
+      field("Nom affiché sur ta page d'invitation", input("f-display", S.me.display_name || "", 'maxlength="40" placeholder="Ex. Julie ou Julie M."')) +
+      '<div style="font-size:11.5px;color:var(--text-4);margin-top:6px">C\'est ce que verront tes amis : « Julie t\'invite sur NAVIRE ». Ton email reste privé.</div>' +
+      '<div class="nv-check-row" data-act="toggle-cgu" style="margin-top:12px"><span class="nv-check">' + ICON.tick + '</span><span>J\'ai lu et j\'accepte les conditions du parrainage.</span></div>' +
+      '<div style="margin-top:14px"><button class="nv-btn is-block" data-act="join">Activer mon lien de parrainage</button></div>' +
+      '<div class="nv-err" data-el="err"></div></div>', true);
+    var f = document.getElementById("f-display");
+    if (f && !f.value && u.username) f.placeholder = "Ex. " + u.username;
+  }
+
+  // ----- Application (parrain inscrit) -----
+  function stat(label, value, ok) { return '<div class="nv-stat' + (ok ? " is-ok" : "") + '"><small>' + esc(label) + '</small><b>' + esc(value) + '</b></div>'; }
+
+  function linkCard(big) {
+    var me = S.dash.parrain;
+    if (me.status === "suspended") return '<div class="nv-notice is-bad">Ton lien de parrainage est suspendu : il n\'enregistre plus de nouveaux filleuls. Contacte l\'équipe NAVIRE. Tes récompenses déjà enregistrées restent acquises.</div>';
+    var share = me.share_link || me.link;
+    var msg = "Rejoins-moi sur Prép'AdJuris by NAVIRE : " + share;
+    return '<div class="nv-card is-on"><div class="nv-card-title">Ton lien de parrainage</div>' +
+      '<div class="nv-card-sub">Chaque ami qui crée son compte avec ce lien puis paie son inscription te fait économiser ' + eur(S.dash.credit_par_matiere_cents) + ' par matière sur tes prélèvements.</div>' +
+      '<div class="nv-link"><code>' + esc(me.link) + '</code><button class="nv-btn" data-act="copy-link">' + ICON.copy + 'Copier</button></div>' +
+      '<div class="nv-share">' +
+      '<a class="nv-chip" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(msg) + '">' + ICON.wa + 'WhatsApp</a>' +
+      '<a class="nv-chip" target="_blank" rel="noopener" href="mailto:?subject=' + encodeURIComponent("Prép'AdJuris by NAVIRE") + '&body=' + encodeURIComponent(msg) + '">' + ICON.mail + 'Email</a>' +
+      (navigator.share ? '<button class="nv-chip" data-act="native-share">' + ICON.share + 'Partager</button>' : '') +
+      '<span class="nv-tag" style="margin-left:auto;align-self:center">code ' + esc(me.code) + '</span></div>' +
+      (me.share_link ? '<div class="nv-card-sub" style="margin:12px 0 0">Envoyé depuis ces boutons, ton lien s\'affiche avec ta photo de profil dans la conversation.' +
+        ' <button class="nv-link-btn" data-act="copy-share">Copier ce lien</button></div>' : '') +
+      (big ? '<div class="nv-group-label" style="margin-top:18px">Message prêt à envoyer</div>' +
+        '<div class="nv-link" style="border-radius:12px;align-items:flex-start;padding:12px 12px 12px 14px"><code style="white-space:normal;line-height:1.55">' + esc(
+          "Hello ! Je suis inscrit·e à Prép'AdJuris : des séances de soutien en droit, matière par matière, en petit groupe. Inscris-toi avec mon lien : " + share) +
+        '</code><button class="nv-chip" data-act="copy-msg">' + ICON.copy + 'Copier</button></div>' : '') +
+      '</div>';
+  }
+
+  function refRow(r, i) {
+    var tag = { paid: '<span class="nv-tag ok"><i></i>inscrit·e</span>', signed_up: '<span class="nv-tag warn"><i></i>compte créé</span>', refunded: '<span class="nv-tag bad"><i></i>remboursé</span>' }[r.status];
+    var rec = { pending: "en attente", available: "crédit en cours", credited: "créditée" }[r.reward_status] || "";
+    var name = r.username || "Ami sans compte";
+    return '<div class="nv-row" style="animation-delay:' + ((i || 0) * 0.03) + 's"><div class="nv-row-ico">' + esc(name.charAt(0).toUpperCase()) + '</div>' +
+      '<div class="nv-row-body"><div class="nv-row-title">' + esc(name) + '</div>' +
+      '<div class="nv-row-meta"><span>' + date(r.joined_at) + '</span>' + tag +
+      (r.matieres.length ? '<span>' + r.matieres.length + ' matière' + (r.matieres.length > 1 ? 's' : '') + '</span>' : '') +
+      (rec ? '<span>' + rec + '</span>' : '') + '</div></div>' +
+      '<div class="nv-row-amount" style="color:' + (r.reward_cents ? "#fff" : "var(--text-4)") + '">' + (r.reward_cents ? "−" + eur(r.reward_cents) : "—") + '</div></div>';
+  }
+
+  function earningStats(g) {
+    return '<div class="nv-stats">' + stat("Total gagné", eur(g.total_earned_cents)) + stat("En attente", eur(g.pending_cents + g.available_cents)) +
+      stat("Crédité", eur(g.credited_cents), g.credited_cents > 0) + stat("Annulé", eur(g.cancelled_cents)) + '</div>';
+  }
+
+  function viewHome() {
+    var d = S.dash, st = d.stats, refs = d.referrals;
+    setPage('<div class="nv-page-head"><h2>Bonjour ' + esc(d.parrain.display_name) + '</h2><p>Voici où en est ton parrainage.</p></div>' +
+      linkCard(false) +
+      '<div class="nv-stats">' + stat("Visites", st.clicks) + stat("Comptes créés", st.signups) + stat("Inscrits", st.paying) + stat("Conversion", Math.round((st.conversion_rate || 0) * 100) + " %") + '</div>' +
+      earningStats(d.earnings) +
+      '<div class="nv-group-label">Derniers filleuls</div>' +
+      (refs.length ? refs.slice(0, 4).map(refRow).join("") + (refs.length > 4 ? '<button class="nv-link-btn" data-view="referrals">Voir les ' + refs.length + ' filleuls →</button>' : '')
+        : '<div class="nv-empty"><b>Personne pour l\'instant</b>Envoie ton lien à tes amis qui hésitent à s\'inscrire !</div>'));
+  }
+
+  function viewLink() {
+    setPage('<div class="nv-page-head"><h2>Partager</h2><p>Ton lien ouvre une page d\'inscription à ton nom : « ' + esc(S.dash.parrain.display_name) + ' t\'invite sur NAVIRE ».</p></div>' +
+      linkCard(true) +
+      '<div class="nv-group-label">Bon à savoir</div>' +
+      '<div class="nv-card"><ol class="nv-terms">' +
+      '<li>Ton ami doit créer son compte NAVIRE ou payer avec ton lien : il reste rattaché au premier lien qu\'il utilise.</li>' +
+      '<li>Un étudiant déjà inscrit à Prép\'AdJuris ne compte pas comme filleul.</li>' +
+      '<li>Tu n\'as rien à faire ensuite : la réduction est calculée et appliquée automatiquement.</li>' +
+      '</ol></div>');
+  }
+
+  function viewReferrals() {
+    var refs = S.dash.referrals, q = S.refQuery, f = S.refFilter;
+    var counts = { all: refs.length, paid: 0, signed_up: 0, refunded: 0 };
+    refs.forEach(function (r) { counts[r.status]++; });
+    var rows = refs.filter(function (r) { return (f === "all" || r.status === f) && (!q || (r.username || "").toLowerCase().indexOf(q) !== -1); });
+    var chips = [["all", "Tous"], ["paid", "Inscrits"], ["signed_up", "Compte créé"], ["refunded", "Remboursés"]];
+    setPage('<div class="nv-page-head"><h2>Filleuls</h2><p>Les amis venus par ton lien. Seul leur pseudo est visible.</p></div>' +
+      '<label class="nv-search">' + ICON.search + '<input data-el="ref-search" type="text" placeholder="Rechercher un filleul…" value="' + esc(S.refQuery) + '"></label>' +
+      '<div class="nv-filters">' + chips.map(function (c) { return '<button class="nv-chip' + (f === c[0] ? " is-active" : "") + '" data-filter="' + c[0] + '">' + c[1] + ' · ' + counts[c[0]] + '</button>'; }).join("") + '</div>' +
+      '<div data-el="ref-list">' + (rows.length ? rows.map(refRow).join("") : '<div class="nv-empty"><b>Aucun filleul</b>' + (refs.length ? "Aucun résultat pour ce filtre." : "Partage ton lien pour commencer.") + '</div>') + '</div>');
+    el("ref-search").addEventListener("input", function (e) {
+      S.refQuery = e.target.value.trim().toLowerCase();
+      var list = refs.filter(function (r) { return (S.refFilter === "all" || r.status === S.refFilter) && (!S.refQuery || (r.username || "").toLowerCase().indexOf(S.refQuery) !== -1); });
+      el("ref-list").innerHTML = list.length ? list.map(refRow).join("") : '<div class="nv-empty">Aucun résultat pour « ' + esc(S.refQuery) + ' ».</div>';
+    });
+  }
+
+  function viewEarnings() {
+    var d = S.dash, c = d.credit_par_matiere_cents;
+    var paid = d.referrals.filter(function (r) { return r.reward_cents; });
+    setPage('<div class="nv-page-head"><h2>Récompenses</h2><p>' + eur(c) + ' par matière payée par un filleul. La réduction est créditée automatiquement sur ton compte Prép\'AdJuris ' + d.delai_credit_jours + ' jours après son paiement (délai de rétractation), puis déduite de tes prochains prélèvements.</p></div>' +
+      earningStats(d.earnings) +
+      '<div class="nv-group-label">Simulateur</div>' + simCard() +
+      '<div class="nv-group-label">Détail</div>' +
+      (paid.length ? paid.map(refRow).join("") : '<div class="nv-empty"><b>Aucune récompense</b>Elles apparaissent dès qu\'un filleul paie son inscription.</div>'));
+    bindSim();
+  }
+
+  function viewSettings() {
+    var me = S.dash.parrain;
+    setPage('<div class="nv-page-head"><h2>Réglages</h2><p>Ce que tes amis voient sur ta page d\'invitation.</p></div>' +
+      '<div class="nv-card">' +
+      field("Nom affiché sur ta page d'invitation", input("u-display", me.display_name, 'maxlength="40"')) +
+      '<div style="margin-top:16px"><button class="nv-btn" data-act="save">Enregistrer</button></div>' +
+      '<div class="nv-err" data-el="err"></div></div>' +
+      '<div class="nv-card"><div class="nv-card-title">Comment je reçois ma réduction ?</div>' +
+      '<div class="nv-card-sub" style="margin:0">Rien à renseigner : la réduction est posée sur le compte de paiement de ton inscription Prép\'AdJuris, et Stripe la déduit automatiquement de tes prochains prélèvements. Elle apparaît sur tes factures.</div></div>' +
+      termsCard());
+  }
+
+  var VIEWS = { home: viewHome, link: viewLink, referrals: viewReferrals, earnings: viewEarnings, settings: viewSettings };
+
+  function renderApp() {
+    var d = S.dash, g = d.earnings;
+    el("ref-count").textContent = d.referrals.length || "";
+    el("wallet").innerHTML = 'Crédité sur ta facture<b>' + eur(g.credited_cents) + '</b>' +
+      '<div class="nv-wallet-bar"><i style="width:' + (g.total_earned_cents ? Math.round(g.credited_cents / g.total_earned_cents * 100) : 0) + '%"></i></div>' +
+      '<div style="margin-top:6px">' + eur(g.total_earned_cents) + ' gagnés au total</div>';
+    $('.nv-cta').style.display = d.parrain.status === "active" ? "" : "none";
+    setView(S.view);
+  }
+
+  function setView(v) {
+    S.view = v;
+    root.querySelectorAll(".nv-nav").forEach(function (b) { b.classList.toggle("is-active", b.getAttribute("data-view") === v); });
+    root.classList.remove("is-drawer");
+    el("title").textContent = TITLES[v];
+    VIEWS[v]();
+  }
+
+  // ================= ACTIONS =================
+  root.addEventListener("click", function (e) {
+    var v = e.target.closest("[data-view]");
+    if (v && root.contains(v) && S.dash) { setView(v.getAttribute("data-view")); revealTop(); return; }
+    var f = e.target.closest("[data-filter]");
+    if (f && root.contains(f)) { S.refFilter = f.getAttribute("data-filter"); viewReferrals(); return; }
+    var a = e.target.closest("[data-act]");
+    if (!a || !root.contains(a)) return;
+    var act = a.getAttribute("data-act");
+    if (act === "open-drawer") { root.classList.add("is-drawer"); revealTop(); }
+    else if (act === "close-drawer") root.classList.remove("is-drawer");
+    else if (act === "refresh") loadDash().then(renderApp).then(function () { toast("À jour"); }).catch(function (x) { toast(x.message, true); });
+    else if (act === "copy-link") copyText(S.dash.parrain.link, function () { toast("Lien copié"); });
+    else if (act === "copy-msg") copyText(a.parentElement.querySelector("code").textContent, function () { toast("Message copié"); });
+    else if (act === "copy-share") copyText(S.dash.parrain.share_link || S.dash.parrain.link, function () { toast("Lien avec photo copié"); });
+    else if (act === "native-share") navigator.share({ title: "Prép'AdJuris by NAVIRE", url: S.dash.parrain.share_link || S.dash.parrain.link }).catch(function () {});
+    else if (act === "to-login") { var lc = root.querySelector("#nv-login-card"); if (lc) { lc.scrollIntoView({ behavior: "smooth", block: "center" }); var fi = lc.querySelector("input"); if (fi) setTimeout(function () { try { fi.focus({ preventScroll: true }); } catch (e) {} }, 400); } }
+    else if (act === "logout") { S.token = null; S.dash = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); }
+    else if (act === "subscribe") go(CONFIG.SUBSCRIBE_URL);
+    else if (act === "toggle-cgu") a.classList.toggle("is-on");
+    else if (act === "login") login(a);
+    else if (act === "google") google();
+    else if (act === "join") join(a);
+    else if (act === "save") save(a);
+  });
+  root.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.target.id === "l-email" || e.target.id === "l-pass")) login($('[data-act="login"]'));
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") root.classList.remove("is-drawer"); });
+
+  function login(b) {
+    b.disabled = true;
+    api("POST", "/auth/login", { email: val("l-email").toLowerCase(), password: (document.getElementById("l-pass") || {}).value || "" })
+      .then(loggedIn).catch(function (x) { b.disabled = false; err(x.message); });
+  }
+  // Google : fenêtre sur l'API (l'iframe ne peut pas parler à Google), qui
+  // renvoie un ticket par postMessage.
+  function google() {
+    var w = window.open(CONFIG.API + "/auth/google/start", "navire_oauth", "width=480,height=640");
+    if (!w) return err("Autorise les fenêtres pop-up pour continuer avec Google.");
+    function onMsg(ev) {
+      var d = ev.data || {};
+      if (d.type === "NAVIRE_OAUTH_ERROR") { window.removeEventListener("message", onMsg); err(d.message || "Connexion Google interrompue."); }
+      if (d.type !== "NAVIRE_OAUTH_TICKET") return;
+      window.removeEventListener("message", onMsg);
+      api("POST", "/auth/oauth", { provider: "google", ticket: d.ticket }).then(loggedIn).catch(function (x) { err(x.message); });
+    }
+    window.addEventListener("message", onMsg);
+  }
+  function loggedIn(r) { S.token = r.access_token; store(CONFIG.TOKEN_KEY, r.access_token); boot(); }
+
+  function join(b) {
+    if (!$('[data-act="toggle-cgu"]').classList.contains("is-on")) return err("Accepte les conditions pour activer ton lien.");
+    var nom = val("f-display") || (S.user && S.user.username) || "";
+    if (nom.length < 2) return err("Choisis le nom affiché sur ta page d'invitation.");
+    b.disabled = true; b.textContent = "Activation…";
+    api("POST", "/parrainage/join", { display_name: nom.slice(0, 40), accept_terms: true, terms_version: S.terms && S.terms.version })
+      .then(function (me) { S.me = me; toast("Ton lien est actif"); route(); })
+      .catch(function (x) { b.disabled = false; b.textContent = "Activer mon lien de parrainage"; err(x.message); });
+  }
+
+  function save(b) {
+    b.disabled = true;
+    api("PATCH", "/parrainage/me", { display_name: val("u-display") })
+      .then(loadDash).then(function () { renderApp(); toast("Enregistré"); })
+      .catch(function (x) { b.disabled = false; err(x.message); });
+  }
+
+  // ================= DÉMARRAGE =================
+  function loadDash() { return api("GET", "/parrainage/me/dashboard").then(function (d) { S.dash = d; }); }
+
+  function route() {
+    var s = S.me.status;
+    if (s === "none") return S.me.eligible ? viewJoin() : viewNotEligible();
+    root.classList.remove("is-solo");
+    el("page").innerHTML = '<div class="nv-page-inner"><div class="nv-skel"></div><div class="nv-skel"></div><div class="nv-skel" style="height:120px"></div></div>';
+    return loadDash().then(renderApp).catch(function (x) { setPage('<div class="nv-empty"><b>Tableau de bord indisponible</b>' + esc(x.message) + '</div>', true); });
+  }
+
+  var terms = api("GET", "/parrainage/terms").then(function (t) { S.terms = t; }).catch(function () {});
+  function boot() {
+    if (!S.token) { terms.then(viewLoggedOut); return; }
+    setPage('<div class="nv-skel" style="margin-top:20px"></div><div class="nv-skel"></div>', true);
+    Promise.all([terms, api("GET", "/auth/me").then(function (u) { S.user = u; }), api("GET", "/parrainage/me").then(function (m) { S.me = m; })])
+      .then(route)
+      .catch(function (x) { if (x.status === 401) { S.token = null; store(CONFIG.TOKEN_KEY, null); viewLoggedOut(); } else setPage('<div class="nv-empty"><b>Erreur</b>' + esc(x.message) + '</div>', true); });
+  }
+  S.token = load(CONFIG.TOKEN_KEY);
+  boot();
+})();
+</script>
+
+<style>
+/* ================= MENU EN OVERLAY (comme NAVIRE Lib) =================
+   Grand écran : le menu latéral est un panneau posé par-dessus la page, fermé
+   à l'ouverture ; le bouton menu l'ouvre ; la croix, le voile, Échap ou un
+   choix dans le menu le referment. Il se pose sous le header du site, sur la
+   partie visible de l'embed (--ov-top, --ov-h), opaque, avec un voile derrière.
+   Téléphone : le menu et les fenêtres montent du bas de l'écran, opaques. */
+#nv-parr:not(.is-compact) .nv-side, #nv-parr.is-flow:not(.is-compact) .nv-side, #nv-parr.is-flow.is-sticky:not(.is-compact) .nv-side {
+  position: absolute !important; left: 12px !important; right: auto !important;
+  top: calc(var(--ov-top, 0px) + 12px) !important; bottom: auto !important;
+  height: calc(var(--ov-h, 100%) - 24px) !important; max-height: none !important;
+  width: min(280px, calc(100% - 24px)) !important; margin: 0 !important; align-self: auto !important;
+  z-index: 1001 !important; border: 0 !important; border-radius: 18px !important; padding: 12px 8px 10px !important;
+  overflow-y: auto !important; overscroll-behavior: contain; scrollbar-width: none;
+  background: rgba(20,22,34,0.97) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.07) !important;
+  visibility: hidden !important; opacity: 1 !important; transform: translateX(calc(-100% - 24px)) !important;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), visibility 0s .3s !important;
+}
+#nv-parr:not(.is-compact) .nv-side::-webkit-scrollbar { display: none; }
+#nv-parr:not(.is-compact).is-drawer .nv-side { visibility: visible !important; transform: none !important; transition: transform .3s cubic-bezier(.2,.8,.2,1) !important; }
+#nv-parr:not(.is-compact) .nv-scrim {
+  display: block !important; position: absolute !important; left: 0 !important; right: 0 !important; bottom: auto !important;
+  top: var(--ov-top, 0px) !important; height: var(--ov-h, 100%) !important; z-index: 1000 !important;
+  background: rgba(5,6,12,0.4) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  opacity: 0 !important; pointer-events: none !important; transition: opacity .25s !important;
+}
+#nv-parr:not(.is-compact).is-drawer .nv-scrim { opacity: 1 !important; pointer-events: auto !important; }
+#nv-parr:not(.is-compact):not(.is-solo) .nv-menu-btn { display: inline-flex !important; }
+#nv-parr:not(.is-compact) .nv-side-close { display: inline-flex !important; }
+#nv-parr:not(.is-compact) .nv-side-close .nv-x { display: block !important; }
+#nv-parr:not(.is-compact) .nv-side-close .nv-chev { display: none !important; }
+
+/* Téléphone : menu en bas de l'écran, opaque, voile derrière. */
+#nv-parr.is-compact .nv-side, #nv-parr.is-flow.is-compact .nv-side {
+  position: absolute !important; left: 10px !important; right: 10px !important; width: auto !important; margin: 0 !important;
+  top: calc(var(--ov-top, 0px) + var(--ov-h, 100%) - 10px) !important; bottom: auto !important; height: auto !important;
+  max-height: calc(var(--ov-h, 100%) - 20px) !important; overflow-y: auto !important; overscroll-behavior: contain;
+  z-index: 1001 !important; border: 0 !important; border-radius: 22px !important; padding: 8px 8px 10px !important;
+  background: rgba(20,22,34,0.98) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  box-shadow: 0 -10px 50px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07) !important;
+  visibility: hidden !important; opacity: 0 !important; transform: translateY(calc(-100% + 28px)) !important;
+  transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s, visibility 0s .26s !important;
+}
+#nv-parr.is-compact .nv-side::before { content: ''; display: block; flex: 0 0 auto; width: 36px; height: 4px; border-radius: 9px; margin: 2px auto 6px; background: rgba(255,255,255,0.16); }
+#nv-parr.is-compact.is-drawer .nv-side { visibility: visible !important; opacity: 1 !important; transform: translateY(-100%) !important; transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s !important; }
+#nv-parr.is-compact .nv-scrim {
+  display: block !important; position: absolute !important; left: 0 !important; right: 0 !important; bottom: auto !important;
+  top: var(--ov-top, 0px) !important; height: var(--ov-h, 100%) !important; z-index: 1000 !important;
+  background: rgba(5,6,12,0.45) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  opacity: 0 !important; pointer-events: none !important; transition: opacity .25s !important;
+}
+#nv-parr.is-compact.is-drawer .nv-scrim { opacity: 1 !important; pointer-events: auto !important; }
+</style>
+<script>
+/* MENU EN OVERLAY (comme NAVIRE Lib) : partie visible de l'embed sous le
+   header du site, ouverture et fermeture du menu sur grand écran. */
+(function () {
+  var root = document.getElementById("nv-parr");
+  if (!root || root.__nvOverlay) return;
+  root.__nvOverlay = true;
+  var FRAMED = window.self !== window.top, HOST = null, frameEl = null;
+  try { if (FRAMED && window.frameElement && window.parent.document) { HOST = window.parent; frameEl = window.frameElement; } } catch (e) {}
+  var W = HOST || window;
+  try { if (getComputedStyle(root).position === "static") root.style.position = "relative"; } catch (e) {}
+  function compact() { return root.classList.contains("is-compact"); }
+  // Bas du header fixe ou collant du site, au-dessus de l'embed (0 sinon).
+  function siteHead() {
+    if (FRAMED && !HOST) return 0;
+    try {
+      var d = W.document, x = W.innerWidth / 2, best = 0;
+      (d.elementsFromPoint ? d.elementsFromPoint(x, 4) : []).forEach(function (n) {
+        if (n === frameEl || root.contains(n) || (frameEl && n.contains(frameEl)) || n.contains(root)) return;
+        for (var e = n; e && e !== d.body; e = e.parentElement) {
+          var p = W.getComputedStyle(e).position;
+          if (p === "fixed" || p === "sticky") { var r = e.getBoundingClientRect(); if (r.top <= 4 && r.bottom < W.innerHeight / 2) best = Math.max(best, r.bottom); break; }
+        }
+      });
+      return Math.round(best);
+    } catch (e) { return 0; }
+  }
+  // Partie de l'embed visible à l'écran, sous le header du site.
+  function layout() {
+    var top = 0, h = root.clientHeight || 600;
+    try {
+      var rh = root.offsetHeight, rt, vh;
+      if (FRAMED && !HOST) { rt = root.getBoundingClientRect().top; vh = window.innerHeight; }
+      else { rt = (frameEl ? frameEl.getBoundingClientRect().top : 0) + root.getBoundingClientRect().top; vh = W.innerHeight; }
+      var a = Math.max(siteHead(), rt), b = Math.min(vh, rt + rh);
+      h = Math.max(240, b - a);
+      top = Math.max(0, Math.min(a - rt, rh - h));
+    } catch (e) {}
+    root.style.setProperty("--ov-top", Math.round(top) + "px");
+    root.style.setProperty("--ov-h", Math.round(h) + "px");
+  }
+  var ticking = false;
+  function tick() { if (ticking) return; ticking = true; requestAnimationFrame(function () { ticking = false; layout(); }); }
+  try { W.addEventListener("scroll", tick, { passive: true }); W.addEventListener("resize", tick); } catch (e) {}
+  window.addEventListener("scroll", tick, { passive: true, capture: true });
+  window.addEventListener("resize", tick);
+  if (window.MutationObserver) new MutationObserver(function () { if (root.classList.contains("is-drawer")) layout(); })
+    .observe(root, { attributes: true, attributeFilter: ["class"] });
+  setTimeout(layout, 0); setTimeout(layout, 800);
+  function setOpen(on) { if (on) layout(); root.classList.toggle("is-drawer", !!on); }
+  // Grand écran : le bouton menu ouvre le panneau (au lieu d'élargir la page),
+  // la croix et le voile le referment ; un choix dans le menu le referme aussi.
+  document.addEventListener("click", function (e) {
+    var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
+    var act = t && root.contains(t) ? t.getAttribute("data-act") : null;
+    if (act === "side-open" || act === "open-drawer") {
+      if (compact()) { layout(); return; }
+      e.stopPropagation(); e.preventDefault(); setOpen(!root.classList.contains("is-drawer")); return;
+    }
+    if (compact()) return;
+    if (act === "side-close" || act === "close-side" || act === "close-drawer") { e.stopPropagation(); e.preventDefault(); setOpen(false); return; }
+    if (!root.classList.contains("is-drawer") || !e.target.closest) return;
+    var side = e.target.closest(".nv-side");
+    if (side && root.contains(side) && e.target.closest("a[href], button, [data-view], [data-filter], [data-tab], [role='button']")) setTimeout(function () { setOpen(false); }, 0);
+  }, true);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !compact()) setOpen(false); });
+})();
+</script>

@@ -91,6 +91,7 @@ from app.services.email import (
     mail_prepa_adjuris_link_code,
     mail_discord_link_code,
     mail_ambassador_commission,
+    mail_parrainage_recompense,
 )
 from app.services.discord_link import (
     PURCHASE_TTL_DAYS,
@@ -1503,6 +1504,42 @@ def _handle_prepa_adjuris_checkout(db: Session, session: dict, matiere_keys: lis
     # ── Programme ambassadeur : commission si le payeur est un filleul ──
     _commission_ambassadeur(db, session, user, email or (user.email if user else ""), matiere_keys)
 
+    # ── Parrainage étudiant : récompense (crédit Stripe) du parrain ──
+    _recompense_parrainage(db, session, user, email or (user.email if user else ""), matiere_keys)
+
+
+def _recompense_parrainage(db: Session, session: dict, user: User | None, email: str, matiere_keys: list[str]) -> None:
+    """Crée la récompense du parrain (créditée sur son solde Stripe par le
+    job horaire, après le délai de rétractation) et le prévient. Jamais
+    bloquant, comme la commission ambassadeur."""
+    from app.services import parrainage
+    try:
+        deja = db.execute(
+            select(parrainage.ParrainageRecompense.id).where(
+                parrainage.ParrainageRecompense.stripe_checkout_session_id == session.get("id")
+            )
+        ).first()
+        if deja:
+            return  # event relivré
+        recompense = parrainage.record_reward(db, session, user, email, matiere_keys)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("Parrainage : récompense non enregistrée pour %s", session.get("id"))
+        return
+    if recompense is None:
+        return
+    try:
+        p = db.get(parrainage.Parrain, recompense.parrain_id)
+        destinataire = db.get(User, p.user_id) if p else None
+        if destinataire:
+            filleul = user.username if user else "Ton ami"
+            montant = f"{recompense.amount_cents / 100:.2f} €".replace(".", ",")
+            send_mail(destinataire.email, *mail_parrainage_recompense(
+                p.display_name, filleul, montant, parrainage.DELAI_CREDIT_JOURS
+            ))
+    except Exception:  # noqa: BLE001
+        logger.exception("Parrainage : email de récompense non envoyé")
+
 
 def _commission_ambassadeur(db: Session, session: dict, user: User | None, email: str, matiere_keys: list[str]) -> None:
     """Crée la commission de l'ambassadeur et le prévient. Jamais bloquant :
@@ -1824,8 +1861,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             db.commit()
 
     # ── charge.refunded / charge.dispute.created ──────────
-    # Programme ambassadeur : un paiement remboursé ou contesté annule la
-    # commission tant qu'elle n'est pas versée.
+    # Programme ambassadeur et parrainage : un paiement remboursé ou contesté
+    # annule la commission (ou la récompense) tant qu'elle n'est pas versée
+    # (ou créditée).
     elif event_type in ("charge.refunded", "charge.dispute.created"):
         from app.services.ambassadors import cancel_for_refund
         motif = "Paiement remboursé" if event_type == "charge.refunded" else "Paiement contesté"
@@ -1834,6 +1872,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         except Exception:  # noqa: BLE001
             db.rollback()
             logger.exception("Ambassadeur : annulation de commission impossible (%s)", data.get("id"))
+        from app.services import parrainage
+        try:
+            parrainage.cancel_for_refund(db, data.get("payment_intent"), motif)
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            logger.exception("Parrainage : annulation de récompense impossible (%s)", data.get("id"))
 
     return {"ok": True}
 

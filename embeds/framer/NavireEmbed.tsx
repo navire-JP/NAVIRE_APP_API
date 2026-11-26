@@ -1,11 +1,11 @@
-// NAVIRE — composant Framer pour les pages /rejoindre, /ambassadeur et /lib
+// NAVIRE — composant Framer pour les pages /rejoindre, /ambassadeur, /parrainage et /lib
 // ====================================================================
 // À coller dans Framer : Assets → Code → New Code File → « NavireEmbed ».
 // Puis glisser le composant sur la page et choisir « Page » dans le panneau.
 //
 // Pourquoi un composant plutôt qu'un Embed HTML : l'Embed est une iframe
 // cloisonnée qui ne voit pas l'adresse de la page, donc pas le ?ref=CODE du
-// lien de l'ambassadeur. Ce composant, lui, tourne dans la page : il lit le
+// lien de l'ambassadeur ou du parrain. Ce composant, lui, tourne dans la page : il lit le
 // code et le transmet à l'embed, servi par l'API. La hauteur suit le contenu.
 
 import { useEffect, useState } from "react"
@@ -17,7 +17,7 @@ const API = "https://navire-app-api.onrender.com"
  * @framerSupportedLayoutWidth any
  * @framerSupportedLayoutHeight auto
  */
-export default function NavireEmbed(props: { page: "rejoindre" | "ambassadeur" | "lib" }) {
+export default function NavireEmbed(props: { page: "rejoindre" | "ambassadeur" | "parrainage" | "lib" }) {
     const [src, setSrc] = useState("")
     const [height, setHeight] = useState(900)
 
@@ -58,7 +58,7 @@ addPropertyControls(NavireEmbed, {
     page: {
         type: ControlType.Enum,
         title: "Page",
-        options: ["rejoindre", "ambassadeur", "lib"],
-        optionTitles: ["Rejoindre (lien ambassadeur)", "Espace ambassadeur", "NAVIRE Lib"],
+        options: ["rejoindre", "ambassadeur", "parrainage", "lib"],
+        optionTitles: ["Rejoindre (lien ambassadeur / parrain)", "Espace ambassadeur", "Espace parrainage", "NAVIRE Lib"],
     },
 })

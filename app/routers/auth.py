@@ -214,13 +214,14 @@ def _apply_level(db: Session, user: User, level: str | None) -> None:
 
 def attach_ambassador_referral(db: Session, user: User, code: str | None, source: str) -> None:
     """
-    Programme ambassadeur : rattache le compte au code du lien /rejoindre, ou
-    à un parrainage déjà enregistré sur son email (paiement fait avant la
-    création du compte). Ne fait jamais échouer une inscription.
+    Programme ambassadeur et parrainage étudiant : rattache le compte au code
+    du lien /rejoindre (ambassadeur ou parrain), ou à un parrainage déjà
+    enregistré sur son email (paiement fait avant la création du compte).
+    Ne fait jamais échouer une inscription.
     """
-    from app.services.ambassadors import attach_referral
+    from app.services.parrainage import attach_any
     try:
-        attach_referral(db, code, user=user, source=source)
+        attach_any(db, code, user=user, source=source)
     except Exception:  # noqa: BLE001
         db.rollback()
         logger.exception("Parrainage non rattaché pour l'utilisateur %s", user.id)
@@ -347,12 +348,15 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 
 @router.get("/me")
 def me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    from app.db.models import Ambassador, PrepaAdjurisProfesseur
+    from app.db.models import Ambassador, Parrain, PrepaAdjurisProfesseur
 
     limits = get_user_limits(current_user)
     # Rôles affichés en pastilles (badge profil du header, cumulables)
     is_ambassador = db.execute(
         select(Ambassador.id).where(Ambassador.user_id == current_user.id, Ambassador.status == "approved")
+    ).first() is not None
+    is_parrain = db.execute(
+        select(Parrain.id).where(Parrain.user_id == current_user.id, Parrain.status == "active")
     ).first() is not None
     is_charge_td = db.execute(
         select(PrepaAdjurisProfesseur.id).where(
@@ -384,6 +388,7 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
         "plan": current_user.plan,
         "is_admin": current_user.is_admin,
         "is_ambassador": is_ambassador,
+        "is_parrain": is_parrain,
         "is_charge_td": is_charge_td,
         # Statuts validés dans la console (ex. ["Doctorant"]) et demandes en attente
         "badges": badges,

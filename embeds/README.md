@@ -1,4 +1,4 @@
-# Embeds — programme ambassadeur, NAVIRE Lib et professeurs
+# Embeds — programme ambassadeur, parrainage, NAVIRE Lib et professeurs
 
 | Fichier | Où | Rôle |
 |---|---|---|
@@ -17,6 +17,7 @@
 | `subscribe.html` | page `/subscribe` | Page d'offres tout-en-un : Prép'AdJuris en premier avec le formulaire intégré (niveau L1–M1, matières, compte, code promo, échéancier `GET /prepa/adjuris/echeancier`, paiement Stripe), puis Free / Membre / Membre+ (mensuel / annuel) avec compte et code promo ouverts sur place. Connecté : compte reconnu, matières déjà suivies grisées, offre en cours marquée. Reprend `?ref=CODE`, et `?prof=<slug>&matiere=<clé>` depuis une fiche professeur. Contenu des offres aligné sur `app/core/limits.py` |
 | `rejoindre.html` | page `/rejoindre?ref=CODE` | « Julie t'invite » → compte NAVIRE → matières → paiement Stripe |
 | `ambassadeur.html` | page `/ambassadeur` | Présentation + connexion, candidature, attente, tableau de bord (lien, stats, filleuls, gains, simulateur) |
+| `parrainage.html` | page `/parrainage` | Parrainage étudiant, même DA que `/ambassadeur` : présentation + connexion, simulateur ; élève Prép'AdJuris → activation du lien en un clic (pas de candidature) ; tableau de bord (lien `/rejoindre?ref=CODE`, stats, filleuls, récompenses, réglages). La récompense est créditée automatiquement sur Stripe (voir « `/parrainage` » plus bas) |
 | `profil.html` | page profil | Profil, classement, Discord, et paramètres du compte : abonnement (carte, prochain prélèvement, résiliation), factures, mot de passe. Réseau entre élèves : abonnés / abonnements (liste cliquable), bouton « Suivre » sur le profil d'un autre ; onglets Posts (100 caractères, une image et un document PDF / Word pour partager un devoir, zone « Quoi de neuf ? » sur son profil), Veille et articles, Enregistrés (le sien). Routes `/social/*` (`app/routers/social.py`) ; le fil `/feed` viendra ensuite |
 | `lib.html` | page `/lib` | NAVIRE Lib : bibliothèque, lecture des cours avec plan, Lib (consultation) et Lib+ (une question par point de passage, chat NAVIRE AI). Pour les inscrits Prép'AdJuris : documents à pastille « Prépa », bouton « Suivre dans Prépa », bandeau vers l'onglet Prépa |
 | `prepa.html` | page `/prepa` | Onglet Prépa des inscrits Prép'AdJuris : calendrier (semaine / mois) tel que prévu ou déplacé dans la console, copies mises en forme avec révisions et commentaires du correcteur (photo de profil, marge), téléchargement .docx / .pdf, dépôt de copie (.docx ou .pdf), cours suivis, facturation, Discord |
@@ -29,6 +30,7 @@
 | `framer/NavireEmbed.tsx` | (repli) | Composant Framer qui affiche les pages servies par l'API |
 | `framer/Navire_AdminConsole.tsx` | `/console` | Console admin complète, avec l'onglet « Amb. » |
 | `framer/Navire_Ambassadeurs.tsx` | `/console` | Section « Ambassadeurs » importée par la console |
+| `framer/Navire_Parrainage.tsx` | `/console` | Section « Parrainage » importée par la console (onglet « Parr. ») : parrains, récompenses, « Créditer maintenant » |
 | `framer/Navire_Lib.tsx` | `/console` | Section « Lib » importée par la console (import des cours) |
 | `framer/Navire_Professeurs.tsx` | `/console` | Section « Prof. » importée par la console (professeurs, groupes avec salon vocal, cours et présences, fiches publiques, rémunération) |
 | `framer/Navire_Mails.tsx` | `/console` | Section « Mails » importée par la console : rédaction, destinataires par catégorie, PJ, aperçu signé, test, envoi Brevo |
@@ -71,7 +73,39 @@ L'embed lit le `?ref=CODE` de la page, reprend la connexion du site
 
 Si un jour l'embed ne voit plus le `?ref=` (iframe cloisonnée), le composant
 `framer/NavireEmbed.tsx` sert de solution de repli : il affiche les mêmes
-pages servies par l'API (`GET /ambassadors/embed/{rejoindre|ambassadeur}`).
+pages servies par l'API (`GET /ambassadors/embed/{rejoindre|ambassadeur|parrainage}`).
+
+## `/parrainage`
+
+**Embed HTML, comme `/ambassadeur`.** Coller `parrainage.html` dans un Embed
+HTML de la page `/parrainage` (ou le composant `NavireEmbed`, page
+« Espace parrainage »).
+
+- **Qui** : tout élève Prép'AdJuris dont l'abonnement court (actif, impayé en
+  cours ou suspendu). Pas de candidature : il accepte les conditions, son lien
+  est actif tout de suite (`POST /parrainage/join`).
+- **Lien** : `navire-ai.com/rejoindre?ref=CODE`, la même page que les
+  ambassadeurs (`rejoindre.html` reconnaît les deux sortes de codes). Lien de
+  partage avec photo : `/ambassadors/invite/CODE`.
+- **Récompense** : `PARRAINAGE_CREDIT_PAR_MATIERE_CENTS` (variable Render,
+  2 € par défaut) par matière dont l'ami paie l'inscription. Unique, rien sur
+  les mensualités.
+- **Calcul automatique sur Stripe** : au paiement de l'ami (webhook), une
+  récompense « en attente » est créée. 14 jours après (délai de
+  rétractation), le job horaire la crédite sur le **solde client Stripe** du
+  parrain (`Customer balance`, montant négatif) : Stripe la déduit tout seul
+  de ses prochains prélèvements et elle apparaît sur ses factures. Rien à
+  verser à la main. Un remboursement pendant les 14 jours l'annule.
+- **Un seul lien par filleul** : un ami reste rattaché au premier lien utilisé,
+  ambassadeur ou parrain.
+- **Console** : onglet « Parr. » — parrains (suspendre / réactiver),
+  récompenses (« À créditer » qui reste = crédit en échec, avec l'erreur ;
+  « Créditer maintenant » ; annuler).
+- Routes : `GET /parrainage/terms`, `GET|PATCH /parrainage/me`,
+  `POST /parrainage/join`, `GET /parrainage/me/dashboard`,
+  `GET /parrainage/admin/{summary|list|rewards|<id>}`,
+  `POST /parrainage/admin/<id>/{suspend|reactivate}`,
+  `POST /parrainage/admin/rewards/<id>/{credit|cancel}`.
 
 ## Articles (Actus, Lib, profil)
 
@@ -111,7 +145,8 @@ blanche de balises, aucun attribut).
 Deux Code Files Framer, à coller tels quels :
 
 1. `framer/Navire_Ambassadeurs.tsx` → Code File nommé `Navire_Ambassadeurs`
-   (section « Ambassadeurs »).
+   (section « Ambassadeurs »), et `framer/Navire_Parrainage.tsx` → Code File
+   nommé `Navire_Parrainage` (section « Parrainage », onglet « Parr. »).
 2. `framer/Navire_AdminConsole.tsx` → remplace le Code File existant
    `Navire_AdminConsole`. Il importe la section ci-dessus et la section
    Lib ci-dessous, et ajoute les onglets « Amb. » et « Lib ». Charte NAVIRE AI

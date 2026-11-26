@@ -1915,6 +1915,133 @@ class AmbassadorCommission(Base):
 
 
 # ============================================================
+# Parrainage étudiant (Prép'AdJuris)
+# ============================================================
+
+class Parrain(Base):
+    """
+    Élève Prép'AdJuris inscrit au programme de parrainage. Une ligne par
+    compte. Pas de candidature : le lien est actif dès l'inscription
+    (conditions acceptées). Règles : app/services/parrainage.py.
+
+    Cycle de vie de `status` :
+      active    — le lien enregistre des filleuls et des récompenses
+      suspended — lien coupé par un admin ; les récompenses acquises restent
+                  créditées
+    """
+
+    __tablename__ = "parrains"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
+
+    # Code du lien (ex. JULIE-7K2), unique avec ceux des ambassadeurs : les
+    # deux programmes partagent la page /rejoindre?ref=CODE.
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+
+    # Nom montré à l'ami sur la page /rejoindre (« Julie t'invite »).
+    display_name: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False, index=True)
+
+    terms_version: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Visites de la page /rejoindre avec ce code.
+    clicks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+
+
+class ParrainageFilleul(Base):
+    """
+    Un ami rattaché à un parrain. Premier code utilisé = seul code retenu,
+    tous programmes confondus (un filleul d'ambassadeur n'est pas filleul
+    d'un parrain, et inversement).
+    """
+
+    __tablename__ = "parrainage_filleuls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    parrain_id: Mapped[int] = mapped_column(
+        ForeignKey("parrains.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    referred_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), unique=True, index=True, nullable=True
+    )
+    referred_email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
+
+    # register | oauth | checkout | claim
+    source: Mapped[str] = mapped_column(String(16), default="register", nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+
+    referred_user: Mapped["User | None"] = relationship("User", foreign_keys=[referred_user_id])
+
+
+class ParrainageRecompense(Base):
+    """
+    Récompense due au parrain quand un filleul paie son inscription. Elle est
+    créditée automatiquement sur le solde client Stripe du parrain, qui la
+    déduit de ses prochains prélèvements. Unique par Checkout Session.
+
+    Cycle de vie de `status` :
+      pending   — due ; créditée par le job horaire à partir de available_at
+                  (délai de rétractation, pendant lequel un remboursement
+                  l'annule). Passé ce délai, elle reste pending tant que le
+                  crédit Stripe n'a pas réussi (last_error).
+      credited  — crédit Stripe fait (credited_at, stripe_balance_transaction_id)
+      cancelled — paiement remboursé ou annulation manuelle
+    """
+
+    __tablename__ = "parrainage_recompenses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    parrain_id: Mapped[int] = mapped_column(
+        ForeignKey("parrains.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    filleul_id: Mapped[int | None] = mapped_column(
+        ForeignKey("parrainage_filleuls.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    matiere_keys: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+
+    stripe_checkout_session_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False
+    )
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(String(100), index=True, nullable=True)
+
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False, index=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    credited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    stripe_balance_transaction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    cancelled_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+
+    filleul: Mapped["ParrainageFilleul | None"] = relationship("ParrainageFilleul")
+
+
+# ============================================================
 # NAVIRE Lib — cours, dissertations, points de passage
 # ============================================================
 
