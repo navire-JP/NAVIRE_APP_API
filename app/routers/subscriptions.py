@@ -92,6 +92,7 @@ from app.services.email import (
     mail_discord_link_code,
     mail_ambassador_commission,
     mail_parrainage_recompense,
+    mail_parrainage_filleul,
 )
 from app.services.discord_link import (
     PURCHASE_TTL_DAYS,
@@ -1528,14 +1529,27 @@ def _recompense_parrainage(db: Session, session: dict, user: User | None, email:
         return
     if recompense is None:
         return
+    eur = lambda c: f"{c / 100:.2f} €".replace(".", ",")  # noqa: E731
+    p = db.get(parrainage.Parrain, recompense.parrain_id)
+
+    # Réduction de l'ami : créditée tout de suite sur son solde Stripe (le
+    # job horaire réessaie en cas d'échec).
     try:
-        p = db.get(parrainage.Parrain, recompense.parrain_id)
+        red = parrainage.record_filleul_reduction(db, session, recompense)
+        if red is not None and parrainage.crediter_filleul(db, red) and email:
+            send_mail(email, *mail_parrainage_filleul(
+                user.username if user else "", p.display_name if p else "ton parrain", eur(red.amount_cents)
+            ))
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("Parrainage : réduction du filleul non créditée (%s)", session.get("id"))
+
+    try:
         destinataire = db.get(User, p.user_id) if p else None
         if destinataire:
             filleul = user.username if user else "Ton ami"
-            montant = f"{recompense.amount_cents / 100:.2f} €".replace(".", ",")
             send_mail(destinataire.email, *mail_parrainage_recompense(
-                p.display_name, filleul, montant, parrainage.DELAI_CREDIT_JOURS
+                p.display_name, filleul, eur(recompense.amount_cents), parrainage.DELAI_CREDIT_JOURS
             ))
     except Exception:  # noqa: BLE001
         logger.exception("Parrainage : email de récompense non envoyé")

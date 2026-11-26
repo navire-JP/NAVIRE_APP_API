@@ -3,8 +3,8 @@
 //
 // Parrains (élèves Prép'AdJuris inscrits au parrainage : lien, résultats,
 // filleuls, suspendre / réactiver) et récompenses (crédit automatique sur le
-// solde client Stripe du parrain après 14 jours ; « Créditer maintenant »,
-// annulation, erreurs de crédit).
+// solde client Stripe du parrain après 14 jours ; réduction de l'ami créditée
+// à son paiement ; « Créditer maintenant », annulation, erreurs de crédit).
 //
 // Même jeton, design tokens et primitives que Navire_Ambassadeurs.tsx : le
 // fichier est autonome pour ne pas dépendre de l'ordre des exports.
@@ -128,6 +128,14 @@ interface Recompense {
     last_error: string | null
     cancelled_reason: string | null
     created_at: string | null
+    filleul_reduction: {
+        id: number
+        amount_cents: number
+        status: "pending" | "credited" | "cancelled"
+        credited_at: string | null
+        stripe_customer_id: string | null
+        last_error: string | null
+    } | null
 }
 interface Resume {
     parrains: Record<Statut, number>
@@ -567,6 +575,39 @@ function RecompensesPanel({ setMsg }: { setMsg: (m: string) => void }) {
                                           ? ` · ${r.cancelled_reason || ""}`
                                           : ` · créditable le ${fmtDate(r.available_at)}`}
                                 </div>
+                                {r.filleul_reduction && (
+                                    <div style={{ fontSize: 10, fontFamily: code, color: t1, marginTop: 2 }}>
+                                        Ami : {euros(r.filleul_reduction.amount_cents)}{" "}
+                                        {r.filleul_reduction.status === "credited"
+                                            ? `crédités le ${fmtDate(r.filleul_reduction.credited_at)}`
+                                            : r.filleul_reduction.status === "cancelled"
+                                              ? "annulés"
+                                              : "à créditer"}
+                                        {r.filleul_reduction.status === "pending" && (
+                                            <Btn
+                                                style={{ marginLeft: 6, padding: "2px 8px" }}
+                                                disabled={busy === r.id}
+                                                onClick={async () => {
+                                                    setBusy(r.id)
+                                                    try {
+                                                        await api(`/parrainage/admin/reductions/${r.filleul_reduction!.id}/credit`, "POST")
+                                                        setMsg("✓ Réduction de l'ami créditée")
+                                                        setTick((t) => t + 1)
+                                                    } catch (e: any) {
+                                                        setMsg(`ERR: ${e.message}`)
+                                                    } finally {
+                                                        setBusy(null)
+                                                    }
+                                                }}
+                                            >
+                                                Réessayer
+                                            </Btn>
+                                        )}
+                                        {r.filleul_reduction.last_error && r.filleul_reduction.status === "pending" && (
+                                            <span style={{ color: "#FF6B6B" }}> · {r.filleul_reduction.last_error}</span>
+                                        )}
+                                    </div>
+                                )}
                                 {r.last_error && r.status !== "credited" && (
                                     <div style={{ fontSize: 10, fontFamily: mono, color: "#FF6B6B", marginTop: 2 }}>
                                         {r.last_error}

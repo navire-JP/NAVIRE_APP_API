@@ -1993,9 +1993,10 @@ class ParrainageFilleul(Base):
 
 class ParrainageRecompense(Base):
     """
-    Récompense due au parrain quand un filleul paie son inscription. Elle est
-    créditée automatiquement sur le solde client Stripe du parrain, qui la
-    déduit de ses prochains prélèvements. Unique par Checkout Session.
+    Récompense due au parrain quand son filleul paie sa première inscription
+    (une seule par filleul). Elle est créditée automatiquement sur le solde
+    client Stripe du parrain, qui la déduit de ses prochains prélèvements.
+    Unique par Checkout Session.
 
     Cycle de vie de `status` :
       pending   — due ; créditée par le job horaire à partir de available_at
@@ -2039,6 +2040,49 @@ class ParrainageRecompense(Base):
     )
 
     filleul: Mapped["ParrainageFilleul | None"] = relationship("ParrainageFilleul")
+
+
+class ParrainageReductionFilleul(Base):
+    """
+    Réduction offerte au filleul (l'ami invité) à son premier paiement : un
+    crédit sur son solde client Stripe, déduit de ses prochains prélèvements.
+    Créditée tout de suite par le webhook (le job horaire réessaie en cas
+    d'échec). Une seule par filleul, unique par Checkout Session.
+
+    status : pending (crédit à faire) | credited | cancelled
+    """
+
+    __tablename__ = "parrainage_reductions_filleul"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    parrain_id: Mapped[int] = mapped_column(
+        ForeignKey("parrains.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    filleul_id: Mapped[int] = mapped_column(
+        ForeignKey("parrainage_filleuls.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    stripe_checkout_session_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False
+    )
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(String(100), index=True, nullable=True)
+    # Client Stripe du paiement du filleul : c'est lui qui reçoit le crédit.
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False, index=True)
+    credited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stripe_balance_transaction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    cancelled_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+
+    filleul: Mapped["ParrainageFilleul"] = relationship("ParrainageFilleul")
 
 
 # ============================================================

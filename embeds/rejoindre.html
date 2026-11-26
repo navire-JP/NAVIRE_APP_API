@@ -160,7 +160,10 @@
       : '<div class="pp">' + esc(n.charAt(0).toUpperCase()) + '</div>';
     return '<div class="invite"><div class="hero-pp">' + photo + '<div class="badge"></div></div>' +
       '<h1>' + esc(n) + ' t\'invite sur <span class="grad">NAVIRE</span></h1>' +
-      '<p class="muted">Crée ton compte et rejoins Prép\'AdJuris' + (state.amb.university ? ' — ' + esc(state.amb.university) : '') + '.</p></div>';
+      '<p class="muted">Crée ton compte et rejoins Prép\'AdJuris' + (state.amb.university ? ' — ' + esc(state.amb.university) : '') + '.</p>' +
+      (state.amb.program === "parrainage" && state.amb.filleul_credit_cents
+        ? '<p class="muted" style="margin-top:6px"><span class="grad">' + ((state.amb.filleul_credit_cents / 100).toFixed(2).replace(".", ",")) + ' € offerts</span> sur ton premier prélèvement, grâce à ' + esc(n) + '.</p>'
+        : '') + '</div>';
   }
 
   function steps() {
