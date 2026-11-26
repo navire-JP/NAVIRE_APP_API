@@ -27,6 +27,7 @@ Endpoints console (auth NAVIRE, is_admin) :
   POST /parrainage/admin/{id}/suspend | reactivate
   POST /parrainage/admin/rewards/{id}/credit   → crédite tout de suite (même avant le délai)
   POST /parrainage/admin/rewards/{id}/cancel
+  POST /parrainage/admin/reductions/{id}/credit → recrédite la réduction d'un filleul en échec
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import Parrain, ParrainageFilleul, ParrainageRecompense, User
+from app.db.models import Parrain, ParrainageFilleul, ParrainageRecompense, ParrainageReductionFilleul, User
 from app.routers.ambassadors import _iso, embed_page, referral_link, require_admin, share_link
 from app.routers.auth import get_current_user
 from app.services import parrainage as svc
@@ -61,22 +62,25 @@ def _eur(cents: int) -> str:
 # ============================================================
 
 def _terms() -> list[str]:
-    credit = _eur(svc.PARRAINAGE_CREDIT_PAR_MATIERE_CENTS)
+    parrain = _eur(svc.PARRAINAGE_CREDIT_PARRAIN_CENTS)
+    filleul = _eur(svc.PARRAINAGE_CREDIT_FILLEUL_CENTS)
     return [
         "Le parrainage est réservé aux élèves inscrits à Prép'AdJuris et porte uniquement sur "
         "les inscriptions à Prép'AdJuris.",
-        f"Tu gagnes {credit} par matière dont un ami venu par ton lien paie l'inscription. "
-        "La récompense est unique : rien sur les mensualités qui suivent.",
-        "La récompense est une réduction : elle est créditée automatiquement sur ton compte "
-        "Prép'AdJuris et déduite de tes prochains prélèvements. Elle n'est pas versée en argent.",
-        f"Elle est créditée {svc.DELAI_CREDIT_JOURS} jours après le paiement de ton ami (délai "
-        "de rétractation). Un paiement remboursé pendant ce délai annule la récompense.",
+        f"Quand un ami venu par ton lien paie son inscription, tu économises {parrain} et ton ami "
+        f"économise {filleul}. C'est une seule fois par ami, quel que soit le nombre de matières, "
+        "et rien sur les mensualités qui suivent.",
+        "Ces réductions sont créditées automatiquement sur vos comptes Prép'AdJuris et déduites "
+        "de vos prochains prélèvements. Elles ne sont pas versées en argent.",
+        f"Ta réduction est créditée {svc.DELAI_CREDIT_JOURS} jours après le paiement de ton ami "
+        "(délai de rétractation) ; celle de ton ami, dès son paiement. Un paiement remboursé "
+        "avant le crédit annule les réductions.",
         "Un filleul est rattaché au premier lien qu'il utilise (parrain ou ambassadeur), à la "
         "création de son compte NAVIRE ou au paiement. Un étudiant déjà inscrit à Prép'AdJuris "
         "ne compte pas.",
         "Te parrainer toi-même ou créer de faux comptes entraîne la suspension du lien et "
-        "l'annulation des récompenses concernées.",
-        "NAVIRE peut suspendre un lien et faire évoluer ces conditions ; les récompenses déjà "
+        "l'annulation des réductions concernées.",
+        "NAVIRE peut suspendre un lien et faire évoluer ces conditions ; les réductions déjà "
         "créditées restent acquises.",
     ]
 
@@ -85,7 +89,8 @@ def _terms() -> list[str]:
 def get_terms():
     return {
         "version": svc.TERMS_VERSION,
-        "credit_par_matiere_cents": svc.PARRAINAGE_CREDIT_PAR_MATIERE_CENTS,
+        "credit_parrain_cents": svc.PARRAINAGE_CREDIT_PARRAIN_CENTS,
+        "credit_filleul_cents": svc.PARRAINAGE_CREDIT_FILLEUL_CENTS,
         "prix_inscription_cents": 2000,
         "delai_credit_jours": svc.DELAI_CREDIT_JOURS,
         "conditions": _terms(),
@@ -175,7 +180,8 @@ def join(payload: JoinIn, db: Session = Depends(get_db), user: User = Depends(ge
 
     try:
         send_mail(user.email, *mail_parrainage_bienvenue(
-            p.display_name, referral_link(p.code), _eur(svc.PARRAINAGE_CREDIT_PAR_MATIERE_CENTS)
+            p.display_name, referral_link(p.code), _eur(svc.PARRAINAGE_CREDIT_PARRAIN_CENTS),
+            _eur(svc.PARRAINAGE_CREDIT_FILLEUL_CENTS),
         ))
     except Exception:  # noqa: BLE001 — l'email ne bloque jamais l'inscription
         logger.exception("Email de bienvenue parrainage non envoyé (user %s)", user.id)
@@ -201,7 +207,8 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(get_current_us
         raise HTTPException(403, detail="Inscris-toi d'abord au parrainage.")
     return {
         "parrain": _me_payload(db, user, p),
-        "credit_par_matiere_cents": svc.PARRAINAGE_CREDIT_PAR_MATIERE_CENTS,
+        "credit_parrain_cents": svc.PARRAINAGE_CREDIT_PARRAIN_CENTS,
+        "credit_filleul_cents": svc.PARRAINAGE_CREDIT_FILLEUL_CENTS,
         "prix_inscription_cents": 2000,
         "delai_credit_jours": svc.DELAI_CREDIT_JOURS,
         "stats": svc.stats(db, p),
@@ -245,7 +252,20 @@ def _get_or_404(db: Session, parrain_id: int) -> Parrain:
 def _reward_row(db: Session, r: ParrainageRecompense, cache: dict[int, Parrain], now) -> dict:
     p = cache.setdefault(r.parrain_id, db.get(Parrain, r.parrain_id))
     f = r.filleul
+    red = db.execute(
+        select(ParrainageReductionFilleul).where(
+            ParrainageReductionFilleul.stripe_checkout_session_id == r.stripe_checkout_session_id
+        )
+    ).scalar_one_or_none()
     return {
+        "filleul_reduction": None if red is None else {
+            "id": red.id,
+            "amount_cents": red.amount_cents,
+            "status": red.status,
+            "credited_at": _iso(red.credited_at),
+            "stripe_customer_id": red.stripe_customer_id,
+            "last_error": red.last_error,
+        },
         "id": r.id,
         "parrain_id": r.parrain_id,
         "parrain": p.display_name if p else None,
@@ -383,3 +403,16 @@ def admin_cancel(
     r.cancelled_reason = payload.reason.strip()
     db.commit()
     return {"ok": True, "id": r.id}
+
+
+@router.post("/admin/reductions/{reduction_id}/credit")
+def admin_credit_filleul(reduction_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """Réessaie tout de suite le crédit Stripe de la réduction d'un filleul."""
+    red = db.get(ParrainageReductionFilleul, reduction_id)
+    if red is None:
+        raise HTTPException(404, detail="Réduction introuvable.")
+    if red.status != "pending":
+        raise HTTPException(400, detail="Seule une réduction en attente peut être créditée.")
+    if not svc.crediter_filleul(db, red):
+        raise HTTPException(502, detail=red.last_error or "Crédit Stripe impossible.")
+    return {"ok": True, "id": red.id, "status": red.status}

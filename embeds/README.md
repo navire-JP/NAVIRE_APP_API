@@ -87,15 +87,20 @@ HTML de la page `/parrainage` (ou le composant `NavireEmbed`, page
 - **Lien** : `navire-ai.com/rejoindre?ref=CODE`, la même page que les
   ambassadeurs (`rejoindre.html` reconnaît les deux sortes de codes). Lien de
   partage avec photo : `/ambassadors/invite/CODE`.
-- **Récompense** : `PARRAINAGE_CREDIT_PAR_MATIERE_CENTS` (variable Render,
-  2 € par défaut) par matière dont l'ami paie l'inscription. Unique, rien sur
-  les mensualités.
-- **Calcul automatique sur Stripe** : au paiement de l'ami (webhook), une
-  récompense « en attente » est créée. 14 jours après (délai de
-  rétractation), le job horaire la crédite sur le **solde client Stripe** du
-  parrain (`Customer balance`, montant négatif) : Stripe la déduit tout seul
-  de ses prochains prélèvements et elle apparaît sur ses factures. Rien à
-  verser à la main. Un remboursement pendant les 14 jours l'annule.
+- **Récompenses** : quand l'ami paie sa première inscription, le parrain
+  économise `PARRAINAGE_CREDIT_PARRAIN_CENTS` et l'ami
+  `PARRAINAGE_CREDIT_FILLEUL_CENTS` (variables Render, 5 € chacun par défaut).
+  Une seule fois par ami, quel que soit le nombre de matières ; rien sur les
+  mensualités.
+- **Calcul automatique sur Stripe** : les deux réductions sont des crédits sur
+  le **solde client Stripe** (`Customer balance`, montant négatif) que Stripe
+  déduit tout seul des prochains prélèvements ; elles apparaissent sur les
+  factures. Rien à verser à la main.
+  - L'ami : crédité dès son paiement (webhook), sur le client Stripe de son
+    abonnement. `/rejoindre?ref=CODE` lui annonce « 5,00 € offerts ».
+  - Le parrain : récompense « en attente » au paiement de l'ami, créditée par
+    le job horaire 14 jours après (délai de rétractation). Un remboursement
+    pendant ce délai l'annule.
 - **Un seul lien par filleul** : un ami reste rattaché au premier lien utilisé,
   ambassadeur ou parrain.
 - **Console** : onglet « Parr. » — parrains (suspendre / réactiver),

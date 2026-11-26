@@ -499,20 +499,21 @@
 
   // Hero : même DA que la page ambassadeur (pastille, grand titre, mot en
   // dégradé bleu, boutons pilule).
-  function credit() { return S.terms ? S.terms.credit_par_matiere_cents : 200; }
+  function credit() { return S.terms ? S.terms.credit_parrain_cents : 500; }
+  function creditAmi() { return S.terms ? S.terms.credit_filleul_cents : 500; }
   function delai() { return S.terms ? S.terms.delai_credit_jours : 14; }
   function hero(title, sub, actions) {
-    return '<div class="nv-hero"><span class="nv-pill"><span class="nv-pill-logo" data-logo></span>Parrainage Prép\'AdJuris · <b>' + eur(credit()) + '</b> par matière</span>' +
+    return '<div class="nv-hero"><span class="nv-pill"><span class="nv-pill-logo" data-logo></span>Parrainage Prép\'AdJuris · <b>' + eur(credit()) + '</b> pour toi, <b>' + eur(creditAmi()) + '</b> pour ton ami</span>' +
       '<h1>' + title + '</h1><p>' + sub + '</p>' + (actions ? '<div class="nv-hero-actions">' + actions + '</div>' : '') + '</div>';
   }
   var HERO_T = 'Parraine tes amis, <span class="nv-hl">réduis</span> tes prélèvements';
-  function heroSub() { return 'Invite un ami à Prép\'AdJuris : pour chaque matière qu\'il paie, ' + eur(credit()) + ' sont déduits automatiquement de tes prochains prélèvements.'; }
+  function heroSub() { return 'Invite un ami à Prép\'AdJuris : quand il s\'inscrit, tu économises ' + eur(credit()) + ' et lui ' + eur(creditAmi()) + ', déduits automatiquement de vos prochains prélèvements.'; }
   var CHEVRON = '<svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function steps() {
     return '<div class="nv-steps">' +
       '<div class="nv-step"><i>01</i><b>Active ton lien</b><span>En un clic, si tu es inscrit·e à Prép\'AdJuris. Pas de candidature.</span></div>' +
       '<div class="nv-step"><i>02</i><b>Invite tes amis</b><span>Une page d\'inscription à ton nom : « Julie t\'invite sur NAVIRE ».</span></div>' +
-      '<div class="nv-step"><i>03</i><b>Économise ' + eur(credit()) + '</b><span>Par matière payée par ton ami, déduits tout seuls de ta facture.</span></div></div>';
+      '<div class="nv-step"><i>03</i><b>' + eur(credit()) + ' chacun</b><span>Toi et ton ami économisez ' + eur(credit()) + ' et ' + eur(creditAmi()) + ', déduits tout seuls de vos factures.</span></div></div>';
   }
   function field(label, inner, opt) {
     return '<label class="nv-field"><span>' + label + (opt ? ' <em>· facultatif</em>' : '') + '</span>' + inner + '</label>';
@@ -527,13 +528,13 @@
   function simCard() {
     return '<div class="nv-card">' +
       '<label class="nv-field"><span>Amis qui s\'inscrivent : <b style="color:#fff" data-el="sim-n">' + S.sim + '</b></span><input class="nv-range" type="range" min="1" max="20" value="' + S.sim + '" data-el="sim"></label>' +
-      '<label class="nv-field"><span>Matières par ami : <b style="color:#fff" data-el="sim-m">' + S.simMat + '</b></span><input class="nv-range" type="range" min="1" max="3" value="' + S.simMat + '" data-el="simm"></label>' +
-      '<div class="nv-sim-total"><span style="color:var(--text-3);font-size:13px">Tu économiserais</span><b class="nv-grad" data-el="sim-v">' + eur(S.sim * S.simMat * credit()) + '</b></div></div>';
+      '<div class="nv-sim-total"><span style="color:var(--text-3);font-size:13px">Tu économiserais</span><b class="nv-grad" data-el="sim-v">' + eur(S.sim * credit()) + '</b></div>' +
+      '<div style="font-size:12px;color:var(--text-3);margin-top:6px">Et chacun de tes amis économise ' + eur(creditAmi()) + '.</div></div>';
   }
   function bindSim() {
-    var sim = el("sim"), simm = el("simm"); if (!sim || !simm) return;
-    function upd() { S.sim = +sim.value; S.simMat = +simm.value; el("sim-n").textContent = S.sim; el("sim-m").textContent = S.simMat; el("sim-v").textContent = eur(S.sim * S.simMat * credit()); }
-    sim.addEventListener("input", upd); simm.addEventListener("input", upd);
+    var sim = el("sim"); if (!sim) return;
+    function upd() { S.sim = +sim.value; el("sim-n").textContent = S.sim; el("sim-v").textContent = eur(S.sim * credit()); }
+    sim.addEventListener("input", upd);
   }
 
   // ----- Non connecté -----
@@ -587,7 +588,7 @@
     var share = me.share_link || me.link;
     var msg = "Rejoins-moi sur Prép'AdJuris by NAVIRE : " + share;
     return '<div class="nv-card is-on"><div class="nv-card-title">Ton lien de parrainage</div>' +
-      '<div class="nv-card-sub">Chaque ami qui crée son compte avec ce lien puis paie son inscription te fait économiser ' + eur(S.dash.credit_par_matiere_cents) + ' par matière sur tes prélèvements.</div>' +
+      '<div class="nv-card-sub">Chaque ami qui crée son compte avec ce lien puis paie son inscription te fait économiser ' + eur(S.dash.credit_parrain_cents) + ' sur tes prélèvements, et lui économise ' + eur(S.dash.credit_filleul_cents) + '.</div>' +
       '<div class="nv-link"><code>' + esc(me.link) + '</code><button class="nv-btn" data-act="copy-link">' + ICON.copy + 'Copier</button></div>' +
       '<div class="nv-share">' +
       '<a class="nv-chip" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(msg) + '">' + ICON.wa + 'WhatsApp</a>' +
@@ -598,7 +599,7 @@
         ' <button class="nv-link-btn" data-act="copy-share">Copier ce lien</button></div>' : '') +
       (big ? '<div class="nv-group-label" style="margin-top:18px">Message prêt à envoyer</div>' +
         '<div class="nv-link" style="border-radius:12px;align-items:flex-start;padding:12px 12px 12px 14px"><code style="white-space:normal;line-height:1.55">' + esc(
-          "Hello ! Je suis inscrit·e à Prép'AdJuris : des séances de soutien en droit, matière par matière, en petit groupe. Inscris-toi avec mon lien : " + share) +
+          "Hello ! Je suis inscrit·e à Prép'AdJuris : des séances de soutien en droit, matière par matière, en petit groupe. Inscris-toi avec mon lien, tu as " + eur(S.dash.credit_filleul_cents) + " offerts : " + share) +
         '</code><button class="nv-chip" data-act="copy-msg">' + ICON.copy + 'Copier</button></div>' : '') +
       '</div>';
   }
@@ -610,7 +611,6 @@
     return '<div class="nv-row" style="animation-delay:' + ((i || 0) * 0.03) + 's"><div class="nv-row-ico">' + esc(name.charAt(0).toUpperCase()) + '</div>' +
       '<div class="nv-row-body"><div class="nv-row-title">' + esc(name) + '</div>' +
       '<div class="nv-row-meta"><span>' + date(r.joined_at) + '</span>' + tag +
-      (r.matieres.length ? '<span>' + r.matieres.length + ' matière' + (r.matieres.length > 1 ? 's' : '') + '</span>' : '') +
       (rec ? '<span>' + rec + '</span>' : '') + '</div></div>' +
       '<div class="nv-row-amount" style="color:' + (r.reward_cents ? "#fff" : "var(--text-4)") + '">' + (r.reward_cents ? "−" + eur(r.reward_cents) : "—") + '</div></div>';
   }
@@ -638,7 +638,7 @@
       '<div class="nv-card"><ol class="nv-terms">' +
       '<li>Ton ami doit créer son compte NAVIRE ou payer avec ton lien : il reste rattaché au premier lien qu\'il utilise.</li>' +
       '<li>Un étudiant déjà inscrit à Prép\'AdJuris ne compte pas comme filleul.</li>' +
-      '<li>Tu n\'as rien à faire ensuite : la réduction est calculée et appliquée automatiquement.</li>' +
+      '<li>Ton ami reçoit ' + eur(S.dash.credit_filleul_cents) + ' dès son paiement, toi ' + eur(S.dash.credit_parrain_cents) + ' quatorze jours après : tout est calculé et appliqué automatiquement.</li>' +
       '</ol></div>');
   }
 
@@ -660,9 +660,9 @@
   }
 
   function viewEarnings() {
-    var d = S.dash, c = d.credit_par_matiere_cents;
+    var d = S.dash, c = d.credit_parrain_cents;
     var paid = d.referrals.filter(function (r) { return r.reward_cents; });
-    setPage('<div class="nv-page-head"><h2>Récompenses</h2><p>' + eur(c) + ' par matière payée par un filleul. La réduction est créditée automatiquement sur ton compte Prép\'AdJuris ' + d.delai_credit_jours + ' jours après son paiement (délai de rétractation), puis déduite de tes prochains prélèvements.</p></div>' +
+    setPage('<div class="nv-page-head"><h2>Récompenses</h2><p>' + eur(c) + ' par ami qui paie son inscription (et ' + eur(d.credit_filleul_cents) + ' pour lui). Ta réduction est créditée automatiquement sur ton compte Prép\'AdJuris ' + d.delai_credit_jours + ' jours après son paiement (délai de rétractation), puis déduite de tes prochains prélèvements.</p></div>' +
       earningStats(d.earnings) +
       '<div class="nv-group-label">Simulateur</div>' + simCard() +
       '<div class="nv-group-label">Détail</div>' +

@@ -1,22 +1,28 @@
 """
 app/services/parrainage.py
 ===========================
-Parrainage étudiant : un élève Prép'AdJuris invite un ami et gagne un crédit
-sur ses propres prélèvements, calculé et appliqué automatiquement par Stripe.
+Parrainage étudiant : un élève Prép'AdJuris invite un ami. Quand l'ami paie
+son inscription, le parrain ET l'ami gagnent chacun une réduction sur leurs
+prélèvements, calculée et appliquée automatiquement par Stripe.
 
 Même mécanique que le programme ambassadeur (app/services/ambassadors.py),
 avec trois différences :
   - pas de candidature : tout élève Prép'AdJuris en cours peut s'inscrire,
     son lien est actif tout de suite ;
   - pas de virement : la récompense est un crédit sur le solde client Stripe
-    du parrain (Customer balance), que Stripe déduit de ses prochaines
-    factures — rien à verser à la main ;
-  - le crédit est posé par le job horaire, une fois le délai de rétractation
-    passé (un remboursement pendant ce délai annule la récompense).
+    (Customer balance), que Stripe déduit des prochaines factures — rien à
+    verser à la main ;
+  - l'ami invité y gagne aussi : PARRAINAGE_CREDIT_FILLEUL_CENTS crédités sur
+    son propre solde Stripe dès son paiement.
 
 Règles :
-  - PARRAINAGE_CREDIT_PAR_MATIERE_CENTS par matière dont l'inscription est
-    payée par le filleul. Récompense unique : rien sur les mensualités.
+  - parrain : PARRAINAGE_CREDIT_PARRAIN_CENTS (5 € par défaut) par ami qui paie
+    son inscription, crédités par le job horaire une fois le délai de
+    rétractation passé (un remboursement pendant ce délai les annule) ;
+  - filleul : PARRAINAGE_CREDIT_FILLEUL_CENTS (5 € par défaut), crédités tout
+    de suite par le webhook ;
+  - une seule fois par ami (sa première inscription payée), quel que soit le
+    nombre de matières ; rien sur les mensualités ;
   - premier code utilisé = seul code retenu, tous programmes confondus (un
     filleul d'ambassadeur ne devient pas filleul d'un parrain, et inversement) ;
   - impossible de se parrainer soi-même ;
@@ -27,7 +33,9 @@ Parcours d'un ami :
      affiche le nom choisi par le parrain (GET /ambassadors/ref/{code}, qui
      reconnaît aussi les codes de parrainage).
   2. Il crée son compte avec ce code : attach_any() le rattache au parrain.
-  3. Il paie : le webhook appelle record_reward() → récompense « pending ».
+  3. Il paie : le webhook appelle record_reward() → récompense du parrain
+     « pending », puis record_filleul_reduction() + crediter_filleul() → les
+     5 € de l'ami sont crédités sur son solde Stripe.
   4. available_at passé : crediter_recompenses() (job horaire) crédite le
      solde Stripe du parrain → « credited ».
 
@@ -53,6 +61,7 @@ from app.db.models import (
     Parrain,
     ParrainageFilleul,
     ParrainageRecompense,
+    ParrainageReductionFilleul,
     PrepaAdjurisEnrollment,
     User,
 )
@@ -68,8 +77,9 @@ from app.services.ambassadors import (
 logger = logging.getLogger(__name__)
 
 # ── Réglages du programme ──────────────────────────────────────
-# Crédit offert au parrain par matière payée par son filleul.
-PARRAINAGE_CREDIT_PAR_MATIERE_CENTS = int(os.getenv("PARRAINAGE_CREDIT_PAR_MATIERE_CENTS", "200"))
+# Crédit offert au parrain, puis à l'ami, quand l'ami paie son inscription.
+PARRAINAGE_CREDIT_PARRAIN_CENTS = int(os.getenv("PARRAINAGE_CREDIT_PARRAIN_CENTS", "500"))
+PARRAINAGE_CREDIT_FILLEUL_CENTS = int(os.getenv("PARRAINAGE_CREDIT_FILLEUL_CENTS", "500"))
 
 # Délai avant le crédit Stripe : durée du droit de rétractation.
 DELAI_CREDIT_JOURS = 14
@@ -289,10 +299,19 @@ def record_reward(
     if parrain is None or parrain.status != "active":
         return None
 
+    # Une seule récompense par ami : sa première inscription payée.
+    deja_recompense = db.execute(
+        select(ParrainageRecompense.id).where(
+            ParrainageRecompense.filleul_id == ref.id, ParrainageRecompense.status != "cancelled"
+        )
+    ).first()
+    if deja_recompense:
+        return None
+
     recompense = ParrainageRecompense(
         parrain_id=parrain.id,
         filleul_id=ref.id,
-        amount_cents=PARRAINAGE_CREDIT_PAR_MATIERE_CENTS * len(matiere_keys),
+        amount_cents=PARRAINAGE_CREDIT_PARRAIN_CENTS,
         matiere_keys=list(matiere_keys),
         stripe_checkout_session_id=session_id,
         stripe_payment_intent_id=session.get("payment_intent"),
@@ -319,10 +338,16 @@ def cancel_for_refund(db: Session, payment_intent_id: str | None, reason: str = 
             ParrainageRecompense.status == "pending",
         )
     ).scalars().all()
-    for r in rows:
+    reductions = db.execute(
+        select(ParrainageReductionFilleul).where(
+            ParrainageReductionFilleul.stripe_payment_intent_id == payment_intent_id,
+            ParrainageReductionFilleul.status == "pending",
+        )
+    ).scalars().all()
+    for r in [*rows, *reductions]:
         r.status = "cancelled"
         r.cancelled_reason = reason[:200]
-    if rows:
+    if rows or reductions:
         db.commit()
     return len(rows)
 
@@ -353,14 +378,11 @@ def crediter(db: Session, r: ParrainageRecompense) -> bool:
         return False
 
     filleul = r.filleul.referred_user.username if r.filleul and r.filleul.referred_user else "un ami"
-    n = len(r.matiere_keys or [])
-    _cle_stripe()
     try:
-        tx = stripe.Customer.create_balance_transaction(
+        tx_id = _crediter_solde(
             inscription.stripe_customer_id,
-            amount=-r.amount_cents,       # négatif = crédit
-            currency="eur",
-            description=f"Parrainage NAVIRE : inscription de {filleul} ({n} matière{'s' if n > 1 else ''})",
+            r.amount_cents,
+            description=f"Parrainage NAVIRE : inscription de {filleul}",
             metadata={"parrainage_recompense_id": str(r.id), "parrain_code": parrain.code},
             idempotency_key=f"navire-parrainage-{r.id}",
         )
@@ -373,8 +395,93 @@ def crediter(db: Session, r: ParrainageRecompense) -> bool:
     r.status = "credited"
     r.credited_at = utcnow()
     r.stripe_customer_id = inscription.stripe_customer_id
-    r.stripe_balance_transaction_id = tx.get("id") if hasattr(tx, "get") else getattr(tx, "id", None)
+    r.stripe_balance_transaction_id = tx_id
     r.last_error = None
+    db.commit()
+    return True
+
+
+def _crediter_solde(customer_id: str, amount_cents: int, *, description: str, metadata: dict,
+                    idempotency_key: str) -> str | None:
+    """Crédit sur le solde client Stripe (montant négatif), déduit
+    automatiquement des prochaines factures du client. Lève StripeError."""
+    _cle_stripe()
+    tx = stripe.Customer.create_balance_transaction(
+        customer_id,
+        amount=-amount_cents,       # négatif = crédit
+        currency="eur",
+        description=description,
+        metadata=metadata,
+        idempotency_key=idempotency_key,
+    )
+    return tx.get("id") if hasattr(tx, "get") else getattr(tx, "id", None)
+
+
+# ============================================================
+# Réduction de l'ami (filleul)
+# ============================================================
+
+def record_filleul_reduction(db: Session, session: dict, recompense: ParrainageRecompense) -> ParrainageReductionFilleul | None:
+    """
+    Appelé par le webhook juste après record_reward() : la réduction de l'ami
+    accompagne la récompense du parrain (même paiement). Une seule par ami ;
+    idempotent par Checkout Session.
+    """
+    session_id = session.get("id") or ""
+    if not session_id or recompense is None or recompense.filleul_id is None or PARRAINAGE_CREDIT_FILLEUL_CENTS <= 0:
+        return None
+    deja = db.execute(
+        select(ParrainageReductionFilleul).where(
+            (ParrainageReductionFilleul.stripe_checkout_session_id == session_id)
+            | ((ParrainageReductionFilleul.filleul_id == recompense.filleul_id)
+               & (ParrainageReductionFilleul.status != "cancelled"))
+        )
+    ).scalars().first()
+    if deja is not None:
+        return deja if deja.stripe_checkout_session_id == session_id else None
+    red = ParrainageReductionFilleul(
+        parrain_id=recompense.parrain_id,
+        filleul_id=recompense.filleul_id,
+        amount_cents=PARRAINAGE_CREDIT_FILLEUL_CENTS,
+        stripe_checkout_session_id=session_id,
+        stripe_payment_intent_id=session.get("payment_intent"),
+        stripe_customer_id=session.get("customer"),
+        status="pending",
+    )
+    db.add(red)
+    db.commit()
+    db.refresh(red)
+    return red
+
+
+def crediter_filleul(db: Session, red: ParrainageReductionFilleul) -> bool:
+    """Crédite les 5 € de l'ami sur le client Stripe de son paiement (celui
+    de son abonnement Prép'AdJuris). Renvoie True si c'est fait."""
+    if red.status != "pending":
+        return red.status == "credited"
+    if not red.stripe_customer_id:
+        red.last_error = "Paiement sans client Stripe."
+        db.commit()
+        return False
+    parrain = db.get(Parrain, red.parrain_id)
+    nom = parrain.display_name if parrain else "ton parrain"
+    try:
+        tx_id = _crediter_solde(
+            red.stripe_customer_id,
+            red.amount_cents,
+            description=f"Parrainage NAVIRE : invité·e par {nom}",
+            metadata={"parrainage_reduction_filleul_id": str(red.id)},
+            idempotency_key=f"navire-parrainage-filleul-{red.id}",
+        )
+    except stripe.StripeError as exc:
+        red.last_error = str(exc)[:300]
+        db.commit()
+        logger.error("Parrainage : crédit Stripe du filleul échoué (%s) : %s", red.id, exc)
+        return False
+    red.status = "credited"
+    red.credited_at = utcnow()
+    red.stripe_balance_transaction_id = tx_id
+    red.last_error = None
     db.commit()
     return True
 
@@ -396,6 +503,15 @@ def crediter_recompenses(db: Session, maintenant: datetime | None = None) -> lis
         except Exception:  # noqa: BLE001 — une récompense en échec ne bloque pas les autres
             db.rollback()
             logger.exception("Parrainage : récompense %s non créditée", r.id)
+    # Réductions des filleuls dont le crédit immédiat a échoué.
+    for red in db.execute(
+        select(ParrainageReductionFilleul).where(ParrainageReductionFilleul.status == "pending")
+    ).scalars().all():
+        try:
+            crediter_filleul(db, red)
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            logger.exception("Parrainage : réduction filleul %s non créditée", red.id)
     return faites
 
 

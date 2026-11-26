@@ -898,16 +898,17 @@ def mail_ambassador_commission(prenom: str, filleul: str, montant_eur: str) -> t
 # Parrainage étudiant
 # ------------------------------------------------------------
 
-def mail_parrainage_bienvenue(nom: str, link: str, credit_eur: str) -> tuple[str, str]:
+def mail_parrainage_bienvenue(nom: str, link: str, credit_eur: str, credit_ami_eur: str) -> tuple[str, str]:
     """(subject, html) envoyé à l'élève qui active son lien de parrainage."""
     from html import escape
     subject = "Ton lien de parrainage NAVIRE est prêt"
     html = layout(f"""
     <p style="margin-top:0;">Bonjour {escape(nom)},</p>
     <p>
-      Ton lien de parrainage Prép'AdJuris est actif. Pour chaque matière dont
-      un ami paie l'inscription avec ce lien, tu gagnes <strong>{credit_eur}</strong>,
-      déduits automatiquement de tes prochains prélèvements.
+      Ton lien de parrainage Prép'AdJuris est actif. Chaque ami qui paie son
+      inscription avec ce lien te fait économiser <strong>{credit_eur}</strong>, et lui
+      économise <strong>{credit_ami_eur}</strong>. Les réductions sont déduites
+      automatiquement de vos prochains prélèvements.
     </p>
     <p style="word-break: break-all;"><a href="{escape(link)}">{escape(link)}</a></p>
     {_bouton(f"{FRONTEND_URL}/parrainage", "Ma page parrainage")}
@@ -923,7 +924,7 @@ def mail_parrainage_recompense(nom: str, filleul: str, montant_eur: str, delai_j
     <p style="margin-top:0;">Bonjour {escape(nom)},</p>
     <p>
       <strong>{escape(filleul)}</strong> vient de payer son inscription Prép'AdJuris
-      grâce à ton lien. Tu gagnes <strong>{montant_eur}</strong> de réduction.
+      grâce à ton lien. Tu économises <strong>{montant_eur}</strong> (et ton ami aussi).
     </p>
     <p style="font-size: 0.85em; color: #888;">
       La réduction est créditée automatiquement sur ton compte après le délai de
@@ -931,6 +932,23 @@ def mail_parrainage_recompense(nom: str, filleul: str, montant_eur: str, delai_j
     </p>
     {_bouton(f"{FRONTEND_URL}/parrainage", "Voir mes récompenses")}
 """, preheader=f"Tu gagnes {montant_eur} de réduction.")
+    return subject, html
+
+
+def mail_parrainage_filleul(nom: str, parrain: str, montant_eur: str) -> tuple[str, str]:
+    """(subject, html) envoyé à l'ami invité quand sa réduction est créditée."""
+    from html import escape
+    subject = f"{montant_eur} offerts grâce à {parrain}"
+    salut = f"Bonjour {escape(nom)}," if nom else "Bonjour,"
+    html = layout(f"""
+    <p style="margin-top:0;">{salut}</p>
+    <p>
+      Tu t'es inscrit·e à Prép'AdJuris grâce à l'invitation de <strong>{escape(parrain)}</strong> :
+      <strong>{montant_eur}</strong> viennent d'être crédités sur ton compte. Ils seront déduits
+      automatiquement de ton prochain prélèvement.
+    </p>
+    {_bouton(f"{FRONTEND_URL}/parrainage", "Parrainer à mon tour")}
+""", preheader=f"{montant_eur} en moins sur ton prochain prélèvement.")
     return subject, html
 
 
@@ -1054,18 +1072,23 @@ EMAIL_CATALOG: dict[str, dict] = {
         "label": "Parrainage : lien activé",
         "trigger": "POST /parrainage/join",
         "render": lambda: mail_parrainage_bienvenue(
-            "Julie", f"{FRONTEND_URL}/rejoindre?ref=JULIE-7K2", "2,00 €"
+            "Julie", f"{FRONTEND_URL}/rejoindre?ref=JULIE-7K2", "5,00 €", "5,00 €"
         ),
     },
     "parrainage_recompense": {
         "label": "Parrainage : un ami a payé son inscription",
         "trigger": "Webhook Stripe : inscription Prép'AdJuris payée par un filleul",
-        "render": lambda: mail_parrainage_recompense("Julie", "marc_l2", "4,00 €", 14),
+        "render": lambda: mail_parrainage_recompense("Julie", "marc_l2", "5,00 €", 14),
+    },
+    "parrainage_filleul": {
+        "label": "Parrainage : réduction de l'ami invité",
+        "trigger": "Webhook Stripe : l'ami paie sa première inscription",
+        "render": lambda: mail_parrainage_filleul("marc_l2", "Julie", "5,00 €"),
     },
     "parrainage_credit": {
         "label": "Parrainage : récompense créditée sur Stripe",
         "trigger": "Job horaire, 14 jours après le paiement du filleul",
-        "render": lambda: mail_parrainage_credit("Julie", "4,00 €"),
+        "render": lambda: mail_parrainage_credit("Julie", "5,00 €"),
     },
 }
 

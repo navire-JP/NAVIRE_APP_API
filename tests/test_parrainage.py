@@ -145,7 +145,8 @@ def test_reserve_aux_eleves_prepa(env, mails):
     assert client.get("/parrainage/me/dashboard", headers=_headers(marc)).status_code == 403
 
     terms = client.get("/parrainage/terms").json()
-    assert terms["credit_par_matiere_cents"] == 200 and len(terms["conditions"]) >= 5
+    assert terms["credit_parrain_cents"] == 500 and terms["credit_filleul_cents"] == 500
+    assert len(terms["conditions"]) >= 5
 
 
 def test_inscription_active_le_lien(env, mails):
@@ -182,6 +183,7 @@ def test_page_rejoindre_reconnait_le_parrain(monde):
     client, code = monde["client"], monde["code"]
     r = client.get(f"/ambassadors/ref/{code.lower()}").json()
     assert r["valid"] and r["program"] == "parrainage" and r["display_name"] == "Julie" and r["code"] == code
+    assert r["filleul_credit_cents"] == 500
 
     bot = client.get(f"/ambassadors/invite/{code}", headers={"User-Agent": "WhatsApp/2.23"})
     assert "Julie t&#x27;invite sur NAVIRE" in bot.text
@@ -217,11 +219,27 @@ def test_ami_inscrit_paie_puis_credit_stripe(monde, mails, stripe_calls):
         _commission_ambassadeur(db, session, ami, email, ["l2_civil", "l2_admin"])
         _recompense_parrainage(db, session, ami, email, ["l2_civil", "l2_admin"])
     assert db.query(AmbassadorCommission).filter_by(stripe_checkout_session_id=session["id"]).count() == 0
-    assert sum(1 for m in mails if m["to"] == julie.email and "+4,00" in m["subject"]) == 1
+    assert sum(1 for m in mails if m["to"] == julie.email and "+5,00" in m["subject"]) == 1
 
+    # L'ami : 5 € crédités tout de suite sur le client Stripe de son paiement, une seule fois.
+    assert len(stripe_calls) == 1
+    assert stripe_calls[0]["customer"] == "cus_ami" and stripe_calls[0]["amount"] == -500
+    assert stripe_calls[0]["idempotency_key"].startswith("navire-parrainage-filleul-")
+    assert sum(1 for m in mails if m["to"] == email and "offerts" in m["subject"]) == 1
+    red = db.query(svc.ParrainageReductionFilleul).filter_by(stripe_checkout_session_id=session["id"]).one()
+    assert red.status == "credited"
+    stripe_calls.clear()
+
+    # Montant fixe, une fois par ami, quel que soit le nombre de matières.
     dash = client.get("/parrainage/me/dashboard", headers=_headers(julie)).json()
     assert dash["stats"]["paying"] == 1 and dash["stats"]["matieres"] == 2
-    assert dash["earnings"]["pending_cents"] == 400 and dash["earnings"]["credited_cents"] == 0
+    assert dash["earnings"]["pending_cents"] == 500 and dash["earnings"]["credited_cents"] == 0
+
+    # Un second paiement du même ami (matière ajoutée) ne donne rien de plus.
+    session2 = _session_payee("cus_ami2", email, ["l2_penal"])
+    _recompense_parrainage(db, session2, ami, email, ["l2_penal"])
+    assert db.query(svc.ParrainageRecompense).filter_by(stripe_checkout_session_id=session2["id"]).count() == 0
+    assert stripe_calls == []
 
     # Avant le délai : le job ne crédite rien.
     assert svc.crediter_recompenses(db) == [] and stripe_calls == []
@@ -233,7 +251,7 @@ def test_ami_inscrit_paie_puis_credit_stripe(monde, mails, stripe_calls):
     faites = svc.crediter_recompenses(db)
     assert [x.id for x in faites] == [rec.id]
     assert stripe_calls == [{
-        "customer": monde["customer"], "amount": -400, "currency": "eur",
+        "customer": monde["customer"], "amount": -500, "currency": "eur",
         "description": stripe_calls[0]["description"],
         "metadata": {"parrainage_recompense_id": str(rec.id), "parrain_code": code},
         "idempotency_key": f"navire-parrainage-{rec.id}",
@@ -248,7 +266,7 @@ def test_ami_inscrit_paie_puis_credit_stripe(monde, mails, stripe_calls):
     db.close()
 
     dash = client.get("/parrainage/me/dashboard", headers=_headers(julie)).json()
-    assert dash["earnings"]["credited_cents"] == 400
+    assert dash["earnings"]["credited_cents"] == 500
     assert dash["referrals"][0]["reward_status"] == "credited"
 
 
@@ -266,7 +284,7 @@ def test_job_horaire_envoie_l_email(monde, mails, stripe_calls):
 
     svc.job_parrainage(SessionLocal)
     assert any(m["to"] == monde["julie"].email and "crédités" in m["subject"] for m in mails)
-    assert stripe_calls and stripe_calls[-1]["amount"] == -200
+    assert stripe_calls and stripe_calls[-1]["amount"] == -500
 
 
 def test_remboursement_avant_credit(monde, stripe_calls):
@@ -321,7 +339,7 @@ def test_paiement_sans_compte(monde):
         db, _session_payee("cus_form", email, ["l1_civil"], metadata={"parrain_code": monde["code"]}),
         None, email, ["l1_civil"],
     )
-    assert rec is not None and rec.amount_cents == 200
+    assert rec is not None and rec.amount_cents == 500
     assert db.query(ParrainageFilleul).filter_by(referred_email=email).one().referred_user_id is None
     db.close()
 
@@ -421,12 +439,12 @@ def test_console(monde, stripe_calls):
     # Crédit immédiat depuis la console.
     r = client.post(f"/parrainage/admin/rewards/{rec.id}/credit", headers=admin)
     assert r.status_code == 200 and r.json()["status"] == "credited"
-    assert stripe_calls[-1]["amount"] == -200
+    assert stripe_calls[-1]["amount"] == -500
     assert client.post(f"/parrainage/admin/rewards/{rec.id}/cancel", headers=admin,
                        json={"reason": "test"}).status_code == 400
 
     resume = client.get("/parrainage/admin/summary", headers=admin).json()
-    assert resume["rewards"]["credited_cents"] >= 200
+    assert resume["rewards"]["credited_cents"] >= 500
 
     # Suspension : le lien ne fonctionne plus.
     assert client.post(f"/parrainage/admin/{pid}/suspend", headers=admin).json()["status"] == "suspended"
@@ -441,3 +459,29 @@ def test_page_embed(env):
     for path in ("/parrainage/embed", "/ambassadors/embed/parrainage"):
         r = client.get(path)
         assert r.status_code == 200 and 'API: ""' in r.text and "nv-parr" in r.text
+
+
+def test_reduction_filleul_en_echec_puis_remboursement(monde, monkeypatch):
+    """Crédit Stripe de l'ami en échec : la réduction reste à créditer
+    (le job réessaie) ; un remboursement l'annule."""
+    import stripe
+    from app.db.database import SessionLocal
+    from app.routers.subscriptions import _recompense_parrainage
+    from app.services import parrainage as svc
+
+    def boom(*a, **k):
+        raise stripe.StripeError("Stripe indisponible")
+    monkeypatch.setattr(svc.stripe.Customer, "create_balance_transaction", boom)
+
+    db = SessionLocal()
+    ami = _user(db, "ami_echec")
+    svc.attach_referral(db, monde["code"], user=ami)
+    session = _session_payee("cus_echec", ami.email, ["l1_civil"])
+    _recompense_parrainage(db, session, ami, ami.email, ["l1_civil"])
+    red = db.query(svc.ParrainageReductionFilleul).filter_by(stripe_checkout_session_id=session["id"]).one()
+    assert red.status == "pending" and "indisponible" in red.last_error
+
+    assert svc.cancel_for_refund(db, session["payment_intent"]) == 1
+    db.refresh(red)
+    assert red.status == "cancelled"
+    db.close()

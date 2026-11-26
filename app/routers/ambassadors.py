@@ -162,6 +162,7 @@ def resolve_referral_code(
         return {
             "valid": True,
             "program": "parrainage",
+            "filleul_credit_cents": parrainage.PARRAINAGE_CREDIT_FILLEUL_CENTS,
             "code": parrain.code,
             "display_name": parrain.display_name,
             "university": parrain.user.university if parrain.user else None,
