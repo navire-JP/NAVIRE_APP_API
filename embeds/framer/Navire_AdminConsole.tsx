@@ -14,6 +14,9 @@
 // Ambassadeurs : onglet « Amb. » (candidatures, ambassadeurs, commissions à
 // verser). Le code de la section est dans Navire_Ambassadeurs.tsx.
 //
+// Parrainage : onglet « Parr. » (parrains, récompenses créditées sur Stripe).
+// Le code de la section est dans Navire_Parrainage.tsx.
+//
 // Charte NAVIRE AI : Inter (IBM Plex Mono pour les petits libellés),
 // panneaux blancs translucides, pastilles, vert / jaune / rouge d'état.
 // L'onglet Carts (paniers MEOLES) est retiré.
@@ -42,6 +45,7 @@
 import type { Override } from "framer"
 import * as React from "react"
 import { AmbassadeursSection } from "./Navire_Ambassadeurs.tsx"
+import { ParrainageSection } from "./Navire_Parrainage.tsx"
 import { LibSection } from "./Navire_Lib.tsx"
 import { ProfesseursSection } from "./Navire_Professeurs.tsx"
 import { MailsSection } from "./Navire_Mails.tsx"
@@ -182,6 +186,7 @@ type Section =
     | "terminal"
     | "adjuris"
     | "ambassadeurs"
+    | "parrainage"
     | "lib"
     | "professeurs"
     | "mails"
@@ -7225,6 +7230,7 @@ const SECTIONS: { id: Section; label: string }[] = [
     { id: "prepa", label: "Prepa" },
     { id: "adjuris", label: "AdJuris" },
     { id: "ambassadeurs", label: "Amb." },
+    { id: "parrainage", label: "Parr." },
     { id: "lib", label: "Lib" },
     { id: "professeurs", label: "Prof." },
     { id: "mails", label: "Mails" },
@@ -7346,6 +7352,7 @@ function ConsoleUI() {
                 {section === "terminal" && <TerminalSection />}
                 {section === "adjuris" && <AdjurisSection />}
                 {section === "ambassadeurs" && <AmbassadeursSection />}
+                {section === "parrainage" && <ParrainageSection />}
                 {section === "lib" && <LibSection />}
                 {section === "professeurs" && <ProfesseursSection />}
                 {section === "mails" && <MailsSection />}

@@ -45,9 +45,11 @@ from app.routers.prepa_adjuris_espace import (
 )
 from app.routers.prepa_adjuris_agenda import router as prepa_adjuris_agenda_router
 from app.services.prepa_adjuris_facturation import job_facturation_adjuris
+from app.services.parrainage import job_parrainage
 from app.services.cours_live import job_cours_live
 from app.routers.navire import router as navire_router
 from app.routers.ambassadors import router as ambassadors_router
+from app.routers.parrainage import router as parrainage_router
 from app.routers.lib import router as lib_router
 from app.routers.lib_prepa import router as lib_prepa_router
 from app.routers.prepa_epreuves import eleve_router as epreuves_eleve_router, prof_router as epreuves_prof_router
@@ -150,6 +152,16 @@ scheduler.add_job(
     hours=1,
     args=[SessionLocal],
     id="job_facturation_adjuris",
+    replace_existing=True,
+)
+# Parrainage étudiant : crédit Stripe des récompenses dont le délai de
+# rétractation est passé. Voir app/services/parrainage.py.
+scheduler.add_job(
+    job_parrainage,
+    trigger="interval",
+    hours=1,
+    args=[SessionLocal],
+    id="job_parrainage",
     replace_existing=True,
 )
 
@@ -410,6 +422,7 @@ app.include_router(prepa_adjuris_espace_router)
 app.include_router(prepa_adjuris_agenda_router)
 app.include_router(navire_router)
 app.include_router(ambassadors_router)
+app.include_router(parrainage_router)
 app.include_router(epreuves_eleve_router)
 app.include_router(epreuves_prof_router)
 app.include_router(lib_prepa_router)

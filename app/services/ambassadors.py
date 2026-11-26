@@ -19,7 +19,8 @@ Parcours d'un prospect :
      qui crée la commission si le payeur est un filleul.
 
 Garde-fous du rattachement :
-  - premier code utilisé = seul code retenu (une ligne par compte et par email) ;
+  - premier code utilisé = seul code retenu (une ligne par compte et par email),
+    parrainage étudiant compris (app/services/parrainage.py) ;
   - impossible de se parrainer soi-même ;
   - un élève déjà inscrit à Prép'AdJuris n'est pas un prospect : on ne le
     rattache pas, sinon un ambassadeur pourrait « capter » des élèves acquis.
@@ -104,7 +105,9 @@ def generate_code(db: Session, display_name: str) -> str:
     for _ in range(20):
         suffixe = "".join(secrets.choice(_ALPHABET_SUFFIXE) for _ in range(3))
         code = f"{base}-{suffixe}"
-        if not db.execute(select(Ambassador.id).where(Ambassador.code == code)).first():
+        # Unique aussi parmi les codes de parrainage (même page /rejoindre).
+        from app.services.parrainage import code_pris
+        if not code_pris(db, code):
             return code
     # 31^3 combinaisons par nom : n'arrive qu'avec des milliers de « JULIE ».
     return f"{base}-{secrets.token_hex(3).upper()}"
@@ -156,6 +159,15 @@ def _deja_client(db: Session, user: User | None, email: str, exclure_customer: s
     return db.execute(q).first() is not None
 
 
+def _filleul_parrain(db: Session, user: User | None, mail: str) -> bool:
+    """Déjà rattaché au lien d'un parrain (app/services/parrainage.py) ?"""
+    from app.db.models import ParrainageFilleul
+    conditions = [ParrainageFilleul.referred_email == mail]
+    if user is not None:
+        conditions.append(ParrainageFilleul.referred_user_id == user.id)
+    return db.execute(select(ParrainageFilleul.id).where(or_(*conditions))).first() is not None
+
+
 def attach_referral(
     db: Session,
     code: str | None,
@@ -193,6 +205,8 @@ def attach_referral(
     ):
         return None  # auto-parrainage
 
+    if _filleul_parrain(db, user, mail):
+        return None  # déjà filleul d'un parrain : premier lien retenu
     if _deja_client(db, user, mail, exclure_customer):
         return None
 

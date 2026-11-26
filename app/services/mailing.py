@@ -36,6 +36,7 @@ from app.core.prepa_adjuris_config import (
 from app.db.models import (
     Ambassador,
     MailCampaign,
+    Parrain,
     PrepaAdjurisClasse,
     PrepaAdjurisProfesseur,
     User,
@@ -97,6 +98,19 @@ def _ambassadeurs(db: Session, status: str) -> dict[str, str]:
     )
     for email, prenom in rows:
         _ajouter(out, email, prenom)
+    return out
+
+
+def _parrains(db: Session) -> dict[str, str]:
+    out: dict[str, str] = {}
+    rows = db.execute(
+        select(User.email, User.username)
+        .select_from(Parrain)
+        .join(User, User.id == Parrain.user_id)
+        .where(Parrain.status == "active")
+    )
+    for email, username in rows:
+        _ajouter(out, email, username)
     return out
 
 
@@ -168,6 +182,7 @@ SEGMENTS_FIXES = [
     ("abonnes", "Abonnés NAVIRE AI (membre, membre+)", lambda db: _users(db, User.plan.in_(("membre", "membre+")))),
     ("ambassadeurs", "Ambassadeurs", lambda db: _ambassadeurs(db, "approved")),
     ("ambassadeurs_candidats", "Candidats ambassadeurs (en attente)", lambda db: _ambassadeurs(db, "pending")),
+    ("parrains", "Parrains (parrainage étudiant)", _parrains),
     ("professeurs", "Professeurs", _professeurs),
     ("adjuris", "Prép'AdJuris — tous les étudiants", None),
     ("admins", "Admins", lambda db: _users(db, User.is_admin == True)),  # noqa: E712

@@ -894,6 +894,62 @@ def mail_ambassador_commission(prenom: str, filleul: str, montant_eur: str) -> t
     return subject, html
 
 
+# ------------------------------------------------------------
+# Parrainage étudiant
+# ------------------------------------------------------------
+
+def mail_parrainage_bienvenue(nom: str, link: str, credit_eur: str) -> tuple[str, str]:
+    """(subject, html) envoyé à l'élève qui active son lien de parrainage."""
+    from html import escape
+    subject = "Ton lien de parrainage NAVIRE est prêt"
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {escape(nom)},</p>
+    <p>
+      Ton lien de parrainage Prép'AdJuris est actif. Pour chaque matière dont
+      un ami paie l'inscription avec ce lien, tu gagnes <strong>{credit_eur}</strong>,
+      déduits automatiquement de tes prochains prélèvements.
+    </p>
+    <p style="word-break: break-all;"><a href="{escape(link)}">{escape(link)}</a></p>
+    {_bouton(f"{FRONTEND_URL}/parrainage", "Ma page parrainage")}
+""", preheader="Invite tes amis et réduis tes prélèvements.")
+    return subject, html
+
+
+def mail_parrainage_recompense(nom: str, filleul: str, montant_eur: str, delai_jours: int) -> tuple[str, str]:
+    """(subject, html) envoyé au parrain quand son filleul paie son inscription."""
+    from html import escape
+    subject = f"+{montant_eur} : ton ami a rejoint Prép'AdJuris"
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {escape(nom)},</p>
+    <p>
+      <strong>{escape(filleul)}</strong> vient de payer son inscription Prép'AdJuris
+      grâce à ton lien. Tu gagnes <strong>{montant_eur}</strong> de réduction.
+    </p>
+    <p style="font-size: 0.85em; color: #888;">
+      La réduction est créditée automatiquement sur ton compte après le délai de
+      rétractation de {delai_jours} jours, puis déduite de tes prochains prélèvements.
+    </p>
+    {_bouton(f"{FRONTEND_URL}/parrainage", "Voir mes récompenses")}
+""", preheader=f"Tu gagnes {montant_eur} de réduction.")
+    return subject, html
+
+
+def mail_parrainage_credit(nom: str, montant_eur: str) -> tuple[str, str]:
+    """(subject, html) envoyé quand la récompense est créditée sur Stripe."""
+    from html import escape
+    subject = f"{montant_eur} crédités sur ton compte Prép'AdJuris"
+    html = layout(f"""
+    <p style="margin-top:0;">Bonjour {escape(nom)},</p>
+    <p>
+      Ta récompense de parrainage de <strong>{montant_eur}</strong> vient d'être
+      créditée. Elle sera déduite automatiquement de ton prochain prélèvement
+      Prép'AdJuris.
+    </p>
+    {_bouton(f"{FRONTEND_URL}/parrainage", "Ma page parrainage")}
+""", preheader=f"{montant_eur} en moins sur ton prochain prélèvement.")
+    return subject, html
+
+
 EMAIL_CATALOG: dict[str, dict] = {
     "verification_code": {
         "label": "Code de confirmation (inscription)",
@@ -993,6 +1049,23 @@ EMAIL_CATALOG: dict[str, dict] = {
         "label": "Ambassadeur : nouvelle commission",
         "trigger": "Webhook Stripe : inscription Prép'AdJuris payée par un filleul",
         "render": lambda: mail_ambassador_commission("Julie", "marc_l2", "4,00 €"),
+    },
+    "parrainage_bienvenue": {
+        "label": "Parrainage : lien activé",
+        "trigger": "POST /parrainage/join",
+        "render": lambda: mail_parrainage_bienvenue(
+            "Julie", f"{FRONTEND_URL}/rejoindre?ref=JULIE-7K2", "2,00 €"
+        ),
+    },
+    "parrainage_recompense": {
+        "label": "Parrainage : un ami a payé son inscription",
+        "trigger": "Webhook Stripe : inscription Prép'AdJuris payée par un filleul",
+        "render": lambda: mail_parrainage_recompense("Julie", "marc_l2", "4,00 €", 14),
+    },
+    "parrainage_credit": {
+        "label": "Parrainage : récompense créditée sur Stripe",
+        "trigger": "Job horaire, 14 jours après le paiement du filleul",
+        "render": lambda: mail_parrainage_credit("Julie", "4,00 €"),
     },
 }
 

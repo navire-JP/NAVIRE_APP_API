@@ -95,7 +95,7 @@ class PrepaAdjurisCheckoutIn(BaseModel):
     matiere_key: str | None = None
     matieres: list[str] | None = None
     promo_code: str | None = None
-    # Code ambassadeur de la page /rejoindre (programme de parrainage).
+    # Code du lien /rejoindre : ambassadeur ou parrain (parrainage étudiant).
     ref: str | None = Field(None, max_length=40)
     # Slug de la fiche professeur d'où part l'inscription (?prof=…) : l'élève
     # rejoint le groupe de ce professeur dans les matières qu'il enseigne.
@@ -124,7 +124,7 @@ class PrepaAdjurisInscriptionIn(BaseModel):
 
     promo_code: str | None = None
 
-    # Code ambassadeur de la page /rejoindre (programme de parrainage).
+    # Code du lien /rejoindre : ambassadeur ou parrain (parrainage étudiant).
     ref: str | None = Field(None, max_length=40)
 
     # Slug de la fiche professeur d'où part l'inscription (?prof=…).
@@ -503,24 +503,33 @@ def _metadata_fiche_prof(db: Session, slug: str | None, matieres: list[str]) -> 
 
 def _metadata_parrainage(db: Session, ref: str | None, user: User | None = None) -> dict:
     """
-    Programme ambassadeur : code à porter dans la metadata du Checkout, lu par
-    le webhook pour créer la commission. Un compte connecté est rattaché tout
-    de suite (il apparaît comme filleul avant même de payer) ; un paiement
-    sans compte l'est par le webhook, sur son email. Jamais bloquant.
+    Programme ambassadeur et parrainage étudiant : code à porter dans la
+    metadata du Checkout, lu par le webhook pour créer la commission
+    (ambassador_code) ou la récompense du parrain (parrain_code). Un compte
+    connecté est rattaché tout de suite (il apparaît comme filleul avant même
+    de payer) ; un paiement sans compte l'est par le webhook, sur son email.
+    Jamais bloquant.
     """
-    from app.services import ambassadors as parrainage
+    from app.db.models import Ambassador, AmbassadorReferral, Parrain, ParrainageFilleul
+    from app.services import ambassadors, parrainage
     try:
         if user is not None:
-            rattache = parrainage.attach_referral(db, ref, user=user, source="checkout")
-            if rattache is not None:
-                amb = db.get(parrainage.Ambassador, rattache.ambassador_id)
+            rattache = parrainage.attach_any(db, ref, user=user, source="checkout")
+            if isinstance(rattache, AmbassadorReferral):
+                amb = db.get(Ambassador, rattache.ambassador_id)
                 return {"ambassador_code": amb.code} if amb and amb.code else {}
+            if isinstance(rattache, ParrainageFilleul):
+                p = db.get(Parrain, rattache.parrain_id)
+                return {"parrain_code": p.code} if p else {}
             return {}
-        amb = parrainage.find_active(db, ref)
-        return {"ambassador_code": amb.code} if amb else {}
+        amb = ambassadors.find_active(db, ref)
+        if amb is not None:
+            return {"ambassador_code": amb.code}
+        p = parrainage.find_active(db, ref)
+        return {"parrain_code": p.code} if p else {}
     except Exception:  # noqa: BLE001
         db.rollback()
-        logger.exception("Code ambassadeur ignoré au checkout")
+        logger.exception("Code de parrainage ignoré au checkout")
         return {}
 
 
