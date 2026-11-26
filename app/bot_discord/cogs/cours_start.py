@@ -10,7 +10,9 @@ Salon #cours-start : les professeurs lancent leur cours depuis Discord.
   tout seul (aucune édition de message nécessaire).
 - Au-delà de l'heure, le cours est en extra. Après 10 minutes d'extra, le
   bouton « Ajouter un extra » liste les étudiants du groupe (nom, et pseudo
-  Discord si le compte est lié) ; le professeur retire ceux qui partent.
+  Discord si le compte est lié), pré-cochés par la présence auto : seuls
+  ceux qui sont dans le salon vocal du groupe sont cochés. Le professeur
+  remet un oublié et retire ceux qui partent.
 - « Terminer le cours » : avec un extra, le cours compte 1 h 30 et chaque
   étudiant resté est facturé 10 € (règles : app/services/cours_live.py).
 
@@ -88,7 +90,10 @@ def _pseudo(guild: discord.Guild | None, discord_id: str | None) -> str:
 def _ligne_eleve(guild: discord.Guild | None, e: dict) -> str:
     pseudo = _pseudo(guild, e.get("discord_id"))
     texte = e["nom"] + (f" ({pseudo})" if pseudo else "")
-    return f"~~{texte}~~ — retiré" if e["retire"] else texte
+    if not e["retire"]:
+        return texte
+    raison = {"absent": "absent du vocal", "non_relie": "Discord non relié, à vérifier"}.get(e.get("vocal"), "retiré")
+    return f"~~{texte}~~ — {raison}"
 
 
 def _liste_eleves(guild: discord.Guild | None, c: dict) -> str:
@@ -141,13 +146,15 @@ def build_cours_embed(c: dict, guild: discord.Guild | None, confirmer: bool = Fa
         desc += (
             f"Heure terminée <t:{fin_h}:R> : le cours est en extra depuis plus de 10 minutes.\n\n"
             f"Tu peux ajouter l'extra : le cours comptera 1 h 30 et chaque élève "
-            f"resté sera facturé {prix}."
+            f"resté sera facturé {prix}. Seuls les élèves présents dans le salon "
+            f"vocal du groupe seront cochés."
         )
     else:  # extra_ajoute
         desc += (
             f"Extra ajouté <t:{c['extra_ts']}:R> : le cours compte 1 h 30.\n\n"
-            f"Retire les élèves qui quittent le cours. Les autres seront facturés "
-            f"{prix} à la fin du cours."
+            f"Les élèves présents dans le salon vocal sont cochés. Remets un élève "
+            f"oublié, retire ceux qui quittent le cours. Les élèves cochés seront "
+            f"facturés {prix} à la fin du cours."
         )
 
     embed = discord.Embed(title="Cours commencé", description=desc, color=COLOR_WHITE)

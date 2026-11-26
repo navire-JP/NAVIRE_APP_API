@@ -145,6 +145,7 @@ def enregistrer_releve(
                 db.add(p)
                 non_relies[discord_id] = p
         p.secondes = (p.secondes or 0) + credit
+        p.vu_le = maintenant
         if p.source == "discord":
             p.present = bool(p.user_id) and p.secondes >= seuil_secondes()
     db.commit()

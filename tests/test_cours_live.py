@@ -55,14 +55,14 @@ def monde(env, monkeypatch):
     from app.db.database import SessionLocal
     from app.db.models import (
         PrepaAdjurisAffectation, PrepaAdjurisClasse, PrepaAdjurisCours, PrepaAdjurisCoursEleve,
-        PrepaAdjurisEnrollment, PrepaAdjurisInscription, PrepaAdjurisProfesseur, User,
+        PrepaAdjurisEnrollment, PrepaAdjurisInscription, PrepaAdjurisProfesseur, PrepaPresence, User,
     )
 
     faux = _FauxStripe()
     monkeypatch.setattr(stripe.InvoiceItem, "create", faux.create)
 
     db = SessionLocal()
-    for m in (PrepaAdjurisCoursEleve, PrepaAdjurisCours, PrepaAdjurisAffectation, PrepaAdjurisProfesseur):
+    for m in (PrepaPresence, PrepaAdjurisCoursEleve, PrepaAdjurisCours, PrepaAdjurisAffectation, PrepaAdjurisProfesseur):
         db.query(m).delete()
     db.query(PrepaAdjurisEnrollment).filter(PrepaAdjurisEnrollment.matiere_key == MATIERE).delete()
     db.query(PrepaAdjurisClasse).delete()
@@ -96,7 +96,7 @@ def monde(env, monkeypatch):
     db.add(prof)
     db.commit()
     out = {"prof_discord": prof_u.discord_id, "alice_discord": alice.discord_id,
-           "classe_id": classe.id, "stripe": faux}
+           "bob_id": bob.id, "classe_id": classe.id, "stripe": faux}
     db.close()
     return out
 
@@ -239,3 +239,73 @@ def test_cours_oublie_clos_par_le_job(env, monde):
     row = db.get(PrepaAdjurisCours, cours["id"])
     assert row.statut == "termine" and row.cloture_auto and row.duree_comptee_minutes == 60
     db.close()
+
+
+def _cours_en_extra_avec_vocal(env, monde, bob_discord):
+    """Groupe relié à un salon vocal, Bob relié à Discord, cours lancé il y a 1 h 12."""
+    from app.db.database import SessionLocal
+    from app.db.models import PrepaAdjurisClasse, PrepaAdjurisCours, User
+
+    c = TestClient(env.app)
+    d = {"discord_id": monde["prof_discord"]}
+    db = SessionLocal()
+    db.get(PrepaAdjurisClasse, monde["classe_id"]).discord_vocal_id = "1533885924121903154"
+    db.get(User, monde["bob_id"]).discord_id = bob_discord
+    db.commit()
+    cours = c.post("/discord/cours/start", headers=_bot(), json={**d, "classe_id": monde["classe_id"]}).json()["cours"]
+    db.get(PrepaAdjurisCours, cours["id"]).started_at = datetime.now(timezone.utc) - timedelta(minutes=72)
+    db.commit()
+    db.close()
+    return c, d, cours
+
+
+def test_extra_precoche_par_la_presence_auto(env, monde):
+    """Seuls les élèves dans le vocal au dernier relevé sont cochés : Bob
+    (relié, absent du vocal) et Chloé (Discord non relié) ne sont pas facturés,
+    sauf si le professeur les remet."""
+    c, d, cours = _cours_en_extra_avec_vocal(env, monde, f"2{uuid.uuid4().hex[:6]}")
+
+    # Le bot voit Alice (et le professeur, jamais compté) dans le vocal.
+    r = c.post(f"/discord/cours/{cours['id']}/presence", headers=_bot(), json={"membres": [
+        {"discord_id": monde["alice_discord"], "nom": "alice"},
+        {"discord_id": monde["prof_discord"], "nom": "prof"},
+    ]}).json()
+    assert r["ok"] and r["secondes"] > 0
+
+    r = c.post(f"/discord/cours/{cours['id']}/extra", headers=_bot(), json=d).json()
+    assert r["ok"], r
+    eleves = {e["nom"]: e for e in r["cours"]["eleves"]}
+    assert {n: (e["retire"], e["vocal"]) for n, e in eleves.items()} == {
+        "Alice Martin": (False, "vocal"), "bob": (True, "absent"), "chloe": (True, "non_relie"),
+    }
+    assert r["cours"]["nb_restants"] == 1
+
+    # Chloé était bien là (Discord non relié) : le professeur la remet.
+    r = c.post(f"/discord/cours/{cours['id']}/eleves/{eleves['chloe']['id']}/toggle", headers=_bot(), json=d).json()
+    assert r["cours"]["nb_restants"] == 2
+
+    fin = c.post(f"/discord/cours/{cours['id']}/end", headers=_bot(), json=d).json()["cours"]
+    assert {e["nom"]: e["facturation"] for e in fin["eleves"]} == {
+        "Alice Martin": "facture", "bob": None, "chloe": "sans_paiement",
+    }
+    items = monde["stripe"].items
+    assert len(items) == 1 and items[0]["customer"] == "cus_alice"
+
+
+def test_extra_sans_releve_recent_tout_le_groupe_coche(env, monde):
+    """Bot arrêté (dernier relevé trop vieux) : on ne se fie pas au vocal,
+    tout le groupe est coché comme avant et le professeur retire les absents."""
+    from app.db.database import SessionLocal
+    from app.db.models import PrepaAdjurisCours
+
+    c, d, cours = _cours_en_extra_avec_vocal(env, monde, f"2{uuid.uuid4().hex[:6]}")
+    c.post(f"/discord/cours/{cours['id']}/presence", headers=_bot(),
+           json={"membres": [{"discord_id": monde["alice_discord"], "nom": "alice"}]})
+    db = SessionLocal()
+    db.get(PrepaAdjurisCours, cours["id"]).presence_releve_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    db.commit()
+    db.close()
+
+    r = c.post(f"/discord/cours/{cours['id']}/extra", headers=_bot(), json=d).json()
+    assert [(e["retire"], e["vocal"]) for e in r["cours"]["eleves"]] == [(False, None)] * 3
+    assert r["cours"]["nb_restants"] == 3

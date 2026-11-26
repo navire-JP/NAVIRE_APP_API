@@ -185,6 +185,9 @@ _STATEMENTS: list[str] = [
     "ALTER TABLE prepa_adjuris_classes ADD COLUMN IF NOT EXISTS discord_vocal_id VARCHAR(32) NOT NULL DEFAULT ''",
     "ALTER TABLE prepa_adjuris_cours ADD COLUMN IF NOT EXISTS presence_releve_at TIMESTAMPTZ",
     "ALTER TABLE prepa_adjuris_cours ADD COLUMN IF NOT EXISTS cree_par_admin BOOLEAN NOT NULL DEFAULT FALSE",
+    # ── Extra pré-coché par la présence auto : qui est dans le vocal à l'ajout.
+    "ALTER TABLE prepa_presences ADD COLUMN IF NOT EXISTS vu_le TIMESTAMPTZ",
+    "ALTER TABLE prepa_adjuris_cours_eleves ADD COLUMN IF NOT EXISTS vocal_statut VARCHAR(16)",
 ]
 
 

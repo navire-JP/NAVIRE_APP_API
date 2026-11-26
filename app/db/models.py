@@ -2504,6 +2504,11 @@ class PrepaAdjurisCoursEleve(Base):
     discord_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     retire_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Pré-cochage par la présence auto quand l'extra est ajouté
+    # (app/services/cours_live.py) : vocal (coché) | absent | non_relie
+    # (décochés, le professeur peut les remettre) | NULL (pas de relevé
+    # fiable : tout le groupe est coché, comme avant).
+    vocal_statut: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     extra_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     facturation: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
@@ -2544,6 +2549,8 @@ class PrepaPresence(Base):
     discord_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     nom: Mapped[str] = mapped_column(String(170), default="", nullable=False)
     secondes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Dernier relevé où la personne était dans le salon vocal (pré-cochage de l'extra).
+    vu_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     present: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     source: Mapped[str] = mapped_column(String(16), default="discord", nullable=False)
     modifie_par_id: Mapped[int | None] = mapped_column(

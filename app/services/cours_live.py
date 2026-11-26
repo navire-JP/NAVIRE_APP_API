@@ -10,8 +10,13 @@ Règles :
     cours en cours à la fois par professeur : relancer rouvre le cours en cours.
   - Le cours dure PREPA_COURS_DUREE_MINUTES (1 h). Au-delà, il est en extra.
   - Une fois l'extra dépassé de PREPA_EXTRA_SEUIL_MINUTES (10 min), le
-    professeur peut ajouter l'extra : les étudiants du groupe sont listés, il
-    retire ceux qui partent.
+    professeur peut ajouter l'extra : les étudiants du groupe sont listés,
+    pré-cochés par la présence auto (app/services/presences.py). Seuls ceux
+    vus dans le salon vocal du groupe au dernier relevé du bot sont cochés ;
+    les absents du vocal et les comptes Discord non reliés sont décochés, le
+    professeur peut les remettre. Sans relevé récent (pas de salon vocal,
+    bot arrêté), tout le groupe est coché comme avant. Le professeur retire
+    ensuite ceux qui partent.
   - À la fin du cours, un extra ajouté fait compter le cours
     PREPA_EXTRA_DUREE_COMPTEE (1 h 30) et facture PREPA_EXTRA_PRIX_CENTS
     (10 €) à chaque étudiant resté. Le supplément est ajouté au prochain
@@ -51,6 +56,7 @@ from app.db.models import (
     PrepaAdjurisInscription,
     PrepaAdjurisProfesseur,
     PrepaAdjurisSeance,
+    PrepaPresence,
     User,
 )
 from app.services import professeurs as profs
@@ -60,6 +66,10 @@ logger = logging.getLogger(__name__)
 
 # Inscriptions dont l'abonnement Stripe prélève encore.
 _STATUTS_FACTURABLES = ("active", "payment_failed")
+
+# Pré-cochage de l'extra : le bot relève le vocal chaque minute. Un relevé
+# plus vieux que ça = bot arrêté, on ne s'y fie pas.
+VOCAL_FRAIS_SECONDES = 150
 
 
 class CoursErreur(Exception):
@@ -233,11 +243,36 @@ def ajouter_extra(db: Session, c: PrepaAdjurisCours, maintenant: datetime | None
     if p in ("heure", "extra"):
         raise CoursErreur("L'extra ne peut être ajouté qu'après 10 minutes de dépassement.")
     c.extra_at = maintenant
+    dans_le_vocal = _dans_le_vocal(db, c, maintenant)
     for eleve in _eleves_du_groupe(db, c.classe):
+        if dans_le_vocal is not None:
+            if eleve.user_id in dans_le_vocal:
+                eleve.vocal_statut = "vocal"
+            else:
+                eleve.vocal_statut = "absent" if eleve.discord_id else "non_relie"
+                eleve.retire_le = maintenant
         c.eleves.append(eleve)
     db.commit()
     db.refresh(c)
     return c
+
+
+def _dans_le_vocal(db: Session, c: PrepaAdjurisCours, maintenant: datetime) -> set[int] | None:
+    """Comptes NAVIRE vus dans le salon vocal du groupe au dernier relevé du
+    bot, ou None si la présence auto n'est pas fiable (pas de salon vocal,
+    aucun relevé récent)."""
+    vocal = (c.classe.discord_vocal_id or "").strip() if c.classe else ""
+    releve = aware(c.presence_releve_at)
+    if not vocal or releve is None or (aware(maintenant) - releve).total_seconds() > VOCAL_FRAIS_SECONDES:
+        return None
+    # Une seconde de marge : le relevé et vu_le portent la même heure.
+    depuis = releve - timedelta(seconds=1)
+    return {
+        p.user_id for p in db.execute(
+            select(PrepaPresence).where(PrepaPresence.cours_id == c.id, PrepaPresence.user_id.is_not(None))
+        ).scalars()
+        if p.vu_le is not None and aware(p.vu_le) >= depuis
+    }
 
 
 def basculer_eleve(db: Session, c: PrepaAdjurisCours, eleve_id: int, maintenant: datetime | None = None) -> PrepaAdjurisCours:
@@ -390,6 +425,7 @@ def cours_payload(c: PrepaAdjurisCours, maintenant: datetime | None = None) -> d
             "nom": e.nom,
             "discord_id": e.discord_id,
             "retire": e.retire_le is not None,
+            "vocal": e.vocal_statut,
             "facturation": e.facturation,
         }
         for e in c.eleves
