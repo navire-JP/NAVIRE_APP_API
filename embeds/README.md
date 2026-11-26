@@ -87,11 +87,11 @@ HTML de la page `/parrainage` (ou le composant `NavireEmbed`, page
 - **Lien** : `navire-ai.com/rejoindre?ref=CODE`, la même page que les
   ambassadeurs (`rejoindre.html` reconnaît les deux sortes de codes). Lien de
   partage avec photo : `/ambassadors/invite/CODE`.
-- **Récompenses** : quand l'ami paie sa première inscription, le parrain
-  économise `PARRAINAGE_CREDIT_PARRAIN_CENTS` et l'ami
-  `PARRAINAGE_CREDIT_FILLEUL_CENTS` (variables Render, 5 € chacun par défaut).
-  Une seule fois par ami, quel que soit le nombre de matières ; rien sur les
-  mensualités.
+- **Récompenses** (variables Render) : le parrain gagne
+  `PARRAINAGE_CREDIT_PARRAIN_PAR_MATIERE_CENTS` (5 € par défaut) par matière
+  dont l'ami paie l'inscription, y compris une matière ajoutée plus tard ;
+  l'ami économise `PARRAINAGE_CREDIT_FILLEUL_CENTS` (5 €) une fois, à sa
+  première inscription. Rien sur les mensualités.
 - **Calcul automatique sur Stripe** : les deux réductions sont des crédits sur
   le **solde client Stripe** (`Customer balance`, montant négatif) que Stripe
   déduit tout seul des prochains prélèvements ; elles apparaissent sur les

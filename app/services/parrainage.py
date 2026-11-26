@@ -16,13 +16,13 @@ avec trois différences :
     son propre solde Stripe dès son paiement.
 
 Règles :
-  - parrain : PARRAINAGE_CREDIT_PARRAIN_CENTS (5 € par défaut) par ami qui paie
-    son inscription, crédités par le job horaire une fois le délai de
+  - parrain : PARRAINAGE_CREDIT_PARRAIN_PAR_MATIERE_CENTS (5 € par défaut) par
+    matière dont l'ami paie l'inscription (un paiement ultérieur qui ajoute une
+    matière compte aussi), crédités par le job horaire une fois le délai de
     rétractation passé (un remboursement pendant ce délai les annule) ;
-  - filleul : PARRAINAGE_CREDIT_FILLEUL_CENTS (5 € par défaut), crédités tout
-    de suite par le webhook ;
-  - une seule fois par ami (sa première inscription payée), quel que soit le
-    nombre de matières ; rien sur les mensualités ;
+  - filleul : PARRAINAGE_CREDIT_FILLEUL_CENTS (5 € par défaut), une seule fois,
+    à sa première inscription payée, crédités tout de suite par le webhook ;
+  - rien sur les mensualités ;
   - premier code utilisé = seul code retenu, tous programmes confondus (un
     filleul d'ambassadeur ne devient pas filleul d'un parrain, et inversement) ;
   - impossible de se parrainer soi-même ;
@@ -77,8 +77,8 @@ from app.services.ambassadors import (
 logger = logging.getLogger(__name__)
 
 # ── Réglages du programme ──────────────────────────────────────
-# Crédit offert au parrain, puis à l'ami, quand l'ami paie son inscription.
-PARRAINAGE_CREDIT_PARRAIN_CENTS = int(os.getenv("PARRAINAGE_CREDIT_PARRAIN_CENTS", "500"))
+# Parrain : par matière dont l'ami paie l'inscription. Ami : une fois.
+PARRAINAGE_CREDIT_PARRAIN_PAR_MATIERE_CENTS = int(os.getenv("PARRAINAGE_CREDIT_PARRAIN_PAR_MATIERE_CENTS", "500"))
 PARRAINAGE_CREDIT_FILLEUL_CENTS = int(os.getenv("PARRAINAGE_CREDIT_FILLEUL_CENTS", "500"))
 
 # Délai avant le crédit Stripe : durée du droit de rétractation.
@@ -299,19 +299,10 @@ def record_reward(
     if parrain is None or parrain.status != "active":
         return None
 
-    # Une seule récompense par ami : sa première inscription payée.
-    deja_recompense = db.execute(
-        select(ParrainageRecompense.id).where(
-            ParrainageRecompense.filleul_id == ref.id, ParrainageRecompense.status != "cancelled"
-        )
-    ).first()
-    if deja_recompense:
-        return None
-
     recompense = ParrainageRecompense(
         parrain_id=parrain.id,
         filleul_id=ref.id,
-        amount_cents=PARRAINAGE_CREDIT_PARRAIN_CENTS,
+        amount_cents=PARRAINAGE_CREDIT_PARRAIN_PAR_MATIERE_CENTS * len(matiere_keys),
         matiere_keys=list(matiere_keys),
         stripe_checkout_session_id=session_id,
         stripe_payment_intent_id=session.get("payment_intent"),
@@ -378,11 +369,12 @@ def crediter(db: Session, r: ParrainageRecompense) -> bool:
         return False
 
     filleul = r.filleul.referred_user.username if r.filleul and r.filleul.referred_user else "un ami"
+    n = len(r.matiere_keys or [])
     try:
         tx_id = _crediter_solde(
             inscription.stripe_customer_id,
             r.amount_cents,
-            description=f"Parrainage NAVIRE : inscription de {filleul}",
+            description=f"Parrainage NAVIRE : inscription de {filleul} ({n} matière{'s' if n > 1 else ''})",
             metadata={"parrainage_recompense_id": str(r.id), "parrain_code": parrain.code},
             idempotency_key=f"navire-parrainage-{r.id}",
         )

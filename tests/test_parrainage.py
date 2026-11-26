@@ -145,7 +145,7 @@ def test_reserve_aux_eleves_prepa(env, mails):
     assert client.get("/parrainage/me/dashboard", headers=_headers(marc)).status_code == 403
 
     terms = client.get("/parrainage/terms").json()
-    assert terms["credit_parrain_cents"] == 500 and terms["credit_filleul_cents"] == 500
+    assert terms["credit_parrain_par_matiere_cents"] == 500 and terms["credit_filleul_cents"] == 500
     assert len(terms["conditions"]) >= 5
 
 
@@ -219,7 +219,7 @@ def test_ami_inscrit_paie_puis_credit_stripe(monde, mails, stripe_calls):
         _commission_ambassadeur(db, session, ami, email, ["l2_civil", "l2_admin"])
         _recompense_parrainage(db, session, ami, email, ["l2_civil", "l2_admin"])
     assert db.query(AmbassadorCommission).filter_by(stripe_checkout_session_id=session["id"]).count() == 0
-    assert sum(1 for m in mails if m["to"] == julie.email and "+5,00" in m["subject"]) == 1
+    assert sum(1 for m in mails if m["to"] == julie.email and "+10,00" in m["subject"]) == 1
 
     # L'ami : 5 € crédités tout de suite sur le client Stripe de son paiement, une seule fois.
     assert len(stripe_calls) == 1
@@ -230,16 +230,20 @@ def test_ami_inscrit_paie_puis_credit_stripe(monde, mails, stripe_calls):
     assert red.status == "credited"
     stripe_calls.clear()
 
-    # Montant fixe, une fois par ami, quel que soit le nombre de matières.
+    # Parrain : 5 € par matière (2 matières → 10 €).
     dash = client.get("/parrainage/me/dashboard", headers=_headers(julie)).json()
     assert dash["stats"]["paying"] == 1 and dash["stats"]["matieres"] == 2
-    assert dash["earnings"]["pending_cents"] == 500 and dash["earnings"]["credited_cents"] == 0
+    assert dash["earnings"]["pending_cents"] == 1000 and dash["earnings"]["credited_cents"] == 0
 
-    # Un second paiement du même ami (matière ajoutée) ne donne rien de plus.
+    # Matière ajoutée plus tard : +5 € pour le parrain, rien de plus pour l'ami.
     session2 = _session_payee("cus_ami2", email, ["l2_penal"])
     _recompense_parrainage(db, session2, ami, email, ["l2_penal"])
-    assert db.query(svc.ParrainageRecompense).filter_by(stripe_checkout_session_id=session2["id"]).count() == 0
+    r2 = db.query(svc.ParrainageRecompense).filter_by(stripe_checkout_session_id=session2["id"]).one()
+    assert r2.amount_cents == 500
     assert stripe_calls == []
+    assert db.query(svc.ParrainageReductionFilleul).filter_by(stripe_checkout_session_id=session2["id"]).count() == 0
+    r2.status = "cancelled"  # hors du reste du scénario
+    db.commit()
 
     # Avant le délai : le job ne crédite rien.
     assert svc.crediter_recompenses(db) == [] and stripe_calls == []
@@ -251,7 +255,7 @@ def test_ami_inscrit_paie_puis_credit_stripe(monde, mails, stripe_calls):
     faites = svc.crediter_recompenses(db)
     assert [x.id for x in faites] == [rec.id]
     assert stripe_calls == [{
-        "customer": monde["customer"], "amount": -500, "currency": "eur",
+        "customer": monde["customer"], "amount": -1000, "currency": "eur",
         "description": stripe_calls[0]["description"],
         "metadata": {"parrainage_recompense_id": str(rec.id), "parrain_code": code},
         "idempotency_key": f"navire-parrainage-{rec.id}",
@@ -266,7 +270,7 @@ def test_ami_inscrit_paie_puis_credit_stripe(monde, mails, stripe_calls):
     db.close()
 
     dash = client.get("/parrainage/me/dashboard", headers=_headers(julie)).json()
-    assert dash["earnings"]["credited_cents"] == 500
+    assert dash["earnings"]["credited_cents"] == 1000
     assert dash["referrals"][0]["reward_status"] == "credited"
 
 
